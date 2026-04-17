@@ -3,11 +3,13 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, CalendarCheck, Star, Calendar } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import Modal, { useModal } from '@/components/ui/Modal';
 
 export default function EventosListPage() {
   const router = useRouter();
   const [eventos, setEventos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const { modal, showModal, closeModal } = useModal();
 
   const fetchEventos = async () => {
     try {
@@ -34,23 +36,23 @@ export default function EventosListPage() {
       await fetch(`http://localhost:3334/admin/eventos/${id}/set-principal`, { method: 'PUT' });
       fetchEventos();
     } catch (err) {
-      alert("Error cambiando a principal");
+      showModal('error', 'Error', 'No se pudo cambiar el evento principal. Intenta de nuevo.');
     }
   };
 
-  const handleDelete = async (id: number, esPrincipal: number) => {
+  const handleDelete = (id: number, esPrincipal: number) => {
     if (esPrincipal === 1) {
-      alert('No puedes eliminar el evento principal. Nombra a otro evento como principal primero.');
+      showModal('warning', 'Acción Denegada', 'No puedes eliminar el evento principal. Nombra a otro evento como principal primero.');
       return;
     }
-    if (confirm('¿Estás seguro de eliminar este evento?')) {
+    showModal('confirm', 'Eliminar Evento', '¿Estás seguro de que deseas eliminar este evento? Esta acción no se puede deshacer.', async () => {
       try {
         await fetch(`http://localhost:3334/admin/eventos/${id}`, { method: 'DELETE' });
         fetchEventos();
       } catch (err) {
-        alert("Error al eliminar");
+        showModal('error', 'Error', 'No se pudo eliminar el evento. Intenta de nuevo.');
       }
-    }
+    });
   };
 
   if (loading) {
@@ -137,6 +139,15 @@ export default function EventosListPage() {
           </div>
         )}
       </div>
+
+      <Modal
+        isOpen={modal.isOpen}
+        onClose={closeModal}
+        type={modal.type}
+        title={modal.title}
+        message={modal.message}
+        onConfirm={modal.onConfirm}
+      />
     </div>
   );
 }

@@ -3,8 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import { Info, LayoutGrid, CreditCard, QrCode, Plus, Trash2, Save, Image as ImageIcon } from 'lucide-react';
 import { useRouter, useParams } from 'next/navigation';
+import styles from './ConfiguracionEvento.module.css';
+import Modal, { useModal } from '@/components/ui/Modal';
 
-export default function EventConfigPage() {
+export default function ConfiguracionDeEventoPage() {
   const router = useRouter();
   const params = useParams();
   const isNew = params.id === 'nuevo';
@@ -27,11 +29,21 @@ export default function EventConfigPage() {
     costoParticipanteExtra: 100,
     urlImagenMapaRecinto: '',
     urlImagenCronogramaCharlas: '',
+    urlLogoEvento: '',
+    sobreElEvento: '',
+    correoContacto: '',
+    telefonoContacto: '',
+    enlaceFacebook: '',
+    enlaceInstagram: '',
+    enlaceTwitterX: '',
   });
 
   const [reglasQR, setReglasQR] = useState([
     { rangoDesde: 1, rangoHasta: 2, monto: 500, urlQR: '' }
   ]);
+
+  const [uploadingField, setUploadingField] = useState<string | null>(null);
+  const { modal, showModal, closeModal } = useModal();
 
   useEffect(() => {
     if (isNew) return;
@@ -57,6 +69,13 @@ export default function EventConfigPage() {
             costoParticipanteExtra: data.costoParticipanteExtra || 100,
             urlImagenMapaRecinto: data.urlImagenMapaRecinto || '',
             urlImagenCronogramaCharlas: data.urlImagenCronogramaCharlas || '',
+            urlLogoEvento: data.urlLogoEvento || '',
+            sobreElEvento: data.sobreElEvento || '',
+            correoContacto: data.correoContacto || '',
+            telefonoContacto: data.telefonoContacto || '',
+            enlaceFacebook: data.enlaceFacebook || '',
+            enlaceInstagram: data.enlaceInstagram || '',
+            enlaceTwitterX: data.enlaceTwitterX || '',
           });
           if (data.eventoreglaqr && data.eventoreglaqr.length > 0) {
             setReglasQR(data.eventoreglaqr.map((r: any) => ({
@@ -97,23 +116,85 @@ export default function EventConfigPage() {
     setReglasQR(reglasQR.filter((_, i) => i !== index));
   };
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, fieldName: string, index?: number) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const file = e.target.files[0];
+    
+    setUploadingField(index !== undefined ? `${fieldName}-${index}` : fieldName);
+    
+    const fd = new FormData();
+    fd.append('file', file);
+
+    try {
+      const res = await fetch('http://localhost:3334/admin/imagenes/upload', {
+        method: 'POST',
+        body: fd,
+      });
+      const data = await res.json();
+      
+      if (data.url) {
+        if (fieldName === 'urlQR' && index !== undefined) {
+          const newRules = [...reglasQR];
+          (newRules[index] as any).urlQR = data.url;
+          setReglasQR(newRules);
+        } else {
+          setFormData(prev => ({ ...prev, [fieldName]: data.url }));
+        }
+      } else {
+        showModal('error', 'Error de Carga', 'Respuesta inesperada al subir imagen.');
+      }
+    } catch (error) {
+      showModal('error', 'Error de Carga', 'No se pudo subir la imagen. Intenta de nuevo.');
+    } finally {
+      setUploadingField(null);
+    }
+  };
+
+
   const handleSave = async () => {
     if (!formData.nombre || !formData.fechaInicioEvento || !formData.fechaFinEvento) {
-      alert('Por favor, completa los campos obligatorios (*).');
+      showModal('warning', 'Campos Obligatorios', 'Por favor completa: Nombre del evento, Fecha de inicio y Fecha de fin.');
       return;
     }
     
     if (formData.duracionReunion <= 0 || formData.cantidadTotalMesasEvento <= 0) {
-      alert('La duración de reunión y cantidad de mesas deben ser mayores a 0.');
+      showModal('warning', 'Datos Inválidos', 'La duración de reunión y la cantidad de mesas deben ser mayores a 0.');
       return;
     }
 
     setSaving(true);
-    const payload = {
-      ...formData,
+    
+    // Helper: convert empty strings to null for optional fields
+    const orNull = (v: string) => (v === '' ? null : v);
+    
+    const payload: any = {
+      nombre: formData.nombre,
+      edicion: formData.edicion || '',
+      descripcion: orNull(formData.descripcion),
       fechaInicioEvento: formData.fechaInicioEvento ? new Date(formData.fechaInicioEvento).toISOString() : new Date().toISOString(),
       fechaFinEvento: formData.fechaFinEvento ? new Date(formData.fechaFinEvento).toISOString() : new Date().toISOString(),
-      reglasQR
+      duracionReunion: Number(formData.duracionReunion),
+      tiempoEntreReuniones: Number(formData.tiempoEntreReuniones),
+      cantidadTotalMesasEvento: Number(formData.cantidadTotalMesasEvento),
+      capacidadPersonasPorMesa: Number(formData.capacidadPersonasPorMesa),
+      montoBaseIncripcionBolivianos: Number(formData.montoBaseIncripcionBolivianos),
+      cantidadParticipantesIncluidos: Number(formData.cantidadParticipantesIncluidos),
+      costoParticipanteExtra: Number(formData.costoParticipanteExtra),
+      urlImagenMapaRecinto: orNull(formData.urlImagenMapaRecinto),
+      urlImagenCronogramaCharlas: orNull(formData.urlImagenCronogramaCharlas),
+      urlLogoEvento: orNull(formData.urlLogoEvento),
+      sobreElEvento: orNull(formData.sobreElEvento),
+      correoContacto: orNull(formData.correoContacto),
+      telefonoContacto: orNull(formData.telefonoContacto),
+      enlaceFacebook: orNull(formData.enlaceFacebook),
+      enlaceInstagram: orNull(formData.enlaceInstagram),
+      enlaceTwitterX: orNull(formData.enlaceTwitterX),
+      reglasQR: reglasQR.map(r => ({
+        rangoDesde: Number(r.rangoDesde),
+        rangoHasta: Number(r.rangoHasta),
+        monto: Number(r.monto),
+        urlQR: r.urlQR || '',
+      })),
     };
 
     try {
@@ -127,185 +208,273 @@ export default function EventConfigPage() {
       });
       
       if (res.ok) {
-        alert('Evento guardado exitosamente.');
-        router.push('/admin/eventos');
+        showModal('success', '¡Guardado!', 'El evento se guardó exitosamente.');
+        setTimeout(() => router.push('/admin/eventos'), 1500);
       } else {
-        alert('Error guardando el evento.');
+        const errorData = await res.json().catch(() => null);
+        const msg = errorData?.message || 'Error desconocido del servidor.';
+        showModal('error', 'Error al Guardar', msg);
       }
     } catch (err) {
-      alert('Error de conexión.');
+      showModal('error', 'Sin Conexión', 'No se pudo conectar con el servidor. Verifica tu conexión.');
     } finally {
       setSaving(false);
     }
   };
 
   if (loading) {
-    return <div className="p-8">Cargando evento...</div>;
+    return <div className={styles.loader}>Cargando evento...</div>;
   }
 
   return (
-    <div className="p-4 sm:p-8 max-w-5xl mx-auto font-sans pb-24">
-      <div className="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center">
+    <div className={styles.pageContainer}>
+      <div className={styles.headerContainer}>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 pb-1">{isNew ? 'Crear Nuevo Evento' : 'Editar Evento'}</h1>
-          <p className="text-sm text-gray-500">Gestione los detalles y parámetros completos del evento en la base de datos.</p>
+          <h1 className={styles.title}>{isNew ? 'Crear Nuevo Evento' : 'Editar Evento'}</h1>
+          <p className={styles.subtitle}>Gestione los detalles y parámetros completos del evento en la base de datos.</p>
         </div>
-        <button className="hidden text-sm font-bold text-gray-600 hover:text-gray-900 px-4 py-3" onClick={() => router.push('/admin/eventos')}>Volver a la lista</button>
+        <button className={styles.backButton} onClick={() => router.push('/admin/eventos')}>Volver a la lista</button>
       </div>
 
-      <div className="space-y-6">
-        
+      <div>
         {/* Información General */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 sm:p-8">
-          <div className="flex items-center gap-2 mb-6 text-gray-900">
-            <Info className="w-5 h-5 text-[#5B9A27]" />
-            <h2 className="text-lg font-bold">Información General</h2>
+        <div className={styles.formSection}>
+          <div className={styles.sectionHeader}>
+            <Info className={styles.icon} />
+            <h2 className={styles.sectionTitle}>Información General</h2>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div className="col-span-1 md:col-span-2">
-              <label className="block text-[11px] font-bold text-gray-700 mb-2">Nombre del evento *</label>
-              <input required type="text" name="nombre" value={formData.nombre} onChange={handleChange} className="w-full bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm focus:border-[#5B9A27] focus:ring-1 focus:ring-[#5B9A27]" placeholder="Rueda de Negocios del Beni" />
+          <div className={styles.grid + " " + styles.grid3Lg}>
+            <div className={styles.colSpan2}>
+              <label className={styles.label}>Nombre del evento *</label>
+              <input required type="text" name="nombre" value={formData.nombre} onChange={handleChange} className={styles.input} placeholder="Rueda de Negocios" />
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-gray-700 mb-2">Edición</label>
-              <input type="text" name="edicion" value={formData.edicion} onChange={handleChange} className="w-full bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm focus:border-[#5B9A27] focus:ring-1 focus:ring-[#5B9A27]" placeholder="Ej. 2026" />
+              <label className={styles.label}>Edición</label>
+              <input type="text" name="edicion" value={formData.edicion} onChange={handleChange} className={styles.input} placeholder="Ej. 2026" />
             </div>
-            <div className="col-span-1 md:col-span-3">
-              <label className="block text-[11px] font-bold text-gray-700 mb-2">Descripción General</label>
-              <textarea name="descripcion" value={formData.descripcion} onChange={handleChange} className="w-full bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm focus:border-[#5B9A27] focus:ring-1 focus:ring-[#5B9A27] min-h-[100px]" placeholder="Añada historia o detalles del evento..." />
+            <div className={styles.colSpanAll}>
+              <label className={styles.label}>Descripción General</label>
+              <textarea name="descripcion" value={formData.descripcion} onChange={handleChange} className={styles.input + " " + styles.textarea} placeholder="Añada detalles del evento..." />
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-gray-700 mb-2">Fecha Inicio *</label>
-              <input required type="date" name="fechaInicioEvento" value={formData.fechaInicioEvento} onChange={handleChange} className="w-full bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm focus:border-[#5B9A27] focus:ring-1 focus:ring-[#5B9A27]" />
+              <label className={styles.label}>Fecha Inicio *</label>
+              <input required type="date" name="fechaInicioEvento" value={formData.fechaInicioEvento} onChange={handleChange} className={styles.input} />
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-gray-700 mb-2">Fecha Fin *</label>
-              <input required type="date" name="fechaFinEvento" value={formData.fechaFinEvento} onChange={handleChange} className="w-full bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm focus:border-[#5B9A27] focus:ring-1 focus:ring-[#5B9A27]" />
+              <label className={styles.label}>Fecha Fin *</label>
+              <input required type="date" name="fechaFinEvento" value={formData.fechaFinEvento} onChange={handleChange} className={styles.input} />
             </div>
-            <div></div>
+          </div>
 
-            <div className="col-span-1 md:col-span-3 border-t border-gray-100 pt-6 mt-2 grid grid-cols-1 sm:grid-cols-3 gap-6">
-               <div className="col-span-1 md:col-span-3 flex items-center gap-2 mb-2">
-                 <ImageIcon className="w-4 h-4 text-[#5B9A27]" />
-                 <h3 className="text-sm font-bold text-gray-900">Imágenes y Mapas</h3>
-               </div>
-               <div className="col-span-1 sm:col-span-2">
-                  <label className="block text-[11px] font-bold text-gray-700 mb-2">URL del Mapa del Recinto</label>
-                  <input type="text" name="urlImagenMapaRecinto" value={formData.urlImagenMapaRecinto} onChange={handleChange} className="w-full bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm focus:border-[#5B9A27]" placeholder="https://..." />
-               </div>
-               <div></div>
-               <div className="col-span-1 sm:col-span-2">
-                  <label className="block text-[11px] font-bold text-gray-700 mb-2">URL del Cronograma de Charlas</label>
-                  <input type="text" name="urlImagenCronogramaCharlas" value={formData.urlImagenCronogramaCharlas} onChange={handleChange} className="w-full bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm focus:border-[#5B9A27]" placeholder="https://..." />
-               </div>
+          <div className={styles.imageRow}>
+            <div className={styles.sectionHeader} style={{marginBottom: '0.5rem'}}>
+              <ImageIcon className={styles.icon} />
+              <h3 className={styles.sectionTitle} style={{fontSize: '1rem'}}>Imágenes y Mapas</h3>
             </div>
+            <div className={styles.grid + " " + styles.grid2}>
+              <div>
+                <label className={styles.label}>Mapa del Recinto</label>
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  onChange={(e) => handleImageUpload(e, 'urlImagenMapaRecinto')}
+                  style={{display: 'none'}} 
+                  id="upload-mapa"
+                />
+                <label htmlFor="upload-mapa" className={styles.uploadButton}>
+                  <ImageIcon size={14} /> Subir Imagen
+                </label>
+                {formData.urlImagenMapaRecinto && (
+                  <div style={{marginTop: '0.5rem', width: '100px', height: '60px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #eee'}}>
+                    <img src={formData.urlImagenMapaRecinto} alt="Mapa" style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+                  </div>
+                )}
+              </div>
+              
+              <div>
+                <label className={styles.label}>Cronograma de Charlas</label>
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  onChange={(e) => handleImageUpload(e, 'urlImagenCronogramaCharlas')}
+                  style={{display: 'none'}} 
+                  id="upload-cronograma"
+                />
+                <label htmlFor="upload-cronograma" className={styles.uploadButton}>
+                  <ImageIcon size={14} /> Subir Imagen
+                </label>
+                {formData.urlImagenCronogramaCharlas && (
+                  <div style={{marginTop: '0.5rem', width: '100px', height: '60px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #eee'}}>
+                    <img src={formData.urlImagenCronogramaCharlas} alt="Cronograma" style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
 
+        {/* Información Pública (Landing Page) */}
+        <div className={styles.formSection}>
+          <div className={styles.sectionHeader}>
+            <Info className={styles.icon} />
+            <h2 className={styles.sectionTitle}>Información Pública (Landing Page)</h2>
+          </div>
+          
+          <div className={styles.grid + " " + styles.grid3Lg} style={{marginBottom: '1.5rem'}}>
+            <div>
+              <label className={styles.label}>Correo de Contacto</label>
+              <input type="email" name="correoContacto" value={formData.correoContacto} onChange={handleChange} className={styles.input} placeholder="info@ejemplo.com" />
+            </div>
+            <div>
+              <label className={styles.label}>Teléfono/WhatsApp</label>
+              <input type="text" name="telefonoContacto" value={formData.telefonoContacto} onChange={handleChange} className={styles.input} placeholder="+591 70000000" />
+            </div>
+            <div>
+              <label className={styles.label}>Logo del Evento</label>
+              <input 
+                type="file" 
+                accept="image/*" 
+                onChange={(e) => handleImageUpload(e, 'urlLogoEvento')}
+                style={{display: 'none'}} 
+                id="upload-logo"
+              />
+              <label htmlFor="upload-logo" className={styles.uploadButton}>
+                <ImageIcon size={14} /> Subir Imagen
+              </label>
+              {formData.urlLogoEvento && (
+                <div style={{marginTop: '0.5rem', width: '60px', height: '60px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #eee'}}>
+                  <img src={formData.urlLogoEvento} alt="Logo" style={{width: '100%', height: '100%', objectFit: 'contain'}} />
+                </div>
+              )}
+            </div>
+          </div>
+          
+          <div className={styles.grid + " " + styles.grid3Lg}>
+            <div>
+              <label className={styles.label}>Enlace Facebook</label>
+              <input type="text" name="enlaceFacebook" value={formData.enlaceFacebook} onChange={handleChange} className={styles.input} placeholder="https://facebook.com/..." />
+            </div>
+            <div>
+              <label className={styles.label}>Enlace Instagram</label>
+              <input type="text" name="enlaceInstagram" value={formData.enlaceInstagram} onChange={handleChange} className={styles.input} placeholder="https://instagram.com/..." />
+            </div>
+            <div>
+              <label className={styles.label}>Enlace Twitter/X</label>
+              <input type="text" name="enlaceTwitterX" value={formData.enlaceTwitterX} onChange={handleChange} className={styles.input} placeholder="https://x.com/..." />
+            </div>
+          </div>
+
+          <div style={{marginTop: '1rem'}}>
+            <label className={styles.label}>Sobre el Evento (Texto Pestaña)</label>
+            <textarea name="sobreElEvento" value={formData.sobreElEvento} onChange={handleChange} className={styles.input + " " + styles.textarea} placeholder="Historia detallada, visión o texto largo para mostrar públicamente..." style={{height: '100px'}} />
           </div>
         </div>
 
         {/* Logística de Mesas */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 sm:p-8">
-          <div className="flex items-center gap-2 mb-6 text-gray-900">
-            <LayoutGrid className="w-5 h-5 text-[#5B9A27]" />
-            <h2 className="text-lg font-bold">Logística de Reuniones</h2>
+        <div className={styles.formSection}>
+          <div className={styles.sectionHeader}>
+            <LayoutGrid className={styles.icon} />
+            <h2 className={styles.sectionTitle}>Logística de Reuniones</h2>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className={styles.grid + " " + styles.grid4Lg}>
             <div>
-              <label className="block text-[11px] font-bold text-gray-700 mb-2">Mesa Total Evento</label>
-              <input type="number" name="cantidadTotalMesasEvento" value={formData.cantidadTotalMesasEvento} onChange={handleChange} className="w-full bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm focus:border-[#5B9A27] focus:ring-1 focus:ring-[#5B9A27]" />
+              <label className={styles.label}>Mesas Totales</label>
+              <input type="number" name="cantidadTotalMesasEvento" value={formData.cantidadTotalMesasEvento} onChange={handleChange} className={styles.input} />
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-gray-700 mb-2">Capacidad por mesa</label>
-              <input type="number" name="capacidadPersonasPorMesa" value={formData.capacidadPersonasPorMesa} onChange={handleChange} className="w-full bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm focus:border-[#5B9A27] focus:ring-1 focus:ring-[#5B9A27]" />
+              <label className={styles.label}>Capacidad por mesa</label>
+              <input type="number" name="capacidadPersonasPorMesa" value={formData.capacidadPersonasPorMesa} onChange={handleChange} className={styles.input} />
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-gray-700 mb-2">Duración de reunión (min)</label>
-              <input type="number" name="duracionReunion" value={formData.duracionReunion} onChange={handleChange} className="w-full bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm focus:border-[#5B9A27] focus:ring-1 focus:ring-[#5B9A27]" />
+              <label className={styles.label}>Duración reunión (min)</label>
+              <input type="number" name="duracionReunion" value={formData.duracionReunion} onChange={handleChange} className={styles.input} />
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-gray-700 mb-2">Tiempo entre citas (min)</label>
-              <input type="number" name="tiempoEntreReuniones" value={formData.tiempoEntreReuniones} onChange={handleChange} className="w-full bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm focus:border-[#5B9A27] focus:ring-1 focus:ring-[#5B9A27]" />
+              <label className={styles.label}>Pausa entre citas (min)</label>
+              <input type="number" name="tiempoEntreReuniones" value={formData.tiempoEntreReuniones} onChange={handleChange} className={styles.input} />
             </div>
           </div>
         </div>
 
         {/* Pagos y Tarifas */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 sm:p-8">
-          <div className="flex items-center gap-2 mb-6 text-gray-900">
-            <CreditCard className="w-5 h-5 text-[#5B9A27]" />
-            <h2 className="text-lg font-bold">Pagos y Tarifas</h2>
+        <div className={styles.formSection}>
+          <div className={styles.sectionHeader}>
+            <CreditCard className={styles.icon} />
+            <h2 className={styles.sectionTitle}>Pagos y Tarifas</h2>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className={styles.grid + " " + styles.grid3Lg}>
             <div>
-              <label className="block text-[11px] font-bold text-gray-700 mb-2">Monto base de inscripción (Bs.)</label>
-              <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-4 py-3 text-sm font-bold text-[#5B9A27]">Bs.</span>
-                <input type="number" name="montoBaseIncripcionBolivianos" value={formData.montoBaseIncripcionBolivianos} onChange={handleChange} className="w-full bg-[#FAFAFA] border border-gray-200 rounded-lg pl-12 pr-4 py-3 text-sm focus:border-[#5B9A27] focus:ring-1 focus:ring-[#5B9A27]" />
-              </div>
+              <label className={styles.label}>Monto base (Bs.)</label>
+              <input type="number" name="montoBaseIncripcionBolivianos" value={formData.montoBaseIncripcionBolivianos} onChange={handleChange} className={styles.input} />
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-gray-700 mb-2">Participantes incluidos</label>
-              <input type="number" name="cantidadParticipantesIncluidos" value={formData.cantidadParticipantesIncluidos} onChange={handleChange} className="w-full bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm focus:border-[#5B9A27] focus:ring-1 focus:ring-[#5B9A27]" />
+              <label className={styles.label}>Participantes incluidos</label>
+              <input type="number" name="cantidadParticipantesIncluidos" value={formData.cantidadParticipantesIncluidos} onChange={handleChange} className={styles.input} />
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-gray-700 mb-2">Costo por participante extra (Bs.)</label>
-               <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-4 py-3 text-sm font-bold text-[#5B9A27]">Bs.</span>
-                <input type="number" name="costoParticipanteExtra" value={formData.costoParticipanteExtra} onChange={handleChange} className="w-full bg-[#FAFAFA] border border-gray-200 rounded-lg pl-12 pr-4 py-3 text-sm focus:border-[#5B9A27] focus:ring-1 focus:ring-[#5B9A27]" />
-              </div>
+              <label className={styles.label}>Participante extra (Bs.)</label>
+              <input type="number" name="costoParticipanteExtra" value={formData.costoParticipanteExtra} onChange={handleChange} className={styles.input} />
             </div>
           </div>
         </div>
 
         {/* Configuración de QR */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 sm:p-8">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-            <div className="flex items-center gap-2 text-gray-900">
-              <QrCode className="w-5 h-5 text-[#5B9A27]" />
-              <h2 className="text-lg font-bold">Configuración de QR de pago</h2>
+        <div className={styles.formSection}>
+          <div className={styles.qrContainer}>
+            <div className={styles.sectionHeader} style={{marginBottom: 0}}>
+              <QrCode className={styles.icon} />
+              <h2 className={styles.sectionTitle}>Reglas QR de Pago</h2>
             </div>
-            <button onClick={addRule} className="flex items-center gap-2 bg-[#f4f7ee] text-[#4d8321] px-4 py-2 rounded-lg text-xs font-bold hover:bg-[#e4eccf] transition-colors border border-[#d3e5b5]">
-              <Plus className="w-4 h-4" /> Agregar nueva regla de QR
+            <button onClick={addRule} className={styles.uploadButton} style={{marginTop: 0}}>
+              <Plus size={14} /> Agregar Regla
             </button>
           </div>
           
-          <div className="overflow-x-auto">
-            <table className="w-full text-left min-w-[600px]">
+          <div className={styles.tableContainer}>
+            <table className={styles.table}>
               <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="py-3 px-2 text-[11px] font-bold text-gray-500 w-1/3">Rango de participantes</th>
-                  <th className="py-3 px-2 text-[11px] font-bold text-gray-500 w-1/4">Monto correspondiente</th>
-                  <th className="py-3 px-2 text-[11px] font-bold text-gray-500 w-1/4">Imagen QR</th>
-                  <th className="py-3 px-2 text-[11px] font-bold text-gray-500 text-right">Acciones</th>
+                <tr>
+                  <th className={styles.th} style={{width: '30%'}}>Rango participantes</th>
+                  <th className={styles.th} style={{width: '25%'}}>Monto (Bs.)</th>
+                  <th className={styles.th} style={{width: '35%'}}>Imagen QR</th>
+                  <th className={styles.th} style={{textAlign: 'right'}}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {reglasQR.map((regla, index) => (
-                  <tr key={index} className="border-b border-gray-50">
-                    <td className="py-4 px-2">
-                      <div className="flex items-center gap-3">
-                        <input type="number" value={regla.rangoDesde} onChange={(e) => handleQRChange(index, 'rangoDesde', Number(e.target.value))} className="w-16 bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-center" />
-                        <span className="text-xs text-gray-500">a</span>
-                        <input type="number" value={regla.rangoHasta} onChange={(e) => handleQRChange(index, 'rangoHasta', Number(e.target.value))} className="w-16 bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-center" />
+                  <tr key={index}>
+                    <td className={styles.td}>
+                      <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem'}}>
+                        <input type="number" value={regla.rangoDesde} onChange={(e) => handleQRChange(index, 'rangoDesde', Number(e.target.value))} className={styles.input} style={{width: '4rem', padding: '0.5rem'}} />
+                        <span style={{fontSize: '0.75rem', color: '#6b7280'}}>a</span>
+                        <input type="number" value={regla.rangoHasta} onChange={(e) => handleQRChange(index, 'rangoHasta', Number(e.target.value))} className={styles.input} style={{width: '4rem', padding: '0.5rem'}} />
                       </div>
                     </td>
-                    <td className="py-4 px-2">
-                      <div className="relative max-w-[150px]">
-                        <span className="absolute inset-y-0 left-0 pl-3 py-2 text-xs font-bold text-[#5B9A27]">Bs.</span>
-                        <input type="number" value={regla.monto} onChange={(e) => handleQRChange(index, 'monto', Number(e.target.value))} className="w-full bg-white border border-gray-200 rounded-lg pl-10 pr-3 py-2 text-sm" />
-                      </div>
+                    <td className={styles.td}>
+                      <input type="number" value={regla.monto} onChange={(e) => handleQRChange(index, 'monto', Number(e.target.value))} className={styles.input} style={{padding: '0.5rem'}} />
                     </td>
-                    <td className="py-4 px-2">
-                       <button className="flex items-center gap-2 bg-gray-50 border border-gray-200 text-[#4d8321] px-3 py-2 rounded-lg text-[10px] font-bold hover:bg-gray-100 transition-colors w-full">
-                         <QrCode className="w-3.5 h-3.5 text-gray-400" /> 
-                         {regla.urlQR ? "QR Cargado" : "Cargar imagen"}
-                       </button>
+                    <td className={styles.td}>
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        onChange={(e) => handleImageUpload(e, 'urlQR', index)}
+                        style={{display: 'none'}} 
+                        id={`upload-qr-${index}`}
+                      />
+                      <label htmlFor={`upload-qr-${index}`} className={styles.uploadButton} style={{marginTop: 0}}>
+                        <QrCode size={14} /> Subir QR
+                      </label>
+                      {regla.urlQR && (
+                        <div style={{marginTop: '0.25rem', width: '40px', height: '40px', borderRadius: '4px', overflow: 'hidden', border: '1px solid #eee', backgroundColor: 'white'}}>
+                          <img src={regla.urlQR} alt="QR" style={{width: '100%', height: '100%', objectFit: 'contain'}} />
+                        </div>
+                      )}
                     </td>
-                    <td className="py-4 px-2 text-right">
-                      <button onClick={() => removeRule(index)} className="text-red-400 hover:text-red-500 p-2">
-                        <Trash2 className="w-4 h-4" />
+                    <td className={styles.td} style={{textAlign: 'right'}}>
+                      <button onClick={() => removeRule(index)} className={styles.deleteButton}>
+                        <Trash2 size={16} />
                       </button>
                     </td>
                   </tr>
@@ -316,18 +485,27 @@ export default function EventConfigPage() {
         </div>
 
         {/* Action Buttons */}
-        <div className="fixed bottom-0 left-0 right-0 sm:static bg-white border-t border-gray-200 p-4 sm:p-0 sm:border-0 sm:bg-transparent flex flex-col sm:flex-row justify-end items-center gap-4 mt-8 z-50">
-          <button className="text-sm font-bold text-gray-600 hover:text-gray-900 order-2 sm:order-1 px-4 py-3" onClick={() => router.push('/admin/eventos')}>Cancelar</button>
+        <div className={styles.bottomActionArea}>
+          <button className={styles.cancelAction} onClick={() => router.push('/admin/eventos')}>Cancelar</button>
           <button 
             onClick={handleSave} 
             disabled={saving}
-            className="flex items-center justify-center gap-2 w-full sm:w-auto bg-[#5B9A27] text-white px-8 py-3 rounded-lg text-sm font-bold hover:bg-[#4d8321] transition-colors order-1 sm:order-2 disabled:opacity-50"
+            className={styles.saveAction}
           >
-            <Save className="w-4 h-4" /> {saving ? "Procesando..." : "Guardar Evento"}
+            <Save size={16} /> {saving ? "Procesando..." : "Guardar Evento"}
           </button>
         </div>
 
       </div>
+
+      <Modal
+        isOpen={modal.isOpen}
+        onClose={closeModal}
+        type={modal.type}
+        title={modal.title}
+        message={modal.message}
+        onConfirm={modal.onConfirm}
+      />
     </div>
   );
 }

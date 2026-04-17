@@ -1,16 +1,17 @@
 import React, { useState } from 'react';
-import { 
-  View, 
-  Text, 
-  TextInput, 
-  TouchableOpacity, 
-  Image, 
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Image,
   ScrollView,
   SafeAreaView,
   KeyboardAvoidingView,
   Platform
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { userStore } from '../../utils/userStore';
 
 // We use basic MaterialIcons which are usually bundled with Expo
 export default function LoginScreen({ navigation }: any) {
@@ -43,10 +44,11 @@ export default function LoginScreen({ navigation }: any) {
       }
 
       const user = await res.json();
-      if (user.rolEvento === "Administrador") {
+      if (user.rolEvento === "Administrador" || user.rolEvento === "TECNICO") {
+        userStore.set(user);
         navigation.replace('AdminRoot');
       } else {
-        setError('Acceso denegado: No tienes rol de administrador');
+        setError('Acceso denegado: no tienes permisos de administrador');
       }
     } catch (err: any) {
       setError('Error al iniciar sesión: ' + err.message);

@@ -31,10 +31,11 @@ export default function LoginPage() {
       }
 
       const user = await res.json();
-      if (user.rolEvento === "Administrador") {
+      if (user.rolEvento === "Administrador" || user.rolEvento === "TECNICO") {
+        localStorage.setItem("adminUser", JSON.stringify(user));
         router.push("/admin/dashboard");
       } else {
-        router.push("/dashboard"); // Or wherever normal users go
+        throw new Error("Acceso denegado: no tienes permisos de administrador");
       }
     } catch (err: any) {
       setError(err.message);
@@ -54,6 +55,7 @@ export default function LoginPage() {
               src="/assets/iconos/logo.png" 
               alt="Rueda de Negocios del Beni" 
               fill
+              sizes="(max-width: 768px) 100vw, 192px"
               className="object-contain object-left"
               priority
             />
@@ -218,6 +220,8 @@ export default function LoginPage() {
                     src="/assets/iconos/reunion.png"
                     alt="Impulsando el Beni"
                     fill
+                    sizes="(max-width: 768px) 100vw, 340px"
+                    priority
                     className="object-cover"
                   />
                 </div>

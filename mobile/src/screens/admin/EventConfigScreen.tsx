@@ -30,6 +30,13 @@ export default function EventConfigScreen() {
     costoParticipanteExtra: '100',
     urlImagenMapaRecinto: '',
     urlImagenCronogramaCharlas: '',
+    urlLogoEvento: '',
+    sobreElEvento: '',
+    correoContacto: '',
+    telefonoContacto: '',
+    enlaceFacebook: '',
+    enlaceInstagram: '',
+    enlaceTwitterX: '',
   });
 
   const [reglasQR, setReglasQR] = useState([
@@ -92,7 +99,8 @@ export default function EventConfigScreen() {
         id: 0, nombre: '', edicion: '', descripcion: '', fechaInicioEvento: '', fechaFinEvento: '', 
         duracionReunion: '20', tiempoEntreReuniones: '5', cantidadTotalMesasEvento: '50', capacidadPersonasPorMesa: '4', 
         montoBaseIncripcionBolivianos: '500', cantidadParticipantesIncluidos: '2', costoParticipanteExtra: '100',
-        urlImagenMapaRecinto: '', urlImagenCronogramaCharlas: ''
+        urlImagenMapaRecinto: '', urlImagenCronogramaCharlas: '', urlLogoEvento: '', sobreElEvento: '',
+        correoContacto: '', telefonoContacto: '', enlaceFacebook: '', enlaceInstagram: '', enlaceTwitterX: ''
       });
       setReglasQR([{ rangoDesde: '1', rangoHasta: '2', monto: '500', urlQR: '' }]);
       return;
@@ -113,7 +121,14 @@ export default function EventConfigScreen() {
           montoBaseIncripcionBolivianos: String(data.montoBaseIncripcionBolivianos || 500), cantidadParticipantesIncluidos: String(data.cantidadParticipantesIncluidos || 2),
           costoParticipanteExtra: String(data.costoParticipanteExtra || 100),
           urlImagenMapaRecinto: data.urlImagenMapaRecinto || '',
-          urlImagenCronogramaCharlas: data.urlImagenCronogramaCharlas || ''
+          urlImagenCronogramaCharlas: data.urlImagenCronogramaCharlas || '',
+          urlLogoEvento: data.urlLogoEvento || '',
+          sobreElEvento: data.sobreElEvento || '',
+          correoContacto: data.correoContacto || '',
+          telefonoContacto: data.telefonoContacto || '',
+          enlaceFacebook: data.enlaceFacebook || '',
+          enlaceInstagram: data.enlaceInstagram || '',
+          enlaceTwitterX: data.enlaceTwitterX || ''
         });
         if (data.eventoreglaqr && data.eventoreglaqr.length > 0) {
           setReglasQR(data.eventoreglaqr.map((r: any) => ({
@@ -149,15 +164,38 @@ export default function EventConfigScreen() {
     }
 
     setSaving(true);
-    const payload = {
-      ...formData,
-      duracionReunion: Number(formData.duracionReunion), tiempoEntreReuniones: Number(formData.tiempoEntreReuniones),
-      cantidadTotalMesasEvento: Number(formData.cantidadTotalMesasEvento), capacidadPersonasPorMesa: Number(formData.capacidadPersonasPorMesa),
-      montoBaseIncripcionBolivianos: Number(formData.montoBaseIncripcionBolivianos), cantidadParticipantesIncluidos: Number(formData.cantidadParticipantesIncluidos),
-      costoParticipanteExtra: Number(formData.costoParticipanteExtra),
+    
+    // Helper: convert empty strings to null for optional fields
+    const orNull = (v: string) => (v === '' ? null : v);
+    
+    const payload: any = {
+      nombre: formData.nombre,
+      edicion: formData.edicion || '',
+      descripcion: orNull(formData.descripcion),
       fechaInicioEvento: formData.fechaInicioEvento ? new Date(formData.fechaInicioEvento).toISOString() : new Date().toISOString(),
       fechaFinEvento: formData.fechaFinEvento ? new Date(formData.fechaFinEvento).toISOString() : new Date().toISOString(),
-      reglasQR: reglasQR.map(r => ({ ...r, rangoDesde: Number(r.rangoDesde), rangoHasta: Number(r.rangoHasta), monto: Number(r.monto) }))
+      duracionReunion: Number(formData.duracionReunion),
+      tiempoEntreReuniones: Number(formData.tiempoEntreReuniones),
+      cantidadTotalMesasEvento: Number(formData.cantidadTotalMesasEvento),
+      capacidadPersonasPorMesa: Number(formData.capacidadPersonasPorMesa),
+      montoBaseIncripcionBolivianos: Number(formData.montoBaseIncripcionBolivianos),
+      cantidadParticipantesIncluidos: Number(formData.cantidadParticipantesIncluidos),
+      costoParticipanteExtra: Number(formData.costoParticipanteExtra),
+      urlImagenMapaRecinto: orNull(formData.urlImagenMapaRecinto),
+      urlImagenCronogramaCharlas: orNull(formData.urlImagenCronogramaCharlas),
+      urlLogoEvento: orNull(formData.urlLogoEvento),
+      sobreElEvento: orNull(formData.sobreElEvento),
+      correoContacto: orNull(formData.correoContacto),
+      telefonoContacto: orNull(formData.telefonoContacto),
+      enlaceFacebook: orNull(formData.enlaceFacebook),
+      enlaceInstagram: orNull(formData.enlaceInstagram),
+      enlaceTwitterX: orNull(formData.enlaceTwitterX),
+      reglasQR: reglasQR.map(r => ({
+        rangoDesde: Number(r.rangoDesde),
+        rangoHasta: Number(r.rangoHasta),
+        monto: Number(r.monto),
+        urlQR: r.urlQR || '',
+      })),
     };
 
     try {
@@ -169,7 +207,9 @@ export default function EventConfigScreen() {
         Alert.alert('Éxito', 'Evento guardado exitosamente.');
         setViewState('lista');
       } else {
-        Alert.alert('Error', 'No se pudo guardar.');
+        const errorData = await res.json().catch(() => null);
+        const msg = errorData?.message || 'Error desconocido del servidor.';
+        Alert.alert('Error', `No se pudo guardar: ${msg}`);
       }
     } catch (err) {
       Alert.alert('Error', 'Error de conexión.');
@@ -308,6 +348,35 @@ export default function EventConfigScreen() {
           
           <Text className="text-xs font-bold text-gray-700 mb-2">Cronograma URL</Text>
           <TextInput value={formData.urlImagenCronogramaCharlas} onChangeText={t => handleChange('urlImagenCronogramaCharlas', t)} className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm mb-2 text-blue-500" placeholder="https://" />
+        </View>
+
+        {/* Información Pública */}
+        <View className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mb-5">
+          <View className="flex-row items-center gap-2 mb-4 border-b border-gray-100 pb-3">
+            <Info color="#5B9A27" size={20} />
+            <Text className="text-base font-bold text-gray-900 ml-1">Información Pública</Text>
+          </View>
+          
+          <Text className="text-xs font-bold text-gray-700 mb-2">Correo de Contacto</Text>
+          <TextInput value={formData.correoContacto} onChangeText={t => handleChange('correoContacto', t)} className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm mb-4" placeholder="info@ejemplo.com" keyboardType="email-address" />
+
+          <Text className="text-xs font-bold text-gray-700 mb-2">Teléfono / WhatsApp</Text>
+          <TextInput value={formData.telefonoContacto} onChangeText={t => handleChange('telefonoContacto', t)} className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm mb-4" placeholder="+591 70000000" keyboardType="phone-pad" />
+
+          <Text className="text-xs font-bold text-gray-700 mb-2">Logo del Evento (URL)</Text>
+          <TextInput value={formData.urlLogoEvento} onChangeText={t => handleChange('urlLogoEvento', t)} className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm mb-4 text-blue-500" placeholder="https://..." />
+
+          <Text className="text-xs font-bold text-gray-700 mb-2">Facebook (URL)</Text>
+          <TextInput value={formData.enlaceFacebook} onChangeText={t => handleChange('enlaceFacebook', t)} className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm mb-4 text-blue-500" placeholder="https://facebook.com/..." />
+
+          <Text className="text-xs font-bold text-gray-700 mb-2">Instagram (URL)</Text>
+          <TextInput value={formData.enlaceInstagram} onChangeText={t => handleChange('enlaceInstagram', t)} className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm mb-4 text-blue-500" placeholder="https://instagram.com/..." />
+
+          <Text className="text-xs font-bold text-gray-700 mb-2">Twitter/X (URL)</Text>
+          <TextInput value={formData.enlaceTwitterX} onChangeText={t => handleChange('enlaceTwitterX', t)} className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm mb-4 text-blue-500" placeholder="https://x.com/..." />
+
+          <Text className="text-xs font-bold text-gray-700 mb-2">Sobre el Evento</Text>
+          <TextInput value={formData.sobreElEvento} onChangeText={t => handleChange('sobreElEvento', t)} multiline className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm h-24 text-top" placeholder="Historia detallada..." textAlignVertical="top" />
         </View>
 
         {/* Logística */}

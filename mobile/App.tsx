@@ -5,7 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import LoginScreen from './src/screens/auth/LoginScreen';
-import AdminDrawer from './src/navigation/AdminDrawer';
+import AdminNavigator from './src/navigation/AdminNavigator';
 
 const Stack = createNativeStackNavigator();
 
@@ -14,7 +14,7 @@ export default function App() {
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="Login" component={LoginScreen} />
-        <Stack.Screen name="AdminRoot" component={AdminDrawer} />
+        <Stack.Screen name="AdminRoot" component={AdminNavigator} />
       </Stack.Navigator>
       <StatusBar style="auto" />
     </NavigationContainer>

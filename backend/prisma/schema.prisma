@@ -142,6 +142,13 @@ model evento {
   costoParticipanteExtra         Int                 @db.SmallInt
   urlImagenMapaRecinto           String?             @db.VarChar(505)
   urlImagenCronogramaCharlas     String?             @db.VarChar(505)
+  urlLogoEvento                  String?             @db.VarChar(505)
+  sobreElEvento                  String?             @db.VarChar(2000)
+  correoContacto                 String?             @db.VarChar(105)
+  telefonoContacto               String?             @db.VarChar(45)
+  enlaceFacebook                 String?             @db.VarChar(505)
+  enlaceInstagram                String?             @db.VarChar(505)
+  enlaceTwitterX                 String?             @db.VarChar(505)
   estaActivo                     Int                 @db.SmallInt
   esPrincipal                    Int                 @default(0) @db.SmallInt
   fechaCreacion                  DateTime            @default(now()) @db.Timestamp(6)
