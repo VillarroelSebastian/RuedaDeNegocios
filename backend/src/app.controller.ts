@@ -28,6 +28,13 @@ export class AppController {
     const isValid = await bcrypt.compare(body.contrasenia, user.contrasenia);
     if (!isValid) throw new UnauthorizedException('Credenciales inválidas');
 
+    if (user.rolEvento === 'TECNICO') {
+      const eventoId = await this.getPrincipalEventoId();
+      if (user.evento_id !== eventoId) {
+        throw new UnauthorizedException('Tu cuenta no está habilitada para el evento activo actualmente.');
+      }
+    }
+
     return {
       id: user.id,
       correo: user.correo,
@@ -37,7 +44,37 @@ export class AppController {
       telefono: user.telefono,
       rolEvento: user.rolEvento,
       urlFotoPerfil: user.urlFotoPerfil,
+      evento_id: user.evento_id,
     };
+  }
+
+  // ─── PÚBLICO (sin auth) ──────────────────────────────────────────────────────
+
+  @Get('public/evento')
+  async getPublicEvento() {
+    const evento = await this.prisma.evento.findFirst({
+      where: { esPrincipal: 1, estaActivo: { not: 0 } },
+    });
+    if (!evento) return null;
+
+    const [empresasCount, mesasCount, actividadesCount, tecnicosCount] = await Promise.all([
+      this.prisma.empresaevento.count({ where: { evento_id: evento.id, estaActivo: 1 } }),
+      this.prisma.mesa.count({ where: { evento_id: evento.id, estaActivo: 1 } }),
+      this.prisma.actividadprograma.count({ where: { evento_id: evento.id, estaActivo: 1 } }),
+      this.prisma.usuario.count({ where: { evento_id: evento.id, estaActivo: 1, rolEvento: 'TECNICO' } }),
+    ]);
+
+    return { ...evento, stats: { empresasCount, mesasCount, actividadesCount, tecnicosCount } };
+  }
+
+  @Get('public/actividades')
+  async getPublicActividades() {
+    const eventoId = await this.getPrincipalEventoId();
+    if (!eventoId) return [];
+    return this.prisma.actividadprograma.findMany({
+      where: { evento_id: eventoId, estaActivo: 1 },
+      orderBy: [{ fechaActividad: 'asc' }, { horaInicioActividad: 'asc' }],
+    });
   }
 
   // ─── HELPER: get principal event id ─────────────────────────────────────────
@@ -55,11 +92,16 @@ export class AppController {
   async getDashboardStats() {
     const eventoId = await this.getPrincipalEventoId();
 
-    const empresasCount = await this.prisma.empresa.count({ where: { estaActivo: 1 } });
+    const eventoFilter = eventoId ? { evento_id: eventoId } : {};
+    const empresasCount = eventoId
+      ? await this.prisma.empresaevento.count({ where: { evento_id: eventoId, estaActivo: 1 } })
+      : 0;
     const pagosPendientesCount = await this.prisma.empresaevento.count({
-      where: { estadoVerificacionPago: 'PENDIENTE', estaActivo: 1 },
+      where: { ...eventoFilter, estadoVerificacionPago: 'PENDIENTE', estaActivo: 1 },
     });
-    const reunionesCount = await this.prisma.reunion.count({ where: { estaActivo: 1 } });
+    const reunionesCount = await this.prisma.reunion.count({
+      where: { ...eventoFilter, estaActivo: 1 },
+    });
     const mesasActivasCount = eventoId
       ? await this.prisma.mesa.count({ where: { estaActivo: 1, evento_id: eventoId } })
       : 0;
@@ -67,6 +109,7 @@ export class AppController {
 
     const recentActivityRaw = await this.prisma.empresaevento.findMany({
       take: 5,
+      where: eventoId ? { evento_id: eventoId } : {},
       orderBy: { fechaCreacion: 'desc' },
       include: { empresa: true, evento: true },
     });
@@ -104,25 +147,33 @@ export class AppController {
 
   @Get('admin/notificaciones')
   async getAdminNotificaciones() {
+    const eventoId = await this.getPrincipalEventoId();
+    const eventoFilter = eventoId ? { evento_id: eventoId } : {};
+
     const pagosPendientes = await this.prisma.empresaevento.findMany({
-      where: { estadoVerificacionPago: 'PENDIENTE', estaActivo: 1 },
+      where: { ...eventoFilter, estadoVerificacionPago: 'PENDIENTE', estaActivo: 1 },
       take: 10,
       orderBy: { fechaCreacion: 'desc' },
       include: { empresa: true },
     });
 
     const pagosObservados = await this.prisma.empresaevento.findMany({
-      where: { estadoVerificacionPago: 'OBSERVADO', estaActivo: 1 },
+      where: { ...eventoFilter, estadoVerificacionPago: 'OBSERVADO', estaActivo: 1 },
       take: 5,
       orderBy: { fechaCreacion: 'desc' },
       include: { empresa: true },
     });
 
-    const empresasRecientes = await this.prisma.empresa.findMany({
-      where: { estaActivo: 1 },
-      take: 5,
-      orderBy: { fechaCreacion: 'desc' },
-    });
+    const empresasRecientes = eventoId
+      ? await this.prisma.empresa.findMany({
+          where: {
+            estaActivo: 1,
+            empresaevento: { some: { evento_id: eventoId, estaActivo: 1 } },
+          },
+          take: 5,
+          orderBy: { fechaCreacion: 'desc' },
+        })
+      : [];
 
     const notificaciones = [
       ...pagosPendientes.map((ee) => ({
@@ -300,6 +351,7 @@ export class AppController {
     const eventoId = await this.getPrincipalEventoId();
 
     const where: any = { estaActivo: 1 };
+    if (eventoId) where.empresaevento = { some: { evento_id: eventoId, estaActivo: 1 } };
     if (search) where.nombre = { contains: search, mode: 'insensitive' };
     if (rubro) where.rubro = { contains: rubro, mode: 'insensitive' };
     if (ciudad) where.ciudad = { nombre: { contains: ciudad, mode: 'insensitive' } };
@@ -733,11 +785,13 @@ export class AppController {
 
   @Get('admin/tecnicos')
   async getTecnicos() {
+    const eventoId = await this.getPrincipalEventoId();
     return await this.prisma.usuario.findMany({
-      where: { rolEvento: 'TECNICO', estaActivo: 1 },
+      where: { rolEvento: 'TECNICO', estaActivo: 1, evento_id: eventoId ?? undefined },
       orderBy: { fechaCreacion: 'desc' },
       select: {
         id: true,
+        evento_id: true,
         nombres: true,
         apellidoPaterno: true,
         apellidoMaterno: true,
@@ -747,6 +801,7 @@ export class AppController {
         rolEvento: true,
         estaActivo: true,
         fechaCreacion: true,
+        evento: { select: { id: true, nombre: true, edicion: true } },
       },
     });
   }
@@ -756,6 +811,9 @@ export class AppController {
     try {
       const existing = await this.prisma.usuario.findFirst({ where: { correo: body.correo } });
       if (existing) throw new BadRequestException('Ya existe un usuario con ese correo');
+
+      const eventoId = await this.getPrincipalEventoId();
+      if (!eventoId) throw new BadRequestException('No hay un evento principal activo');
 
       const hashed = await bcrypt.hash(body.contrasenia, 10);
       return await this.prisma.usuario.create({
@@ -768,11 +826,13 @@ export class AppController {
           telefono: body.telefono,
           urlFotoPerfil: body.urlFotoPerfil || '',
           rolEvento: 'TECNICO',
+          evento_id: eventoId,
           estaActivo: 1,
         },
         select: {
-          id: true, nombres: true, apellidoPaterno: true, apellidoMaterno: true,
+          id: true, evento_id: true, nombres: true, apellidoPaterno: true, apellidoMaterno: true,
           correo: true, telefono: true, urlFotoPerfil: true, rolEvento: true,
+          evento: { select: { id: true, nombre: true, edicion: true } },
         },
       });
     } catch (error) {
@@ -800,8 +860,9 @@ export class AppController {
         where: { id: Number(id) },
         data,
         select: {
-          id: true, nombres: true, apellidoPaterno: true, apellidoMaterno: true,
+          id: true, evento_id: true, nombres: true, apellidoPaterno: true, apellidoMaterno: true,
           correo: true, telefono: true, urlFotoPerfil: true, rolEvento: true,
+          evento: { select: { id: true, nombre: true, edicion: true } },
         },
       });
     } catch (error) {

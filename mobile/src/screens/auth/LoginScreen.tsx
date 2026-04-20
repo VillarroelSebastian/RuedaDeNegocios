@@ -33,25 +33,27 @@ export default function LoginScreen({ navigation }: any) {
 
     try {
       // Usamos la IP local de la computadora para el emulador (ej: 192.168.x.x o 10.0.2.2 en Android)
-      const res = await fetch("http://192.168.100.3:3334/auth/login", {
+      const API_URL = require('../../utils/userStore').API_URL;
+      const res = await fetch(`${API_URL}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ correo, contrasenia }),
       });
 
+      const data = await res.json();
+
       if (!res.ok) {
-        throw new Error("Credenciales inválidas");
+        throw new Error(data?.message || "Credenciales inválidas");
       }
 
-      const user = await res.json();
-      if (user.rolEvento === "Administrador" || user.rolEvento === "TECNICO") {
-        userStore.set(user);
+      if (data.rolEvento === "Administrador" || data.rolEvento === "TECNICO") {
+        userStore.set(data);
         navigation.replace('AdminRoot');
       } else {
-        setError('Acceso denegado: no tienes permisos de administrador');
+        setError('Acceso denegado: no tienes permisos de administrador.');
       }
     } catch (err: any) {
-      setError('Error al iniciar sesión: ' + err.message);
+      setError(err.message || 'Error al iniciar sesión.');
     } finally {
       setLoading(false);
     }
@@ -66,9 +68,18 @@ export default function LoginScreen({ navigation }: any) {
       >
         <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
           
+          {/* Back to Home */}
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Home')}
+            className="flex-row items-center gap-1.5 px-6 pt-10 pb-2"
+          >
+            <Text className="text-gray-400 text-lg">←</Text>
+            <Text className="text-gray-500 text-sm">Volver al inicio</Text>
+          </TouchableOpacity>
+
           {/* Logo Section */}
-          <View className="px-8 pt-12 pb-6 items-center sm:items-start">
-            <Image 
+          <View className="px-8 pt-4 pb-6 items-center sm:items-start">
+            <Image
               source={require('../../../assets/iconos/logo.png')}
               className="w-48 h-16"
               resizeMode="contain"

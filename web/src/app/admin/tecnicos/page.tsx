@@ -130,9 +130,16 @@ export default function TecnicosPage() {
                 <p className="font-bold text-gray-900 text-sm truncate">{t.nombres} {t.apellidoPaterno}</p>
                 <p className="text-xs text-gray-500 truncate">{t.correo}</p>
                 <p className="text-xs text-gray-400 mt-0.5">{t.telefono}</p>
-                <span className="inline-block mt-1.5 text-[10px] font-bold text-[#449D3A] bg-green-50 px-2 py-0.5 rounded-full uppercase">
-                  {t.rolEvento}
-                </span>
+                <div className="flex flex-wrap gap-1 mt-1.5">
+                  <span className="text-[10px] font-bold text-[#449D3A] bg-green-50 px-2 py-0.5 rounded-full uppercase">
+                    {t.rolEvento}
+                  </span>
+                  {t.evento && (
+                    <span className="text-[10px] font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full truncate max-w-[120px]" title={t.evento.nombre}>
+                      {t.evento.nombre} {t.evento.edicion}
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="flex flex-col gap-1 shrink-0">
                 <button onClick={() => openEdit(t)}

@@ -159,6 +159,7 @@ model evento {
   mesa                           mesa[]
   noticia                        noticia[]
   reunion                        reunion[]
+  usuario                        usuario[]
 }
 
 model eventoreglaqr {
@@ -331,6 +332,7 @@ model solicitudreunion {
 
 model usuario {
   id                    Int               @id @default(autoincrement())
+  evento_id             Int?
   nombres               String            @db.VarChar(105)
   apellidoPaterno       String            @db.VarChar(65)
   apellidoMaterno       String?           @db.VarChar(65)
@@ -344,4 +346,7 @@ model usuario {
   creadoModificadoFecha DateTime?         @db.Timestamp(6)
   empresa_usuario       empresa_usuario[]
   noticia               noticia[]
+  evento                evento?           @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_usuario_evento1")
+
+  @@index([evento_id], map: "fk_usuario_evento1_idx")
 }

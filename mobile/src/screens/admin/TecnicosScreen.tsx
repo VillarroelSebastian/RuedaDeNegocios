@@ -126,8 +126,17 @@ export default function TecnicosScreen() {
                   <Text className="font-bold text-gray-900 text-sm">{t.nombres} {t.apellidoPaterno}</Text>
                   <Text className="text-xs text-gray-500">{t.correo}</Text>
                   <Text className="text-xs text-gray-400">{t.telefono}</Text>
-                  <View style={{ backgroundColor: '#dcfce7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999, alignSelf: 'flex-start', marginTop: 4 }}>
-                    <Text style={{ color: GREEN, fontSize: 9, fontWeight: '700' }}>TÉCNICO</Text>
+                  <View className="flex-row flex-wrap gap-1 mt-1">
+                    <View style={{ backgroundColor: '#dcfce7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999 }}>
+                      <Text style={{ color: GREEN, fontSize: 9, fontWeight: '700' }}>TÉCNICO</Text>
+                    </View>
+                    {t.evento && (
+                      <View style={{ backgroundColor: '#eff6ff', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999 }}>
+                        <Text style={{ color: '#2563eb', fontSize: 9, fontWeight: '600' }} numberOfLines={1}>
+                          {t.evento.nombre} {t.evento.edicion}
+                        </Text>
+                      </View>
+                    )}
                   </View>
                 </View>
                 <View className="gap-2">

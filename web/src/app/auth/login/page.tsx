@@ -62,12 +62,9 @@ export default function LoginPage() {
           </div>
         </div>
         <nav className="hidden md:flex items-center space-x-8">
-          <Link href="#" className="text-sm font-semibold text-gray-500 hover:text-gray-900">Inicio</Link>
-          <Link href="#" className="text-sm font-semibold text-gray-500 hover:text-gray-900">Sobre el Evento</Link>
-          <Link href="#" className="text-sm font-semibold text-gray-500 hover:text-gray-900">Contacto</Link>
-          <button className="rounded-md bg-[#EEF5E5] px-4 py-2 text-sm font-semibold text-[#5B9A27] hover:bg-[#e4ecc] transition-colors">
-            Registrarse
-          </button>
+          <Link href="/" className="text-sm font-semibold text-gray-500 hover:text-gray-900">← Inicio</Link>
+          <Link href="/#sobre" className="text-sm font-semibold text-gray-500 hover:text-gray-900">Sobre el Evento</Link>
+          <Link href="/#contacto" className="text-sm font-semibold text-gray-500 hover:text-gray-900">Contacto</Link>
         </nav>
       </header>
 

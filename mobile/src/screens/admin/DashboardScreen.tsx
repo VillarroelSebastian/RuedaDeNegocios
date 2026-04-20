@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Building2, CreditCard, Handshake, Armchair, CalendarCheck } from 'lucide-react-native';
+import { API_URL } from '../../utils/userStore';
 
 const ICONS_MAP: Record<string, any> = {
   '🏢': Building2,
@@ -16,7 +17,7 @@ export default function DashboardScreen() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('http://10.0.2.2:3334/admin/dashboard/stats')
+    fetch(`${API_URL}/admin/dashboard/stats`)
       .then(res => res.json())
       .then(data => {
         setStats(data.stats);
