@@ -77,14 +77,16 @@ export default function ConfiguracionScreen({ navigation }: any) {
     }
     setSaving(true);
     try {
-      await fetch(`${API_URL}/admin/perfil/${user.id}`, {
+      const res = await fetch(`${API_URL}/admin/perfil/${user.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, contraseniaActual: passForm.contraseniaActual, nuevaContrasenia: passForm.nuevaContrasenia }),
       });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || 'Contraseña actual incorrecta.');
       Alert.alert('Éxito', 'Contraseña cambiada correctamente.');
       setPassForm({ contraseniaActual: '', nuevaContrasenia: '', confirmar: '' });
-    } catch { Alert.alert('Error', 'No se pudo cambiar la contraseña. Verifica la contraseña actual.'); }
+    } catch (e: any) { Alert.alert('Error', e.message || 'No se pudo cambiar la contraseña.'); }
     finally { setSaving(false); }
   };
 

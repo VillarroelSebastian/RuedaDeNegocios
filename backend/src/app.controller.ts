@@ -54,6 +54,9 @@ export class AppController {
   async getPublicEvento() {
     const evento = await this.prisma.evento.findFirst({
       where: { esPrincipal: 1, estaActivo: { not: 0 } },
+      include: {
+        eventoreglaqr: { where: { estadoActivo: 1 }, orderBy: { rangoDesde: 'asc' } },
+      },
     });
     if (!evento) return null;
 
@@ -65,6 +68,145 @@ export class AppController {
     ]);
 
     return { ...evento, stats: { empresasCount, mesasCount, actividadesCount, tecnicosCount } };
+  }
+
+  @Get('public/ciudades')
+  async getCiudadesPublic() {
+    return this.prisma.ciudad.findMany({
+      include: { pais: true },
+      orderBy: { nombre: 'asc' },
+    });
+  }
+
+  @Post('public/registro')
+  async registroPublico(@Body() body: any) {
+    const eventoId = await this.getPrincipalEventoId();
+    if (!eventoId) throw new BadRequestException('No hay evento activo en este momento.');
+
+    const evento = await this.prisma.evento.findUnique({ where: { id: eventoId } });
+    if (!evento) throw new BadRequestException('Evento no encontrado.');
+
+    // Verificar duplicado por correo corporativo
+    const empresaExistente = await this.prisma.empresa.findFirst({
+      where: { correoCorporativo: body.empresa.correoCorporativo, estaActivo: 1 },
+    });
+    if (empresaExistente) {
+      const eeExistente = await this.prisma.empresaevento.findFirst({
+        where: { empresa_id: empresaExistente.id, evento_id: eventoId, estaActivo: 1 },
+      });
+      if (eeExistente) throw new BadRequestException('Esta empresa ya está registrada para el evento actual.');
+    }
+
+    // Calcular monto
+    const numParticipantes = Number(body.participacion?.numeroParticipantes) || 1;
+    const numExtra = Math.max(0, numParticipantes - evento.cantidadParticipantesIncluidos);
+    const monto = Number(evento.montoBaseIncripcionBolivianos) + numExtra * evento.costoParticipanteExtra;
+
+    // Resolve pais / ciudad from names (frontend sends paisNombre + ciudadNombre)
+    const paisNombre = (body.empresa.paisNombre || 'Bolivia').trim();
+    const ciudadNombre = (body.empresa.ciudadNombre || 'Trinidad').trim();
+    let paisRec = await this.prisma.pais.findFirst({ where: { nombre: paisNombre } });
+    if (!paisRec) paisRec = await this.prisma.pais.create({ data: { nombre: paisNombre } });
+    let ciudadRec = await this.prisma.ciudad.findFirst({ where: { nombre: ciudadNombre, pais_id: paisRec.id } });
+    if (!ciudadRec) ciudadRec = await this.prisma.ciudad.create({ data: { nombre: ciudadNombre, pais_id: paisRec.id } });
+
+    // Crear o reusar empresa
+    const empresa = empresaExistente ?? await this.prisma.empresa.create({
+      data: {
+        ciudad_id: ciudadRec.id,
+        nombre: body.empresa.nombre,
+        rubro: body.empresa.rubro,
+        sitioWeb: body.empresa.sitioWeb || null,
+        descripcion: body.empresa.descripcion || null,
+        telefonoWhatsapp: body.empresa.telefonoWhatsapp,
+        correoCorporativo: body.empresa.correoCorporativo,
+        urlFotoPerfil: '',
+        estaActivo: 1,
+      },
+    });
+
+    // Crear empresaevento
+    const ee = await this.prisma.empresaevento.create({
+      data: {
+        empresa_id: empresa.id,
+        evento_id: eventoId,
+        tipoParticipacion: body.participacion?.tipoParticipacion || 'PRESENCIAL',
+        estadoHabilitacionAcceso: 'NO_HABILITADO',
+        montoPagado: monto,
+        estadoVerificacionPago: 'PENDIENTE',
+        fechaHoraEnvioComprobante: new Date(),
+        numeroParticipantes: numParticipantes,
+        estaActivo: 1,
+      },
+    });
+
+    // Crear comprobante si existe URL
+    if (body.comprobante?.urlComprobante) {
+      await this.prisma.empresaeventocomprobantes.create({
+        data: {
+          empresaEvento_id: ee.id,
+          urlComprobantePagoInscripcion: body.comprobante.urlComprobante,
+          estaActivo: 1,
+        },
+      });
+    }
+
+    // Crear participantes (usuario + empresa_usuario)
+    const defaultPass = await bcrypt.hash('Beni2026!', 10);
+    const participantesCreados: any[] = [];
+
+    for (const p of (body.participantes || [])) {
+      const partes = (p.nombreCompleto || '').trim().split(/\s+/);
+      const nombres = partes.slice(0, 2).join(' ') || 'Sin nombre';
+      const apellidoPaterno = partes[2] || partes[0] || 'Participante';
+      const apellidoMaterno = partes.length > 3 ? partes.slice(3).join(' ') : null;
+
+      const usuario = await this.prisma.usuario.create({
+        data: {
+          nombres,
+          apellidoPaterno,
+          apellidoMaterno,
+          correo: p.correo,
+          contrasenia: defaultPass,
+          telefono: p.telefono || '',
+          urlFotoPerfil: '',
+          rolEvento: 'EMPRESA',
+          estaActivo: 1,
+        },
+      });
+
+      await this.prisma.empresa_usuario.create({
+        data: {
+          empresa_id: empresa.id,
+          usuario_id: usuario.id,
+          empresaevento_id: ee.id,
+          cargo: p.cargo || '',
+          esResponsable: p.esResponsable ? 1 : 0,
+        },
+      });
+
+      participantesCreados.push({
+        id: usuario.id,
+        nombres: usuario.nombres,
+        apellidoPaterno: usuario.apellidoPaterno,
+        correo: usuario.correo,
+        cargo: p.cargo,
+        esResponsable: p.esResponsable,
+      });
+    }
+
+    return {
+      empresa: { id: empresa.id, nombre: empresa.nombre, rubro: empresa.rubro },
+      empresaevento: {
+        id: ee.id,
+        numeroParticipantes: ee.numeroParticipantes,
+        montoPagado: ee.montoPagado,
+        estadoVerificacionPago: ee.estadoVerificacionPago,
+        tipoParticipacion: ee.tipoParticipacion,
+      },
+      participantes: participantesCreados,
+      totalPagado: monto,
+    };
   }
 
   @Get('public/actividades')
@@ -252,6 +394,8 @@ export class AppController {
       enlaceFacebook: orNull(body.enlaceFacebook),
       enlaceInstagram: orNull(body.enlaceInstagram),
       enlaceTwitterX: orNull(body.enlaceTwitterX),
+      ciudadEvento: orNull(body.ciudadEvento),
+      paisEvento: orNull(body.paisEvento),
     };
   }
 
@@ -450,12 +594,35 @@ export class AppController {
     });
   }
 
+  @Get('admin/empresas/:id/participantes')
+  async getEmpresaParticipantes(@Param('id') id: string) {
+    const eventoId = await this.getPrincipalEventoId();
+    const registros = await this.prisma.empresa_usuario.findMany({
+      where: {
+        empresa_id: Number(id),
+        ...(eventoId ? { empresaevento: { evento_id: eventoId, estaActivo: 1 } } : {}),
+      },
+      include: { usuario: true },
+    });
+    return registros.map((eu) => ({
+      id: eu.id,
+      usuarioId: eu.usuario_id,
+      nombres: eu.usuario.nombres,
+      apellidoPaterno: eu.usuario.apellidoPaterno,
+      correo: eu.usuario.correo,
+      cargo: eu.cargo,
+      esResponsable: eu.esResponsable === 1,
+      estaActivo: eu.usuario.estaActivo,
+    }));
+  }
+
   // ─── PAGOS ───────────────────────────────────────────────────────────────────
 
   @Get('admin/pagos/pendientes')
   async getPagosPendientes() {
+    const eventoId = await this.getPrincipalEventoId();
     const pagos = await this.prisma.empresaevento.findMany({
-      where: { estadoVerificacionPago: 'PENDIENTE', estaActivo: 1 },
+      where: { ...(eventoId ? { evento_id: eventoId } : {}), estadoVerificacionPago: 'PENDIENTE', estaActivo: 1 },
       orderBy: { fechaHoraEnvioComprobante: 'desc' },
       include: {
         empresa: { include: { ciudad: true } },
@@ -489,7 +656,9 @@ export class AppController {
   ) {
     const take = Number(limit) || 15;
     const skip = (Number(page) - 1) * take || 0;
+    const eventoId = await this.getPrincipalEventoId();
     const where: any = { estaActivo: 1 };
+    if (eventoId) where.evento_id = eventoId;
     if (estado) where.estadoVerificacionPago = estado;
 
     const pagos = await this.prisma.empresaevento.findMany({
@@ -932,6 +1101,8 @@ export class AppController {
   async getEstadisticas() {
     const eventoId = await this.getPrincipalEventoId();
 
+    const ef = eventoId ? { evento_id: eventoId } : {};
+
     const [
       empresasTotal,
       participantesTotal,
@@ -945,14 +1116,16 @@ export class AppController {
       mesasInhabilitadas,
       eventosInternos,
     ] = await Promise.all([
-      this.prisma.empresa.count({ where: { estaActivo: 1 } }),
-      this.prisma.empresa_usuario.count(),
-      this.prisma.reunion.count({ where: { estaActivo: 1, estadoReunion: 'PROGRAMADA' } }),
-      this.prisma.reunion.count({ where: { estaActivo: 1, estadoReunion: 'FINALIZADA' } }),
-      this.prisma.reunion.count({ where: { estaActivo: 1, estadoReunion: 'EN_CURSO' } }),
-      this.prisma.empresaevento.count({ where: { estadoVerificacionPago: 'COMPLETADO', estaActivo: 1 } }),
-      this.prisma.empresaevento.count({ where: { estadoVerificacionPago: 'PENDIENTE', estaActivo: 1 } }),
-      this.prisma.empresaevento.count({ where: { estadoVerificacionPago: 'OBSERVADO', estaActivo: 1 } }),
+      eventoId ? this.prisma.empresaevento.count({ where: { evento_id: eventoId, estaActivo: 1 } }) : Promise.resolve(0),
+      eventoId
+        ? this.prisma.empresa_usuario.count({ where: { empresaevento: { evento_id: eventoId, estaActivo: 1 } } })
+        : Promise.resolve(0),
+      this.prisma.reunion.count({ where: { ...ef, estaActivo: 1, estadoReunion: 'PROGRAMADA' } }),
+      this.prisma.reunion.count({ where: { ...ef, estaActivo: 1, estadoReunion: 'FINALIZADA' } }),
+      this.prisma.reunion.count({ where: { ...ef, estaActivo: 1, estadoReunion: 'EN_CURSO' } }),
+      this.prisma.empresaevento.count({ where: { ...ef, estadoVerificacionPago: 'COMPLETADO', estaActivo: 1 } }),
+      this.prisma.empresaevento.count({ where: { ...ef, estadoVerificacionPago: 'PENDIENTE', estaActivo: 1 } }),
+      this.prisma.empresaevento.count({ where: { ...ef, estadoVerificacionPago: 'OBSERVADO', estaActivo: 1 } }),
       eventoId ? this.prisma.mesa.count({ where: { evento_id: eventoId, estaActivo: 1 } }) : Promise.resolve(0),
       eventoId ? this.prisma.mesa.count({ where: { evento_id: eventoId, estaActivo: 0 } }) : Promise.resolve(0),
       eventoId ? this.prisma.actividadprograma.count({ where: { evento_id: eventoId, estaActivo: 1 } }) : Promise.resolve(0),
@@ -969,14 +1142,22 @@ export class AppController {
         })
       : [];
 
-    // Empresas por rubro (top 5)
-    const empresasPorRubroRaw = await this.prisma.empresa.groupBy({
-      by: ['rubro'],
-      where: { estaActivo: 1 },
-      _count: { id: true },
-      orderBy: { _count: { id: 'desc' } },
-      take: 5,
-    });
+    const empresasPorRubroRaw = eventoId
+      ? await this.prisma.empresaevento.groupBy({
+          by: ['empresa_id'],
+          where: { evento_id: eventoId, estaActivo: 1 },
+        }).then(async (ees) => {
+          const ids = ees.map((e) => e.empresa_id);
+          const rubros = await this.prisma.empresa.groupBy({
+            by: ['rubro'],
+            where: { id: { in: ids }, estaActivo: 1 },
+            _count: { id: true },
+            orderBy: { _count: { id: 'desc' } },
+            take: 5,
+          });
+          return rubros;
+        })
+      : [];
 
     return {
       kpis: {

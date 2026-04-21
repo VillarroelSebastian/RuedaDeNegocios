@@ -20,7 +20,7 @@ export class ImagenesController {
 
     return new Promise((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
-        { folder: 'rueda-negocios' },
+        { folder: 'rueda-negocios', resource_type: 'auto' },
         (error, result) => {
           if (error || !result) return reject(new BadRequestException(error?.message || 'Error al subir a Cloudinary'));
           resolve({ url: result.secure_url });

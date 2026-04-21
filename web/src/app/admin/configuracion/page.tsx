@@ -74,15 +74,17 @@ export default function ConfiguracionPage() {
     }
     setSavingPass(true);
     try {
-      await fetch(`${API}/admin/perfil/${user.id}`, {
+      const res = await fetch(`${API}/admin/perfil/${user.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, contraseniaActual: passForm.contraseniaActual, nuevaContrasenia: passForm.nuevaContrasenia }),
       });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || 'Contraseña actual incorrecta.');
       showSuccess('Contraseña actualizada', 'Tu contraseña fue cambiada correctamente.');
       setPassForm({ contraseniaActual: '', nuevaContrasenia: '', confirmar: '' });
     } catch (e: any) {
-      showError('Error', e.message || 'Contraseña actual incorrecta.');
+      showError('Error', e.message || 'No se pudo cambiar la contraseña.');
     } finally { setSavingPass(false); }
   };
 
@@ -226,9 +228,8 @@ export default function ConfiguracionPage() {
           </div>
 
           <div className="mt-8 pt-6 border-t border-gray-100">
-            <h3 className="font-bold text-red-600 mb-3">Zona peligrosa</h3>
             <button onClick={handleLogout}
-              className="flex items-center gap-2 px-5 py-2.5 border border-red-200 text-red-600 font-semibold rounded-xl hover:bg-red-50 transition-colors">
+              className="flex items-center gap-2 px-5 py-2.5 border border-gray-200 text-gray-600 font-semibold rounded-xl hover:bg-gray-50 transition-colors">
               <LogOut className="w-4 h-4" />
               Cerrar sesión
             </button>

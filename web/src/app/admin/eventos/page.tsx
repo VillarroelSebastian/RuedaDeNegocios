@@ -31,13 +31,20 @@ export default function EventosListPage() {
     fetchEventos();
   }, []);
 
-  const handleSetPrincipal = async (id: number) => {
-    try {
-      await fetch(`http://localhost:3334/admin/eventos/${id}/set-principal`, { method: 'PUT' });
-      fetchEventos();
-    } catch (err) {
-      showModal('error', 'Error', 'No se pudo cambiar el evento principal. Intenta de nuevo.');
-    }
+  const handleSetPrincipal = (id: number) => {
+    showModal(
+      'confirm',
+      '⚠️ Cambiar evento principal',
+      'Al cambiar el evento principal, TODOS los módulos del sistema (empresas, pagos, mesas, técnicos, estadísticas) mostrarán únicamente datos de este evento. ¿Deseas continuar?',
+      async () => {
+        try {
+          await fetch(`http://localhost:3334/admin/eventos/${id}/set-principal`, { method: 'PUT' });
+          fetchEventos();
+        } catch {
+          showModal('error', 'Error', 'No se pudo cambiar el evento principal. Intenta de nuevo.');
+        }
+      },
+    );
   };
 
   const handleDelete = (id: number, esPrincipal: number) => {

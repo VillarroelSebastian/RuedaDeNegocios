@@ -133,13 +133,22 @@ export default function HomeScreen({ navigation }: any) {
               📅 {fmtDate(evento.fechaInicioEvento)} – {fmtDate(evento.fechaFinEvento)}
             </Text>
 
-            <TouchableOpacity
-              className="bg-white rounded-xl px-10 py-3.5 shadow-lg"
-              onPress={() => navigation.navigate('Login')}
-              activeOpacity={0.85}
-            >
-              <Text className="text-green-800 font-bold text-base">Iniciar Sesión</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
+              <TouchableOpacity
+                className="bg-white rounded-xl px-7 py-3.5 shadow-lg"
+                onPress={() => navigation.navigate('Registro')}
+                activeOpacity={0.85}
+              >
+                <Text className="text-green-800 font-bold text-base">Registrar empresa</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ borderWidth: 2, borderColor: 'rgba(255,255,255,0.4)', borderRadius: 12, paddingHorizontal: 24, paddingVertical: 14 }}
+                onPress={() => navigation.navigate('Login')}
+                activeOpacity={0.85}
+              >
+                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Iniciar Sesión</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
@@ -259,18 +268,27 @@ export default function HomeScreen({ navigation }: any) {
         {/* ── CTA FINAL ──────────────────────────────────────── */}
         <View className="bg-green-800 px-6 py-10 items-center">
           <Text className="text-white text-xl font-extrabold text-center mb-2">
-            ¿Listo para administrar el evento?
+            ¿Quieres participar en el evento?
           </Text>
           <Text className="text-green-200 text-sm text-center mb-6">
-            Accede con tu cuenta de administrador o técnico.
+            Registra tu empresa o accede con tu cuenta.
           </Text>
-          <TouchableOpacity
-            className="bg-white rounded-xl px-10 py-3.5"
-            onPress={() => navigation.navigate('Login')}
-            activeOpacity={0.85}
-          >
-            <Text className="text-green-800 font-bold text-base">Iniciar Sesión</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            <TouchableOpacity
+              style={{ backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 20, paddingVertical: 14 }}
+              onPress={() => navigation.navigate('Registro')}
+              activeOpacity={0.85}
+            >
+              <Text style={{ color: '#14532d', fontWeight: '700', fontSize: 14 }}>Registrarse</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{ borderWidth: 2, borderColor: 'rgba(255,255,255,0.4)', borderRadius: 12, paddingHorizontal: 20, paddingVertical: 14 }}
+              onPress={() => navigation.navigate('Login')}
+              activeOpacity={0.85}
+            >
+              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Iniciar Sesión</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Footer */}

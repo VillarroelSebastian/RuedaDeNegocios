@@ -182,12 +182,12 @@ export default function LoginPage() {
                     {loading ? "Cargando..." : "Iniciar sesión"}
                   </button>
                   
-                  <button
-                    type="button"
+                  <Link
+                    href="/registro"
                     className="flex w-full justify-center rounded-xl bg-[#FAFAFA] border border-gray-200 px-3 py-3.5 text-sm font-bold text-[#374151] shadow-sm hover:bg-gray-100 transition-colors"
                   >
-                    Crear cuenta nueva
-                  </button>
+                    Registrar mi empresa
+                  </Link>
                 </div>
               </form>
               

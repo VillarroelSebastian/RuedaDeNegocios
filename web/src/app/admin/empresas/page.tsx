@@ -1,8 +1,7 @@
 "use client";
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, Building2, Users, Eye, Trash2, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
+import { Search, Building2, Users, Eye, Trash2, ChevronLeft, ChevronRight, Filter, X } from 'lucide-react';
 import { useModal } from '@/components/ui/Modal';
-import Link from 'next/link';
 
 const API = 'http://localhost:3334';
 
@@ -14,6 +13,76 @@ const ESTADOS_PAGO = [
   { value: 'SIN_REGISTRO', label: 'Sin registro' },
 ];
 
+/* ── Participants Modal ──────────────────────────────────────── */
+function ParticipantesModal({ empresa, onClose }: { empresa: { id: number; nombre: string } | null; onClose: () => void }) {
+  const [participantes, setParticipantes] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!empresa) return;
+    fetch(`${API}/admin/empresas/${empresa.id}/participantes`)
+      .then(r => r.json())
+      .then(data => setParticipantes(Array.isArray(data) ? data : []))
+      .catch(() => setParticipantes([]))
+      .finally(() => setLoading(false));
+  }, [empresa]);
+
+  if (!empresa) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between p-6 border-b border-gray-100">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">Participantes</h2>
+            <p className="text-sm text-gray-500 mt-0.5">{empresa.nombre}</p>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-6">
+          {loading ? (
+            <div className="flex justify-center py-8">
+              <div className="w-8 h-8 border-4 border-[#449D3A] border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : participantes.length === 0 ? (
+            <div className="text-center py-8 text-gray-400 text-sm">No hay participantes registrados</div>
+          ) : (
+            <div className="space-y-3">
+              {participantes.map((p) => (
+                <div key={p.id} className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-green-100 flex items-center justify-center text-sm font-bold text-green-700">
+                      {p.nombres?.[0]?.toUpperCase() ?? '?'}
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">{p.nombres} {p.apellidoPaterno}</p>
+                      <p className="text-xs text-gray-500">{p.cargo} · {p.correo}</p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    {p.esResponsable && (
+                      <span className="text-[10px] font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Responsable</span>
+                    )}
+                    <span className={`text-[10px] font-semibold ${p.estaActivo ? 'text-gray-400' : 'text-red-400'}`}>
+                      {p.estaActivo ? 'Activo' : 'Inactivo'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="p-4 border-t border-gray-100 text-xs text-gray-400 text-center">
+          {participantes.length} participante{participantes.length !== 1 ? 's' : ''} registrado{participantes.length !== 1 ? 's' : ''}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Main Page ───────────────────────────────────────────────── */
 export default function EmpresasPage() {
   const { modalState, showSuccess, showError, showConfirm, ModalComponent } = useModal();
   const [empresas, setEmpresas] = useState<any[]>([]);
@@ -23,6 +92,7 @@ export default function EmpresasPage() {
   const [search, setSearch] = useState('');
   const [estadoPago, setEstadoPago] = useState('');
   const [rubro, setRubro] = useState('');
+  const [participantesEmpresa, setParticipantesEmpresa] = useState<{ id: number; nombre: string } | null>(null);
   const limit = 10;
 
   const fetchEmpresas = useCallback(async () => {
@@ -96,6 +166,7 @@ export default function EmpresasPage() {
   return (
     <div className="p-8 max-w-7xl mx-auto">
       <ModalComponent />
+      <ParticipantesModal empresa={participantesEmpresa} onClose={() => setParticipantesEmpresa(null)} />
 
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Empresas registradas</h1>
@@ -172,7 +243,7 @@ export default function EmpresasPage() {
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-lg bg-green-100 flex items-center justify-center shrink-0 overflow-hidden">
                           {emp.urlFotoPerfil
-                            ? <img src={emp.urlFotoPerfil} alt="" className="w-full h-full object-cover" />
+                            ? <img src={emp.urlFotoPerfil} alt="" className="w-full h-full object-contain" />
                             : <Building2 className="w-5 h-5 text-green-600" />
                           }
                         </div>
@@ -197,12 +268,19 @@ export default function EmpresasPage() {
                     </td>
                     <td className="py-4 px-5">
                       <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setParticipantesEmpresa({ id: emp.id, nombre: emp.nombre })}
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 transition-colors"
+                          title="Ver participantes"
+                        >
+                          <Users className="w-4 h-4" />
+                        </button>
                         {emp.empresaEventoId && (
-                          <Link href={`/admin/pagos/${emp.empresaEventoId}`}>
+                          <a href={`/admin/pagos/${emp.empresaEventoId}`}>
                             <button className="p-1.5 rounded-lg text-gray-400 hover:text-[#449D3A] hover:bg-green-50 transition-colors" title="Ver pago">
                               <Eye className="w-4 h-4" />
                             </button>
-                          </Link>
+                          </a>
                         )}
                         <button
                           onClick={() => handleDelete(emp.id, emp.nombre)}

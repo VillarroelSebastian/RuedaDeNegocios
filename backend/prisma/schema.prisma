@@ -149,6 +149,8 @@ model evento {
   enlaceFacebook                 String?             @db.VarChar(505)
   enlaceInstagram                String?             @db.VarChar(505)
   enlaceTwitterX                 String?             @db.VarChar(505)
+  ciudadEvento                   String?             @db.VarChar(205)
+  paisEvento                     String?             @db.VarChar(105)
   estaActivo                     Int                 @db.SmallInt
   esPrincipal                    Int                 @default(0) @db.SmallInt
   fechaCreacion                  DateTime            @default(now()) @db.Timestamp(6)

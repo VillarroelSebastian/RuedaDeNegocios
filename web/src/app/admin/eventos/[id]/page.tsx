@@ -36,6 +36,8 @@ export default function ConfiguracionDeEventoPage() {
     enlaceFacebook: '',
     enlaceInstagram: '',
     enlaceTwitterX: '',
+    ciudadEvento: '',
+    paisEvento: '',
   });
 
   const [reglasQR, setReglasQR] = useState([
@@ -76,6 +78,8 @@ export default function ConfiguracionDeEventoPage() {
             enlaceFacebook: data.enlaceFacebook || '',
             enlaceInstagram: data.enlaceInstagram || '',
             enlaceTwitterX: data.enlaceTwitterX || '',
+            ciudadEvento: data.ciudadEvento || '',
+            paisEvento: data.paisEvento || '',
           });
           if (data.eventoreglaqr && data.eventoreglaqr.length > 0) {
             setReglasQR(data.eventoreglaqr.map((r: any) => ({
@@ -113,6 +117,10 @@ export default function ConfiguracionDeEventoPage() {
   };
 
   const removeRule = (index: number) => {
+    if (reglasQR.length <= 1) {
+      showModal('warning', 'Regla requerida', 'Debe existir al menos una regla QR de pago. No se puede eliminar la última.');
+      return;
+    }
     setReglasQR(reglasQR.filter((_, i) => i !== index));
   };
 
@@ -189,6 +197,8 @@ export default function ConfiguracionDeEventoPage() {
       enlaceFacebook: orNull(formData.enlaceFacebook),
       enlaceInstagram: orNull(formData.enlaceInstagram),
       enlaceTwitterX: orNull(formData.enlaceTwitterX),
+      ciudadEvento: orNull(formData.ciudadEvento),
+      paisEvento: orNull(formData.paisEvento),
       reglasQR: reglasQR.map(r => ({
         rangoDesde: Number(r.rangoDesde),
         rangoHasta: Number(r.rangoHasta),
@@ -265,6 +275,14 @@ export default function ConfiguracionDeEventoPage() {
             <div>
               <label className={styles.label}>Fecha Fin *</label>
               <input required type="date" name="fechaFinEvento" value={formData.fechaFinEvento} onChange={handleChange} className={styles.input} />
+            </div>
+            <div>
+              <label className={styles.label}>Ciudad del evento</label>
+              <input type="text" name="ciudadEvento" value={formData.ciudadEvento} onChange={handleChange} className={styles.input} placeholder="Ej. Trinidad" />
+            </div>
+            <div>
+              <label className={styles.label}>País del evento</label>
+              <input type="text" name="paisEvento" value={formData.paisEvento} onChange={handleChange} className={styles.input} placeholder="Ej. Bolivia" />
             </div>
           </div>
 

@@ -39,6 +39,10 @@ interface EventoPublico {
   enlaceInstagram: string | null;
   enlaceTwitterX: string | null;
   urlLogoEvento: string | null;
+  urlImagenMapaRecinto: string | null;
+  urlImagenCronogramaCharlas: string | null;
+  ciudadEvento: string | null;
+  paisEvento: string | null;
   stats: { empresasCount: number; mesasCount: number; actividadesCount: number; tecnicosCount: number };
 }
 
@@ -140,6 +144,9 @@ export default function HomePage() {
           <a href="#sobre" className="text-sm font-semibold text-gray-500 hover:text-gray-900 transition-colors">Sobre el Evento</a>
           <a href="#actividades" className="text-sm font-semibold text-gray-500 hover:text-gray-900 transition-colors">Actividades</a>
           <a href="#contacto" className="text-sm font-semibold text-gray-500 hover:text-gray-900 transition-colors">Contacto</a>
+          <Link href="/registro" className="rounded-md border border-[#449D3A] px-5 py-2 text-sm font-semibold text-[#449D3A] hover:bg-green-50 transition-colors">
+            Registrarse
+          </Link>
           <Link href="/auth/login" className="rounded-md bg-[#449D3A] px-5 py-2 text-sm font-semibold text-white hover:bg-[#367d2e] transition-colors">
             Iniciar Sesión
           </Link>
@@ -165,7 +172,7 @@ export default function HomePage() {
         <div className="relative z-10 max-w-4xl mx-auto px-6 text-center">
           <div className="inline-flex items-center gap-2 bg-white/15 backdrop-blur-sm border border-white/25 text-white/90 text-sm px-4 py-1.5 rounded-full mb-6">
             <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-            Edición {evento.edicion} — Beni, Bolivia
+            Edición {evento.edicion}{evento.ciudadEvento ? ` — ${evento.ciudadEvento}` : ''}{evento.paisEvento ? `, ${evento.paisEvento}` : ''}
           </div>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-white leading-tight mb-6">
             {evento.nombre}
@@ -175,14 +182,22 @@ export default function HomePage() {
           </p>
           <div className="flex flex-wrap items-center justify-center gap-4 text-white/70 text-sm mb-10">
             <span className="flex items-center gap-1.5"><Calendar size={16} />{formatDate(evento.fechaInicioEvento)} – {formatDate(evento.fechaFinEvento)}</span>
-            <span className="flex items-center gap-1.5"><MapPin size={16} />Trinidad, Beni – Bolivia</span>
+            {(evento.ciudadEvento || evento.paisEvento) && (
+              <span className="flex items-center gap-1.5">
+                <MapPin size={16} />
+                {[evento.ciudadEvento, evento.paisEvento].filter(Boolean).join(' – ')}
+              </span>
+            )}
           </div>
           <div className="flex flex-wrap items-center justify-center gap-4">
             <a href="#sobre" className="bg-white text-green-800 font-semibold px-8 py-3.5 rounded-xl hover:bg-green-50 transition-all shadow-lg shadow-black/20 flex items-center gap-2">
               Conocer más <ChevronRight size={18} />
             </a>
-            <Link href="/auth/login" className="border-2 border-white/40 text-white font-semibold px-8 py-3.5 rounded-xl hover:bg-white/10 transition-all backdrop-blur-sm">
-              Panel Administrativo
+            <Link href="/registro" className="bg-white/15 border-2 border-white/40 text-white font-semibold px-8 py-3.5 rounded-xl hover:bg-white/25 transition-all backdrop-blur-sm">
+              Registrar mi empresa
+            </Link>
+            <Link href="/auth/login" className="border-2 border-white/20 text-white/70 font-semibold px-8 py-3.5 rounded-xl hover:bg-white/10 transition-all backdrop-blur-sm">
+              Iniciar Sesión
             </Link>
           </div>
         </div>
@@ -241,13 +256,18 @@ export default function HomePage() {
             <div className="relative">
               <div className="relative h-96 rounded-2xl overflow-hidden shadow-2xl">
                 <Image
-                  src="https://images.unsplash.com/photo-1552664730-d307ca884978?w=800&q=80"
-                  alt="Empresas conectando"
+                  src={evento.urlImagenMapaRecinto ?? "https://images.unsplash.com/photo-1552664730-d307ca884978?w=800&q=80"}
+                  alt="Recinto del evento"
                   fill
                   className="object-cover"
                   unoptimized
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-green-900/40 to-transparent" />
+                {evento.urlImagenMapaRecinto && (
+                  <div className="absolute bottom-3 left-3 bg-white/90 backdrop-blur-sm text-xs text-gray-600 font-semibold px-3 py-1 rounded-full flex items-center gap-1.5">
+                    <MapPin size={11} className="text-green-700" /> Mapa del recinto
+                  </div>
+                )}
               </div>
               <div className="absolute -bottom-6 -left-6 bg-white rounded-2xl shadow-xl p-5 border border-gray-100">
                 <div className="flex items-center gap-3">
@@ -308,6 +328,26 @@ export default function HomePage() {
         </section>
       )}
 
+      {/* ── CRONOGRAMA ─────────────────────────────────────────────── */}
+      {evento.urlImagenCronogramaCharlas && (
+        <section className="py-16 bg-gray-50">
+          <div className="max-w-4xl mx-auto px-6 text-center">
+            <span className="text-green-600 font-semibold text-sm uppercase tracking-wider">Programa</span>
+            <h2 className="text-3xl font-extrabold text-gray-900 mt-3 mb-8">Cronograma de Charlas</h2>
+            <div className="relative rounded-2xl overflow-hidden shadow-2xl">
+              <Image
+                src={evento.urlImagenCronogramaCharlas}
+                alt="Cronograma de charlas"
+                width={900}
+                height={600}
+                className="w-full h-auto object-contain"
+                unoptimized
+              />
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* ── BANNER CTA ─────────────────────────────────────────────── */}
       <section className="py-16 bg-gradient-to-r from-green-800 to-emerald-700 relative overflow-hidden">
         <div className="absolute inset-0">
@@ -359,16 +399,18 @@ export default function HomePage() {
                 </div>
               </a>
             )}
-            <div className="bg-white border border-gray-200 rounded-2xl p-6 flex items-center gap-4">
-              <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                <MapPin size={22} className="text-amber-700" />
+            {(evento.ciudadEvento || evento.paisEvento) && (
+              <div className="bg-white border border-gray-200 rounded-2xl p-6 flex items-center gap-4">
+                <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <MapPin size={22} className="text-amber-700" />
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400 mb-1">Ubicación</p>
+                  {evento.ciudadEvento && <p className="font-semibold text-gray-800">{evento.ciudadEvento}</p>}
+                  {evento.paisEvento && <p className="text-xs text-gray-400">{evento.paisEvento}</p>}
+                </div>
               </div>
-              <div>
-                <p className="text-xs text-gray-400 mb-1">Ubicación</p>
-                <p className="font-semibold text-gray-800">Trinidad, Beni</p>
-                <p className="text-xs text-gray-400">Bolivia</p>
-              </div>
-            </div>
+            )}
           </div>
           {(evento.enlaceFacebook || evento.enlaceInstagram || evento.enlaceTwitterX) && (
             <div className="flex justify-center gap-4 mt-10">
@@ -403,7 +445,7 @@ export default function HomePage() {
               <div className="relative h-10 w-36 opacity-80">
                 <Image src="/assets/iconos/logo.png" alt="Logo" fill sizes="144px" className="object-contain object-left" />
               </div>
-              <p className="text-green-400 text-xs">Edición {evento.edicion} · Beni, Bolivia</p>
+              <p className="text-green-400 text-xs">Edición {evento.edicion}{evento.ciudadEvento ? ` · ${evento.ciudadEvento}` : ''}{evento.paisEvento ? `, ${evento.paisEvento}` : ''}</p>
             </div>
             <div className="flex items-center gap-6 text-green-300 text-sm">
               <a href="#sobre" className="hover:text-white transition-colors">Sobre el Evento</a>
