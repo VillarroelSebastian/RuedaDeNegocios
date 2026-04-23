@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  ActivityIndicator, RefreshControl, Alert, Modal
+  ActivityIndicator, RefreshControl, Modal
 } from 'react-native';
-import { Plus, Pencil, Trash2, Clock, X } from 'lucide-react-native';
+import { useModal } from '../../components/AppModal';
+import { Plus, Clock, X } from 'lucide-react-native';
 import { API_URL } from '../../utils/userStore';
 
 const GREEN = '#449D3A';
@@ -25,6 +26,7 @@ const defaultForm = {
 };
 
 export default function ActividadesScreen() {
+  const { show, modal } = useModal();
   const [actividades, setActividades] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -62,31 +64,32 @@ export default function ActividadesScreen() {
 
   const handleSave = async () => {
     if (!form.nombreActividad || !form.fechaActividad) {
-      Alert.alert('Requerido', 'Ingresa al menos el nombre y la fecha.');
+      show({ type: 'warning', title: 'Campos requeridos', message: 'Ingresa al menos el nombre y la fecha.' });
       return;
     }
     setSaving(true);
     try {
       const url = editId ? `${API_URL}/admin/actividades/${editId}` : `${API_URL}/admin/actividades`;
       await fetch(url, { method: editId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
-      Alert.alert('Éxito', editId ? 'Actividad actualizada.' : 'Actividad creada.');
+      show({ type: 'success', title: '¡Listo!', message: editId ? 'Actividad actualizada correctamente.' : 'Actividad creada correctamente.' });
       setShowForm(false);
       fetchActividades();
-    } catch { Alert.alert('Error', 'No se pudo guardar.'); }
+    } catch { show({ type: 'error', title: 'Error', message: 'No se pudo guardar la actividad.' }); }
     finally { setSaving(false); }
   };
 
   const handleDelete = (id: number, nombre: string) => {
-    Alert.alert('Eliminar', `¿Eliminar "${nombre}"?`, [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Eliminar', style: 'destructive',
-        onPress: async () => {
-          await fetch(`${API_URL}/admin/actividades/${id}`, { method: 'DELETE' });
-          fetchActividades();
-        }
+    show({
+      type: 'confirm',
+      title: 'Eliminar actividad',
+      message: `¿Deseas eliminar "${nombre}"? Esta acción no se puede deshacer.`,
+      confirmText: 'Eliminar',
+      cancelText: 'Cancelar',
+      onConfirm: async () => {
+        await fetch(`${API_URL}/admin/actividades/${id}`, { method: 'DELETE' });
+        fetchActividades();
       },
-    ]);
+    });
   };
 
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
@@ -97,6 +100,8 @@ export default function ActividadesScreen() {
   };
 
   return (
+    <>
+    {modal}
     <View className="flex-1 bg-[#F9FAFB]">
       <View className="bg-white px-4 pt-4 pb-4 border-b border-gray-100 flex-row items-center justify-between">
         <Text className="text-lg font-bold text-gray-900">Actividades ({actividades.length})</Text>
@@ -213,5 +218,6 @@ export default function ActividadesScreen() {
         </View>
       </Modal>
     </View>
+    </>
   );
 }

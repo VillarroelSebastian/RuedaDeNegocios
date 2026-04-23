@@ -881,6 +881,31 @@ export class AppController {
         reunion: {
           where: { estaActivo: 1 },
           orderBy: { fechaHoraInicioReunion: 'asc' },
+          include: {
+            solicitudreunion: {
+              include: {
+                empresaevento_solicitudreunion_empresaEvento_idToempresaevento: {
+                  include: {
+                    empresa: { select: { id: true, nombre: true, rubro: true, urlFotoPerfil: true, sitioWeb: true } },
+                  },
+                },
+                empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento: {
+                  include: {
+                    empresa: { select: { id: true, nombre: true, rubro: true, urlFotoPerfil: true, sitioWeb: true } },
+                  },
+                },
+              },
+            },
+            resultadoreunion: {
+              where: { estaActivo: 1 },
+              select: {
+                id: true,
+                calificacionReunion: true,
+                rangoAcuerdoComercial: true,
+                observacionesPuntosTratados: true,
+              },
+            },
+          },
         },
         mesabloque: {
           where: { estaActivo: 1 },
@@ -894,15 +919,26 @@ export class AppController {
   @Get('admin/mesas')
   async getMesas() {
     const eventoId = await this.getPrincipalEventoId();
-    if (!eventoId) return [];
+    if (!eventoId) return { mesas: [], eventoConfig: null };
 
-    return await this.prisma.mesa.findMany({
-      where: { evento_id: eventoId },
-      orderBy: { numeroMesa: 'asc' },
-      include: {
-        _count: { select: { reunion: true } },
-      },
-    });
+    const [mesas, evento] = await Promise.all([
+      this.prisma.mesa.findMany({
+        where: { evento_id: eventoId },
+        orderBy: { numeroMesa: 'asc' },
+        include: { _count: { select: { reunion: true } } },
+      }),
+      this.prisma.evento.findUnique({
+        where: { id: eventoId },
+        select: {
+          duracionReunion: true,
+          tiempoEntreReuniones: true,
+          cantidadTotalMesasEvento: true,
+          capacidadPersonasPorMesa: true,
+        },
+      }),
+    ]);
+
+    return { mesas, eventoConfig: evento };
   }
 
   @Post('admin/mesas/generar')

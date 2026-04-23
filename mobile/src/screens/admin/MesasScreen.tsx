@@ -1,15 +1,18 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  ActivityIndicator, RefreshControl, Alert, Modal
+  ActivityIndicator, RefreshControl, Modal,
 } from 'react-native';
-import { Plus, X } from 'lucide-react-native';
+import { Plus, X, Clock, Users, Armchair, Timer } from 'lucide-react-native';
 import { API_URL } from '../../utils/userStore';
+import { useModal } from '../../components/AppModal';
 
 const GREEN = '#449D3A';
 
 export default function MesasScreen() {
+  const { show, modal } = useModal();
   const [mesas, setMesas] = useState<any[]>([]);
+  const [eventoConfig, setEventoConfig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showGenerar, setShowGenerar] = useState(false);
@@ -21,7 +24,16 @@ export default function MesasScreen() {
     try {
       const res = await fetch(`${API_URL}/admin/mesas`);
       const data = await res.json();
-      setMesas(Array.isArray(data) ? data : []);
+      if (Array.isArray(data)) {
+        setMesas(data);
+      } else {
+        setMesas(data.mesas ?? []);
+        if (data.eventoConfig) {
+          setEventoConfig(data.eventoConfig);
+          setCantidad(String(data.eventoConfig.cantidadTotalMesasEvento ?? 10));
+          setCapacidad(String(data.eventoConfig.capacidadPersonasPorMesa ?? 4));
+        }
+      }
     } catch {}
     finally { setLoading(false); setRefreshing(false); }
   }, []);
@@ -37,11 +49,14 @@ export default function MesasScreen() {
         body: JSON.stringify({ estaActivo: nuevoEstado }),
       });
       setMesas((prev) => prev.map((m) => m.id === mesa.id ? { ...m, estaActivo: nuevoEstado } : m));
-    } catch { Alert.alert('Error', 'No se pudo cambiar el estado.'); }
+    } catch { show({ type: 'error', title: 'Error', message: 'No se pudo cambiar el estado.' }); }
   };
 
   const handleGenerar = async () => {
-    if (!cantidad || Number(cantidad) <= 0) { Alert.alert('Error', 'Ingresa una cantidad válida.'); return; }
+    if (!cantidad || Number(cantidad) <= 0) {
+      show({ type: 'warning', title: 'Error', message: 'Ingresa una cantidad válida.' });
+      return;
+    }
     setGenerating(true);
     try {
       const res = await fetch(`${API_URL}/admin/mesas/generar`, {
@@ -50,10 +65,10 @@ export default function MesasScreen() {
         body: JSON.stringify({ cantidad: Number(cantidad), capacidadPersonas: Number(capacidad) }),
       });
       const data = await res.json();
-      Alert.alert('Éxito', data.mensaje);
+      show({ type: 'success', title: '¡Listo!', message: data.mensaje || 'Mesas generadas correctamente.' });
       setShowGenerar(false);
       fetchMesas();
-    } catch { Alert.alert('Error', 'No se pudieron generar las mesas.'); }
+    } catch { show({ type: 'error', title: 'Error', message: 'No se pudieron generar las mesas.' }); }
     finally { setGenerating(false); }
   };
 
@@ -61,6 +76,8 @@ export default function MesasScreen() {
   const inactivas = mesas.filter((m) => m.estaActivo !== 1).length;
 
   return (
+    <>
+    {modal}
     <View className="flex-1 bg-[#F9FAFB]">
       <View className="bg-white px-4 pt-12 pb-4 border-b border-gray-100">
         <View className="flex-row items-center justify-between">
@@ -86,8 +103,37 @@ export default function MesasScreen() {
       ) : (
         <ScrollView
           className="flex-1"
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchMesas(); }} tintColor={GREEN} />}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => { setRefreshing(true); fetchMesas(); }}
+              tintColor={GREEN}
+            />
+          }
         >
+          {/* Config del evento */}
+          {eventoConfig && (
+            <View className="mx-4 mt-4 bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3">
+              <Text className="text-[10px] font-bold text-blue-600 uppercase mb-2">Configuración del evento</Text>
+              <View className="flex-row flex-wrap gap-3">
+                {[
+                  { Icon: Clock, label: 'Reunión', value: `${eventoConfig.duracionReunion} min` },
+                  { Icon: Timer, label: 'Pausa', value: `${eventoConfig.tiempoEntreReuniones} min` },
+                  { Icon: Armchair, label: 'Mesas plan.', value: eventoConfig.cantidadTotalMesasEvento },
+                  { Icon: Users, label: 'Cap./mesa', value: `${eventoConfig.capacidadPersonasPorMesa} p.` },
+                ].map(({ Icon, label, value }) => (
+                  <View key={label} className="flex-row items-center gap-1.5">
+                    <Icon color="#3b82f6" size={13} />
+                    <View>
+                      <Text className="text-[9px] text-blue-400 font-semibold">{label}</Text>
+                      <Text className="text-xs font-bold text-blue-900">{value}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
           {/* Stats */}
           <View className="flex-row gap-3 px-4 pt-4">
             {[
@@ -145,15 +191,28 @@ export default function MesasScreen() {
       <Modal visible={showGenerar} transparent animationType="slide">
         <View className="flex-1 bg-black/40 justify-end">
           <View className="bg-white rounded-t-3xl p-6">
-            <View className="flex-row items-center justify-between mb-5">
+            <View className="flex-row items-center justify-between mb-4">
               <Text className="text-lg font-bold text-gray-900">Generar mesas</Text>
               <TouchableOpacity onPress={() => setShowGenerar(false)}>
                 <X color="#9ca3af" size={22} />
               </TouchableOpacity>
             </View>
+
+            {eventoConfig && (
+              <View className="bg-gray-50 rounded-xl px-3 py-2.5 mb-4">
+                <Text className="text-xs text-gray-500">
+                  El evento tiene planificadas{' '}
+                  <Text className="font-bold text-gray-700">{eventoConfig.cantidadTotalMesasEvento} mesas</Text>
+                  {' '}con{' '}
+                  <Text className="font-bold text-gray-700">{eventoConfig.capacidadPersonasPorMesa} personas/mesa</Text>.
+                  Los valores están pre-llenados.
+                </Text>
+              </View>
+            )}
+
             <View className="space-y-4 mb-6">
               <View>
-                <Text className="text-sm font-semibold text-gray-700 mb-1.5">Cantidad de mesas</Text>
+                <Text className="text-sm font-semibold text-gray-700 mb-1.5">Cantidad de mesas *</Text>
                 <TextInput
                   value={cantidad}
                   onChangeText={setCantidad}
@@ -162,7 +221,7 @@ export default function MesasScreen() {
                 />
               </View>
               <View>
-                <Text className="text-sm font-semibold text-gray-700 mb-1.5">Capacidad por mesa (personas)</Text>
+                <Text className="text-sm font-semibold text-gray-700 mb-1.5">Capacidad por mesa (personas) *</Text>
                 <TextInput
                   value={capacidad}
                   onChangeText={setCapacidad}
@@ -186,5 +245,6 @@ export default function MesasScreen() {
         </View>
       </Modal>
     </View>
+    </>
   );
 }

@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  TextInput, ActivityIndicator, Alert, Linking, Image
+  TextInput, ActivityIndicator, Linking, Image
 } from 'react-native';
 import { CheckCircle, AlertCircle, FileText, Download, Info } from 'lucide-react-native';
 import { API_URL } from '../../utils/userStore';
+import { useModal } from '../../components/AppModal';
 
 const GREEN = '#449D3A';
 
 export default function PagoDetailScreen({ route, navigation }: any) {
+  const { show, modal } = useModal();
   const { id } = route.params;
   const [pago, setPago] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -26,26 +28,27 @@ export default function PagoDetailScreen({ route, navigation }: any) {
   useEffect(() => { fetchPago(); }, [id]);
 
   const handleAprobar = () => {
-    Alert.alert('Aprobar pago', 'Esto habilitará a la empresa y sus participantes en el sistema del evento.', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Aprobar', style: 'default',
-        onPress: async () => {
-          setSubmitting(true);
-          try {
-            await fetch(`${API_URL}/admin/pagos/${id}/aprobar`, { method: 'PUT' });
-            Alert.alert('Éxito', 'El pago fue aprobado correctamente.');
-            fetchPago();
-          } catch { Alert.alert('Error', 'No se pudo aprobar el pago.'); }
-          finally { setSubmitting(false); }
-        }
+    show({
+      type: 'confirm',
+      title: 'Aprobar pago',
+      message: 'Esto habilitará a la empresa y sus participantes en el sistema del evento.',
+      confirmText: 'Aprobar',
+      cancelText: 'Cancelar',
+      onConfirm: async () => {
+        setSubmitting(true);
+        try {
+          await fetch(`${API_URL}/admin/pagos/${id}/aprobar`, { method: 'PUT' });
+          show({ type: 'success', title: '¡Aprobado!', message: 'El pago fue aprobado correctamente.' });
+          fetchPago();
+        } catch { show({ type: 'error', title: 'Error', message: 'No se pudo aprobar el pago.' }); }
+        finally { setSubmitting(false); }
       },
-    ]);
+    });
   };
 
   const handleObservar = async () => {
     if (!observacion.trim()) {
-      Alert.alert('Requerido', 'Escribe una observación antes de continuar.');
+      show({ type: 'warning', title: 'Requerido', message: 'Escribe una observación antes de continuar.' });
       return;
     }
     setSubmitting(true);
@@ -55,19 +58,19 @@ export default function PagoDetailScreen({ route, navigation }: any) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ observacion }),
       });
-      Alert.alert('Éxito', 'Se solicitó nueva evidencia a la empresa.');
+      show({ type: 'success', title: '¡Enviado!', message: 'Se solicitó nueva evidencia a la empresa.' });
       setObservacion('');
       fetchPago();
-    } catch { Alert.alert('Error', 'No se pudo enviar la observación.'); }
+    } catch { show({ type: 'error', title: 'Error', message: 'No se pudo enviar la observación.' }); }
     finally { setSubmitting(false); }
   };
 
   if (loading) {
-    return <View className="flex-1 justify-center items-center bg-[#F9FAFB]"><ActivityIndicator color={GREEN} size="large" /></View>;
+    return <><>{modal}</><View className="flex-1 justify-center items-center bg-[#F9FAFB]"><ActivityIndicator color={GREEN} size="large" /></View></>;
   }
 
   if (!pago) {
-    return <View className="flex-1 justify-center items-center"><Text className="text-gray-400">Pago no encontrado</Text></View>;
+    return <><>{modal}</><View className="flex-1 justify-center items-center"><Text className="text-gray-400">Pago no encontrado</Text></View></>;
   }
 
   const comprobante = pago.empresaeventocomprobantes?.[0];
@@ -79,6 +82,8 @@ export default function PagoDetailScreen({ route, navigation }: any) {
   };
 
   return (
+    <>
+    {modal}
     <ScrollView className="flex-1 bg-[#F9FAFB]">
       <View className="p-4 space-y-4">
         {/* Resumen */}
@@ -189,5 +194,6 @@ export default function PagoDetailScreen({ route, navigation }: any) {
         <View className="h-8" />
       </View>
     </ScrollView>
+    </>
   );
 }

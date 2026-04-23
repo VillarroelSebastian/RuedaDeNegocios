@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, ToggleLeft, ToggleRight, RefreshCw, X } from 'lucide-react';
+import { Plus, RefreshCw, X, Clock, Users, Armchair, Timer } from 'lucide-react';
 import { useModal } from '@/components/ui/Modal';
 
 const API = 'http://localhost:3334';
@@ -8,17 +8,24 @@ const API = 'http://localhost:3334';
 export default function MesasPage() {
   const { showSuccess, showError, showConfirm, ModalComponent } = useModal();
   const [mesas, setMesas] = useState<any[]>([]);
+  const [eventoConfig, setEventoConfig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showGenerar, setShowGenerar] = useState(false);
-  const [cantidad, setCantidad] = useState('10');
-  const [capacidad, setCapacidad] = useState('4');
+  const [cantidad, setCantidad] = useState('');
+  const [capacidad, setCapacidad] = useState('');
   const [generating, setGenerating] = useState(false);
 
   const fetch_ = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`${API}/admin/mesas`);
-      setMesas(await res.json());
+      const data = await res.json();
+      setMesas(Array.isArray(data) ? data : (data.mesas ?? []));
+      if (data.eventoConfig) {
+        setEventoConfig(data.eventoConfig);
+        setCantidad(String(data.eventoConfig.cantidadTotalMesasEvento ?? 10));
+        setCapacidad(String(data.eventoConfig.capacidadPersonasPorMesa ?? 4));
+      }
     } catch { setMesas([]); }
     finally { setLoading(false); }
   }, []);
@@ -61,13 +68,13 @@ export default function MesasPage() {
   const inactivas = mesas.filter((m) => m.estaActivo !== 1).length;
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
+    <div className="p-6 max-w-7xl mx-auto">
       <ModalComponent />
 
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Gestión de Mesas</h1>
-          <p className="text-sm text-gray-500 mt-1">Administra las mesas del evento principal. Activa o desactiva según disponibilidad.</p>
+          <p className="text-sm text-gray-500 mt-1">Administra las mesas del evento. Activa o desactiva según disponibilidad.</p>
         </div>
         <div className="flex gap-3">
           <button onClick={fetch_}
@@ -80,6 +87,29 @@ export default function MesasPage() {
           </button>
         </div>
       </div>
+
+      {/* Config del evento */}
+      {eventoConfig && (
+        <div className="bg-blue-50 border border-blue-100 rounded-xl px-5 py-4 mb-5">
+          <p className="text-xs font-bold text-blue-700 uppercase mb-3">Configuración del evento</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {[
+              { icon: <Clock className="w-4 h-4 text-blue-500" />, label: 'Duración reunión', value: `${eventoConfig.duracionReunion} min` },
+              { icon: <Timer className="w-4 h-4 text-blue-500" />, label: 'Pausa entre citas', value: `${eventoConfig.tiempoEntreReuniones} min` },
+              { icon: <Armchair className="w-4 h-4 text-blue-500" />, label: 'Mesas planificadas', value: eventoConfig.cantidadTotalMesasEvento },
+              { icon: <Users className="w-4 h-4 text-blue-500" />, label: 'Cap. por mesa', value: `${eventoConfig.capacidadPersonasPorMesa} personas` },
+            ].map((item) => (
+              <div key={item.label} className="flex items-center gap-2">
+                {item.icon}
+                <div>
+                  <p className="text-[10px] text-blue-500 font-semibold">{item.label}</p>
+                  <p className="text-sm font-bold text-blue-900">{item.value}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Resumen */}
       <div className="grid grid-cols-3 gap-4 mb-6">
@@ -125,11 +155,9 @@ export default function MesasPage() {
               <button
                 key={m.id}
                 onClick={() => toggleMesa(m)}
-                title={`Mesa ${m.numeroMesa} — ${m.estaActivo === 1 ? 'Activa (clic para desactivar)' : 'Inactiva (clic para activar)'}`}
+                title={`Mesa ${m.numeroMesa} — ${m.estaActivo === 1 ? 'Activa · clic para desactivar' : 'Inactiva · clic para activar'}`}
                 className={`relative flex items-center justify-center h-12 rounded-lg text-sm font-bold transition-all hover:scale-105 ${
-                  m.estaActivo === 1
-                    ? 'bg-[#449D3A] text-white shadow-sm'
-                    : 'bg-gray-200 text-gray-400'
+                  m.estaActivo === 1 ? 'bg-[#449D3A] text-white shadow-sm' : 'bg-gray-200 text-gray-400'
                 }`}
               >
                 {String(m.numeroMesa).padStart(2, '0')}
@@ -153,18 +181,23 @@ export default function MesasPage() {
                 <X className="w-5 h-5" />
               </button>
             </div>
+            {eventoConfig && (
+              <div className="bg-gray-50 rounded-lg px-3 py-2 mb-4 text-xs text-gray-500">
+                Evento configurado con <span className="font-semibold text-gray-700">{eventoConfig.cantidadTotalMesasEvento} mesas</span> y <span className="font-semibold text-gray-700">{eventoConfig.capacidadPersonasPorMesa} personas/mesa</span>. Los valores están pre-llenados.
+              </div>
+            )}
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Cantidad de mesas a crear</label>
-                <input type="number" min="1" max="100" value={cantidad} onChange={(e) => setCantidad(e.target.value)}
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Cantidad de mesas a crear *</label>
+                <input type="number" min="1" max="200" value={cantidad} onChange={(e) => setCantidad(e.target.value)}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Capacidad por mesa (personas)</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Capacidad por mesa (personas) *</label>
                 <input type="number" min="1" max="20" value={capacidad} onChange={(e) => setCapacidad(e.target.value)}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
               </div>
-              <p className="text-xs text-gray-400">Las mesas se numerarán de forma consecutiva a partir del número más alto existente.</p>
+              <p className="text-xs text-gray-400">Las mesas se numerarán consecutivamente a partir del último número existente.</p>
             </div>
             <div className="flex gap-3 mt-6">
               <button onClick={() => setShowGenerar(false)}

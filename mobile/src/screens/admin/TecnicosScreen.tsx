@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  ActivityIndicator, RefreshControl, Alert, Modal, Image
+  ActivityIndicator, RefreshControl, Modal, Image
 } from 'react-native';
 import { Plus, Pencil, Trash2, X, User } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { API_URL } from '../../utils/userStore';
+import { useModal } from '../../components/AppModal';
 
 const GREEN = '#449D3A';
 
@@ -20,6 +21,7 @@ const defaultForm = {
 };
 
 export default function TecnicosScreen() {
+  const { show, modal } = useModal();
   const [tecnicos, setTecnicos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -41,7 +43,7 @@ export default function TecnicosScreen() {
 
   const handlePickPhoto = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) { Alert.alert('Permiso requerido', 'Necesitamos acceso a tus fotos.'); return; }
+    if (!perm.granted) { show({ type: 'warning', title: 'Permiso requerido', message: 'Necesitamos acceso a tus fotos.' }); return; }
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: 'images', quality: 0.8 });
     if (!result.canceled && result.assets[0]) {
       const uri = result.assets[0].uri;
@@ -52,18 +54,18 @@ export default function TecnicosScreen() {
         const res = await fetch(`${API_URL}/admin/imagenes/upload`, { method: 'POST', body: fd });
         const data = await res.json();
         setForm((f) => ({ ...f, urlFotoPerfil: data.url }));
-      } catch { Alert.alert('Error', 'No se pudo subir la foto.'); }
+      } catch { show({ type: 'error', title: 'Error', message: 'No se pudo subir la foto.' }); }
       finally { setUploading(false); }
     }
   };
 
   const handleSave = async () => {
     if (!form.nombres || !form.apellidoPaterno || !form.correo || !form.telefono) {
-      Alert.alert('Requerido', 'Completa nombre, apellido, correo y teléfono.');
+      show({ type: 'warning', title: 'Requerido', message: 'Completa nombre, apellido, correo y teléfono.' });
       return;
     }
     if (!editId && !form.contrasenia) {
-      Alert.alert('Requerido', 'La contraseña es obligatoria para crear un técnico.');
+      show({ type: 'warning', title: 'Requerido', message: 'La contraseña es obligatoria para crear un técnico.' });
       return;
     }
     setSaving(true);
@@ -74,23 +76,29 @@ export default function TecnicosScreen() {
         const err = await res.json();
         throw new Error(err.message || 'Error al guardar');
       }
-      Alert.alert('Éxito', editId ? 'Técnico actualizado.' : 'Técnico creado correctamente.');
+      show({ type: 'success', title: '¡Listo!', message: editId ? 'Técnico actualizado.' : 'Técnico creado correctamente.' });
       setShowForm(false);
       fetchTecnicos();
-    } catch (e: any) { Alert.alert('Error', e.message || 'No se pudo guardar.'); }
+    } catch (e: any) { show({ type: 'error', title: 'Error', message: e.message || 'No se pudo guardar.' }); }
     finally { setSaving(false); }
   };
 
   const handleDelete = (id: number, nombre: string) => {
-    Alert.alert('Eliminar', `¿Eliminar a "${nombre}"?`, [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Eliminar', style: 'destructive', onPress: async () => { await fetch(`${API_URL}/admin/tecnicos/${id}`, { method: 'DELETE' }); fetchTecnicos(); } },
-    ]);
+    show({
+      type: 'confirm',
+      title: 'Eliminar técnico',
+      message: `¿Deseas eliminar a "${nombre}"? Esta acción no se puede deshacer.`,
+      confirmText: 'Eliminar',
+      cancelText: 'Cancelar',
+      onConfirm: async () => { await fetch(`${API_URL}/admin/tecnicos/${id}`, { method: 'DELETE' }); fetchTecnicos(); },
+    });
   };
 
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   return (
+    <>
+    {modal}
     <View className="flex-1 bg-[#F9FAFB]">
       <View className="bg-white px-4 pt-4 pb-4 border-b border-gray-100 flex-row items-center justify-between">
         <Text className="text-lg font-bold text-gray-900">Técnicos ({tecnicos.length})</Text>
@@ -216,5 +224,6 @@ export default function TecnicosScreen() {
         </View>
       </Modal>
     </View>
+    </>
   );
 }

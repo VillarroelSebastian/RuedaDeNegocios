@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  Alert, Image, ActivityIndicator
+  Image, ActivityIndicator
 } from 'react-native';
 import { User, Camera, Save, LogOut, Lock } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { API_URL, userStore } from '../../utils/userStore';
+import { useModal } from '../../components/AppModal';
 
 const GREEN = '#449D3A';
 
 export default function ConfiguracionScreen({ navigation }: any) {
+  const { show, modal } = useModal();
   const [user, setUser] = useState<any>(null);
   const [form, setForm] = useState({ nombres: '', apellidoPaterno: '', apellidoMaterno: '', telefono: '', urlFotoPerfil: '' });
   const [passForm, setPassForm] = useState({ contraseniaActual: '', nuevaContrasenia: '', confirmar: '' });
@@ -27,7 +29,7 @@ export default function ConfiguracionScreen({ navigation }: any) {
 
   const handlePickPhoto = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) { Alert.alert('Permiso requerido', 'Necesitamos acceso a tus fotos.'); return; }
+    if (!perm.granted) { show({ type: 'warning', title: 'Permiso requerido', message: 'Necesitamos acceso a tus fotos.' }); return; }
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: 'images', quality: 0.8 });
     if (!result.canceled && result.assets[0]) {
       const uri = result.assets[0].uri;
@@ -38,7 +40,7 @@ export default function ConfiguracionScreen({ navigation }: any) {
         const res = await fetch(`${API_URL}/admin/imagenes/upload`, { method: 'POST', body: fd });
         const data = await res.json();
         setForm((f) => ({ ...f, urlFotoPerfil: data.url }));
-      } catch { Alert.alert('Error', 'No se pudo subir la foto.'); }
+      } catch { show({ type: 'error', title: 'Error', message: 'No se pudo subir la foto.' }); }
       finally { setUploading(false); }
     }
   };
@@ -56,23 +58,23 @@ export default function ConfiguracionScreen({ navigation }: any) {
       const newUser = { ...user, ...updated };
       userStore.set(newUser);
       setUser(newUser);
-      Alert.alert('Éxito', 'Perfil actualizado correctamente.');
-    } catch { Alert.alert('Error', 'No se pudo actualizar el perfil.'); }
+      show({ type: 'success', title: '¡Listo!', message: 'Perfil actualizado correctamente.' });
+    } catch { show({ type: 'error', title: 'Error', message: 'No se pudo actualizar el perfil.' }); }
     finally { setSaving(false); }
   };
 
   const handleSavePassword = async () => {
     if (!user) return;
     if (!passForm.contraseniaActual || !passForm.nuevaContrasenia) {
-      Alert.alert('Requerido', 'Ingresa la contraseña actual y la nueva.');
+      show({ type: 'warning', title: 'Requerido', message: 'Ingresa la contraseña actual y la nueva.' });
       return;
     }
     if (passForm.nuevaContrasenia !== passForm.confirmar) {
-      Alert.alert('Error', 'Las contraseñas no coinciden.');
+      show({ type: 'error', title: 'Error', message: 'Las contraseñas no coinciden.' });
       return;
     }
     if (passForm.nuevaContrasenia.length < 6) {
-      Alert.alert('Error', 'La nueva contraseña debe tener al menos 6 caracteres.');
+      show({ type: 'warning', title: 'Contraseña muy corta', message: 'La nueva contraseña debe tener al menos 6 caracteres.' });
       return;
     }
     setSaving(true);
@@ -84,23 +86,29 @@ export default function ConfiguracionScreen({ navigation }: any) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || 'Contraseña actual incorrecta.');
-      Alert.alert('Éxito', 'Contraseña cambiada correctamente.');
+      show({ type: 'success', title: '¡Listo!', message: 'Contraseña cambiada correctamente.' });
       setPassForm({ contraseniaActual: '', nuevaContrasenia: '', confirmar: '' });
-    } catch (e: any) { Alert.alert('Error', e.message || 'No se pudo cambiar la contraseña.'); }
+    } catch (e: any) { show({ type: 'error', title: 'Error', message: e.message || 'No se pudo cambiar la contraseña.' }); }
     finally { setSaving(false); }
   };
 
   const handleLogout = () => {
-    Alert.alert('Cerrar sesión', '¿Estás seguro que quieres cerrar sesión?', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Cerrar sesión', style: 'destructive', onPress: () => { userStore.clear(); navigation.replace('Login'); } },
-    ]);
+    show({
+      type: 'confirm',
+      title: 'Cerrar sesión',
+      message: '¿Estás seguro que quieres cerrar sesión?',
+      confirmText: 'Cerrar sesión',
+      cancelText: 'Cancelar',
+      onConfirm: () => { userStore.clear(); navigation.replace('Login'); },
+    });
   };
 
   const setF = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
   const setP = (k: string, v: string) => setPassForm((f) => ({ ...f, [k]: v }));
 
   return (
+    <>
+    {modal}
     <ScrollView className="flex-1 bg-[#F9FAFB]">
       <View className="p-4 space-y-4">
         {/* Perfil header */}
@@ -222,5 +230,6 @@ export default function ConfiguracionScreen({ navigation }: any) {
         <View className="h-8" />
       </View>
     </ScrollView>
+    </>
   );
 }

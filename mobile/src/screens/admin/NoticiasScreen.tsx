@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  ActivityIndicator, RefreshControl, Alert, Modal, Image
+  ActivityIndicator, RefreshControl, Modal, Image
 } from 'react-native';
-import { Plus, Pencil, Trash2, X, Newspaper } from 'lucide-react-native';
+import { Plus, X, Newspaper } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { API_URL, userStore } from '../../utils/userStore';
+import { useModal } from '../../components/AppModal';
 
 const GREEN = '#449D3A';
 
@@ -20,6 +21,7 @@ const defaultForm = {
 };
 
 export default function NoticiasScreen() {
+  const { show, modal } = useModal();
   const [noticias, setNoticias] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -41,7 +43,7 @@ export default function NoticiasScreen() {
 
   const handlePickImage = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) { Alert.alert('Permiso requerido', 'Necesitamos acceso a tus fotos.'); return; }
+    if (!perm.granted) { show({ type: 'warning', title: 'Permiso requerido', message: 'Necesitamos acceso a tus fotos.' }); return; }
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: 'images', quality: 0.8 });
     if (!result.canceled && result.assets[0]) {
       const uri = result.assets[0].uri;
@@ -52,14 +54,14 @@ export default function NoticiasScreen() {
         const res = await fetch(`${API_URL}/admin/imagenes/upload`, { method: 'POST', body: fd });
         const data = await res.json();
         setForm((f) => ({ ...f, urlImagenNoticia: data.url }));
-      } catch { Alert.alert('Error', 'No se pudo subir la imagen.'); }
+      } catch { show({ type: 'error', title: 'Error', message: 'No se pudo subir la imagen.' }); }
       finally { setUploading(false); }
     }
   };
 
   const handleSave = async () => {
     if (!form.tituloNoticia || !form.contenidoNoticia) {
-      Alert.alert('Requerido', 'Ingresa título y contenido.');
+      show({ type: 'warning', title: 'Requerido', message: 'Ingresa título y contenido.' });
       return;
     }
     setSaving(true);
@@ -68,23 +70,29 @@ export default function NoticiasScreen() {
       const payload = { ...form, usuario_id: user?.id || 1 };
       const url = editId ? `${API_URL}/admin/noticias/${editId}` : `${API_URL}/admin/noticias`;
       await fetch(url, { method: editId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      Alert.alert('Éxito', editId ? 'Comunicado actualizado.' : 'Comunicado publicado.');
+      show({ type: 'success', title: '¡Listo!', message: editId ? 'Comunicado actualizado.' : 'Comunicado publicado.' });
       setShowForm(false);
       fetchNoticias();
-    } catch { Alert.alert('Error', 'No se pudo guardar.'); }
+    } catch { show({ type: 'error', title: 'Error', message: 'No se pudo guardar.' }); }
     finally { setSaving(false); }
   };
 
   const handleDelete = (id: number, titulo: string) => {
-    Alert.alert('Eliminar', `¿Eliminar "${titulo}"?`, [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Eliminar', style: 'destructive', onPress: async () => { await fetch(`${API_URL}/admin/noticias/${id}`, { method: 'DELETE' }); fetchNoticias(); } },
-    ]);
+    show({
+      type: 'confirm',
+      title: 'Eliminar comunicado',
+      message: `¿Deseas eliminar "${titulo}"? Esta acción no se puede deshacer.`,
+      confirmText: 'Eliminar',
+      cancelText: 'Cancelar',
+      onConfirm: async () => { await fetch(`${API_URL}/admin/noticias/${id}`, { method: 'DELETE' }); fetchNoticias(); },
+    });
   };
 
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   return (
+    <>
+    {modal}
     <View className="flex-1 bg-[#F9FAFB]">
       <View className="bg-white px-4 pt-4 pb-4 border-b border-gray-100 flex-row items-center justify-between">
         <Text className="text-lg font-bold text-gray-900">Noticias ({noticias.length})</Text>
@@ -216,5 +224,6 @@ export default function NoticiasScreen() {
         </View>
       </Modal>
     </View>
+    </>
   );
 }
