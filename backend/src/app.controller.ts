@@ -1416,13 +1416,13 @@ export class AppController {
           include: {
             empresaevento_solicitudreunion_empresaEvento_idToempresaevento: {
               include: {
-                empresa: { select: { id: true, nombre: true, rubro: true, urlFotoPerfil: true, correoEmpresa: true } },
+                empresa: { select: { id: true, nombre: true, rubro: true, urlFotoPerfil: true, correoCorporativo: true } },
                 empresa_usuario: { select: { usuario: { select: { id: true, nombres: true, apellidoPaterno: true } } } },
               },
             },
             empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento: {
               include: {
-                empresa: { select: { id: true, nombre: true, rubro: true, urlFotoPerfil: true, correoEmpresa: true } },
+                empresa: { select: { id: true, nombre: true, rubro: true, urlFotoPerfil: true, correoCorporativo: true } },
                 empresa_usuario: { select: { usuario: { select: { id: true, nombres: true, apellidoPaterno: true } } } },
               },
             },
