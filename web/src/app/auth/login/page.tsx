@@ -31,11 +31,14 @@ export default function LoginPage() {
       }
 
       const user = await res.json();
-      if (user.rolEvento === "Administrador" || user.rolEvento === "TECNICO") {
+      if (user.rolEvento === "Administrador") {
         localStorage.setItem("adminUser", JSON.stringify(user));
         router.push("/admin/dashboard");
+      } else if (user.rolEvento === "TECNICO") {
+        localStorage.setItem("tecnicoUser", JSON.stringify(user));
+        router.push("/tecnico/dashboard");
       } else {
-        throw new Error("Acceso denegado: no tienes permisos de administrador");
+        throw new Error("Acceso denegado: no tienes permisos de acceso");
       }
     } catch (err: any) {
       setError(err.message);

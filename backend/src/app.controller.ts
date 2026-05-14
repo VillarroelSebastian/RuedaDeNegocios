@@ -1227,4 +1227,249 @@ export class AppController {
       empresasPorRubro: empresasPorRubroRaw.map((r) => ({ rubro: r.rubro, count: r._count.id })),
     };
   }
+
+  // ─── TÉCNICO ─────────────────────────────────────────────────────────────────
+
+  private reunionInclude() {
+    return {
+      solicitudreunion: {
+        include: {
+          empresaevento_solicitudreunion_empresaEvento_idToempresaevento: {
+            include: { empresa: { select: { id: true, nombre: true, rubro: true, urlFotoPerfil: true } } },
+          },
+          empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento: {
+            include: { empresa: { select: { id: true, nombre: true, rubro: true, urlFotoPerfil: true } } },
+          },
+        },
+      },
+      mesa: { select: { id: true, numeroMesa: true, capacidadPersonas: true } },
+      resultadoreunion: {
+        where: { estaActivo: 1 },
+        select: { id: true, calificacionReunion: true, rangoAcuerdoComercial: true, observacionesPuntosTratados: true },
+      },
+    };
+  }
+
+  @Get('tecnico/dashboard')
+  async getTecnicoDashboard() {
+    const eventoId = await this.getPrincipalEventoId();
+    if (!eventoId) return { stats: {}, proximasReuniones: [], evento: null };
+
+    const ahora = new Date();
+    const ef = { evento_id: eventoId, estaActivo: 1 };
+
+    const [evento, reunionesEnCurso, proximasReuniones, reunionesVirtuales, mesasActivas, todasReuniones, proximasActividades] =
+      await Promise.all([
+        this.prisma.evento.findUnique({ where: { id: eventoId }, select: { nombre: true, edicion: true, fechaInicioEvento: true, fechaFinEvento: true } }),
+        this.prisma.reunion.count({ where: { ...ef, estadoReunion: 'EN_CURSO' } }),
+        this.prisma.reunion.count({ where: { ...ef, estadoReunion: 'PROGRAMADA', fechaHoraInicioReunion: { gte: ahora } } }),
+        this.prisma.reunion.count({ where: { ...ef, tipoReunion: { in: ['VIRTUAL', 'MIXTA'] }, estadoReunion: { not: 'CANCELADA' } } }),
+        this.prisma.mesa.count({ where: { evento_id: eventoId, estaActivo: 1 } }),
+        this.prisma.reunion.findMany({
+          where: { ...ef, estadoReunion: { in: ['PROGRAMADA', 'EN_CURSO'] }, fechaHoraInicioReunion: { gte: ahora } },
+          orderBy: { fechaHoraInicioReunion: 'asc' },
+          take: 8,
+          include: this.reunionInclude(),
+        }),
+        this.prisma.actividadprograma.findMany({
+          where: { evento_id: eventoId, estaActivo: 1 },
+          orderBy: [{ fechaActividad: 'asc' }, { horaInicioActividad: 'asc' }],
+          take: 4,
+        }),
+      ]);
+
+    return {
+      stats: { reunionesEnCurso, proximasReuniones, reunionesVirtuales, mesasActivas },
+      proximasReuniones: todasReuniones,
+      proximasActividades,
+      evento,
+    };
+  }
+
+  @Get('tecnico/mesas')
+  async getTecnicoMesas() {
+    const eventoId = await this.getPrincipalEventoId();
+    if (!eventoId) return { mesas: [], eventoConfig: null };
+
+    const [mesas, eventoConfig] = await Promise.all([
+      this.prisma.mesa.findMany({
+        where: { evento_id: eventoId },
+        orderBy: { numeroMesa: 'asc' },
+        include: {
+          reunion: {
+            where: { estaActivo: 1 },
+            orderBy: { fechaHoraInicioReunion: 'asc' },
+            include: this.reunionInclude(),
+          },
+          _count: { select: { reunion: true } },
+        },
+      }),
+      this.prisma.evento.findUnique({
+        where: { id: eventoId },
+        select: { duracionReunion: true, tiempoEntreReuniones: true, cantidadTotalMesasEvento: true, capacidadPersonasPorMesa: true },
+      }),
+    ]);
+
+    return { mesas, eventoConfig };
+  }
+
+  @Get('tecnico/reuniones')
+  async getTecnicoReuniones(@Query('q') q?: string, @Query('estado') estado?: string, @Query('tipo') tipo?: string) {
+    const eventoId = await this.getPrincipalEventoId();
+    if (!eventoId) return [];
+
+    const where: any = { evento_id: eventoId, estaActivo: 1 };
+    if (estado && estado !== 'TODOS') where.estadoReunion = estado;
+    if (tipo && tipo !== 'TODOS') where.tipoReunion = tipo;
+
+    const reuniones = await this.prisma.reunion.findMany({
+      where,
+      orderBy: { fechaHoraInicioReunion: 'asc' },
+      include: this.reunionInclude(),
+    });
+
+    if (q && q.trim()) {
+      const lower = q.toLowerCase();
+      return reuniones.filter((r) => {
+        const sol = r.solicitudreunion as any;
+        const ea = sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa;
+        const eb = sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento?.empresa;
+        const mesaNum = String((r as any).mesa?.numeroMesa ?? '');
+        return (
+          ea?.nombre?.toLowerCase().includes(lower) ||
+          eb?.nombre?.toLowerCase().includes(lower) ||
+          mesaNum.includes(lower) ||
+          r.estadoReunion.toLowerCase().includes(lower) ||
+          r.tipoReunion.toLowerCase().includes(lower)
+        );
+      });
+    }
+
+    return reuniones;
+  }
+
+  @Put('tecnico/reuniones/:id/estado')
+  async updateTecnicoReunionEstado(@Param('id') id: string, @Body() body: { estadoReunion: string; observaciones?: string }) {
+    return await this.prisma.reunion.update({
+      where: { id: Number(id) },
+      data: {
+        estadoReunion: body.estadoReunion,
+        observacionesReunion: body.observaciones ?? undefined,
+        creadoModificadoFecha: new Date(),
+      },
+      include: this.reunionInclude(),
+    });
+  }
+
+  @Get('tecnico/buscar')
+  async tecnicoBuscar(@Query('q') q: string) {
+    const eventoId = await this.getPrincipalEventoId();
+    if (!eventoId || !q?.trim()) return { empresas: [], reuniones: [], mesas: [] };
+
+    const lower = q.toLowerCase();
+
+    const [empresasRaw, reunionesRaw, mesasRaw] = await Promise.all([
+      this.prisma.empresaevento.findMany({
+        where: { evento_id: eventoId, estaActivo: 1 },
+        include: { empresa: { select: { id: true, nombre: true, rubro: true, ciudad: { select: { nombre: true } }, urlFotoPerfil: true } } },
+        take: 20,
+      }),
+      this.prisma.reunion.findMany({
+        where: { evento_id: eventoId, estaActivo: 1 },
+        include: this.reunionInclude(),
+        take: 50,
+      }),
+      this.prisma.mesa.findMany({
+        where: { evento_id: eventoId },
+        orderBy: { numeroMesa: 'asc' },
+        take: 50,
+      }),
+    ]);
+
+    const empresas = empresasRaw
+      .filter((ee) => ee.empresa.nombre.toLowerCase().includes(lower) || ee.empresa.rubro.toLowerCase().includes(lower))
+      .map((ee) => ({ ...ee.empresa, estadoPago: ee.estadoVerificacionPago }));
+
+    const reuniones = reunionesRaw.filter((r) => {
+      const sol = r.solicitudreunion as any;
+      const ea = sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa;
+      const eb = sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento?.empresa;
+      return (
+        ea?.nombre?.toLowerCase().includes(lower) ||
+        eb?.nombre?.toLowerCase().includes(lower) ||
+        String((r as any).mesa?.numeroMesa).includes(lower)
+      );
+    });
+
+    const mesas = mesasRaw.filter((m) => String(m.numeroMesa).includes(q.trim()));
+
+    return { empresas, reuniones, mesas };
+  }
+
+  @Get('tecnico/reuniones/:id')
+  async getTecnicoReunionDetalle(@Param('id') id: string) {
+    return await this.prisma.reunion.findUnique({
+      where: { id: Number(id) },
+      include: {
+        ...this.reunionInclude(),
+        solicitudreunion: {
+          include: {
+            empresaevento_solicitudreunion_empresaEvento_idToempresaevento: {
+              include: {
+                empresa: { select: { id: true, nombre: true, rubro: true, urlFotoPerfil: true, correoEmpresa: true } },
+                empresa_usuario: { select: { usuario: { select: { id: true, nombres: true, apellidoPaterno: true } } } },
+              },
+            },
+            empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento: {
+              include: {
+                empresa: { select: { id: true, nombre: true, rubro: true, urlFotoPerfil: true, correoEmpresa: true } },
+                empresa_usuario: { select: { usuario: { select: { id: true, nombres: true, apellidoPaterno: true } } } },
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  @Get('tecnico/noticias')
+  async getTecnicoNoticias() {
+    const eventoId = await this.getPrincipalEventoId();
+    if (!eventoId) return [];
+    return await this.prisma.noticia.findMany({
+      where: { evento_id: eventoId, estaActivo: 1, estadoPublicacion: 'PUBLICADO' },
+      orderBy: { fechaCreacion: 'desc' },
+      include: { usuario: { select: { id: true, nombres: true, apellidoPaterno: true } } },
+    });
+  }
+
+  @Get('tecnico/actividades')
+  async getTecnicoActividades() {
+    const eventoId = await this.getPrincipalEventoId();
+    if (!eventoId) return [];
+    const ahora = new Date();
+    return await this.prisma.actividadprograma.findMany({
+      where: { evento_id: eventoId, estaActivo: 1, fechaActividad: { gte: new Date(ahora.toDateString()) } },
+      orderBy: [{ fechaActividad: 'asc' }, { horaInicioActividad: 'asc' }],
+      take: 6,
+    });
+  }
+
+  @Put('auth/cambiar-password')
+  async cambiarPassword(@Body() body: { usuarioId: number; passwordActual: string; passwordNueva: string }) {
+    try {
+      const user = await this.prisma.usuario.findUnique({ where: { id: body.usuarioId } });
+      if (!user) throw new BadRequestException('Usuario no encontrado');
+      const valid = await bcrypt.compare(body.passwordActual, user.contrasenia);
+      if (!valid) throw new BadRequestException('Contraseña actual incorrecta');
+      const hashed = await bcrypt.hash(body.passwordNueva, 10);
+      return await this.prisma.usuario.update({
+        where: { id: body.usuarioId },
+        data: { contrasenia: hashed, creadoModificadoFecha: new Date() },
+        select: { id: true },
+      });
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : 'Error al cambiar contraseña');
+    }
+  }
 }

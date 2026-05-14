@@ -7,6 +7,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import LoginScreen from './src/screens/auth/LoginScreen';
 import RegistroScreen from './src/screens/RegistroScreen';
 import AdminNavigator from './src/navigation/AdminNavigator';
+import TecnicoNavigator from './src/navigation/TecnicoNavigator';
 
 const Stack = createNativeStackNavigator();
 
@@ -17,6 +18,7 @@ export default function App() {
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="Registro" component={RegistroScreen} />
         <Stack.Screen name="AdminRoot" component={AdminNavigator} />
+        <Stack.Screen name="TecnicoRoot" component={TecnicoNavigator} />
       </Stack.Navigator>
       <StatusBar style="auto" />
     </NavigationContainer>
