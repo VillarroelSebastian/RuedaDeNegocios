@@ -872,48 +872,60 @@ export class AppController {
   @Get('admin/mesas/agenda')
   async getMesasAgenda() {
     const eventoId = await this.getPrincipalEventoId();
-    if (!eventoId) return [];
+    if (!eventoId) return { mesas: [], eventoConfig: null };
 
-    const mesas = await this.prisma.mesa.findMany({
-      where: { evento_id: eventoId, estaActivo: 1 },
-      orderBy: { numeroMesa: 'asc' },
-      include: {
-        reunion: {
-          where: { estaActivo: 1 },
-          orderBy: { fechaHoraInicioReunion: 'asc' },
-          include: {
-            solicitudreunion: {
-              include: {
-                empresaevento_solicitudreunion_empresaEvento_idToempresaevento: {
-                  include: {
-                    empresa: { select: { id: true, nombre: true, rubro: true, urlFotoPerfil: true, sitioWeb: true } },
+    const [mesas, evento] = await Promise.all([
+      this.prisma.mesa.findMany({
+        where: { evento_id: eventoId },
+        orderBy: { numeroMesa: 'asc' },
+        include: {
+          reunion: {
+            where: { estaActivo: 1 },
+            orderBy: { fechaHoraInicioReunion: 'asc' },
+            include: {
+              solicitudreunion: {
+                include: {
+                  empresaevento_solicitudreunion_empresaEvento_idToempresaevento: {
+                    include: {
+                      empresa: { select: { id: true, nombre: true, rubro: true, urlFotoPerfil: true, sitioWeb: true } },
+                      empresa_usuario: { select: { usuario: { select: { id: true, nombres: true, apellidoPaterno: true } } } },
+                    },
                   },
-                },
-                empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento: {
-                  include: {
-                    empresa: { select: { id: true, nombre: true, rubro: true, urlFotoPerfil: true, sitioWeb: true } },
+                  empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento: {
+                    include: {
+                      empresa: { select: { id: true, nombre: true, rubro: true, urlFotoPerfil: true, sitioWeb: true } },
+                      empresa_usuario: { select: { usuario: { select: { id: true, nombres: true, apellidoPaterno: true } } } },
+                    },
                   },
                 },
               },
-            },
-            resultadoreunion: {
-              where: { estaActivo: 1 },
-              select: {
-                id: true,
-                calificacionReunion: true,
-                rangoAcuerdoComercial: true,
-                observacionesPuntosTratados: true,
+              resultadoreunion: {
+                where: { estaActivo: 1 },
+                select: { id: true, calificacionReunion: true, rangoAcuerdoComercial: true, observacionesPuntosTratados: true },
               },
             },
           },
+          mesabloque: {
+            where: { estaActivo: 1 },
+            orderBy: { fechaHoraInicio: 'asc' },
+          },
+          _count: { select: { reunion: true } },
         },
-        mesabloque: {
-          where: { estaActivo: 1 },
-          orderBy: { fechaHoraInicio: 'asc' },
-        },
-      },
-    });
-    return mesas;
+      }),
+      this.prisma.evento.findUnique({
+        where: { id: eventoId },
+        select: { duracionReunion: true, tiempoEntreReuniones: true, cantidadTotalMesasEvento: true, capacidadPersonasPorMesa: true },
+      }),
+    ]);
+
+    const tiempoLimpieza = evento?.tiempoEntreReuniones ?? 15;
+    const ahora = new Date();
+    const mesasConEstado = mesas.map((m) => ({
+      ...m,
+      estadoMesa: this.computeEstadoMesa(m.reunion, tiempoLimpieza, ahora),
+    }));
+
+    return { mesas: mesasConEstado, eventoConfig: evento };
   }
 
   @Get('admin/mesas')
@@ -925,7 +937,18 @@ export class AppController {
       this.prisma.mesa.findMany({
         where: { evento_id: eventoId },
         orderBy: { numeroMesa: 'asc' },
-        include: { _count: { select: { reunion: true } } },
+        include: {
+          _count: { select: { reunion: true } },
+          reunion: {
+            where: { estaActivo: 1 },
+            select: {
+              estadoReunion: true,
+              fechaHoraInicioReunion: true,
+              fechaHoraFinReunion: true,
+              estaActivo: true,
+            },
+          },
+        },
       }),
       this.prisma.evento.findUnique({
         where: { id: eventoId },
@@ -938,7 +961,29 @@ export class AppController {
       }),
     ]);
 
-    return { mesas, eventoConfig: evento };
+    const tiempoLimpieza = evento?.tiempoEntreReuniones ?? 15;
+    const ahora = new Date();
+    const mesasConEstado = mesas.map((m) => ({
+      ...m,
+      estadoMesa: this.computeEstadoMesa(m.reunion, tiempoLimpieza, ahora),
+    }));
+
+    return { mesas: mesasConEstado, eventoConfig: evento };
+  }
+
+  @Put('admin/evento/config')
+  async updateEventoConfig(@Body() body: { tiempoEntreReuniones?: number; duracionReunion?: number }) {
+    const eventoId = await this.getPrincipalEventoId();
+    if (!eventoId) throw new BadRequestException('No hay evento principal configurado');
+    return await this.prisma.evento.update({
+      where: { id: eventoId },
+      data: {
+        ...(body.tiempoEntreReuniones !== undefined && { tiempoEntreReuniones: Number(body.tiempoEntreReuniones) }),
+        ...(body.duracionReunion !== undefined && { duracionReunion: Number(body.duracionReunion) }),
+        creadoModificadoFecha: new Date(),
+      },
+      select: { duracionReunion: true, tiempoEntreReuniones: true, cantidadTotalMesasEvento: true, capacidadPersonasPorMesa: true },
+    });
   }
 
   @Post('admin/mesas/generar')
@@ -1250,6 +1295,33 @@ export class AppController {
     };
   }
 
+  private computeEstadoMesa(reuniones: any[], tiempoLimpiezaMin: number, ahora: Date): string {
+    const activas = (reuniones ?? []).filter((r: any) => r.estaActivo === 1);
+    if (activas.length === 0) return 'LIBRE';
+
+    if (activas.some((r: any) => r.estadoReunion === 'EN_CURSO')) return 'EN_USO';
+
+    const ahora_ms = ahora.getTime();
+    const enLimpieza = activas.some((r: any) => {
+      if (r.estadoReunion !== 'FINALIZADA') return false;
+      const fin = new Date(r.fechaHoraFinReunion).getTime();
+      const min = (ahora_ms - fin) / 60000;
+      return min >= 0 && min <= tiempoLimpiezaMin;
+    });
+    if (enLimpieza) return 'EN_ESPERA';
+
+    if (activas.some((r: any) =>
+      r.estadoReunion === 'PROGRAMADA' && new Date(r.fechaHoraInicioReunion) > ahora
+    )) return 'PROGRAMADA';
+
+    const allDone = activas.every((r: any) =>
+      r.estadoReunion === 'FINALIZADA' || r.estadoReunion === 'CANCELADA'
+    );
+    if (allDone) return 'FINALIZADA';
+
+    return 'LIBRE';
+  }
+
   @Get('tecnico/dashboard')
   async getTecnicoDashboard() {
     const eventoId = await this.getPrincipalEventoId();
@@ -1310,7 +1382,14 @@ export class AppController {
       }),
     ]);
 
-    return { mesas, eventoConfig };
+    const tiempoLimpieza = eventoConfig?.tiempoEntreReuniones ?? 15;
+    const ahora = new Date();
+    const mesasConEstado = mesas.map((m) => ({
+      ...m,
+      estadoMesa: this.computeEstadoMesa(m.reunion, tiempoLimpieza, ahora),
+    }));
+
+    return { mesas: mesasConEstado, eventoConfig };
   }
 
   @Get('tecnico/reuniones')
