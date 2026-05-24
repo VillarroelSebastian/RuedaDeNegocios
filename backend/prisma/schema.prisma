@@ -185,6 +185,7 @@ model mesa {
   numeroMesa            Int          @db.SmallInt
   capacidadPersonas     Int          @db.SmallInt
   estaActivo            Int          @default(1) @db.SmallInt
+  estaHabilitada        Int          @default(1) @db.SmallInt
   fechaCreacion         DateTime     @default(now()) @db.Timestamp(6)
   creadoModificadoFecha DateTime?    @db.Timestamp(6)
   evento                evento       @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_mesa_evento1")

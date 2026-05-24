@@ -1,268 +1,71 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, ScrollView, ActivityIndicator, RefreshControl,
-  TouchableOpacity, Image, Linking,
+  View, Text, ScrollView, ActivityIndicator, RefreshControl, Image,
 } from 'react-native';
 import {
-  Armchair, Calendar, Clock, Building2, Video, MapPin,
-  Link2, Star, FileText, ChevronDown, ChevronUp,
+  Calendar, Building2, Video, MapPin, Link2,
 } from 'lucide-react-native';
 import { API_URL } from '../../utils/userStore';
 
 const GREEN = '#449D3A';
 
-function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString('es-BO', { day: 'numeric', month: 'short' });
+const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
+function dayKey(iso: string) {
+  return iso.substring(0, 10);
 }
+
+function fmtDay(dateKey: string) {
+  const [y, m, d] = dateKey.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  return `${DIAS[dt.getDay()]}, ${d} de ${MESES[m - 1]} de ${y}`;
+}
+
 function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
-const TIPO_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  VIRTUAL:    { label: 'Virtual',    color: '#2563eb', bg: '#dbeafe' },
-  PRESENCIAL: { label: 'Presencial', color: '#059669', bg: '#d1fae5' },
-  MIXTA:      { label: 'Mixta',      color: '#7c3aed', bg: '#ede9fe' },
+const ESTADO_CONFIG: Record<string, { color: string; bg: string; dot: string; label: string }> = {
+  PROGRAMADA: { color: '#1d4ed8', bg: '#dbeafe', dot: '#60a5fa', label: 'Programada' },
+  EN_CURSO:   { color: '#c2410c', bg: '#ffedd5', dot: '#f97316',  label: 'En curso'   },
 };
-
-const ESTADO_CONFIG: Record<string, { color: string; bg: string; dot: string }> = {
-  FINALIZADA: { color: '#15803d', bg: '#dcfce7', dot: '#22c55e' },
-  EN_CURSO:   { color: '#c2410c', bg: '#ffedd5', dot: '#f97316' },
-  PROGRAMADA: { color: '#1d4ed8', bg: '#dbeafe', dot: '#60a5fa' },
-  CANCELADA:  { color: '#6b7280', bg: '#f3f4f6', dot: '#9ca3af' },
-};
-
-function CompanyChip({ empresa }: { empresa: any }) {
-  return (
-    <View className="flex-row items-center gap-2 bg-gray-50 rounded-lg px-2.5 py-2 flex-1 min-w-0">
-      {empresa?.urlFotoPerfil ? (
-        <Image
-          source={{ uri: empresa.urlFotoPerfil }}
-          className="w-8 h-8 rounded-full shrink-0"
-          resizeMode="cover"
-        />
-      ) : (
-        <View className="w-8 h-8 rounded-full items-center justify-center shrink-0" style={{ backgroundColor: '#dcfce7' }}>
-          <Building2 color={GREEN} size={14} />
-        </View>
-      )}
-      <View className="flex-1 min-w-0">
-        <Text className="text-xs font-bold text-gray-900" numberOfLines={1}>{empresa?.nombre ?? '—'}</Text>
-        <Text className="text-[10px] text-gray-500" numberOfLines={1}>{empresa?.rubro ?? ''}</Text>
-      </View>
-    </View>
-  );
-}
-
-function StarRating({ value }: { value: number }) {
-  return (
-    <View className="flex-row gap-0.5">
-      {[1,2,3,4,5].map((s) => (
-        <Star key={s} size={12} color={s <= value ? '#f59e0b' : '#e5e7eb'} fill={s <= value ? '#f59e0b' : 'none'} />
-      ))}
-    </View>
-  );
-}
-
-function getMapsUrl(sol: any): string | null {
-  if (sol?.ubicacionGoogleMapsReunion) return sol.ubicacionGoogleMapsReunion;
-  if (sol?.latitudPresencial && sol?.longitudPresencial)
-    return `https://www.google.com/maps?q=${sol.latitudPresencial},${sol.longitudPresencial}`;
-  if (sol?.direccionTexto)
-    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(sol.direccionTexto)}`;
-  return null;
-}
-
-function ReunionCard({ r }: { r: any }) {
-  const [expanded, setExpanded] = useState(false);
-  const estado = ESTADO_CONFIG[r.estadoReunion] ?? ESTADO_CONFIG.PROGRAMADA;
-  const tipo = TIPO_CONFIG[r.tipoReunion] ?? TIPO_CONFIG.PRESENCIAL;
-  const sol = r.solicitudreunion;
-  const empresaA = sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa;
-  const empresaB = sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento?.empresa;
-  const resultados = r.resultadoreunion ?? [];
-  const linkVirtual = sol?.enlaceReunionVirtual;
-  const direccion = sol?.direccionTexto;
-  const mapsUrl = getMapsUrl(sol);
-  const esVirtual = r.tipoReunion === 'VIRTUAL' || r.tipoReunion === 'MIXTA';
-  const esPresencial = r.tipoReunion === 'PRESENCIAL' || r.tipoReunion === 'MIXTA';
-
-  return (
-    <View className="border-t border-gray-50">
-      {/* Row principal */}
-      <TouchableOpacity
-        onPress={() => setExpanded(!expanded)}
-        className="px-4 py-3"
-        activeOpacity={0.8}
-      >
-        {/* Empresas */}
-        <View className="flex-row items-center gap-2 mb-2">
-          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: estado.dot }} />
-          <CompanyChip empresa={empresaA} />
-          <Text className="text-gray-300 font-bold text-xs shrink-0">↔</Text>
-          <CompanyChip empresa={empresaB} />
-          {expanded
-            ? <ChevronUp color="#9ca3af" size={16} />
-            : <ChevronDown color="#9ca3af" size={16} />
-          }
-        </View>
-
-        {/* Info row */}
-        <View className="flex-row items-center gap-2 flex-wrap ml-4">
-          {/* Tipo */}
-          <View className="flex-row items-center gap-1 px-2 py-0.5 rounded-full"
-            style={{ backgroundColor: tipo.bg }}>
-            {r.tipoReunion === 'VIRTUAL' && <Video color={tipo.color} size={10} />}
-            {r.tipoReunion === 'PRESENCIAL' && <MapPin color={tipo.color} size={10} />}
-            {r.tipoReunion === 'MIXTA' && <Link2 color={tipo.color} size={10} />}
-            <Text style={{ color: tipo.color, fontSize: 9, fontWeight: '700' }}>{tipo.label}</Text>
-          </View>
-          {/* Fecha */}
-          <View className="flex-row items-center gap-1">
-            <Calendar color="#9ca3af" size={11} />
-            <Text className="text-[10px] text-gray-500">{fmtDate(r.fechaHoraInicioReunion)}</Text>
-          </View>
-          {/* Hora */}
-          <View className="flex-row items-center gap-1">
-            <Clock color="#9ca3af" size={11} />
-            <Text className="text-[10px] text-gray-500">
-              {fmtTime(r.fechaHoraInicioReunion)}–{fmtTime(r.fechaHoraFinReunion)}
-            </Text>
-          </View>
-          {/* Estado */}
-          <View className="px-2 py-0.5 rounded-full" style={{ backgroundColor: estado.bg }}>
-            <Text style={{ color: estado.color, fontSize: 9, fontWeight: '700' }}>{r.estadoReunion}</Text>
-          </View>
-        </View>
-      </TouchableOpacity>
-
-      {/* Detalles expandidos */}
-      {expanded && (
-        <View className="px-4 pb-4 bg-gray-50/60 space-y-3">
-
-          {/* Asistentes */}
-          {r.cantidadAsistentesRegistrados > 0 && (
-            <Text className="text-xs text-gray-500">
-              <Text className="font-semibold">Asistentes: </Text>{r.cantidadAsistentesRegistrados}
-            </Text>
-          )}
-
-          {/* Botones de acción principales */}
-          {(esVirtual && linkVirtual) || (esPresencial && mapsUrl) ? (
-            <View className="gap-2">
-              {esVirtual && linkVirtual && (
-                <TouchableOpacity
-                  onPress={() => Linking.openURL(linkVirtual)}
-                  className="flex-row items-center justify-center gap-2 py-3 rounded-xl"
-                  style={{ backgroundColor: '#2563eb' }}
-                  activeOpacity={0.85}
-                >
-                  <Video color="white" size={16} />
-                  <Text style={{ color: 'white', fontWeight: '700', fontSize: 13 }}>
-                    Entrar a reunión virtual
-                  </Text>
-                </TouchableOpacity>
-              )}
-              {esPresencial && mapsUrl && (
-                <TouchableOpacity
-                  onPress={() => Linking.openURL(mapsUrl)}
-                  className="flex-row items-center justify-center gap-2 py-3 rounded-xl"
-                  style={{ backgroundColor: '#059669' }}
-                  activeOpacity={0.85}
-                >
-                  <MapPin color="white" size={16} />
-                  <Text style={{ color: 'white', fontWeight: '700', fontSize: 13 }}>
-                    Ver ubicación en Google Maps
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          ) : null}
-
-          {/* Dirección texto (siempre visible si hay) */}
-          {esPresencial && direccion && (
-            <View className="flex-row items-start gap-1.5">
-              <MapPin color="#059669" size={13} style={{ marginTop: 2 }} />
-              <Text className="text-xs text-gray-600 flex-1">{direccion}</Text>
-            </View>
-          )}
-
-          {/* Observaciones */}
-          {r.observacionesReunion && (
-            <View>
-              <View className="flex-row items-center gap-1 mb-1">
-                <FileText color="#6b7280" size={13} />
-                <Text className="text-xs font-semibold text-gray-700">Observaciones</Text>
-              </View>
-              <Text className="text-xs text-gray-600">{r.observacionesReunion}</Text>
-            </View>
-          )}
-
-          {/* Mensaje solicitud */}
-          {sol?.mensajeParaEmpresaReceptora && (
-            <View>
-              <Text className="text-xs font-semibold text-gray-700 mb-1">Mensaje al receptor</Text>
-              <Text className="text-xs text-gray-500 italic">"{sol.mensajeParaEmpresaReceptora}"</Text>
-            </View>
-          )}
-
-          {/* Resultados */}
-          {resultados.length > 0 && (
-            <View className="border-t border-gray-200 pt-3">
-              <Text className="text-xs font-bold text-gray-700 mb-2">Resultados de la reunión</Text>
-              {resultados.map((res: any) => (
-                <View key={res.id} className="bg-white rounded-lg border border-gray-100 p-3 mb-2 space-y-1">
-                  <View className="flex-row items-center justify-between">
-                    <StarRating value={res.calificacionReunion} />
-                    {res.rangoAcuerdoComercial && (
-                      <View className="px-2 py-0.5 rounded-full" style={{ backgroundColor: '#fef3c7' }}>
-                        <Text style={{ color: '#b45309', fontSize: 9, fontWeight: '700' }}>
-                          Acuerdo: {res.rangoAcuerdoComercial}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                  {res.observacionesPuntosTratados && (
-                    <Text className="text-[10px] text-gray-500">{res.observacionesPuntosTratados}</Text>
-                  )}
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
-      )}
-    </View>
-  );
-}
 
 export default function AgendaScreen() {
-  const [mesas, setMesas] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [reservaciones, setReservaciones] = useState<any[]>([]);
+  const [loading, setLoading]   = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [filtroEstado, setFiltroEstado] = useState<string>('TODOS');
 
   const fetchAgenda = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/admin/mesas/agenda`);
+      const res  = await fetch(`${API_URL}/admin/mesas/agenda`);
       const data = await res.json();
-      setMesas(Array.isArray(data) ? data : []);
-    } catch {}
+      const mesas: any[] = data.mesas ?? (Array.isArray(data) ? data : []);
+      const items: any[] = [];
+      for (const mesa of mesas) {
+        for (const r of mesa.reunion ?? []) {
+          if (r.estadoReunion === 'PROGRAMADA' || r.estadoReunion === 'EN_CURSO') {
+            items.push({ ...r, mesa });
+          }
+        }
+      }
+      items.sort((a, b) =>
+        new Date(a.fechaHoraInicioReunion).getTime() - new Date(b.fechaHoraInicioReunion).getTime()
+      );
+      setReservaciones(items);
+    } catch { setReservaciones([]); }
     finally { setLoading(false); setRefreshing(false); }
   }, []);
 
   useEffect(() => { fetchAgenda(); }, []);
 
-  const todasReuniones = mesas.flatMap((m) => m.reunion ?? []);
-  const mesasConReuniones = mesas.filter((m) => (m.reunion?.length ?? 0) > 0);
-  const estados = ['TODOS', 'PROGRAMADA', 'EN_CURSO', 'FINALIZADA', 'CANCELADA'];
-
-  const mesasFiltradas = mesas
-    .map((m) => ({
-      ...m,
-      reunion: (m.reunion ?? []).filter((r: any) =>
-        filtroEstado === 'TODOS' || r.estadoReunion === filtroEstado
-      ),
-    }))
-    .filter((m) => filtroEstado === 'TODOS' || m.reunion.length > 0);
+  const byDay: Record<string, any[]> = {};
+  for (const r of reservaciones) {
+    const k = dayKey(r.fechaHoraInicioReunion);
+    if (!byDay[k]) byDay[k] = [];
+    byDay[k].push(r);
+  }
+  const days = Object.keys(byDay).sort((a, b) => a.localeCompare(b));
 
   if (loading) {
     return (
@@ -285,106 +88,159 @@ export default function AgendaScreen() {
     >
       <View className="px-4 py-4">
 
-        {/* Summary cards */}
-        <View className="flex-row gap-2 mb-4 flex-wrap">
-          {[
-            { label: 'Mesas', value: mesas.length, color: '#1f2937' },
-            { label: 'Ocupadas', value: mesasConReuniones.length, color: GREEN },
-            { label: 'Reuniones', value: todasReuniones.length, color: '#2563eb' },
-            { label: 'Finalizadas', value: todasReuniones.filter((r) => r.estadoReunion === 'FINALIZADA').length, color: '#6b7280' },
-          ].map((s) => (
-            <View key={s.label} style={{ flex: 1, minWidth: '22%' }}
-              className="bg-white rounded-xl border border-gray-100 px-3 py-3 shadow-sm items-center">
-              <Text style={{ color: s.color }} className="text-xl font-bold">{s.value}</Text>
-              <Text className="text-[9px] font-bold text-gray-400 uppercase mt-0.5">{s.label}</Text>
-            </View>
-          ))}
-        </View>
-
-        {/* Filtro de estado */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4">
-          <View className="flex-row gap-2">
-            {estados.map((e) => (
-              <TouchableOpacity
-                key={e}
-                onPress={() => setFiltroEstado(e)}
-                className="px-3 py-1.5 rounded-lg border"
-                style={{
-                  backgroundColor: filtroEstado === e ? GREEN : 'white',
-                  borderColor: filtroEstado === e ? GREEN : '#e5e7eb',
-                }}
-              >
-                <Text style={{
-                  color: filtroEstado === e ? 'white' : '#6b7280',
-                  fontSize: 11,
-                  fontWeight: '600',
-                }}>
-                  {e === 'TODOS' ? 'Todos' : e}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </ScrollView>
-
-        {mesas.length === 0 ? (
-          <View className="bg-white rounded-xl border border-gray-100 p-12 items-center">
-            <Armchair color="#d1d5db" size={40} />
-            <Text className="text-gray-400 text-sm mt-3 text-center">No hay mesas configuradas para el evento</Text>
+        {days.length === 0 ? (
+          <View className="bg-white rounded-2xl border border-dashed border-gray-200 p-16 items-center mt-8">
+            <Calendar color="#d1d5db" size={40} />
+            <Text className="text-gray-500 font-semibold text-sm mt-3 text-center">
+              No hay reservaciones activas
+            </Text>
+            <Text className="text-xs text-gray-400 mt-1 text-center">
+              Todas las reuniones están finalizadas o no hay mesas programadas.
+            </Text>
           </View>
         ) : (
-          mesasFiltradas.map((mesa) => (
-            <View key={mesa.id} className="bg-white rounded-xl border border-gray-100 shadow-sm mb-3 overflow-hidden">
-              {/* Mesa header */}
-              <View className="flex-row items-center gap-3 px-4 py-3 border-b border-gray-50"
-                style={{ backgroundColor: '#f9fafb' }}>
-                <View
-                  className="w-10 h-10 rounded-xl items-center justify-center shrink-0"
-                  style={{ backgroundColor: mesa.estaActivo === 1 ? GREEN : '#e5e7eb' }}
-                >
-                  <Text style={{
-                    color: mesa.estaActivo === 1 ? '#fff' : '#9ca3af',
-                    fontWeight: '700',
-                    fontSize: 13,
-                  }}>
-                    {String(mesa.numeroMesa).padStart(2, '0')}
+          <View className="gap-6">
+            {days.map((day) => (
+              <View key={day}>
+                {/* Day header */}
+                <View className="flex-row items-center gap-3 mb-3">
+                  <View
+                    className="flex-row items-center gap-2 px-3 py-2 rounded-xl shadow-sm"
+                    style={{ backgroundColor: GREEN }}
+                  >
+                    <Calendar color="white" size={14} />
+                    <Text style={{ color: 'white', fontWeight: '700', fontSize: 12 }} className="capitalize">
+                      {fmtDay(day)}
+                    </Text>
+                  </View>
+                  <Text className="text-xs text-gray-400 font-semibold">
+                    {byDay[day].length} reservación(es)
                   </Text>
                 </View>
-                <View className="flex-1">
-                  <Text className="font-bold text-gray-900 text-sm">Mesa {mesa.numeroMesa}</Text>
-                  <Text className="text-xs text-gray-400">
-                    {mesa.reunion?.length ?? 0} reunión(es) · {mesa.capacidadPersonas} personas
-                  </Text>
-                </View>
-                <View
-                  className="px-2.5 py-1 rounded-full"
-                  style={{ backgroundColor: mesa.estaActivo === 1 ? '#dcfce7' : '#f3f4f6' }}
-                >
-                  <Text style={{
-                    color: mesa.estaActivo === 1 ? '#15803d' : '#9ca3af',
-                    fontSize: 11,
-                    fontWeight: '700',
-                  }}>
-                    {mesa.estaActivo === 1 ? 'Activa' : 'Inactiva'}
-                  </Text>
+
+                {/* Cards del día */}
+                <View className="gap-2">
+                  {byDay[day].map((r) => {
+                    const sol = r.solicitudreunion;
+                    const ea  = sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa;
+                    const eb  = sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento?.empresa;
+                    const est = ESTADO_CONFIG[r.estadoReunion] ?? ESTADO_CONFIG.PROGRAMADA;
+                    const mesa = r.mesa;
+                    const badgeColor = r.estadoReunion === 'EN_CURSO' ? '#f97316' : '#3b82f6';
+
+                    return (
+                      <View
+                        key={r.id}
+                        className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
+                      >
+                        <View className="flex-row items-center gap-3 px-4 py-3">
+                          {/* Mesa badge */}
+                          <View
+                            className="w-11 h-11 rounded-xl items-center justify-center shrink-0 shadow-sm"
+                            style={{ backgroundColor: badgeColor }}
+                          >
+                            <Text style={{ color: 'white', fontWeight: '900', fontSize: 14 }}>
+                              {String(mesa?.numeroMesa ?? '?').padStart(2, '0')}
+                            </Text>
+                          </View>
+
+                          {/* Horario */}
+                          <View className="shrink-0 items-center" style={{ minWidth: 44 }}>
+                            <Text className="text-xs font-extrabold text-gray-900">
+                              {fmtTime(r.fechaHoraInicioReunion)}
+                            </Text>
+                            <Text className="text-[10px] text-gray-400">–</Text>
+                            <Text className="text-xs font-bold text-gray-600">
+                              {fmtTime(r.fechaHoraFinReunion)}
+                            </Text>
+                          </View>
+
+                          {/* Separator */}
+                          <View className="w-px self-stretch bg-gray-100 shrink-0" />
+
+                          {/* Empresas */}
+                          <View className="flex-1 min-w-0">
+                            <CompanyRow empresa={ea} isA />
+                            <View className="flex-row items-center gap-1 my-0.5">
+                              <View className="flex-1 h-px bg-gray-100" />
+                              <Text className="text-[9px] text-gray-300 font-bold">vs</Text>
+                              <View className="flex-1 h-px bg-gray-100" />
+                            </View>
+                            <CompanyRow empresa={eb} isA={false} />
+                          </View>
+                        </View>
+
+                        {/* Footer badges */}
+                        <View className="flex-row items-center gap-2 px-4 pb-3 flex-wrap">
+                          {/* Estado */}
+                          <View className="flex-row items-center gap-1 px-2 py-0.5 rounded-full"
+                            style={{ backgroundColor: est.bg }}>
+                            <View className="w-1.5 h-1.5 rounded-full"
+                              style={{ backgroundColor: est.dot }} />
+                            <Text style={{ color: est.color, fontSize: 9, fontWeight: '700' }}>
+                              {est.label}
+                            </Text>
+                          </View>
+                          {/* Tipo */}
+                          <TipoBadge tipo={r.tipoReunion} />
+                        </View>
+                      </View>
+                    );
+                  })}
                 </View>
               </View>
-
-              {/* Reuniones */}
-              {mesa.reunion && mesa.reunion.length > 0 ? (
-                mesa.reunion.map((r: any) => (
-                  <ReunionCard key={r.id} r={r} />
-                ))
-              ) : (
-                <Text className="px-4 py-4 text-xs text-gray-400 italic text-center">
-                  Sin reuniones programadas
-                </Text>
-              )}
-            </View>
-          ))
+            ))}
+          </View>
         )}
 
         <View className="h-8" />
       </View>
     </ScrollView>
+  );
+}
+
+function CompanyRow({ empresa, isA }: Readonly<{ empresa: any; isA: boolean }>) {
+  return (
+    <View className="flex-row items-center gap-1.5">
+      {empresa?.urlFotoPerfil ? (
+        <Image
+          source={{ uri: empresa.urlFotoPerfil }}
+          className="w-6 h-6 rounded-full shrink-0 border border-gray-100"
+          resizeMode="contain"
+        />
+      ) : (
+        <View
+          className="w-6 h-6 rounded-full items-center justify-center shrink-0"
+          style={{ backgroundColor: isA ? '#dcfce7' : '#dbeafe' }}
+        >
+          <Building2 color={isA ? '#15803d' : '#2563eb'} size={12} />
+        </View>
+      )}
+      <View className="flex-1 min-w-0">
+        <Text className="text-xs font-bold text-gray-900" numberOfLines={1}>
+          {empresa?.nombre ?? '—'}
+        </Text>
+        {empresa?.rubro ? (
+          <Text className="text-[9px] text-gray-400" numberOfLines={1}>{empresa.rubro}</Text>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+function TipoBadge({ tipo }: Readonly<{ tipo: string }>) {
+  const cfg: Record<string, { label: string; color: string; bg: string; Icon: any }> = {
+    VIRTUAL:    { label: 'Virtual',    color: '#2563eb', bg: '#dbeafe', Icon: Video   },
+    PRESENCIAL: { label: 'Presencial', color: '#059669', bg: '#d1fae5', Icon: MapPin  },
+    MIXTA:      { label: 'Mixta',      color: '#7c3aed', bg: '#ede9fe', Icon: Link2   },
+  };
+  const c = cfg[tipo] ?? cfg.PRESENCIAL;
+  const Icon = c.Icon;
+  return (
+    <View className="flex-row items-center gap-0.5 px-2 py-0.5 rounded-full"
+      style={{ backgroundColor: c.bg }}>
+      <Icon color={c.color} size={9} />
+      <Text style={{ color: c.color, fontSize: 9, fontWeight: '700' }}>{c.label}</Text>
+    </View>
   );
 }

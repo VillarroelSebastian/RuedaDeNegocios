@@ -5,6 +5,12 @@ import { Plus, Edit2, Trash2, CalendarCheck, Star, Calendar } from 'lucide-react
 import { useRouter } from 'next/navigation';
 import Modal, { useModal } from '@/components/ui/Modal';
 
+function formatDate(iso: string) {
+  if (!iso) return '';
+  const [y, m, d] = iso.substring(0, 10).split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('es-BO', { day: 'numeric', month: 'numeric', year: 'numeric' });
+}
+
 export default function EventosListPage() {
   const router = useRouter();
   const [eventos, setEventos] = useState<any[]>([]);
@@ -104,7 +110,7 @@ export default function EventosListPage() {
             <div className="flex gap-2 items-center text-xs text-gray-600 mb-6 bg-gray-50 p-2.5 rounded-lg">
                <Calendar className="w-4 h-4 text-gray-400" />
                <span className="font-medium">
-                 {new Date(evento.fechaInicioEvento).toLocaleDateString('es-BO')} al {new Date(evento.fechaFinEvento).toLocaleDateString('es-BO')}
+                 {formatDate(evento.fechaInicioEvento)} al {formatDate(evento.fechaFinEvento)}
                </span>
             </div>
 

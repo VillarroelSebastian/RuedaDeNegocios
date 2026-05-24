@@ -1,128 +1,164 @@
 "use client";
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Plus, RefreshCw, X, Clock, Users, Armchair, Timer,
-  Building2, Video, MapPin, ChevronDown, ChevronUp, Pencil, Check,
+  RefreshCw, X, Clock, Users, Armchair,
+  Building2, Video, MapPin, Link2, Search,
+  Star, ChevronDown, ChevronUp, History,
+  Play, Square, XCircle, UserCheck, Lock, Unlock,
 } from 'lucide-react';
 import { useModal } from '@/components/ui/Modal';
 
 const API = 'http://localhost:3334';
 
-const ESTADO_MESA: Record<string, { label: string; badge: string; grid: string; dot: string }> = {
-  LIBRE:      { label: 'Libre',      badge: 'bg-green-100 text-green-700',   grid: '#449D3A', dot: 'bg-green-400' },
-  PROGRAMADA: { label: 'Programada', badge: 'bg-blue-100 text-blue-700',     grid: '#3b82f6', dot: 'bg-blue-400' },
-  EN_USO:     { label: 'En uso',     badge: 'bg-orange-100 text-orange-700', grid: '#f97316', dot: 'bg-orange-400' },
-  EN_ESPERA:  { label: 'En espera',  badge: 'bg-amber-100 text-amber-700',   grid: '#d97706', dot: 'bg-amber-400' },
-  FINALIZADA: { label: 'Finalizada', badge: 'bg-gray-100 text-gray-500',     grid: '#9ca3af', dot: 'bg-gray-300' },
+const ESTADO_MESA: Record<string, { label: string; badge: string; grid: string }> = {
+  LIBRE:     { label: 'Libre',     badge: 'bg-green-100 text-green-700',   grid: '#449D3A' },
+  RESERVADA: { label: 'Reservada', badge: 'bg-blue-100 text-blue-700',     grid: '#3b82f6' },
+  EN_USO:    { label: 'En uso',    badge: 'bg-orange-100 text-orange-700', grid: '#f97316' },
 };
 
-const ESTADO_REUNION: Record<string, { badge: string; label: string }> = {
-  PROGRAMADA: { badge: 'bg-blue-100 text-blue-700',    label: 'Programada' },
-  EN_CURSO:   { badge: 'bg-orange-100 text-orange-700', label: 'En curso' },
-  FINALIZADA: { badge: 'bg-green-100 text-green-700',  label: 'Finalizada' },
-  CANCELADA:  { badge: 'bg-gray-100 text-gray-500',    label: 'Cancelada' },
-};
-
+function fmtDT(iso: string) {
+  return new Date(iso).toLocaleString('es-BO', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
+}
 function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
-
-function getMapsUrl(sol: any): string | null {
-  if (sol?.ubicacionGoogleMapsReunion) return sol.ubicacionGoogleMapsReunion;
-  if (sol?.latitudPresencial && sol?.longitudPresencial)
-    return `https://www.google.com/maps?q=${sol.latitudPresencial},${sol.longitudPresencial}`;
-  if (sol?.direccionTexto)
-    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(sol.direccionTexto)}`;
-  return null;
+function minutesFromNow(iso: string) {
+  return Math.round((new Date(iso).getTime() - Date.now()) / 60000);
+}
+function elapsedMin(iso: string) {
+  return Math.round((Date.now() - new Date(iso).getTime()) / 60000);
 }
 
-function ReunionSlot({ r }: { r: any }) {
-  const [open, setOpen] = useState(false);
-  const sol  = r.solicitudreunion;
-  const ea   = sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa;
-  const eb   = sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento?.empresa;
-  const est  = ESTADO_REUNION[r.estadoReunion] ?? ESTADO_REUNION.PROGRAMADA;
-  const esVirtual    = r.tipoReunion === 'VIRTUAL'    || r.tipoReunion === 'MIXTA';
-  const esPresencial = r.tipoReunion === 'PRESENCIAL' || r.tipoReunion === 'MIXTA';
-  const link   = sol?.enlaceReunionVirtual;
-  const mapsUrl = getMapsUrl(sol);
-
+function CompanyBadge({ empresa, side }: { empresa: any; side: 'A' | 'B' }) {
+  const bg = side === 'A' ? 'bg-green-100' : 'bg-blue-100';
+  const ic = side === 'A' ? 'text-green-700' : 'text-blue-700';
   return (
-    <div className="border-t border-gray-50">
-      <div className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50/70 transition-colors">
-        <span className="text-xs font-bold text-gray-700 w-28 shrink-0">
-          {fmtTime(r.fechaHoraInicioReunion)} – {fmtTime(r.fechaHoraFinReunion)}
-        </span>
-        <div className="flex items-center gap-1.5 flex-1 min-w-0">
-          {ea?.urlFotoPerfil
-            ? <img src={ea.urlFotoPerfil} className="w-6 h-6 rounded-full object-contain shrink-0 border border-gray-100" />
-            : <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center shrink-0"><Building2 className="w-3 h-3 text-green-700" /></div>}
-          <span className="text-xs text-gray-800 font-semibold truncate">{ea?.nombre ?? '—'}</span>
-          <span className="text-gray-300 shrink-0">·</span>
-          {eb?.urlFotoPerfil
-            ? <img src={eb.urlFotoPerfil} className="w-6 h-6 rounded-full object-contain shrink-0 border border-gray-100" />
-            : <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center shrink-0"><Building2 className="w-3 h-3 text-blue-700" /></div>}
-          <span className="text-xs text-gray-800 font-semibold truncate">{eb?.nombre ?? '—'}</span>
-        </div>
-        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${est.badge}`}>{est.label}</span>
-        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
-          r.tipoReunion === 'VIRTUAL' ? 'bg-blue-50 text-blue-500' :
-          r.tipoReunion === 'MIXTA'   ? 'bg-purple-50 text-purple-500' : 'bg-emerald-50 text-emerald-600'
-        }`}>{r.tipoReunion}</span>
-        <button onClick={() => setOpen(!open)} className="shrink-0 text-gray-400 hover:text-gray-600">
-          {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-        </button>
+    <div className="flex items-center gap-2 flex-1 min-w-0">
+      {empresa?.urlFotoPerfil
+        ? <img src={empresa.urlFotoPerfil} className="w-8 h-8 rounded-full object-contain shrink-0 border border-gray-100" alt="" />
+        : <div className={`w-8 h-8 rounded-full ${bg} flex items-center justify-center shrink-0`}><Building2 className={`w-4 h-4 ${ic}`} /></div>}
+      <div className="min-w-0">
+        <p className="text-sm font-bold text-gray-900 truncate">{empresa?.nombre ?? '—'}</p>
+        <p className="text-xs text-gray-400 truncate">{empresa?.rubro ?? ''}</p>
       </div>
-      {open && (
-        <div className="px-4 pb-3 bg-gray-50/50 border-t border-gray-100">
-          <div className="flex flex-wrap gap-2 pt-2">
-            {esVirtual && link && (
-              <a href={link} target="_blank" rel="noreferrer"
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-bold hover:bg-blue-700">
-                <Video className="w-3 h-3" /> Reunión virtual
-              </a>
-            )}
-            {esPresencial && mapsUrl && (
-              <a href={mapsUrl} target="_blank" rel="noreferrer"
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700">
-                <MapPin className="w-3 h-3" /> Google Maps
-              </a>
+    </div>
+  );
+}
+
+function StarRow({ value }: { value: number }) {
+  return (
+    <div className="flex gap-0.5">
+      {[1,2,3,4,5].map((s) => (
+        <Star key={s} className={`w-3 h-3 ${s <= value ? 'fill-amber-400 text-amber-400' : 'text-gray-200'}`} />
+      ))}
+    </div>
+  );
+}
+
+function EvalBlock({ empresa, resultado, side }: { empresa: any; resultado: any; side: 'A' | 'B' }) {
+  const bg = side === 'A' ? 'bg-green-50 border-green-100' : 'bg-blue-50 border-blue-100';
+  const ic = side === 'A' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700';
+  return (
+    <div className={`rounded-xl border p-3 space-y-2 ${bg}`}>
+      <div className="flex items-center gap-2">
+        {empresa?.urlFotoPerfil
+          ? <img src={empresa.urlFotoPerfil} className="w-6 h-6 rounded-full object-contain border border-white shrink-0" alt="" />
+          : <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${ic}`}><Building2 className="w-3 h-3" /></div>}
+        <p className="text-xs font-bold text-gray-800 truncate">{empresa?.nombre ?? '—'}</p>
+      </div>
+      {resultado ? (
+        <>
+          <div className="flex items-center gap-2 flex-wrap">
+            <StarRow value={resultado.calificacionReunion} />
+            <span className="text-[10px] text-gray-500 font-semibold">{resultado.calificacionReunion}/5</span>
+            {resultado.rangoAcuerdoComercial && (
+              <span className="ml-auto text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-100 truncate max-w-[120px]">
+                {resultado.rangoAcuerdoComercial}
+              </span>
             )}
           </div>
-          {sol?.mensajeParaEmpresaReceptora && (
-            <p className="text-[11px] text-gray-500 italic mt-2">"{sol.mensajeParaEmpresaReceptora}"</p>
+          {resultado.observacionesPuntosTratados && (
+            <p className="text-[10px] text-gray-500 italic leading-relaxed">"{resultado.observacionesPuntosTratados}"</p>
           )}
+        </>
+      ) : (
+        <p className="text-[10px] text-gray-400 italic">Evaluación pendiente</p>
+      )}
+    </div>
+  );
+}
+
+function HistorialRow({ r }: { r: any }) {
+  const [open, setOpen] = useState(false);
+  const sol  = r.solicitudreunion;
+  const eeA  = sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento;
+  const eeB  = sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento;
+  const ea   = eeA?.empresa;
+  const eb   = eeB?.empresa;
+  const resultados: any[] = r.resultadoreunion ?? [];
+  const resA = resultados.find((res: any) => res.empresaeventoCalificadora_id === eeA?.id);
+  const resB = resultados.find((res: any) => res.empresaeventoCalificadora_id === eeB?.id);
+
+  return (
+    <div className="border-b border-gray-50 last:border-0">
+      <button onClick={() => setOpen(!open)}
+        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left">
+        <div className="w-8 h-8 rounded-lg bg-gray-700 flex items-center justify-center shrink-0">
+          <span className="text-white text-[11px] font-bold">{String(r.mesa?.numeroMesa ?? '?').padStart(2, '0')}</span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-semibold text-gray-800 truncate">
+            {ea?.nombre ?? '—'} <span className="text-gray-400 font-normal">vs</span> {eb?.nombre ?? '—'}
+          </p>
+          <p className="text-[10px] text-gray-400 font-mono">{fmtDT(r.fechaHoraInicioReunion)} – {fmtTime(r.fechaHoraFinReunion)}</p>
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+            r.tipoReunion === 'VIRTUAL' ? 'bg-blue-50 text-blue-500' :
+            r.tipoReunion === 'MIXTA'   ? 'bg-purple-50 text-purple-500' : 'bg-emerald-50 text-emerald-600'
+          }`}>{r.tipoReunion}</span>
+          <span className="text-[9px] text-gray-400 font-semibold">
+            {resA && resB ? '2 eval.' : resA || resB ? '1 eval.' : 'Sin eval.'}
+          </span>
+        </div>
+        {open ? <ChevronUp className="w-3.5 h-3.5 text-gray-400 shrink-0" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400 shrink-0" />}
+      </button>
+      {open && (
+        <div className="px-4 pb-4 pt-1 bg-gray-50/50 space-y-2">
+          {r.observacionesReunion && (
+            <p className="text-xs text-gray-500 italic border-l-2 border-gray-200 pl-2">"{r.observacionesReunion}"</p>
+          )}
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide pt-1">Evaluaciones de encargados</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <EvalBlock empresa={ea} resultado={resA} side="A" />
+            <EvalBlock empresa={eb} resultado={resB} side="B" />
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-type FiltroEstado = 'TODAS' | 'LIBRE' | 'PROGRAMADA' | 'EN_USO' | 'EN_ESPERA' | 'FINALIZADA';
+type Tab = 'mesas' | 'historial';
+type FiltroEstado = 'TODAS' | 'LIBRE' | 'RESERVADA' | 'EN_USO' | 'INHABILITADA';
 
 export default function MesasPage() {
   const { showSuccess, showError, showConfirm, ModalComponent } = useModal();
 
-  // Grid (admin/mesas)
-  const [mesas,       setMesas]       = useState<any[]>([]);
+  const [tab,          setTab]          = useState<Tab>('mesas');
+  const [mesas,        setMesas]        = useState<any[]>([]);
   const [eventoConfig, setEventoConfig] = useState<any>(null);
-  const [loading,     setLoading]     = useState(true);
-  const [filtroEstado, setFiltroEstado] = useState<FiltroEstado>('TODAS');
-  const [vista,       setVista]       = useState<'grid' | 'agenda'>('grid');
+  const [loading,      setLoading]      = useState(true);
+  const [filtro,       setFiltro]       = useState<FiltroEstado>('TODAS');
+  const [reunionModal, setReunionModal] = useState<any | null>(null);
+  const [asistentes,   setAsistentes]   = useState('');
+  const [acting,       setActing]       = useState(false);
+  const [toggling,     setToggling]     = useState(false);
 
-  // Agenda (admin/mesas/agenda)
-  const [agenda,      setAgenda]      = useState<any[]>([]);
-  const [agendaLoading, setAgendaLoading] = useState(false);
-
-  // Generar modal
-  const [showGenerar, setShowGenerar] = useState(false);
-  const [cantidad,    setCantidad]    = useState('');
-  const [capacidad,   setCapacidad]   = useState('');
-  const [generating,  setGenerating]  = useState(false);
-
-  // Editar tiempo de limpieza
-  const [editandoTiempo, setEditandoTiempo] = useState(false);
-  const [tiempoEdit,     setTiempoEdit]     = useState('');
+  const [historial,        setHistorial]        = useState<any[]>([]);
+  const [loadingHistorial, setLoadingHistorial] = useState(false);
+  const [searchQ,          setSearchQ]          = useState('');
+  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchGrid = useCallback(async () => {
     setLoading(true);
@@ -130,108 +166,98 @@ export default function MesasPage() {
       const res  = await fetch(`${API}/admin/mesas`);
       const data = await res.json();
       setMesas(Array.isArray(data) ? data : (data.mesas ?? []));
-      if (data.eventoConfig) {
-        setEventoConfig(data.eventoConfig);
-        setCantidad(String(data.eventoConfig.cantidadTotalMesasEvento ?? 10));
-        setCapacidad(String(data.eventoConfig.capacidadPersonasPorMesa ?? 4));
-        setTiempoEdit(String(data.eventoConfig.tiempoEntreReuniones ?? 15));
-      }
+      if (data.eventoConfig) setEventoConfig(data.eventoConfig);
     } catch { setMesas([]); }
     finally { setLoading(false); }
   }, []);
 
-  const fetchAgenda = useCallback(async () => {
-    setAgendaLoading(true);
+  const fetchHistorial = useCallback(async (q?: string) => {
+    setLoadingHistorial(true);
     try {
-      const res  = await fetch(`${API}/admin/mesas/agenda`);
-      const data = await res.json();
-      setAgenda(data.mesas ?? (Array.isArray(data) ? data : []));
-      if (data.eventoConfig) setEventoConfig(data.eventoConfig);
-    } catch { setAgenda([]); }
-    finally { setAgendaLoading(false); }
+      const url = q?.trim() ? `${API}/admin/mesas/historial?q=${encodeURIComponent(q)}` : `${API}/admin/mesas/historial`;
+      const data = await (await fetch(url)).json();
+      setHistorial(Array.isArray(data) ? data : []);
+    } catch { setHistorial([]); }
+    finally { setLoadingHistorial(false); }
   }, []);
 
   useEffect(() => { fetchGrid(); }, [fetchGrid]);
-  useEffect(() => { if (vista === 'agenda') fetchAgenda(); }, [vista, fetchAgenda]);
+  useEffect(() => { if (tab === 'historial') fetchHistorial(); }, [tab, fetchHistorial]);
 
-  const toggleMesa = async (mesa: any) => {
-    const nuevoEstado = mesa.estaActivo === 1 ? 0 : 1;
-    const accion = nuevoEstado === 1 ? 'activar' : 'desactivar';
-    showConfirm(`¿${accion.charAt(0).toUpperCase() + accion.slice(1)} mesa ${mesa.numeroMesa}?`, '', async () => {
-      try {
-        await fetch(`${API}/admin/mesas/${mesa.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ estaActivo: nuevoEstado }),
-        });
-        setMesas((prev) => prev.map((m) => m.id === mesa.id ? { ...m, estaActivo: nuevoEstado } : m));
-      } catch { showError('Error', 'No se pudo cambiar el estado de la mesa.'); }
-    });
+  const handleSearch = (val: string) => {
+    setSearchQ(val);
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    searchTimeout.current = setTimeout(() => fetchHistorial(val), 400);
   };
 
-  const handleSaveTiempo = async () => {
-    const val = Number(tiempoEdit);
-    if (!val || val < 1 || val > 120) {
-      showError('Error', 'El tiempo debe estar entre 1 y 120 minutos.');
-      return;
-    }
+  const toggleHabilitar = async (mesa: any) => {
+    const nuevo = mesa.estaHabilitada === 1 ? 0 : 1;
+    const accion = nuevo === 1 ? 'habilitar' : 'deshabilitar';
+    showConfirm(
+      `${nuevo === 1 ? 'Habilitar' : 'Deshabilitar'} mesa ${mesa.numeroMesa}`,
+      `¿Deseas ${accion} la Mesa ${mesa.numeroMesa}? ${nuevo === 0 ? 'Los usuarios no podrán usarla.' : 'Estará disponible para reuniones.'}`,
+      async () => {
+        setToggling(true);
+        try {
+          await fetch(`${API}/admin/mesas/${mesa.id}/habilitar`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ estaHabilitada: nuevo }),
+          });
+          showSuccess('Listo', `Mesa ${mesa.numeroMesa} ${nuevo === 1 ? 'habilitada' : 'deshabilitada'} correctamente.`);
+          setReunionModal(null);
+          fetchGrid();
+        } catch { showError('Error', 'No se pudo cambiar el estado de disponibilidad.'); }
+        finally { setToggling(false); }
+      }
+    );
+  };
+
+  const actualizarReunion = async (reunionId: number, estado: string, extra?: { asistentes?: number }) => {
+    setActing(true);
     try {
-      await fetch(`${API}/admin/evento/config`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tiempoEntreReuniones: val }),
+      const body: any = { estadoReunion: estado };
+      if (extra?.asistentes !== undefined) body.asistentes = extra.asistentes;
+      await fetch(`${API}/admin/reuniones/${reunionId}/estado`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
       });
-      setEventoConfig((prev: any) => ({ ...prev, tiempoEntreReuniones: val }));
-      setEditandoTiempo(false);
-      showSuccess('Guardado', `Tiempo de limpieza actualizado a ${val} min.`);
+      const labels: Record<string, string> = {
+        EN_CURSO: 'Reunión iniciada correctamente.',
+        FINALIZADA: 'Reunión finalizada y registrada.',
+        CANCELADA: 'Reunión cancelada.',
+      };
+      showSuccess('Listo', labels[estado] ?? 'Estado actualizado.');
+      setReunionModal(null);
       fetchGrid();
-    } catch { showError('Error', 'No se pudo guardar el tiempo.'); }
+    } catch { showError('Error', 'No se pudo actualizar el estado de la reunión.'); }
+    finally { setActing(false); }
   };
 
-  const handleGenerar = async () => {
-    if (!cantidad || Number(cantidad) <= 0) {
-      showError('Error', 'Ingresa una cantidad válida de mesas.');
-      return;
-    }
-    setGenerating(true);
-    try {
-      const res  = await fetch(`${API}/admin/mesas/generar`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cantidad: Number(cantidad), capacidadPersonas: Number(capacidad) }),
-      });
-      const data = await res.json();
-      showSuccess('Mesas generadas', data.mensaje);
-      setShowGenerar(false);
-      fetchGrid();
-    } catch { showError('Error', 'No se pudieron generar las mesas.'); }
-    finally { setGenerating(false); }
+  const openModal = (m: any) => {
+    setReunionModal(m);
+    setAsistentes(String(m.reunionActual?.cantidadAsistentesRegistrados ?? ''));
   };
 
-  const mesasFiltradas = mesas.filter((m) =>
-    filtroEstado === 'TODAS' || m.estadoMesa === filtroEstado
-  );
-  const agendaFiltrada = agenda.filter((m) =>
-    filtroEstado === 'TODAS' || m.estadoMesa === filtroEstado
-  );
+  const mesasFiltradas = mesas.filter((m) => {
+    if (filtro === 'INHABILITADA') return m.estaHabilitada === 0;
+    if (filtro === 'TODAS') return true;
+    return m.estadoMesa === filtro;
+  });
 
   const counts = {
-    total:      mesas.length,
-    activas:    mesas.filter((m) => m.estaActivo === 1).length,
-    libre:      mesas.filter((m) => m.estadoMesa === 'LIBRE').length,
-    programada: mesas.filter((m) => m.estadoMesa === 'PROGRAMADA').length,
-    enUso:      mesas.filter((m) => m.estadoMesa === 'EN_USO').length,
-    enEspera:   mesas.filter((m) => m.estadoMesa === 'EN_ESPERA').length,
-    finalizada: mesas.filter((m) => m.estadoMesa === 'FINALIZADA').length,
+    total:        mesas.length,
+    libre:        mesas.filter((m) => m.estadoMesa === 'LIBRE').length,
+    reservada:    mesas.filter((m) => m.estadoMesa === 'RESERVADA').length,
+    enUso:        mesas.filter((m) => m.estadoMesa === 'EN_USO').length,
+    inhabilitada: mesas.filter((m) => m.estaHabilitada === 0).length,
   };
 
   const FILTROS: { key: FiltroEstado; label: string }[] = [
-    { key: 'TODAS',      label: `Todas (${counts.total})` },
-    { key: 'LIBRE',      label: `Libres (${counts.libre})` },
-    { key: 'PROGRAMADA', label: `Programadas (${counts.programada})` },
-    { key: 'EN_USO',     label: `En uso (${counts.enUso})` },
-    { key: 'EN_ESPERA',  label: `En espera (${counts.enEspera})` },
-    { key: 'FINALIZADA', label: `Finalizadas (${counts.finalizada})` },
+    { key: 'TODAS',       label: `Todas (${counts.total})` },
+    { key: 'LIBRE',       label: `Libres (${counts.libre})` },
+    { key: 'RESERVADA',   label: `Reservadas (${counts.reservada})` },
+    { key: 'EN_USO',      label: `En uso (${counts.enUso})` },
+    { key: 'INHABILITADA',label: `Inhabilitadas (${counts.inhabilitada})` },
   ];
 
   return (
@@ -241,19 +267,13 @@ export default function MesasPage() {
       {/* Header */}
       <div className="flex items-start justify-between mb-5 flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Gestión de Mesas</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Monitorea el estado de cada mesa en tiempo real.</p>
+          <h1 className="text-2xl font-bold text-gray-900">Mesas</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Estado en tiempo real y registro histórico de reuniones.</p>
         </div>
-        <div className="flex gap-2 flex-wrap">
-          <button onClick={() => { fetchGrid(); if (vista === 'agenda') fetchAgenda(); }}
-            className="flex items-center gap-1.5 border border-gray-200 text-gray-600 font-semibold px-3 py-2 rounded-xl hover:bg-gray-50 text-sm">
-            <RefreshCw className="w-4 h-4" /> Actualizar
-          </button>
-          <button onClick={() => setShowGenerar(true)}
-            className="flex items-center gap-1.5 bg-[#449D3A] text-white font-semibold px-4 py-2 rounded-xl hover:bg-[#367d2e] shadow-sm text-sm">
-            <Plus className="w-4 h-4" /> Generar mesas
-          </button>
-        </div>
+        <button onClick={() => { fetchGrid(); if (tab === 'historial') fetchHistorial(searchQ); }}
+          className="flex items-center gap-1.5 border border-gray-200 text-gray-600 font-semibold px-3 py-2 rounded-xl hover:bg-gray-50 text-sm">
+          <RefreshCw className="w-4 h-4" /> Actualizar
+        </button>
       </div>
 
       {/* Config card */}
@@ -268,39 +288,10 @@ export default function MesasPage() {
                 <p className="text-sm font-bold text-blue-900">{eventoConfig.duracionReunion} min</p>
               </div>
             </div>
-            {/* Editable tiempo de limpieza */}
-            <div className="flex items-center gap-2">
-              <Timer className="w-4 h-4 text-blue-500 shrink-0" />
-              <div className="flex-1">
-                <p className="text-[10px] text-blue-500 font-semibold">Tiempo de limpieza</p>
-                {editandoTiempo ? (
-                  <div className="flex items-center gap-1 mt-0.5">
-                    <input type="number" min="1" max="120" value={tiempoEdit}
-                      onChange={(e) => setTiempoEdit(e.target.value)}
-                      className="w-16 text-xs font-bold text-blue-900 border border-blue-300 rounded px-1 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400" />
-                    <span className="text-xs text-blue-700 font-medium">min</span>
-                    <button onClick={handleSaveTiempo} className="p-0.5 rounded text-green-600 hover:text-green-700">
-                      <Check className="w-3.5 h-3.5" />
-                    </button>
-                    <button onClick={() => setEditandoTiempo(false)} className="p-0.5 rounded text-gray-400 hover:text-gray-600">
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1">
-                    <p className="text-sm font-bold text-blue-900">{eventoConfig.tiempoEntreReuniones} min</p>
-                    <button onClick={() => { setTiempoEdit(String(eventoConfig.tiempoEntreReuniones)); setEditandoTiempo(true); }}
-                      className="p-0.5 rounded text-blue-400 hover:text-blue-600">
-                      <Pencil className="w-3 h-3" />
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
             <div className="flex items-center gap-2">
               <Armchair className="w-4 h-4 text-blue-500 shrink-0" />
               <div>
-                <p className="text-[10px] text-blue-500 font-semibold">Mesas planificadas</p>
+                <p className="text-[10px] text-blue-500 font-semibold">Mesas del evento</p>
                 <p className="text-sm font-bold text-blue-900">{eventoConfig.cantidadTotalMesasEvento}</p>
               </div>
             </div>
@@ -311,193 +302,308 @@ export default function MesasPage() {
                 <p className="text-sm font-bold text-blue-900">{eventoConfig.capacidadPersonasPorMesa} personas</p>
               </div>
             </div>
+            <div className="flex items-center flex-wrap gap-x-3 gap-y-1">
+              {Object.entries(ESTADO_MESA).map(([k, v]) => (
+                <div key={k} className="flex items-center gap-1 text-[10px] text-gray-600">
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: v.grid }} />
+                  {v.label}
+                </div>
+              ))}
+              <div className="flex items-center gap-1 text-[10px] text-gray-600">
+                <span className="w-2 h-2 rounded-full bg-gray-400" /> Inhabilitada
+              </div>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Leyenda de estados */}
-      <div className="flex flex-wrap gap-3 mb-4">
-        {Object.entries(ESTADO_MESA).map(([k, v]) => (
-          <div key={k} className="flex items-center gap-1.5 text-xs text-gray-600">
-            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: v.grid }} />
-            {v.label}
-          </div>
-        ))}
-        <div className="flex items-center gap-1.5 text-xs text-gray-600">
-          <span className="w-2.5 h-2.5 rounded-full bg-gray-400" />
-          Inactiva
-        </div>
-      </div>
-
-      {/* Tab bar */}
-      <div className="flex items-center gap-0 bg-gray-100 rounded-xl p-1 mb-5 w-fit">
-        {(['grid', 'agenda'] as const).map((v) => (
-          <button key={v} onClick={() => setVista(v)}
-            className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
-              vista === v ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+      {/* Tabs */}
+      <div className="flex gap-1 mb-5 bg-gray-100 rounded-xl p-1 w-fit">
+        {([['mesas', 'Mesas'], ['historial', 'Historial']] as [Tab, string][]).map(([key, label]) => (
+          <button key={key} onClick={() => setTab(key as Tab)}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+              tab === key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
             }`}>
-            {v === 'grid' ? 'Vista general' : 'Agenda detallada'}
+            {key === 'historial' && <History className="w-3.5 h-3.5 inline mr-1.5" />}
+            {label}
           </button>
         ))}
       </div>
 
-      {/* Filter chips */}
-      <div className="flex flex-wrap gap-2 mb-4">
-        {FILTROS.map((f) => (
-          <button key={f.key} onClick={() => setFiltroEstado(f.key)}
-            className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
-              filtroEstado === f.key
-                ? 'bg-[#449D3A] text-white border-[#449D3A]'
-                : 'bg-white text-gray-600 border-gray-200 hover:border-[#449D3A] hover:text-[#449D3A]'
-            }`}>
-            {f.label}
-          </button>
-        ))}
-      </div>
-
-      {/* ─── VISTA GENERAL ─── */}
-      {vista === 'grid' && (
-        loading ? (
-          <div className="grid grid-cols-6 sm:grid-cols-10 gap-2">
-            {[...Array(30)].map((_, i) => <div key={i} className="h-14 bg-gray-200 rounded-xl animate-pulse" />)}
-          </div>
-        ) : mesasFiltradas.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
-            <Armchair className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-            <p className="text-gray-400 text-sm">No hay mesas con ese filtro.</p>
-            {mesas.length === 0 && (
-              <button onClick={() => setShowGenerar(true)}
-                className="mt-3 text-[#449D3A] font-semibold text-sm hover:underline">
-                Generar mesas →
+      {/* ── MESAS TAB ── */}
+      {tab === 'mesas' && (
+        <>
+          <div className="flex flex-wrap gap-2 mb-4">
+            {FILTROS.map((f) => (
+              <button key={f.key} onClick={() => setFiltro(f.key)}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+                  filtro === f.key
+                    ? 'bg-[#449D3A] text-white border-[#449D3A]'
+                    : 'bg-white text-gray-600 border-gray-200 hover:border-[#449D3A] hover:text-[#449D3A]'
+                }`}>
+                {f.label}
               </button>
-            )}
+            ))}
           </div>
-        ) : (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-            <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 gap-2">
-              {mesasFiltradas.map((m) => {
-                const cfg = ESTADO_MESA[m.estadoMesa] ?? ESTADO_MESA.LIBRE;
-                const color = m.estaActivo === 1 ? cfg.grid : '#9ca3af';
-                return (
-                  <button key={m.id} onClick={() => toggleMesa(m)}
-                    title={`Mesa ${m.numeroMesa} — ${m.estaActivo === 1 ? cfg.label : 'Inactiva'} · clic para ${m.estaActivo === 1 ? 'desactivar' : 'activar'}`}
-                    style={{ backgroundColor: color }}
-                    className="relative flex flex-col items-center justify-center h-14 rounded-xl text-white transition-all hover:scale-105 shadow-sm">
-                    <span className="text-[11px] font-bold">{String(m.numeroMesa).padStart(2, '0')}</span>
-                    {m.estaActivo === 1 && (
-                      <span className="text-[7px] font-semibold opacity-80 mt-0.5 leading-none">
-                        {cfg.label}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
+
+          {loading ? (
+            <div className="grid grid-cols-6 sm:grid-cols-10 gap-2">
+              {[...Array(20)].map((_, i) => <div key={i} className="h-14 bg-gray-200 rounded-xl animate-pulse" />)}
             </div>
-            <div className="mt-4 pt-4 border-t border-gray-100 flex flex-wrap items-center gap-4 text-xs text-gray-500">
-              <span className="font-semibold text-gray-700">{counts.total} mesas totales</span>
-              <span className="text-green-600 font-semibold">{counts.libre} libres</span>
-              <span className="text-orange-600 font-semibold">{counts.enUso} en uso</span>
-              <span className="text-amber-600 font-semibold">{counts.enEspera} en espera</span>
-              <span className="text-blue-600 font-semibold">{counts.programada} programadas</span>
-              <span className="text-gray-400">{counts.finalizada} finalizadas</span>
+          ) : mesasFiltradas.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
+              <Armchair className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+              <p className="text-gray-400 text-sm">No hay mesas con ese filtro.</p>
             </div>
-          </div>
-        )
+          ) : (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+              <div className="grid gap-2 grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12">
+                {mesasFiltradas.map((m) => {
+                  const cfg      = ESTADO_MESA[m.estadoMesa] ?? ESTADO_MESA.LIBRE;
+                  const disabled = m.estaHabilitada === 0 && m.estadoMesa === 'LIBRE';
+                  const color    = disabled ? '#9ca3af' : cfg.grid;
+                  const label    = disabled ? 'Inhabilitada' : cfg.label;
+                  return (
+                    <button key={m.id}
+                      onClick={() => openModal(m)}
+                      title={`Mesa ${m.numeroMesa} · ${label}`}
+                      style={{ backgroundColor: color }}
+                      className="relative flex flex-col items-center justify-center h-14 rounded-xl text-white transition-all hover:brightness-90 hover:scale-105 shadow-sm">
+                      {disabled && (
+                        <Lock className="absolute top-1 right-1 w-2.5 h-2.5 text-white/70" />
+                      )}
+                      <span className="text-[11px] font-bold">{String(m.numeroMesa).padStart(2, '0')}</span>
+                      <span className="text-[7px] font-semibold opacity-80 mt-0.5 leading-none">{label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="mt-4 pt-4 border-t border-gray-100 flex flex-wrap items-center gap-4 text-xs text-gray-500">
+                <span className="font-semibold text-gray-700">{counts.total} mesas</span>
+                <span className="text-green-600 font-semibold">{counts.libre} libres</span>
+                <span className="text-orange-600 font-semibold">{counts.enUso} en uso</span>
+                <span className="text-blue-600 font-semibold">{counts.reservada} reservadas</span>
+                {counts.inhabilitada > 0 && (
+                  <span className="text-gray-500 font-semibold">{counts.inhabilitada} inhabilitadas</span>
+                )}
+              </div>
+            </div>
+          )}
+        </>
       )}
 
-      {/* ─── AGENDA DETALLADA ─── */}
-      {vista === 'agenda' && (
-        agendaLoading ? (
-          <div className="space-y-3">
-            {[...Array(5)].map((_, i) => <div key={i} className="h-24 bg-gray-100 rounded-2xl animate-pulse" />)}
+      {/* ── HISTORIAL TAB ── */}
+      {tab === 'historial' && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="p-4 border-b border-gray-100">
+            <div className="relative">
+              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input value={searchQ} onChange={(e) => handleSearch(e.target.value)}
+                placeholder="Buscar por mesa (ej: 3) o empresa..."
+                className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#449D3A] bg-gray-50" />
+            </div>
           </div>
-        ) : agendaFiltrada.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
-            <Armchair className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-            <p className="text-gray-400 text-sm">Sin mesas con ese filtro.</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {agendaFiltrada.map((mesa) => {
-              const cfg = ESTADO_MESA[mesa.estadoMesa] ?? ESTADO_MESA.LIBRE;
+          {loadingHistorial ? (
+            <div className="p-10 flex items-center justify-center">
+              <div className="w-6 h-6 border-2 border-[#449D3A] border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : historial.length === 0 ? (
+            <div className="p-14 text-center">
+              <History className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+              <p className="text-gray-400 text-sm">{searchQ ? 'Sin resultados.' : 'Aún no hay reuniones finalizadas.'}</p>
+            </div>
+          ) : (
+            <div>
+              <p className="px-4 pt-3 pb-2 text-xs text-gray-400 font-semibold">{historial.length} reunión(es) finalizada(s)</p>
+              {historial.map((r) => <HistorialRow key={r.id} r={r} />)}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── MODAL DETALLE MESA ── */}
+      {reunionModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setReunionModal(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            {(() => {
+              const m   = reunionModal;
+              const cfg = ESTADO_MESA[m.estadoMesa] ?? ESTADO_MESA.LIBRE;
+              const r   = m.reunionActual;
+              const sol = r?.solicitudreunion;
+              const ea  = sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa;
+              const eb  = sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento?.empresa;
+              const esVirtual    = r?.tipoReunion === 'VIRTUAL' || r?.tipoReunion === 'MIXTA';
+              const esPresencial = r?.tipoReunion === 'PRESENCIAL' || r?.tipoReunion === 'MIXTA';
+              const isReservada  = m.estadoMesa === 'RESERVADA';
+              const isEnUso      = m.estadoMesa === 'EN_USO';
+              const isLibre      = m.estadoMesa === 'LIBRE';
+              const inhabilitada = m.estaHabilitada === 0;
+              const minsFromNow  = r ? minutesFromNow(r.fechaHoraInicioReunion) : 0;
+              const elapsed      = r ? elapsedMin(r.fechaHoraInicioReunion) : 0;
+              const remaining    = r ? Math.max(0, Math.round((new Date(r.fechaHoraFinReunion).getTime() - Date.now()) / 60000)) : 0;
+              const gridColor    = inhabilitada && isLibre ? '#9ca3af' : cfg.grid;
+
               return (
-                <div key={mesa.id} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-                  <div className="flex items-center gap-4 px-4 py-3 border-b border-gray-50">
-                    <div style={{ backgroundColor: mesa.estaActivo === 1 ? cfg.grid : '#9ca3af' }}
-                      className="w-11 h-11 rounded-xl flex items-center justify-center font-extrabold text-base text-white shrink-0">
-                      {String(mesa.numeroMesa).padStart(2, '0')}
+                <>
+                  {/* Header */}
+                  <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
+                    <div style={{ backgroundColor: gridColor }}
+                      className="w-12 h-12 rounded-xl flex items-center justify-center font-extrabold text-base text-white shrink-0 shadow-sm">
+                      {String(m.numeroMesa).padStart(2, '0')}
                     </div>
                     <div className="flex-1">
-                      <p className="text-sm font-bold text-gray-900">Mesa {mesa.numeroMesa}</p>
-                      <p className="text-xs text-gray-400">
-                        {mesa._count?.reunion ?? mesa.reunion?.length ?? 0} reunión(es) · {mesa.capacidadPersonas} personas
-                      </p>
+                      <p className="font-bold text-gray-900">Mesa {m.numeroMesa}</p>
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${cfg.badge}`}>{cfg.label}</span>
+                        {inhabilitada && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 flex items-center gap-0.5">
+                            <Lock className="w-2.5 h-2.5" /> Inhabilitada
+                          </span>
+                        )}
+                        <span className="text-[10px] text-gray-400">{m.capacidadPersonas} personas</span>
+                        {isReservada && r && (
+                          <span className="text-[10px] text-blue-600 font-semibold">
+                            Inicia en {minsFromNow > 0 ? `${minsFromNow} min` : 'ahora'}
+                          </span>
+                        )}
+                        {isEnUso && r && (
+                          <span className="text-[10px] text-orange-600 font-semibold">
+                            {elapsed} min · {remaining} min restantes
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0 ${cfg.badge}`}>
-                      {cfg.label}
-                    </span>
-                    <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0 ${
-                      mesa.estaActivo === 1 ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-400'
-                    }`}>
-                      {mesa.estaActivo === 1 ? 'Activa' : 'Inactiva'}
-                    </span>
+                    <button onClick={() => setReunionModal(null)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100">
+                      <X className="w-4 h-4" />
+                    </button>
                   </div>
-                  {mesa.reunion && mesa.reunion.length > 0 ? (
-                    mesa.reunion.map((r: any) => <ReunionSlot key={r.id} r={r} />)
-                  ) : (
-                    <div className="px-4 py-3 flex items-center gap-2 text-sm text-gray-400">
-                      <div className="w-2 h-2 rounded-full bg-green-300" />
-                      Disponible — sin reuniones asignadas
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )
-      )}
 
-      {/* ─── Modal generar mesas ─── */}
-      {showGenerar && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-bold text-gray-900">Generar mesas</h2>
-              <button onClick={() => setShowGenerar(false)} className="p-2 rounded-lg hover:bg-gray-100 text-gray-400">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            {eventoConfig && (
-              <div className="bg-gray-50 rounded-lg px-3 py-2 mb-4 text-xs text-gray-500">
-                Evento configurado con{' '}
-                <span className="font-semibold text-gray-700">{eventoConfig.cantidadTotalMesasEvento} mesas</span> y{' '}
-                <span className="font-semibold text-gray-700">{eventoConfig.capacidadPersonasPorMesa} personas/mesa</span>.
-                Valores pre-llenados.
-              </div>
-            )}
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Cantidad de mesas *</label>
-                <input type="number" min="1" max="200" value={cantidad} onChange={(e) => setCantidad(e.target.value)}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Capacidad por mesa (personas) *</label>
-                <input type="number" min="1" max="30" value={capacidad} onChange={(e) => setCapacidad(e.target.value)}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
-              </div>
-              <p className="text-xs text-gray-400">Las mesas se numerarán consecutivamente al último número existente.</p>
-            </div>
-            <div className="flex gap-3 mt-6">
-              <button onClick={() => setShowGenerar(false)}
-                className="flex-1 border border-gray-200 text-gray-600 font-semibold py-2.5 rounded-xl hover:bg-gray-50">
-                Cancelar
-              </button>
-              <button onClick={handleGenerar} disabled={generating}
-                className="flex-1 bg-[#449D3A] text-white font-semibold py-2.5 rounded-xl hover:bg-[#367d2e] disabled:opacity-50">
-                {generating ? 'Generando...' : 'Generar'}
-              </button>
-            </div>
+                  <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+
+                    {/* ── LIBRE: mensaje informativo ── */}
+                    {isLibre && (
+                      <div className={`rounded-xl px-4 py-3 flex items-center gap-3 ${inhabilitada ? 'bg-gray-50 border border-gray-200' : 'bg-green-50 border border-green-100'}`}>
+                        {inhabilitada
+                          ? <Lock className="w-5 h-5 text-gray-400 shrink-0" />
+                          : <Armchair className="w-5 h-5 text-green-600 shrink-0" />}
+                        <div>
+                          <p className={`text-sm font-semibold ${inhabilitada ? 'text-gray-600' : 'text-green-700'}`}>
+                            {inhabilitada ? 'Mesa inhabilitada para usuarios' : 'Mesa libre y disponible'}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            {inhabilitada
+                              ? 'Los usuarios no pueden programar reuniones en esta mesa.'
+                              : 'No hay reuniones programadas ni en curso.'}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ── Contenido reunión (RESERVADA / EN_USO) ── */}
+                    {r && (
+                      <>
+                        {/* Horario */}
+                        <div className="flex items-center gap-2 text-sm text-gray-700 bg-gray-50 rounded-xl px-3 py-2.5">
+                          <Clock className="w-4 h-4 text-gray-400 shrink-0" />
+                          <span className="font-mono font-semibold">{fmtTime(r.fechaHoraInicioReunion)} – {fmtTime(r.fechaHoraFinReunion)}</span>
+                          <span className={`ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            r.tipoReunion === 'VIRTUAL' ? 'bg-blue-50 text-blue-600' :
+                            r.tipoReunion === 'MIXTA'   ? 'bg-purple-50 text-purple-600' : 'bg-emerald-50 text-emerald-700'
+                          }`}>{r.tipoReunion}</span>
+                        </div>
+
+                        {/* Empresas */}
+                        <div className="space-y-1.5">
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Empresas en reunión</p>
+                          <div className="flex items-center gap-2">
+                            <CompanyBadge empresa={ea} side="A" />
+                            <span className="text-gray-300 font-bold text-sm shrink-0">vs</span>
+                            <CompanyBadge empresa={eb} side="B" />
+                          </div>
+                        </div>
+
+                        {esVirtual && sol?.enlaceReunionVirtual && (
+                          <a href={sol.enlaceReunionVirtual} target="_blank" rel="noopener noreferrer"
+                            className="flex items-center justify-center gap-2 w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-xl transition-colors text-sm">
+                            <Video className="w-4 h-4" /> Entrar a reunión virtual
+                          </a>
+                        )}
+                        {esPresencial && (sol?.ubicacionGoogleMapsReunion || sol?.direccionTexto) && (
+                          <a href={sol.ubicacionGoogleMapsReunion || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(sol.direccionTexto)}`}
+                            target="_blank" rel="noopener noreferrer"
+                            className="flex items-center justify-center gap-2 w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-xl transition-colors text-sm">
+                            <MapPin className="w-4 h-4" /> Ver ubicación
+                          </a>
+                        )}
+                        {r.tipoReunion === 'MIXTA' && (
+                          <p className="text-xs text-gray-400 flex items-center gap-1"><Link2 className="w-3 h-3" /> Reunión mixta · presencial + virtual</p>
+                        )}
+                        {r.observacionesReunion && (
+                          <p className="text-xs text-gray-500 italic border-l-2 border-gray-200 pl-3">"{r.observacionesReunion}"</p>
+                        )}
+
+                        {/* Acciones según estado */}
+                        <div className="border-t border-gray-100 pt-4 space-y-2">
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Acciones</p>
+                          {isReservada && (
+                            <div className="grid grid-cols-2 gap-2">
+                              <button
+                                disabled={acting}
+                                onClick={() => showConfirm('Iniciar reunión', `¿Deseas iniciar la reunión en Mesa ${m.numeroMesa} ahora?`, () => actualizarReunion(r.id, 'EN_CURSO'))}
+                                className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#449D3A] hover:bg-[#367d2e] text-white font-semibold text-sm disabled:opacity-50 transition-colors">
+                                <Play className="w-4 h-4" /> Iniciar
+                              </button>
+                              <button
+                                disabled={acting}
+                                onClick={() => showConfirm('Cancelar reunión', `¿Deseas cancelar la reunión en Mesa ${m.numeroMesa}?`, () => actualizarReunion(r.id, 'CANCELADA'))}
+                                className="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 font-semibold text-sm disabled:opacity-50 transition-colors">
+                                <XCircle className="w-4 h-4" /> Cancelar
+                              </button>
+                            </div>
+                          )}
+                          {isEnUso && (
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                <UserCheck className="w-4 h-4 text-gray-400 shrink-0" />
+                                <label className="text-xs text-gray-600 font-semibold shrink-0">Asistentes registrados:</label>
+                                <input
+                                  type="number" min="0" value={asistentes}
+                                  onChange={(e) => setAsistentes(e.target.value)}
+                                  className="w-20 border border-gray-200 rounded-lg px-2 py-1 text-sm text-center focus:outline-none focus:ring-1 focus:ring-[#449D3A]"
+                                />
+                              </div>
+                              <button
+                                disabled={acting}
+                                onClick={() => showConfirm('Finalizar reunión', `¿Finalizar la reunión en Mesa ${m.numeroMesa}?`, () => actualizarReunion(r.id, 'FINALIZADA', { asistentes: Number(asistentes) || 0 }))}
+                                className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-[#449D3A] hover:bg-[#367d2e] text-white font-semibold text-sm disabled:opacity-50 transition-colors">
+                                <Square className="w-4 h-4" /> Finalizar reunión
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
+
+                    {/* ── Toggle habilitar/deshabilitar (siempre visible) ── */}
+                    <div className="border-t border-gray-100 pt-4">
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-2">Disponibilidad</p>
+                      <button
+                        disabled={toggling}
+                        onClick={() => toggleHabilitar(m)}
+                        className={`flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border font-semibold text-sm transition-colors disabled:opacity-50 ${
+                          inhabilitada
+                            ? 'border-green-200 text-green-700 hover:bg-green-50'
+                            : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                        }`}>
+                        {inhabilitada
+                          ? <><Unlock className="w-4 h-4" /> Habilitar mesa para usuarios</>
+                          : <><Lock className="w-4 h-4" /> Deshabilitar mesa para usuarios</>}
+                      </button>
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
       )}

@@ -6,6 +6,19 @@ import { useRouter, useParams } from 'next/navigation';
 import styles from './ConfiguracionEvento.module.css';
 import Modal, { useModal } from '@/components/ui/Modal';
 
+const SOUTH_AMERICA: Record<string, string[]> = {
+  "Bolivia":   ["Trinidad","Beni","La Paz","Santa Cruz de la Sierra","Cochabamba","Sucre","Oruro","Potosí","Tarija","Cobija","Riberalta","Guayaramerín"],
+  "Argentina": ["Buenos Aires","Córdoba","Rosario","Mendoza","Tucumán","La Plata","Mar del Plata","Salta","Santa Fe","San Juan"],
+  "Brasil":    ["São Paulo","Río de Janeiro","Brasilia","Salvador","Fortaleza","Manaus","Curitiba","Recife","Porto Alegre","Belo Horizonte"],
+  "Chile":     ["Santiago","Valparaíso","Concepción","Antofagasta","Viña del Mar","Temuco","Rancagua","Talca"],
+  "Colombia":  ["Bogotá","Medellín","Cali","Barranquilla","Cartagena","Cúcuta","Bucaramanga","Pereira"],
+  "Ecuador":   ["Quito","Guayaquil","Cuenca","Manta","Ambato","Portoviejo","Machala"],
+  "Paraguay":  ["Asunción","Ciudad del Este","Encarnación","Luque","San Lorenzo"],
+  "Perú":      ["Lima","Arequipa","Trujillo","Cusco","Piura","Chiclayo","Iquitos"],
+  "Uruguay":   ["Montevideo","Salto","Paysandú","Las Piedras","Rivera"],
+  "Venezuela": ["Caracas","Maracaibo","Valencia","Barquisimeto","Maracay"],
+};
+
 export default function ConfiguracionDeEventoPage() {
   const router = useRouter();
   const params = useParams();
@@ -45,6 +58,7 @@ export default function ConfiguracionDeEventoPage() {
   ]);
 
   const [uploadingField, setUploadingField] = useState<string | null>(null);
+  const [previewImg, setPreviewImg] = useState<string | null>(null);
   const { modal, showModal, closeModal } = useModal();
 
   useEffect(() => {
@@ -60,8 +74,8 @@ export default function ConfiguracionDeEventoPage() {
             nombre: data.nombre || '',
             edicion: data.edicion || '',
             descripcion: data.descripcion || '',
-            fechaInicioEvento: data.fechaInicioEvento ? new Date(data.fechaInicioEvento).toISOString().split('T')[0] : '',
-            fechaFinEvento: data.fechaFinEvento ? new Date(data.fechaFinEvento).toISOString().split('T')[0] : '',
+            fechaInicioEvento: data.fechaInicioEvento ? data.fechaInicioEvento.substring(0, 10) : '',
+            fechaFinEvento: data.fechaFinEvento ? data.fechaFinEvento.substring(0, 10) : '',
             duracionReunion: data.duracionReunion || 20,
             tiempoEntreReuniones: data.tiempoEntreReuniones || 5,
             cantidadTotalMesasEvento: data.cantidadTotalMesasEvento || 50,
@@ -179,8 +193,8 @@ export default function ConfiguracionDeEventoPage() {
       nombre: formData.nombre,
       edicion: formData.edicion || '',
       descripcion: orNull(formData.descripcion),
-      fechaInicioEvento: formData.fechaInicioEvento ? new Date(formData.fechaInicioEvento).toISOString() : new Date().toISOString(),
-      fechaFinEvento: formData.fechaFinEvento ? new Date(formData.fechaFinEvento).toISOString() : new Date().toISOString(),
+      fechaInicioEvento: formData.fechaInicioEvento ? `${formData.fechaInicioEvento}T00:00:00` : new Date().toISOString(),
+      fechaFinEvento: formData.fechaFinEvento ? `${formData.fechaFinEvento}T00:00:00` : new Date().toISOString(),
       duracionReunion: Number(formData.duracionReunion),
       tiempoEntreReuniones: Number(formData.tiempoEntreReuniones),
       cantidadTotalMesasEvento: Number(formData.cantidadTotalMesasEvento),
@@ -277,12 +291,29 @@ export default function ConfiguracionDeEventoPage() {
               <input required type="date" name="fechaFinEvento" value={formData.fechaFinEvento} onChange={handleChange} className={styles.input} />
             </div>
             <div>
-              <label className={styles.label}>Ciudad del evento</label>
-              <input type="text" name="ciudadEvento" value={formData.ciudadEvento} onChange={handleChange} className={styles.input} placeholder="Ej. Trinidad" />
+              <label className={styles.label}>País del evento</label>
+              <select
+                name="paisEvento"
+                value={formData.paisEvento}
+                onChange={(e) => setFormData(prev => ({ ...prev, paisEvento: e.target.value, ciudadEvento: '' }))}
+                className={styles.input}
+              >
+                <option value="">Selecciona un país</option>
+                {Object.keys(SOUTH_AMERICA).map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
             </div>
             <div>
-              <label className={styles.label}>País del evento</label>
-              <input type="text" name="paisEvento" value={formData.paisEvento} onChange={handleChange} className={styles.input} placeholder="Ej. Bolivia" />
+              <label className={styles.label}>Ciudad del evento</label>
+              <select
+                name="ciudadEvento"
+                value={formData.ciudadEvento}
+                onChange={handleChange}
+                className={styles.input}
+                disabled={!formData.paisEvento}
+              >
+                <option value="">{formData.paisEvento ? 'Selecciona una ciudad' : 'Selecciona un país primero'}</option>
+                {(SOUTH_AMERICA[formData.paisEvento] ?? []).map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
             </div>
           </div>
 
@@ -305,8 +336,8 @@ export default function ConfiguracionDeEventoPage() {
                   <ImageIcon size={14} /> Subir Imagen
                 </label>
                 {formData.urlImagenMapaRecinto && (
-                  <div style={{marginTop: '0.5rem', width: '100px', height: '60px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #eee'}}>
-                    <img src={formData.urlImagenMapaRecinto} alt="Mapa" style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+                  <div onClick={() => setPreviewImg(formData.urlImagenMapaRecinto)} style={{marginTop: '0.5rem', width: '100px', height: '60px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #eee', cursor: 'pointer'}}>
+                    <img src={formData.urlImagenMapaRecinto} alt="Mapa" style={{width: '100%', height: '100%', objectFit: 'contain'}} />
                   </div>
                 )}
               </div>
@@ -324,8 +355,8 @@ export default function ConfiguracionDeEventoPage() {
                   <ImageIcon size={14} /> Subir Imagen
                 </label>
                 {formData.urlImagenCronogramaCharlas && (
-                  <div style={{marginTop: '0.5rem', width: '100px', height: '60px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #eee'}}>
-                    <img src={formData.urlImagenCronogramaCharlas} alt="Cronograma" style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+                  <div onClick={() => setPreviewImg(formData.urlImagenCronogramaCharlas)} style={{marginTop: '0.5rem', width: '100px', height: '60px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #eee', cursor: 'pointer'}}>
+                    <img src={formData.urlImagenCronogramaCharlas} alt="Cronograma" style={{width: '100%', height: '100%', objectFit: 'contain'}} />
                   </div>
                 )}
               </div>
@@ -362,7 +393,7 @@ export default function ConfiguracionDeEventoPage() {
                 <ImageIcon size={14} /> Subir Imagen
               </label>
               {formData.urlLogoEvento && (
-                <div style={{marginTop: '0.5rem', width: '60px', height: '60px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #eee'}}>
+                <div onClick={() => setPreviewImg(formData.urlLogoEvento)} style={{marginTop: '0.5rem', width: '60px', height: '60px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #eee', cursor: 'pointer'}}>
                   <img src={formData.urlLogoEvento} alt="Logo" style={{width: '100%', height: '100%', objectFit: 'contain'}} />
                 </div>
               )}
@@ -485,7 +516,7 @@ export default function ConfiguracionDeEventoPage() {
                         <QrCode size={14} /> Subir QR
                       </label>
                       {regla.urlQR && (
-                        <div style={{marginTop: '0.25rem', width: '40px', height: '40px', borderRadius: '4px', overflow: 'hidden', border: '1px solid #eee', backgroundColor: 'white'}}>
+                        <div onClick={() => setPreviewImg(regla.urlQR)} style={{marginTop: '0.25rem', width: '40px', height: '40px', borderRadius: '4px', overflow: 'hidden', border: '1px solid #eee', backgroundColor: 'white', cursor: 'pointer'}}>
                           <img src={regla.urlQR} alt="QR" style={{width: '100%', height: '100%', objectFit: 'contain'}} />
                         </div>
                       )}
@@ -524,6 +555,24 @@ export default function ConfiguracionDeEventoPage() {
         message={modal.message}
         onConfirm={modal.onConfirm}
       />
+
+      {previewImg && (
+        <div
+          onClick={() => setPreviewImg(null)}
+          style={{
+            position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.88)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 9999, cursor: 'zoom-out',
+          }}
+        >
+          <img
+            src={previewImg}
+            alt="Vista previa"
+            onClick={e => e.stopPropagation()}
+            style={{ maxWidth: '90vw', maxHeight: '90vh', objectFit: 'contain', borderRadius: '10px', boxShadow: '0 8px 40px rgba(0,0,0,0.5)' }}
+          />
+        </div>
+      )}
     </div>
   );
 }

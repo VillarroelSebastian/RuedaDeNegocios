@@ -67,7 +67,10 @@ const tipoColors: Record<string, string> = {
 };
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("es-BO", { day: "numeric", month: "long", year: "numeric" });
+  if (!iso) return '';
+  // Extraer YYYY-MM-DD sin conversión UTC para evitar que el timezone local muestre el día anterior
+  const [y, m, d] = iso.substring(0, 10).split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("es-BO", { day: "numeric", month: "long", year: "numeric" });
 }
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString("es-BO", { hour: "2-digit", minute: "2-digit", hour12: false });
@@ -171,24 +174,12 @@ export default function HomePage() {
 
         <div className="relative z-10 max-w-4xl mx-auto px-6 text-center">
           <div className="inline-flex items-center gap-2 bg-white/15 backdrop-blur-sm border border-white/25 text-white/90 text-sm px-4 py-1.5 rounded-full mb-6">
-            <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-            Edición {evento.edicion}{evento.ciudadEvento ? ` — ${evento.ciudadEvento}` : ''}{evento.paisEvento ? `, ${evento.paisEvento}` : ''}
+            <Calendar size={13} className="text-green-400" />
+            Edición {evento.edicion}{evento.ciudadEvento ? ` · ${evento.ciudadEvento}` : ''}{evento.paisEvento ? `, ${evento.paisEvento}` : ''} · {formatDate(evento.fechaInicioEvento)} – {formatDate(evento.fechaFinEvento)}
           </div>
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-white leading-tight mb-6">
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-white leading-tight mb-10">
             {evento.nombre}
           </h1>
-          <p className="text-lg sm:text-xl text-white/80 max-w-2xl mx-auto mb-10">
-            {evento.descripcion ?? "El encuentro empresarial más importante del Beni"}
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-4 text-white/70 text-sm mb-10">
-            <span className="flex items-center gap-1.5"><Calendar size={16} />{formatDate(evento.fechaInicioEvento)} – {formatDate(evento.fechaFinEvento)}</span>
-            {(evento.ciudadEvento || evento.paisEvento) && (
-              <span className="flex items-center gap-1.5">
-                <MapPin size={16} />
-                {[evento.ciudadEvento, evento.paisEvento].filter(Boolean).join(' – ')}
-              </span>
-            )}
-          </div>
           <div className="flex flex-wrap items-center justify-center gap-4">
             <a href="#sobre" className="bg-white text-green-800 font-semibold px-8 py-3.5 rounded-xl hover:bg-green-50 transition-all shadow-lg shadow-black/20 flex items-center gap-2">
               Conocer más <ChevronRight size={18} />
@@ -199,12 +190,6 @@ export default function HomePage() {
             <Link href="/auth/login" className="border-2 border-white/20 text-white/70 font-semibold px-8 py-3.5 rounded-xl hover:bg-white/10 transition-all backdrop-blur-sm">
               Iniciar Sesión
             </Link>
-          </div>
-        </div>
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 text-white/50 text-xs">
-          <span>Desplaza</span>
-          <div className="w-5 h-8 border border-white/30 rounded-full flex items-start justify-center p-1">
-            <div className="w-1 h-2 bg-white/50 rounded-full animate-bounce" />
           </div>
         </div>
       </section>
@@ -236,22 +221,13 @@ export default function HomePage() {
             <div>
               <span className="text-green-600 font-semibold text-sm uppercase tracking-wider">Sobre el Evento</span>
               <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mt-3 mb-6 leading-tight">
-                El encuentro empresarial del Beni
+                {evento.nombre}
               </h2>
-              <p className="text-gray-600 text-lg leading-relaxed mb-6">
-                {evento.sobreElEvento ??
-                  "La Rueda de Negocios del Beni es el espacio más importante de encuentro empresarial del departamento. Conectamos empresas, emprendedores y actores del sector productivo mediante reuniones previamente agendadas, facilitando oportunidades comerciales, alianzas estratégicas y el intercambio de servicios."}
-              </p>
-              <div className="space-y-3">
-                {["Reuniones de negocios de 20 minutos", "Agenda previamente coordinada", "Empresas de todo el país", "Actividades y conferencias especializadas"].map((item) => (
-                  <div key={item} className="flex items-center gap-3">
-                    <div className="w-5 h-5 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
-                      <div className="w-2 h-2 bg-green-600 rounded-full" />
-                    </div>
-                    <span className="text-gray-600">{item}</span>
-                  </div>
-                ))}
-              </div>
+              {evento.sobreElEvento && (
+                <p className="text-gray-600 text-lg leading-relaxed">
+                  {evento.sobreElEvento}
+                </p>
+              )}
             </div>
             <div className="relative">
               <div className="relative h-96 rounded-2xl overflow-hidden shadow-2xl">
@@ -275,8 +251,8 @@ export default function HomePage() {
                     <Calendar size={24} className="text-green-700" />
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500">Fecha del evento</p>
-                    <p className="font-bold text-gray-800 text-sm">{formatDate(evento.fechaInicioEvento)}</p>
+                    <p className="text-xs text-gray-500">Fechas del evento</p>
+                    <p className="font-bold text-gray-800 text-sm">{formatDate(evento.fechaInicioEvento)} – {formatDate(evento.fechaFinEvento)}</p>
                   </div>
                 </div>
               </div>

@@ -19,7 +19,7 @@ const RUBROS = [
 ];
 
 const SOUTH_AMERICA: Record<string, string[]> = {
-  'Bolivia':   ['Trinidad','La Paz','Santa Cruz de la Sierra','Cochabamba','Sucre','Oruro','Potosí','Tarija','Cobija','Riberalta'],
+  'Bolivia':   ['Trinidad','Beni','La Paz','Santa Cruz de la Sierra','Cochabamba','Sucre','Oruro','Potosí','Tarija','Cobija','Riberalta'],
   'Argentina': ['Buenos Aires','Córdoba','Rosario','Mendoza','Tucumán','La Plata','Mar del Plata','Salta'],
   'Brasil':    ['São Paulo','Río de Janeiro','Brasilia','Salvador','Fortaleza','Manaus','Curitiba','Recife'],
   'Chile':     ['Santiago','Valparaíso','Concepción','Antofagasta','Viña del Mar','Temuco'],

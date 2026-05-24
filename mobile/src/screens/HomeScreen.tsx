@@ -3,6 +3,7 @@ import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   StatusBar, ActivityIndicator, Linking, ImageBackground, Image,
 } from 'react-native';
+import { Calendar, MapPin, Phone, Mail, Users, LayoutGrid, Layers, Building2 } from 'lucide-react-native';
 import { API_URL } from '../utils/userStore';
 
 // ─── Paleta ────────────────────────────────────────────────────────────────
@@ -77,7 +78,9 @@ const TIPO_STYLE: Record<string, { bg: string; text: string; border: string }> =
 };
 
 function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString('es-BO', { day: 'numeric', month: 'long', year: 'numeric' });
+  if (!iso) return '';
+  const [y, m, d] = iso.substring(0, 10).split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('es-BO', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit', hour12: false });
@@ -124,7 +127,7 @@ export default function HomeScreen({ navigation }: any) {
     return (
       <View style={s.emptyScreen}>
         <StatusBar barStyle="dark-content" />
-        <View style={s.emptyIcon}><Text style={{ fontSize: 36 }}>📅</Text></View>
+        <View style={s.emptyIcon}><Calendar size={36} color={C.green600} /></View>
         <Text style={s.emptyTitle}>Sin evento activo</Text>
         <Text style={s.emptySubtitle}>Contacta al administrador para más información.</Text>
         <TouchableOpacity style={s.emptyBtn} onPress={() => navigation.navigate('Login')} activeOpacity={0.85}>
@@ -163,9 +166,10 @@ export default function HomeScreen({ navigation }: any) {
 
             {/* Pill edición */}
             <View style={s.heroPill}>
-              <View style={s.heroPillDot} />
+              <Calendar size={12} color="rgba(255,255,255,0.8)" />
               <Text style={s.heroPillText}>
                 {`Edición ${evento.edicion}`}{ubicacion ? `  ·  ${ubicacion}` : ''}
+                {'  ·  '}{fmtDate(evento.fechaInicioEvento)} – {fmtDate(evento.fechaFinEvento)}
               </Text>
             </View>
 
@@ -176,14 +180,6 @@ export default function HomeScreen({ navigation }: any) {
             {evento.descripcion && (
               <Text style={s.heroDesc}>{evento.descripcion}</Text>
             )}
-
-            {/* Fechas + lugar */}
-            <View style={s.heroMeta}>
-              <Text style={s.heroMetaText}>
-                📅  {fmtDate(evento.fechaInicioEvento)} – {fmtDate(evento.fechaFinEvento)}
-              </Text>
-              {ubicacion ? <Text style={s.heroMetaText}>📍  {ubicacion}</Text> : null}
-            </View>
 
             {/* Botones CTA */}
             <View style={s.heroBtns}>
@@ -199,14 +195,14 @@ export default function HomeScreen({ navigation }: any) {
 
         {/* ══════════════════════════════════ STATS ═══════════════════════ */}
         <View style={s.statsSection}>
-          {[
-            { label: 'Empresas',    value: evento.stats.empresasCount,    icon: '🏢' },
-            { label: 'Mesas',       value: evento.stats.mesasCount,        icon: '🪑' },
-            { label: 'Actividades', value: evento.stats.actividadesCount,  icon: '📋' },
-            { label: 'Técnicos',    value: evento.stats.tecnicosCount,     icon: '👥' },
-          ].map((stat, i) => (
+          {([
+            { label: 'Empresas',    value: evento.stats.empresasCount,   Icon: Building2 },
+            { label: 'Mesas',       value: evento.stats.mesasCount,       Icon: LayoutGrid },
+            { label: 'Actividades', value: evento.stats.actividadesCount, Icon: Layers },
+            { label: 'Técnicos',    value: evento.stats.tecnicosCount,    Icon: Users },
+          ] as const).map((stat, i) => (
             <View key={stat.label} style={[s.statItem, i < 3 && s.statItemBorder]}>
-              <Text style={s.statIcon}>{stat.icon}</Text>
+              <stat.Icon size={20} color={C.green400} />
               <Text style={s.statValue}>{stat.value}</Text>
               <Text style={s.statLabel}>{stat.label}</Text>
             </View>
@@ -216,11 +212,10 @@ export default function HomeScreen({ navigation }: any) {
         {/* ══════════════════════════════ SOBRE EL EVENTO ═════════════════ */}
         <View style={s.section}>
           <Text style={s.sectionLabel}>Sobre el Evento</Text>
-          <Text style={s.sectionTitle}>El encuentro empresarial del Beni</Text>
-          <Text style={s.sectionBody}>
-            {evento.sobreElEvento ??
-              'La Rueda de Negocios del Beni es el espacio más importante de encuentro empresarial del departamento. Conectamos empresas, emprendedores y actores del sector productivo mediante reuniones previamente agendadas, facilitando oportunidades comerciales y alianzas estratégicas.'}
-          </Text>
+          <Text style={s.sectionTitle}>{evento.nombre}</Text>
+          {evento.sobreElEvento ? (
+            <Text style={s.sectionBody}>{evento.sobreElEvento}</Text>
+          ) : null}
 
           {/* Bullets */}
           <View style={{ marginTop: 16, gap: 10 }}>
@@ -242,7 +237,8 @@ export default function HomeScreen({ navigation }: any) {
             <View style={s.recintoImg}>
               <Image source={{ uri: evento.urlImagenMapaRecinto }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
               <View style={s.recintoLabel}>
-                <Text style={s.recintoLabelText}>📍  Mapa del recinto</Text>
+                <MapPin size={11} color="#374151" />
+                <Text style={s.recintoLabelText}> Mapa del recinto</Text>
               </View>
             </View>
           )}
@@ -284,7 +280,10 @@ export default function HomeScreen({ navigation }: any) {
                     ) : null}
 
                     {/* Sala */}
-                    <Text style={s.actRoom}>📍  {act.nombreSalaEspacio}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                      <MapPin size={11} color={C.gray400} />
+                      <Text style={s.actRoom}>{act.nombreSalaEspacio}</Text>
+                    </View>
 
                     {/* Expositor */}
                     {act.nombreCompletoPilaExpositor && (
@@ -344,7 +343,7 @@ export default function HomeScreen({ navigation }: any) {
           {evento.telefonoContacto && (
             <TouchableOpacity style={s.contactCard} onPress={() => Linking.openURL(`tel:${evento.telefonoContacto}`)} activeOpacity={0.8}>
               <View style={[s.contactIcon, { backgroundColor: C.green100 }]}>
-                <Text style={s.contactIconEmoji}>📞</Text>
+                <Phone size={20} color={C.green700} />
               </View>
               <View style={s.contactInfo}>
                 <Text style={s.contactLabel}>Teléfono / WhatsApp</Text>
@@ -357,7 +356,7 @@ export default function HomeScreen({ navigation }: any) {
           {evento.correoContacto && (
             <TouchableOpacity style={s.contactCard} onPress={() => Linking.openURL(`mailto:${evento.correoContacto}`)} activeOpacity={0.8}>
               <View style={[s.contactIcon, { backgroundColor: C.blue100 }]}>
-                <Text style={s.contactIconEmoji}>✉️</Text>
+                <Mail size={20} color={C.blue700} />
               </View>
               <View style={s.contactInfo}>
                 <Text style={s.contactLabel}>Correo Electrónico</Text>
@@ -370,7 +369,7 @@ export default function HomeScreen({ navigation }: any) {
           {ubicacion ? (
             <View style={s.contactCard}>
               <View style={[s.contactIcon, { backgroundColor: C.amber100 }]}>
-                <Text style={s.contactIconEmoji}>📍</Text>
+                <MapPin size={20} color={C.amber700} />
               </View>
               <View style={s.contactInfo}>
                 <Text style={s.contactLabel}>Ubicación</Text>
@@ -456,10 +455,10 @@ const s = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 6,
     marginBottom: 18,
-    gap: 8,
+    gap: 6,
+    maxWidth: '95%',
   },
-  heroPillDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: C.green400 },
-  heroPillText: { color: 'rgba(255,255,255,0.88)', fontSize: 12, fontWeight: '600' },
+  heroPillText: { color: 'rgba(255,255,255,0.88)', fontSize: 12, fontWeight: '600', flexShrink: 1 },
   heroTitle: {
     color: C.white,
     fontSize: 26,
@@ -510,7 +509,7 @@ const s = StyleSheet.create({
   },
   statItem: { flex: 1, alignItems: 'center', paddingVertical: 4 },
   statItemBorder: { borderRightWidth: 1, borderRightColor: 'rgba(255,255,255,0.15)' },
-  statIcon: { fontSize: 22, marginBottom: 6 },
+  statIconWrap: { marginBottom: 6 },
   statValue: { color: C.white, fontSize: 22, fontWeight: '800', letterSpacing: -0.5 },
   statLabel: { color: C.green200, fontSize: 10, marginTop: 2, textAlign: 'center', paddingHorizontal: 4 },
 
@@ -649,7 +648,6 @@ const s = StyleSheet.create({
     borderColor: C.gray200,
   },
   contactIcon: { width: 46, height: 46, borderRadius: 13, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  contactIconEmoji: { fontSize: 21 },
   contactInfo: { flex: 1 },
   contactLabel: { fontSize: 11, color: C.gray400, marginBottom: 3 },
   contactValue: { fontSize: 14, fontWeight: '600', color: C.gray800 },

@@ -1,14 +1,184 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UnauthorizedException, BadRequestException, Query } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, UnauthorizedException, BadRequestException, Query, OnModuleInit } from '@nestjs/common';
 import { AppService } from './app.service.js';
 import { PrismaService } from './prisma/prisma.service.js';
 import * as bcrypt from 'bcrypt';
+import * as nodemailer from 'nodemailer';
+
+function createMailTransporter() {
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: { user: process.env.MAIL_USER, pass: process.env.MAIL_PASS },
+  });
+}
+
+function generarCodigo(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
 
 @Controller()
-export class AppController {
+export class AppController implements OnModuleInit {
   constructor(
     private readonly appService: AppService,
     private readonly prisma: PrismaService,
   ) {}
+
+  async onModuleInit() {
+    await this.prisma.empresaevento.updateMany({
+      where: { estadoVerificacionPago: 'APROBADO' },
+      data: { estaActivo: 0 },
+    });
+    await this.cleanAndSeedMesas();
+  }
+
+  private async cleanAndSeedMesas() {
+    const eventoId = await this.getPrincipalEventoId();
+    if (!eventoId) return;
+
+    // ── Limpiar relaciones de mesas en orden de FK ──
+    const mesaIds = (await this.prisma.mesa.findMany({ where: { evento_id: eventoId }, select: { id: true } })).map((m) => m.id);
+    const reunionIds = (await this.prisma.reunion.findMany({ where: { evento_id: eventoId }, select: { id: true } })).map((r) => r.id);
+
+    if (reunionIds.length > 0) {
+      await this.prisma.resultadoreunion.deleteMany({ where: { reunion_id: { in: reunionIds } } });
+    }
+    if (mesaIds.length > 0) {
+      await this.prisma.mesabloque.deleteMany({ where: { mesa_id: { in: mesaIds } } });
+    }
+    await this.prisma.reunion.deleteMany({ where: { evento_id: eventoId } });
+
+    // Obtener IDs de empresaevento para limpiar solicitudes
+    const eeIds = (await this.prisma.empresaevento.findMany({ where: { evento_id: eventoId }, select: { id: true } })).map((e) => e.id);
+    if (eeIds.length > 0) {
+      await this.prisma.solicitudreunion.deleteMany({
+        where: { OR: [{ empresaEvento_id: { in: eeIds } }, { empresaEventorReceptora_id: { in: eeIds } }] },
+      });
+    }
+    await this.prisma.mesa.deleteMany({ where: { evento_id: eventoId } });
+
+    // ── Recrear mesas limpias según cantidadTotalMesasEvento ──
+    const evento = await this.prisma.evento.findUnique({
+      where: { id: eventoId },
+      select: { cantidadTotalMesasEvento: true, capacidadPersonasPorMesa: true },
+    });
+    const total = evento?.cantidadTotalMesasEvento ?? 0;
+    if (total > 0) {
+      await this.prisma.mesa.createMany({
+        data: Array.from({ length: total }, (_, i) => ({
+          evento_id: eventoId,
+          numeroMesa: i + 1,
+          capacidadPersonas: evento?.capacidadPersonasPorMesa ?? 4,
+          estaActivo: 1,
+          estaHabilitada: 1,
+        })),
+      });
+    }
+
+    // ── Seed de reuniones de prueba ──
+    const ees = await this.prisma.empresaevento.findMany({
+      where: { evento_id: eventoId, estaActivo: 1 },
+      include: { empresa_usuario: { take: 1, select: { id: true } } },
+      take: 4,
+    });
+    if (ees.length < 2) return;
+    const euId = ees.find((e) => e.empresa_usuario.length > 0)?.empresa_usuario[0]?.id;
+    if (!euId) return;
+
+    const mesas = await this.prisma.mesa.findMany({
+      where: { evento_id: eventoId, estaActivo: 1 },
+      orderBy: { numeroMesa: 'asc' },
+      take: 5,
+    });
+    if (mesas.length === 0) return;
+
+    const now = new Date();
+    const a = 0, b = 1;
+    const scenarios = [
+      { mesaIdx: 0, eaIdx: a, ebIdx: b, offStart: -10,  offEnd:  20,  estado: 'EN_CURSO',   tipo: 'VIRTUAL',    enlace: 'https://zoom.us/j/simulado123'   },
+      { mesaIdx: 1, eaIdx: b, ebIdx: a, offStart:  45,  offEnd:  75,  estado: 'PROGRAMADA', tipo: 'PRESENCIAL', enlace: null                              },
+      { mesaIdx: 2, eaIdx: a, ebIdx: b, offStart: -90,  offEnd: -60,  estado: 'FINALIZADA', tipo: 'MIXTA',      enlace: 'https://meet.google.com/sim-abc' },
+      { mesaIdx: 3, eaIdx: b, ebIdx: a, offStart: -210, offEnd: -180, estado: 'FINALIZADA', tipo: 'PRESENCIAL', enlace: null                              },
+    ].filter((s) => s.mesaIdx < mesas.length);
+
+    const observaciones = [
+      'Acordamos colaboración estratégica para distribución en el mercado nacional.',
+      'Intercambio de información. Se programará una segunda reunión.',
+    ];
+
+    for (const [i, s] of scenarios.entries()) {
+      const inicio = new Date(now.getTime() + s.offStart * 60000);
+      const fin    = new Date(now.getTime() + s.offEnd   * 60000);
+
+      const sol = await this.prisma.solicitudreunion.create({
+        data: {
+          empresaEvento_id: ees[s.eaIdx].id,
+          empresaEventorReceptora_id: ees[s.ebIdx].id,
+          empresa_usuarioResponsableSolicitud: euId,
+          tipoReunion: s.tipo,
+          enlaceReunionVirtual: s.enlace,
+          fechaHoraInicioPropuesta: inicio,
+          fechaHoraFinPropuesta: fin,
+          estadoSolicitud: 'APROBADA',
+          estaActivo: 1,
+        },
+      });
+
+      const reunion = await this.prisma.reunion.create({
+        data: {
+          solicitudReunion_id: sol.id,
+          mesa_id: mesas[s.mesaIdx].id,
+          evento_id: eventoId,
+          tipoReunion: s.tipo,
+          fechaHoraInicioReunion: inicio,
+          fechaHoraFinReunion: fin,
+          estadoReunion: s.estado,
+          seEnvioNotificacionDeRetraso: 0,
+          cantidadAsistentesRegistrados: s.estado === 'FINALIZADA' ? 3 : 0,
+          estaActivo: 1,
+        },
+      });
+
+      if (s.estado === 'FINALIZADA') {
+        const rangos = ['$1,000 – $10,000', '$10,000 – $50,000', 'Más de $50,000', 'Sin acuerdo comercial'];
+        const califs = [5, 4, 3, 4];
+        const obsA = [
+          'Acordamos colaboración estratégica para distribución en el mercado nacional.',
+          'Intercambio de información. Se programará una segunda reunión.',
+        ];
+        const obsB = [
+          'Muy buena reunión, esperamos formalizar el acuerdo próximamente.',
+          'Estamos evaluando la propuesta internamente. Prometemos respuesta en 48h.',
+        ];
+        // Resultado del encargado de empresa A
+        await this.prisma.resultadoreunion.create({
+          data: {
+            reunion_id: reunion.id,
+            empresaeventoCalificadora_id: ees[s.eaIdx].id,
+            empresaeventoCalificada_id: ees[s.ebIdx].id,
+            empresa_usuario_id: euId,
+            calificacionReunion: califs[i % 4],
+            rangoAcuerdoComercial: rangos[i % 4],
+            observacionesPuntosTratados: obsA[i % 2],
+            estaActivo: 1,
+          },
+        });
+        // Resultado del encargado de empresa B (solo en la primera reunión finalizada para demo)
+        if (i === 2) {
+          await this.prisma.resultadoreunion.create({
+            data: {
+              reunion_id: reunion.id,
+              empresaeventoCalificadora_id: ees[s.ebIdx].id,
+              empresaeventoCalificada_id: ees[s.eaIdx].id,
+              empresa_usuario_id: euId,
+              calificacionReunion: 4,
+              rangoAcuerdoComercial: '$1,000 – $10,000',
+              observacionesPuntosTratados: obsB[0],
+              estaActivo: 1,
+            },
+          });
+        }
+      }
+    }
+  }
 
   @Get()
   getHello(): string {
@@ -918,11 +1088,9 @@ export class AppController {
       }),
     ]);
 
-    const tiempoLimpieza = evento?.tiempoEntreReuniones ?? 15;
-    const ahora = new Date();
     const mesasConEstado = mesas.map((m) => ({
       ...m,
-      estadoMesa: this.computeEstadoMesa(m.reunion, tiempoLimpieza, ahora),
+      estadoMesa: this.computeEstadoMesa(m.reunion),
     }));
 
     return { mesas: mesasConEstado, eventoConfig: evento };
@@ -933,40 +1101,85 @@ export class AppController {
     const eventoId = await this.getPrincipalEventoId();
     if (!eventoId) return { mesas: [], eventoConfig: null };
 
-    const [mesas, evento] = await Promise.all([
-      this.prisma.mesa.findMany({
-        where: { evento_id: eventoId },
-        orderBy: { numeroMesa: 'asc' },
-        include: {
-          _count: { select: { reunion: true } },
-          reunion: {
-            where: { estaActivo: 1 },
-            select: {
-              estadoReunion: true,
-              fechaHoraInicioReunion: true,
-              fechaHoraFinReunion: true,
-              estaActivo: true,
+    const evento = await this.prisma.evento.findUnique({
+      where: { id: eventoId },
+      select: { duracionReunion: true, tiempoEntreReuniones: true, cantidadTotalMesasEvento: true, capacidadPersonasPorMesa: true },
+    });
+
+    // Auto-sync: mesas 1..targetCount → estaActivo=1; mesas >targetCount → estaActivo=0
+    const targetCount = evento?.cantidadTotalMesasEvento ?? 0;
+    if (targetCount > 0) {
+      // Activar mesas en rango que estaban inactivas
+      await this.prisma.mesa.updateMany({
+        where: { evento_id: eventoId, numeroMesa: { lte: targetCount }, estaActivo: 0 },
+        data: { estaActivo: 1 },
+      });
+
+      // Desactivar mesas fuera de rango (salvo las que tienen reunión activa)
+      const ocupadas = await this.prisma.mesa.findMany({
+        where: {
+          evento_id: eventoId,
+          numeroMesa: { gt: targetCount },
+          estaActivo: 1,
+          reunion: { some: { estaActivo: 1, estadoReunion: { in: ['EN_CURSO', 'PROGRAMADA'] } } },
+        },
+        select: { id: true },
+      });
+      const ocupadasIds = ocupadas.map((m) => m.id);
+      const whereOut: any = { evento_id: eventoId, numeroMesa: { gt: targetCount }, estaActivo: 1 };
+      if (ocupadasIds.length > 0) whereOut.id = { notIn: ocupadasIds };
+      await this.prisma.mesa.updateMany({ where: whereOut, data: { estaActivo: 0 } });
+
+      // Crear mesas faltantes en el rango 1..targetCount
+      const existentes = (await this.prisma.mesa.findMany({
+        where: { evento_id: eventoId, numeroMesa: { lte: targetCount } },
+        select: { numeroMesa: true },
+      })).map((m) => m.numeroMesa);
+      const faltantes = Array.from({ length: targetCount }, (_, i) => i + 1).filter((n) => !existentes.includes(n));
+      if (faltantes.length > 0) {
+        await this.prisma.mesa.createMany({
+          data: faltantes.map((n) => ({
+            evento_id: eventoId,
+            numeroMesa: n,
+            capacidadPersonas: evento?.capacidadPersonasPorMesa ?? 4,
+            estaActivo: 1,
+            estaHabilitada: 1,
+          })),
+        });
+      }
+    }
+
+    const mesas = await this.prisma.mesa.findMany({
+      where: { evento_id: eventoId, estaActivo: 1 },
+      orderBy: { numeroMesa: 'asc' },
+      include: {
+        reunion: {
+          where: { estaActivo: 1 },
+          orderBy: { fechaHoraInicioReunion: 'asc' },
+          include: {
+            solicitudreunion: {
+              include: {
+                empresaevento_solicitudreunion_empresaEvento_idToempresaevento: {
+                  include: { empresa: { select: { id: true, nombre: true, rubro: true, urlFotoPerfil: true } } },
+                },
+                empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento: {
+                  include: { empresa: { select: { id: true, nombre: true, rubro: true, urlFotoPerfil: true } } },
+                },
+              },
             },
           },
         },
-      }),
-      this.prisma.evento.findUnique({
-        where: { id: eventoId },
-        select: {
-          duracionReunion: true,
-          tiempoEntreReuniones: true,
-          cantidadTotalMesasEvento: true,
-          capacidadPersonasPorMesa: true,
-        },
-      }),
-    ]);
+      },
+    });
 
-    const tiempoLimpieza = evento?.tiempoEntreReuniones ?? 15;
-    const ahora = new Date();
-    const mesasConEstado = mesas.map((m) => ({
-      ...m,
-      estadoMesa: this.computeEstadoMesa(m.reunion, tiempoLimpieza, ahora),
-    }));
+    const mesasConEstado = mesas.map((m) => {
+      const estadoMesa = this.computeEstadoMesa(m.reunion);
+      const reunionActual =
+        m.reunion.find((r: any) => r.estadoReunion === 'EN_CURSO') ||
+        m.reunion.find((r: any) => r.estadoReunion === 'PROGRAMADA') ||
+        null;
+      return { ...m, estadoMesa, reunionActual };
+    });
 
     return { mesas: mesasConEstado, eventoConfig: evento };
   }
@@ -1011,6 +1224,96 @@ export class AppController {
     return { creadas: body.cantidad, mensaje: `${body.cantidad} mesas generadas correctamente` };
   }
 
+  @Get('admin/mesas/historial')
+  async getMesasHistorial(@Query('q') q?: string) {
+    const eventoId = await this.getPrincipalEventoId();
+    if (!eventoId) return [];
+
+    const reuniones = await this.prisma.reunion.findMany({
+      where: { evento_id: eventoId, estaActivo: 1, estadoReunion: 'FINALIZADA' },
+      orderBy: { fechaHoraFinReunion: 'desc' },
+      include: {
+        mesa: { select: { id: true, numeroMesa: true } },
+        solicitudreunion: {
+          include: {
+            empresaevento_solicitudreunion_empresaEvento_idToempresaevento: {
+              include: { empresa: { select: { id: true, nombre: true, rubro: true, urlFotoPerfil: true } } },
+            },
+            empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento: {
+              include: { empresa: { select: { id: true, nombre: true, rubro: true, urlFotoPerfil: true } } },
+            },
+          },
+        },
+        resultadoreunion: {
+          where: { estaActivo: 1 },
+          select: {
+            id: true,
+            empresaeventoCalificadora_id: true,
+            calificacionReunion: true,
+            rangoAcuerdoComercial: true,
+            observacionesPuntosTratados: true,
+          },
+        },
+      },
+    });
+
+    if (!q || !q.trim()) return reuniones;
+    const qLower = q.toLowerCase();
+    return reuniones.filter((r) => {
+      if (String(r.mesa?.numeroMesa).includes(q)) return true;
+      const ea = (r.solicitudreunion as any)?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa;
+      const eb = (r.solicitudreunion as any)?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento?.empresa;
+      return ea?.nombre?.toLowerCase().includes(qLower) || eb?.nombre?.toLowerCase().includes(qLower);
+    });
+  }
+
+  @Get('admin/mesas/:id')
+  async getMesaById(@Param('id') id: string) {
+    const eventoId = await this.getPrincipalEventoId();
+    if (!eventoId) throw new BadRequestException('No hay evento principal');
+    const [mesa, evento] = await Promise.all([
+      this.prisma.mesa.findUnique({
+        where: { id: Number(id) },
+        include: {
+          reunion: {
+            where: { estaActivo: 1 },
+            orderBy: { fechaHoraInicioReunion: 'asc' },
+            include: {
+              solicitudreunion: {
+                include: {
+                  empresaevento_solicitudreunion_empresaEvento_idToempresaevento: {
+                    include: { empresa: { select: { id: true, nombre: true, rubro: true, urlFotoPerfil: true } } },
+                  },
+                  empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento: {
+                    include: { empresa: { select: { id: true, nombre: true, rubro: true, urlFotoPerfil: true } } },
+                  },
+                },
+              },
+              resultadoreunion: {
+                where: { estaActivo: 1 },
+                select: { id: true, calificacionReunion: true, rangoAcuerdoComercial: true, observacionesPuntosTratados: true },
+              },
+            },
+          },
+        },
+      }),
+      this.prisma.evento.findUnique({
+        where: { id: eventoId },
+        select: { tiempoEntreReuniones: true },
+      }),
+    ]);
+    if (!mesa) throw new BadRequestException('Mesa no encontrada');
+    return { ...mesa, estadoMesa: this.computeEstadoMesa(mesa.reunion) };
+  }
+
+  @Put('admin/mesas/:id/habilitar')
+  async toggleHabilitarMesa(@Param('id') id: string, @Body() body: { estaHabilitada: number }) {
+    return await this.prisma.mesa.update({
+      where: { id: Number(id) },
+      data: { estaHabilitada: Number(body.estaHabilitada), creadoModificadoFecha: new Date() },
+    });
+  }
+
   @Put('admin/mesas/:id')
   async updateMesa(@Param('id') id: string, @Body() body: any) {
     return await this.prisma.mesa.update({
@@ -1029,6 +1332,15 @@ export class AppController {
       where: { id: Number(id) },
       data: { estaActivo: 0 },
     });
+  }
+
+  // ─── REUNIONES (admin) ───────────────────────────────────────────────────────
+
+  @Put('admin/reuniones/:id/estado')
+  async updateAdminReunionEstado(@Param('id') id: string, @Body() body: { estadoReunion: string; asistentes?: number }) {
+    const data: any = { estadoReunion: body.estadoReunion, creadoModificadoFecha: new Date() };
+    if (body.asistentes !== undefined) data.cantidadAsistentesRegistrados = Number(body.asistentes);
+    return await this.prisma.reunion.update({ where: { id: Number(id) }, data });
   }
 
   // ─── TÉCNICOS ────────────────────────────────────────────────────────────────
@@ -1280,45 +1592,31 @@ export class AppController {
       solicitudreunion: {
         include: {
           empresaevento_solicitudreunion_empresaEvento_idToempresaevento: {
-            include: { empresa: { select: { id: true, nombre: true, rubro: true, urlFotoPerfil: true } } },
+            include: {
+              empresa: { select: { id: true, nombre: true, rubro: true, urlFotoPerfil: true } },
+              empresa_usuario: { take: 1, include: { usuario: { select: { id: true, nombres: true, apellidoPaterno: true, correo: true } } } },
+            },
           },
           empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento: {
-            include: { empresa: { select: { id: true, nombre: true, rubro: true, urlFotoPerfil: true } } },
+            include: {
+              empresa: { select: { id: true, nombre: true, rubro: true, urlFotoPerfil: true } },
+              empresa_usuario: { take: 1, include: { usuario: { select: { id: true, nombres: true, apellidoPaterno: true, correo: true } } } },
+            },
           },
         },
       },
       mesa: { select: { id: true, numeroMesa: true, capacidadPersonas: true } },
       resultadoreunion: {
         where: { estaActivo: 1 },
-        select: { id: true, calificacionReunion: true, rangoAcuerdoComercial: true, observacionesPuntosTratados: true },
+        select: { id: true, empresaeventoCalificadora_id: true, calificacionReunion: true, rangoAcuerdoComercial: true, observacionesPuntosTratados: true },
       },
     };
   }
 
-  private computeEstadoMesa(reuniones: any[], tiempoLimpiezaMin: number, ahora: Date): string {
+  private computeEstadoMesa(reuniones: any[]): string {
     const activas = (reuniones ?? []).filter((r: any) => r.estaActivo === 1);
-    if (activas.length === 0) return 'LIBRE';
-
     if (activas.some((r: any) => r.estadoReunion === 'EN_CURSO')) return 'EN_USO';
-
-    const ahora_ms = ahora.getTime();
-    const enLimpieza = activas.some((r: any) => {
-      if (r.estadoReunion !== 'FINALIZADA') return false;
-      const fin = new Date(r.fechaHoraFinReunion).getTime();
-      const min = (ahora_ms - fin) / 60000;
-      return min >= 0 && min <= tiempoLimpiezaMin;
-    });
-    if (enLimpieza) return 'EN_ESPERA';
-
-    if (activas.some((r: any) =>
-      r.estadoReunion === 'PROGRAMADA' && new Date(r.fechaHoraInicioReunion) > ahora
-    )) return 'PROGRAMADA';
-
-    const allDone = activas.every((r: any) =>
-      r.estadoReunion === 'FINALIZADA' || r.estadoReunion === 'CANCELADA'
-    );
-    if (allDone) return 'FINALIZADA';
-
+    if (activas.some((r: any) => r.estadoReunion === 'PROGRAMADA')) return 'RESERVADA';
     return 'LIBRE';
   }
 
@@ -1382,11 +1680,9 @@ export class AppController {
       }),
     ]);
 
-    const tiempoLimpieza = eventoConfig?.tiempoEntreReuniones ?? 15;
-    const ahora = new Date();
     const mesasConEstado = mesas.map((m) => ({
       ...m,
-      estadoMesa: this.computeEstadoMesa(m.reunion, tiempoLimpieza, ahora),
+      estadoMesa: this.computeEstadoMesa(m.reunion),
     }));
 
     return { mesas: mesasConEstado, eventoConfig };
@@ -1511,6 +1807,107 @@ export class AppController {
     });
   }
 
+  @Get('tecnico/mesas/historial')
+  async getTecnicoMesasHistorial(@Query('q') q?: string) {
+    const eventoId = await this.getPrincipalEventoId();
+    if (!eventoId) return [];
+
+    const reuniones = await this.prisma.reunion.findMany({
+      where: { evento_id: eventoId, estaActivo: 1, estadoReunion: 'FINALIZADA' },
+      orderBy: { fechaHoraFinReunion: 'desc' },
+      include: {
+        mesa: { select: { id: true, numeroMesa: true } },
+        solicitudreunion: {
+          include: {
+            empresaevento_solicitudreunion_empresaEvento_idToempresaevento: {
+              include: { empresa: { select: { id: true, nombre: true, rubro: true, urlFotoPerfil: true } } },
+            },
+            empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento: {
+              include: { empresa: { select: { id: true, nombre: true, rubro: true, urlFotoPerfil: true } } },
+            },
+          },
+        },
+        resultadoreunion: {
+          where: { estaActivo: 1 },
+          select: {
+            id: true,
+            empresaeventoCalificadora_id: true,
+            calificacionReunion: true,
+            rangoAcuerdoComercial: true,
+            observacionesPuntosTratados: true,
+          },
+        },
+      },
+    });
+
+    if (!q || !q.trim()) return reuniones;
+    const qLower = q.toLowerCase();
+    return reuniones.filter((r) => {
+      if (String(r.mesa?.numeroMesa).includes(q)) return true;
+      const ea = (r.solicitudreunion as any)?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa;
+      const eb = (r.solicitudreunion as any)?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento?.empresa;
+      return ea?.nombre?.toLowerCase().includes(qLower) || eb?.nombre?.toLowerCase().includes(qLower);
+    });
+  }
+
+  @Put('tecnico/reuniones/:id/link')
+  async updateTecnicoReunionLink(@Param('id') id: string, @Body() body: { enlace: string }) {
+    const reunion = await this.prisma.reunion.findUnique({
+      where: { id: Number(id) },
+      select: { solicitudReunion_id: true },
+    });
+    if (!reunion?.solicitudReunion_id) throw new BadRequestException('Reunión sin solicitud asociada');
+    await this.prisma.solicitudreunion.update({
+      where: { id: reunion.solicitudReunion_id },
+      data: { enlaceReunionVirtual: body.enlace || null, creadoModificadoFecha: new Date() },
+    });
+    return { ok: true };
+  }
+
+  @Post('tecnico/reuniones/:id/mensaje')
+  async sendTecnicoMensaje(@Param('id') id: string, @Body() body: { empresa: string; mensaje: string }) {
+    if (!body.mensaje?.trim()) throw new BadRequestException('El mensaje no puede estar vacío');
+    const reunion = await this.prisma.reunion.findUnique({
+      where: { id: Number(id) },
+      include: {
+        solicitudreunion: {
+          include: {
+            empresaevento_solicitudreunion_empresaEvento_idToempresaevento: {
+              include: { empresa_usuario: { take: 1, include: { usuario: { select: { nombres: true, correo: true } } } } },
+            },
+            empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento: {
+              include: { empresa_usuario: { take: 1, include: { usuario: { select: { nombres: true, correo: true } } } } },
+            },
+          },
+        },
+      },
+    });
+    const sol = reunion?.solicitudreunion as any;
+    const ee = body.empresa === 'A'
+      ? sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento
+      : sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento;
+    const usuario = ee?.empresa_usuario?.[0]?.usuario;
+    if (!usuario?.correo) throw new BadRequestException('No se encontró el encargado de la empresa');
+
+    const transporter = createMailTransporter();
+    await transporter.sendMail({
+      from: process.env.MAIL_FROM,
+      to: usuario.correo,
+      subject: 'Mensaje del técnico — Rueda de Negocios',
+      html: `
+        <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#f9fafb;border-radius:12px">
+          <h2 style="color:#449D3A;margin-bottom:8px">Mensaje del Técnico</h2>
+          <p style="color:#374151;margin-bottom:16px">Hola <strong>${usuario.nombres}</strong>, el técnico del evento te ha enviado el siguiente mensaje:</p>
+          <div style="background:#fff;border-left:4px solid #449D3A;padding:16px;border-radius:8px;margin-bottom:16px">
+            <p style="color:#111827;margin:0;white-space:pre-wrap">${body.mensaje}</p>
+          </div>
+          <p style="color:#9ca3af;font-size:12px">Este es un mensaje automático del sistema de Rueda de Negocios.</p>
+        </div>
+      `,
+    });
+    return { ok: true };
+  }
+
   @Get('tecnico/noticias')
   async getTecnicoNoticias() {
     const eventoId = await this.getPrincipalEventoId();
@@ -1549,6 +1946,84 @@ export class AppController {
       });
     } catch (error) {
       throw new BadRequestException(error instanceof Error ? error.message : 'Error al cambiar contraseña');
+    }
+  }
+
+  // ── Reset de contraseña por email ──────────────────────────────────────────
+
+  @Post('auth/solicitar-reset')
+  async solicitarReset(@Body() body: { correo: string }) {
+    try {
+      const user = await (this.prisma as any).$queryRaw`
+        SELECT id, nombres, correo FROM usuario WHERE correo = ${body.correo} AND "estaActivo" = 1 LIMIT 1
+      `;
+      const u = Array.isArray(user) ? user[0] : null;
+      // Siempre respondemos igual para no revelar si el correo existe
+      if (!u) return { ok: true };
+
+      const codigo = generarCodigo();
+      const hashed = await bcrypt.hash(codigo, 10);
+      const expiry = new Date(Date.now() + 15 * 60 * 1000); // 15 min
+
+      await (this.prisma as any).$executeRaw`
+        UPDATE usuario SET "resetToken" = ${hashed}, "resetTokenExpiry" = ${expiry} WHERE id = ${u.id}
+      `;
+
+      const transporter = createMailTransporter();
+      await transporter.sendMail({
+        from: process.env.MAIL_FROM,
+        to: u.correo,
+        subject: 'Código para restablecer tu contraseña — Rueda de Negocios',
+        html: `
+          <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#f9fafb;border-radius:12px">
+            <h2 style="color:#449D3A;margin-bottom:8px">Restablece tu contraseña</h2>
+            <p style="color:#374151;margin-bottom:24px">Hola <strong>${u.nombres}</strong>, recibimos una solicitud para cambiar tu contraseña.</p>
+            <div style="background:#fff;border:2px solid #449D3A;border-radius:12px;padding:24px;text-align:center;margin-bottom:24px">
+              <p style="color:#6b7280;font-size:13px;margin:0 0 8px">Tu código de verificación es:</p>
+              <span style="font-size:36px;font-weight:700;color:#449D3A;letter-spacing:8px">${codigo}</span>
+              <p style="color:#9ca3af;font-size:12px;margin:12px 0 0">Válido por <strong>15 minutos</strong></p>
+            </div>
+            <p style="color:#9ca3af;font-size:12px">Si no solicitaste esto, ignora este correo.</p>
+          </div>
+        `,
+      });
+
+      return { ok: true };
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : 'Error al enviar correo');
+    }
+  }
+
+  @Post('auth/confirmar-reset')
+  async confirmarReset(@Body() body: { correo: string; codigo: string; nuevaContrasenia: string }) {
+    try {
+      if (!body.correo || !body.codigo || !body.nuevaContrasenia)
+        throw new BadRequestException('Todos los campos son requeridos');
+      if (body.nuevaContrasenia.length < 6)
+        throw new BadRequestException('La contraseña debe tener al menos 6 caracteres');
+
+      const rows = await (this.prisma as any).$queryRaw`
+        SELECT id, "resetToken", "resetTokenExpiry" FROM usuario
+        WHERE correo = ${body.correo} AND "estaActivo" = 1 LIMIT 1
+      `;
+      const u = Array.isArray(rows) ? rows[0] : null;
+      if (!u || !u.resetToken) throw new BadRequestException('Código inválido o expirado');
+
+      const expired = !u.resetTokenExpiry || new Date(u.resetTokenExpiry) < new Date();
+      if (expired) throw new BadRequestException('El código ha expirado. Solicita uno nuevo');
+
+      const valid = await bcrypt.compare(body.codigo, u.resetToken);
+      if (!valid) throw new BadRequestException('Código incorrecto');
+
+      const hashed = await bcrypt.hash(body.nuevaContrasenia, 10);
+      await (this.prisma as any).$executeRaw`
+        UPDATE usuario SET contrasenia = ${hashed}, "resetToken" = NULL, "resetTokenExpiry" = NULL,
+        "creadoModificadoFecha" = NOW() WHERE id = ${u.id}
+      `;
+
+      return { ok: true, message: 'Contraseña actualizada correctamente' };
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : 'Error al restablecer contraseña');
     }
   }
 }

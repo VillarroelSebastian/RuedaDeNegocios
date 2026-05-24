@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TextInput, TouchableOpacity,
-  ActivityIndicator, Image,
+  ActivityIndicator, Image, Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -14,12 +14,32 @@ import { useModal } from '../../components/AppModal';
 
 const GREEN = '#449D3A';
 
+const SOUTH_AMERICA: Record<string, string[]> = {
+  'Bolivia':   ['Trinidad','Beni','La Paz','Santa Cruz de la Sierra','Cochabamba','Sucre','Oruro','Potosí','Tarija','Cobija','Riberalta','Guayaramerín'],
+  'Argentina': ['Buenos Aires','Córdoba','Rosario','Mendoza','Tucumán','La Plata','Mar del Plata','Salta','Santa Fe','San Juan'],
+  'Brasil':    ['São Paulo','Río de Janeiro','Brasilia','Salvador','Fortaleza','Manaus','Curitiba','Recife','Porto Alegre','Belo Horizonte'],
+  'Chile':     ['Santiago','Valparaíso','Concepción','Antofagasta','Viña del Mar','Temuco','Rancagua','Talca'],
+  'Colombia':  ['Bogotá','Medellín','Cali','Barranquilla','Cartagena','Cúcuta','Bucaramanga','Pereira'],
+  'Ecuador':   ['Quito','Guayaquil','Cuenca','Manta','Ambato','Portoviejo','Machala'],
+  'Paraguay':  ['Asunción','Ciudad del Este','Encarnación','Luque','San Lorenzo'],
+  'Perú':      ['Lima','Arequipa','Trujillo','Cusco','Piura','Chiclayo','Iquitos'],
+  'Uruguay':   ['Montevideo','Salto','Paysandú','Las Piedras','Rivera'],
+  'Venezuela': ['Caracas','Maracaibo','Valencia','Barquisimeto','Maracay'],
+};
+
+function fmtDate(iso: string) {
+  if (!iso) return '';
+  const [y, m, d] = iso.substring(0, 10).split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('es-BO', { day: 'numeric', month: 'numeric', year: 'numeric' });
+}
+
 // ── Componente reutilizable para campos de imagen ──────────────────────────────
 function ImageField({
-  label, value, fieldKey, uploading, onPick, required,
+  label, value, fieldKey, uploading, onPick, onPreview, required,
 }: {
   label: string; value: string; fieldKey: string;
-  uploading: string | null; onPick: (key: string) => void; required?: boolean;
+  uploading: string | null; onPick: (key: string) => void;
+  onPreview: (url: string) => void; required?: boolean;
 }) {
   const isUploading = uploading === fieldKey;
   return (
@@ -44,9 +64,11 @@ function ImageField({
         </Text>
       </TouchableOpacity>
       {value ? (
-        <View className="mt-2 rounded-xl overflow-hidden border border-gray-200" style={{ height: 100 }}>
-          <Image source={{ uri: value }} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
-        </View>
+        <TouchableOpacity onPress={() => onPreview(value)} activeOpacity={0.85}>
+          <View className="mt-2 rounded-xl overflow-hidden border border-gray-200" style={{ height: 100 }}>
+            <Image source={{ uri: value }} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
+          </View>
+        </TouchableOpacity>
       ) : null}
     </View>
   );
@@ -56,6 +78,8 @@ function ImageField({
 export default function EventConfigScreen() {
   const { show, modal } = useModal();
   const [viewState, setViewState] = useState<'lista' | 'formulario'>('lista');
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [pickerField, setPickerField] = useState<'pais' | 'ciudad' | null>(null);
 
   const [eventos, setEventos] = useState<any[]>([]);
   const [loadingList, setLoadingList] = useState(true);
@@ -87,6 +111,8 @@ export default function EventConfigScreen() {
     enlaceFacebook: '',
     enlaceInstagram: '',
     enlaceTwitterX: '',
+    paisEvento: '',
+    ciudadEvento: '',
   });
 
   const [reglasQR, setReglasQR] = useState([
@@ -193,6 +219,7 @@ export default function EventConfigScreen() {
         urlImagenMapaRecinto: '', urlImagenCronogramaCharlas: '', urlLogoEvento: '',
         sobreElEvento: '', correoContacto: '', telefonoContacto: '',
         enlaceFacebook: '', enlaceInstagram: '', enlaceTwitterX: '',
+        paisEvento: '', ciudadEvento: '',
       });
       setReglasQR([{ rangoDesde: '1', rangoHasta: '2', monto: '500', urlQR: '' }]);
       return;
@@ -205,8 +232,8 @@ export default function EventConfigScreen() {
         setFormData({
           id: data.id,
           nombre: data.nombre || '', edicion: data.edicion || '', descripcion: data.descripcion || '',
-          fechaInicioEvento: data.fechaInicioEvento ? new Date(data.fechaInicioEvento).toISOString().split('T')[0] : '',
-          fechaFinEvento: data.fechaFinEvento ? new Date(data.fechaFinEvento).toISOString().split('T')[0] : '',
+          fechaInicioEvento: data.fechaInicioEvento ? data.fechaInicioEvento.substring(0, 10) : '',
+          fechaFinEvento: data.fechaFinEvento ? data.fechaFinEvento.substring(0, 10) : '',
           duracionReunion: String(data.duracionReunion || 20),
           tiempoEntreReuniones: String(data.tiempoEntreReuniones || 5),
           cantidadTotalMesasEvento: String(data.cantidadTotalMesasEvento || 50),
@@ -223,6 +250,8 @@ export default function EventConfigScreen() {
           enlaceFacebook: data.enlaceFacebook || '',
           enlaceInstagram: data.enlaceInstagram || '',
           enlaceTwitterX: data.enlaceTwitterX || '',
+          paisEvento: data.paisEvento || '',
+          ciudadEvento: data.ciudadEvento || '',
         });
         if (data.eventoreglaqr?.length > 0) {
           setReglasQR(data.eventoreglaqr.map((r: any) => ({
@@ -267,8 +296,8 @@ export default function EventConfigScreen() {
     const payload: any = {
       nombre: formData.nombre, edicion: formData.edicion || '',
       descripcion: orNull(formData.descripcion),
-      fechaInicioEvento: new Date(formData.fechaInicioEvento).toISOString(),
-      fechaFinEvento: new Date(formData.fechaFinEvento).toISOString(),
+      fechaInicioEvento: `${formData.fechaInicioEvento}T00:00:00`,
+      fechaFinEvento: `${formData.fechaFinEvento}T00:00:00`,
       duracionReunion: Number(formData.duracionReunion),
       tiempoEntreReuniones: Number(formData.tiempoEntreReuniones),
       cantidadTotalMesasEvento: Number(formData.cantidadTotalMesasEvento),
@@ -285,6 +314,8 @@ export default function EventConfigScreen() {
       enlaceFacebook: orNull(formData.enlaceFacebook),
       enlaceInstagram: orNull(formData.enlaceInstagram),
       enlaceTwitterX: orNull(formData.enlaceTwitterX),
+      paisEvento: orNull(formData.paisEvento),
+      ciudadEvento: orNull(formData.ciudadEvento),
       reglasQR: reglasQR.map((r) => ({
         rangoDesde: Number(r.rangoDesde), rangoHasta: Number(r.rangoHasta),
         monto: Number(r.monto), urlQR: r.urlQR || '',
@@ -306,11 +337,77 @@ export default function EventConfigScreen() {
       setSaving(false); }
   };
 
+  const paisList = Object.keys(SOUTH_AMERICA);
+  const ciudadList = formData.paisEvento ? (SOUTH_AMERICA[formData.paisEvento] ?? []) : [];
+
+  const pickerItems = pickerField === 'pais' ? paisList : ciudadList;
+  const pickerSelected = pickerField === 'pais' ? formData.paisEvento : formData.ciudadEvento;
+
+  const pickerModal = (
+    <Modal visible={!!pickerField} transparent animationType="slide" onRequestClose={() => setPickerField(null)}>
+      <TouchableOpacity
+        style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }}
+        activeOpacity={1}
+        onPress={() => setPickerField(null)}
+      >
+        <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '70%' }}>
+          <View style={{ padding: 16, borderBottomWidth: 1, borderColor: '#f1f5f9', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: '#0f172a' }}>
+              {pickerField === 'pais' ? 'Seleccionar país' : 'Seleccionar ciudad'}
+            </Text>
+            <TouchableOpacity onPress={() => setPickerField(null)}>
+              <Text style={{ fontSize: 13, color: GREEN, fontWeight: '700' }}>Cerrar</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView keyboardShouldPersistTaps="handled">
+            {pickerItems.map(item => (
+              <TouchableOpacity
+                key={item}
+                onPress={() => {
+                  if (pickerField === 'pais') {
+                    setFormData(prev => ({ ...prev, paisEvento: item, ciudadEvento: '' }));
+                  } else {
+                    setFormData(prev => ({ ...prev, ciudadEvento: item }));
+                  }
+                  setPickerField(null);
+                }}
+                style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderColor: '#f8fafc' }}
+              >
+                <Text style={{ fontSize: 14, color: '#111827' }}>{item}</Text>
+                {pickerSelected === item && <Text style={{ color: GREEN, fontWeight: '700' }}>✓</Text>}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      </TouchableOpacity>
+    </Modal>
+  );
+
+  const imagePreviewModal = (
+    <Modal visible={!!previewUrl} transparent animationType="fade" onRequestClose={() => setPreviewUrl(null)}>
+      <TouchableOpacity
+        style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.88)', alignItems: 'center', justifyContent: 'center' }}
+        activeOpacity={1}
+        onPress={() => setPreviewUrl(null)}
+      >
+        {previewUrl && (
+          <Image
+            source={{ uri: previewUrl }}
+            style={{ width: '92%', height: '70%' }}
+            resizeMode="contain"
+          />
+        )}
+      </TouchableOpacity>
+    </Modal>
+  );
+
   // ── VISTA LISTA ──────────────────────────────────────────────────────────────
   if (viewState === 'lista') {
     return (
       <>
       {modal}
+      {pickerModal}
+      {imagePreviewModal}
       <SafeAreaView className="flex-1 bg-[#F9FAFB]" edges={['top']}>
         <ScrollView className="flex-1 p-4" showsVerticalScrollIndicator={false}>
           <View className="mb-6 mt-2 flex-row justify-between items-center">
@@ -343,9 +440,11 @@ export default function EventConfigScreen() {
                 )}
                 <View className="flex-row items-start gap-3 mb-3">
                   {evento.urlLogoEvento ? (
-                    <View className="w-14 h-14 rounded-xl overflow-hidden border border-gray-200 shrink-0">
-                      <Image source={{ uri: evento.urlLogoEvento }} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
-                    </View>
+                    <TouchableOpacity onPress={() => setPreviewUrl(evento.urlLogoEvento)} activeOpacity={0.85}>
+                      <View className="w-14 h-14 rounded-xl overflow-hidden border border-gray-200 shrink-0">
+                        <Image source={{ uri: evento.urlLogoEvento }} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
+                      </View>
+                    </TouchableOpacity>
                   ) : (
                     <View className={`p-3 rounded-lg shrink-0 ${evento.esPrincipal === 1 ? 'bg-[#f4f7ee]' : 'bg-gray-50'}`}>
                       <CalendarCheck color={evento.esPrincipal === 1 ? GREEN : '#9ca3af'} size={24} />
@@ -359,7 +458,7 @@ export default function EventConfigScreen() {
                 <View className="flex-row items-center bg-gray-50 p-2.5 rounded-lg mb-4">
                   <Calendar color="#9ca3af" size={14} />
                   <Text className="text-xs text-gray-600 font-medium ml-2">
-                    {new Date(evento.fechaInicioEvento).toLocaleDateString()} - {new Date(evento.fechaFinEvento).toLocaleDateString()}
+                    {fmtDate(evento.fechaInicioEvento)} - {fmtDate(evento.fechaFinEvento)}
                   </Text>
                 </View>
                 <View className="flex-row flex-wrap justify-between gap-y-2 gap-x-2">
@@ -402,6 +501,8 @@ export default function EventConfigScreen() {
   return (
     <>
     {modal}
+    {pickerModal}
+    {imagePreviewModal}
     <SafeAreaView className="flex-1 bg-[#F9FAFB]" edges={['top']}>
       <View className="px-4 py-3 border-b border-gray-100 flex-row items-center bg-white shadow-sm z-10">
         <TouchableOpacity onPress={() => setViewState('lista')} className="p-2 -ml-2">
@@ -447,6 +548,35 @@ export default function EventConfigScreen() {
             </View>
           </View>
 
+          {/* País y Ciudad */}
+          <View className="flex-row gap-3 mb-4">
+            <View className="flex-1">
+              <Text className="text-xs font-bold text-gray-700 mb-2">País</Text>
+              <TouchableOpacity
+                onPress={() => setPickerField('pais')}
+                className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 flex-row justify-between items-center"
+              >
+                <Text style={{ fontSize: 14, color: formData.paisEvento ? '#0f172a' : '#9ca3af' }}>
+                  {formData.paisEvento || 'Seleccionar'}
+                </Text>
+                <Text style={{ color: '#9ca3af', fontSize: 12 }}>▼</Text>
+              </TouchableOpacity>
+            </View>
+            <View className="flex-1">
+              <Text className="text-xs font-bold text-gray-700 mb-2">Ciudad</Text>
+              <TouchableOpacity
+                onPress={() => formData.paisEvento ? setPickerField('ciudad') : null}
+                className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 flex-row justify-between items-center"
+                style={{ opacity: formData.paisEvento ? 1 : 0.5 }}
+              >
+                <Text style={{ fontSize: 14, color: formData.ciudadEvento ? '#0f172a' : '#9ca3af' }}>
+                  {formData.ciudadEvento || (formData.paisEvento ? 'Seleccionar' : 'País primero')}
+                </Text>
+                <Text style={{ color: '#9ca3af', fontSize: 12 }}>▼</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
           {/* Imágenes */}
           <View className="border-t border-gray-100 pt-4">
             <View className="flex-row items-center gap-2 mb-3">
@@ -454,9 +584,9 @@ export default function EventConfigScreen() {
               <Text className="text-sm font-bold text-gray-800">Imágenes del Evento</Text>
             </View>
             <ImageField label="Mapa del Recinto" value={formData.urlImagenMapaRecinto}
-              fieldKey="urlImagenMapaRecinto" uploading={uploadingField} onPick={handlePickImage} />
+              fieldKey="urlImagenMapaRecinto" uploading={uploadingField} onPick={handlePickImage} onPreview={setPreviewUrl} />
             <ImageField label="Cronograma de Charlas" value={formData.urlImagenCronogramaCharlas}
-              fieldKey="urlImagenCronogramaCharlas" uploading={uploadingField} onPick={handlePickImage} />
+              fieldKey="urlImagenCronogramaCharlas" uploading={uploadingField} onPick={handlePickImage} onPreview={setPreviewUrl} />
           </View>
         </View>
 
@@ -469,7 +599,7 @@ export default function EventConfigScreen() {
 
           {/* Logo */}
           <ImageField label="Logo del Evento" value={formData.urlLogoEvento}
-            fieldKey="urlLogoEvento" uploading={uploadingField} onPick={handlePickImage} />
+            fieldKey="urlLogoEvento" uploading={uploadingField} onPick={handlePickImage} onPreview={setPreviewUrl} />
 
           <Text className="text-xs font-bold text-gray-700 mb-2">Correo de Contacto</Text>
           <TextInput value={formData.correoContacto} onChangeText={(t) => handleChange('correoContacto', t)}
@@ -611,9 +741,11 @@ export default function EventConfigScreen() {
               </TouchableOpacity>
 
               {regla.urlQR ? (
-                <View className="mt-2 rounded-xl overflow-hidden border border-gray-200 items-center bg-white" style={{ height: 80 }}>
-                  <Image source={{ uri: regla.urlQR }} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
-                </View>
+                <TouchableOpacity onPress={() => setPreviewUrl(regla.urlQR)} activeOpacity={0.85}>
+                  <View className="mt-2 rounded-xl overflow-hidden border border-gray-200 items-center bg-white" style={{ height: 80 }}>
+                    <Image source={{ uri: regla.urlQR }} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
+                  </View>
+                </TouchableOpacity>
               ) : null}
             </View>
           ))}

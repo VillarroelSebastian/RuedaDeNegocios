@@ -90,7 +90,7 @@ export default function DashboardScreen() {
       {/* ── Header con saludo ─────────────────────────────── */}
       <View style={s.header}>
         <View>
-          <Text style={s.headerGreeting}>Hola, {firstName} 👋</Text>
+          <Text style={s.headerGreeting}>Hola, {firstName}</Text>
           <Text style={s.headerSub}>Panel de administración</Text>
         </View>
         <View style={s.headerAvatar}>

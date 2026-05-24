@@ -1,17 +1,19 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, Image,
-  ScrollView, KeyboardAvoidingView,
+  ScrollView, KeyboardAvoidingView, Modal,
   Platform, StyleSheet, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { Mail, Lock, Eye, EyeOff } from 'lucide-react-native';
+import { Mail, Lock, Eye, EyeOff, X, KeyRound, CheckCircle } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
 
 const GREEN  = '#449D3A';
 const GREEN2 = '#166534';
 const DARK   = '#0f172a';
+
+type ResetStep = 'correo' | 'codigo' | 'exito';
 
 export default function LoginScreen({ navigation }: any) {
   const [correo,      setCorreo]      = useState('');
@@ -19,6 +21,55 @@ export default function LoginScreen({ navigation }: any) {
   const [showPwd,     setShowPwd]     = useState(false);
   const [loading,     setLoading]     = useState(false);
   const [error,       setError]       = useState('');
+
+  // ── Reset de contraseña ──────────────────────────────────────────────────
+  const [resetVisible,  setResetVisible]  = useState(false);
+  const [resetStep,     setResetStep]     = useState<ResetStep>('correo');
+  const [resetCorreo,   setResetCorreo]   = useState('');
+  const [resetCodigo,   setResetCodigo]   = useState('');
+  const [resetNueva,    setResetNueva]    = useState('');
+  const [resetConfirm,  setResetConfirm]  = useState('');
+  const [resetShowPwd,  setResetShowPwd]  = useState(false);
+  const [resetLoading,  setResetLoading]  = useState(false);
+  const [resetError,    setResetError]    = useState('');
+
+  const openReset = () => {
+    setResetStep('correo'); setResetCorreo(''); setResetCodigo('');
+    setResetNueva(''); setResetConfirm(''); setResetError('');
+    setResetVisible(true);
+  };
+
+  const handleSolicitarReset = async () => {
+    if (!resetCorreo.trim()) { setResetError('Ingresa tu correo electrónico.'); return; }
+    setResetError(''); setResetLoading(true);
+    try {
+      await fetch(`${API_URL}/auth/solicitar-reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ correo: resetCorreo.trim() }),
+      });
+      setResetStep('codigo');
+    } catch { setResetError('No se pudo enviar el correo. Intenta de nuevo.'); }
+    finally { setResetLoading(false); }
+  };
+
+  const handleConfirmarReset = async () => {
+    if (!resetCodigo || resetCodigo.length !== 6) { setResetError('Ingresa el código de 6 dígitos.'); return; }
+    if (!resetNueva || resetNueva.length < 6) { setResetError('La contraseña debe tener al menos 6 caracteres.'); return; }
+    if (resetNueva !== resetConfirm) { setResetError('Las contraseñas no coinciden.'); return; }
+    setResetError(''); setResetLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/auth/confirmar-reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ correo: resetCorreo.trim(), codigo: resetCodigo, nuevaContrasenia: resetNueva }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || 'Código incorrecto o expirado.');
+      setResetStep('exito');
+    } catch (err: any) { setResetError(err.message); }
+    finally { setResetLoading(false); }
+  };
 
   const handleLogin = async () => {
     if (!correo.trim() || !contrasenia) {
