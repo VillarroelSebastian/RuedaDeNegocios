@@ -347,6 +347,8 @@ model usuario {
   estaActivo            Int               @default(1)
   fechaCreacion         DateTime          @default(now()) @db.Timestamp(6)
   creadoModificadoFecha DateTime?         @db.Timestamp(6)
+  resetToken            String?           @db.VarChar(255)
+  resetTokenExpiry      DateTime?         @db.Timestamp(6)
   empresa_usuario       empresa_usuario[]
   noticia               noticia[]
   evento                evento?           @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_usuario_evento1")

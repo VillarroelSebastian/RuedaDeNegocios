@@ -15,6 +15,13 @@ function generarCodigo(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
+function generarPasswordTemporal(): string {
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  let pwd = '';
+  for (let i = 0; i < 10; i++) pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+  return pwd;
+}
+
 @Controller()
 export class AppController implements OnModuleInit {
   constructor(
@@ -849,7 +856,8 @@ export class AppController implements OnModuleInit {
   @Put('admin/pagos/:id/aprobar')
   async aprobarPago(@Param('id') id: string) {
     const pagoId = Number(id);
-    const updated = await this.prisma.empresaevento.update({
+
+    const ee = await this.prisma.empresaevento.update({
       where: { id: pagoId },
       data: {
         estadoVerificacionPago: 'COMPLETADO',
@@ -857,8 +865,57 @@ export class AppController implements OnModuleInit {
         fechaHoraVerificacionPago: new Date(),
         observacionSobreComprobante: null,
       },
+      include: {
+        evento: true,
+        empresa: true,
+        empresa_usuario: { include: { usuario: true } },
+      },
     });
-    return updated;
+
+    // Generar credenciales únicas y enviar correo a cada participante
+    const transporter = createMailTransporter();
+    for (const eu of (ee as any).empresa_usuario) {
+      const u = eu.usuario;
+      const pwd = generarPasswordTemporal();
+      const hashed = await bcrypt.hash(pwd, 10);
+      await this.prisma.usuario.update({
+        where: { id: u.id },
+        data: { contrasenia: hashed, creadoModificadoFecha: new Date() },
+      });
+
+      const esEncargado = eu.esResponsable === 1;
+      const rolLabel = esEncargado ? 'Encargado' : 'Usuario';
+      const rolDesc = esEncargado
+        ? 'Como <strong>Encargado</strong> podrás gestionar reuniones, ver las mesas asignadas, directorio de empresas y mucho más.'
+        : 'Como <strong>Usuario</strong> podrás consultar tus reuniones confirmadas, mesas, noticias y actividades del evento.';
+
+      await transporter.sendMail({
+        from: process.env.MAIL_FROM,
+        to: u.correo,
+        subject: `¡Tu acceso ha sido aprobado! — ${(ee as any).evento?.nombreEvento ?? 'Rueda de Negocios'}`,
+        html: `
+          <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px;background:#f9fafb;border-radius:12px">
+            <h2 style="color:#449D3A;margin-bottom:4px">¡Bienvenido/a a la Rueda de Negocios!</h2>
+            <p style="color:#374151;margin-bottom:20px">
+              Hola <strong>${u.nombres} ${u.apellidoPaterno}</strong>, tu registro como parte de
+              <strong>${(ee as any).empresa?.nombre ?? ''}</strong> ha sido <strong style="color:#449D3A">aprobado</strong>.
+            </p>
+            <div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:20px;margin-bottom:20px">
+              <p style="color:#6b7280;font-size:13px;margin:0 0 12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Tus credenciales de acceso</p>
+              <table style="width:100%;border-collapse:collapse">
+                <tr><td style="padding:6px 0;color:#6b7280;font-size:13px;width:110px">Correo</td><td style="padding:6px 0;font-weight:700;color:#111827">${u.correo}</td></tr>
+                <tr><td style="padding:6px 0;color:#6b7280;font-size:13px">Contraseña</td><td style="padding:6px 0;font-weight:700;color:#111827;font-size:18px;letter-spacing:2px">${pwd}</td></tr>
+                <tr><td style="padding:6px 0;color:#6b7280;font-size:13px">Rol</td><td style="padding:6px 0;font-weight:700;color:#449D3A">${rolLabel}</td></tr>
+              </table>
+            </div>
+            <p style="color:#374151;font-size:14px;margin-bottom:20px">${rolDesc}</p>
+            <p style="color:#9ca3af;font-size:12px;margin:0">Por seguridad, te recomendamos cambiar tu contraseña después del primer inicio de sesión.</p>
+          </div>
+        `,
+      });
+    }
+
+    return ee;
   }
 
   @Put('admin/pagos/:id/observar')
@@ -1954,10 +2011,10 @@ export class AppController implements OnModuleInit {
   @Post('auth/solicitar-reset')
   async solicitarReset(@Body() body: { correo: string }) {
     try {
-      const user = await (this.prisma as any).$queryRaw`
-        SELECT id, nombres, correo FROM usuario WHERE correo = ${body.correo} AND "estaActivo" = 1 LIMIT 1
-      `;
-      const u = Array.isArray(user) ? user[0] : null;
+      const u = await this.prisma.usuario.findFirst({
+        where: { correo: body.correo, estaActivo: 1 },
+        select: { id: true, nombres: true, correo: true },
+      });
       // Siempre respondemos igual para no revelar si el correo existe
       if (!u) return { ok: true };
 
@@ -1965,9 +2022,10 @@ export class AppController implements OnModuleInit {
       const hashed = await bcrypt.hash(codigo, 10);
       const expiry = new Date(Date.now() + 15 * 60 * 1000); // 15 min
 
-      await (this.prisma as any).$executeRaw`
-        UPDATE usuario SET "resetToken" = ${hashed}, "resetTokenExpiry" = ${expiry} WHERE id = ${u.id}
-      `;
+      await this.prisma.usuario.update({
+        where: { id: u.id },
+        data: { resetToken: hashed, resetTokenExpiry: expiry },
+      });
 
       const transporter = createMailTransporter();
       await transporter.sendMail({
@@ -2002,11 +2060,10 @@ export class AppController implements OnModuleInit {
       if (body.nuevaContrasenia.length < 6)
         throw new BadRequestException('La contraseña debe tener al menos 6 caracteres');
 
-      const rows = await (this.prisma as any).$queryRaw`
-        SELECT id, "resetToken", "resetTokenExpiry" FROM usuario
-        WHERE correo = ${body.correo} AND "estaActivo" = 1 LIMIT 1
-      `;
-      const u = Array.isArray(rows) ? rows[0] : null;
+      const u = await this.prisma.usuario.findFirst({
+        where: { correo: body.correo, estaActivo: 1 },
+        select: { id: true, resetToken: true, resetTokenExpiry: true },
+      });
       if (!u || !u.resetToken) throw new BadRequestException('Código inválido o expirado');
 
       const expired = !u.resetTokenExpiry || new Date(u.resetTokenExpiry) < new Date();
@@ -2016,10 +2073,10 @@ export class AppController implements OnModuleInit {
       if (!valid) throw new BadRequestException('Código incorrecto');
 
       const hashed = await bcrypt.hash(body.nuevaContrasenia, 10);
-      await (this.prisma as any).$executeRaw`
-        UPDATE usuario SET contrasenia = ${hashed}, "resetToken" = NULL, "resetTokenExpiry" = NULL,
-        "creadoModificadoFecha" = NOW() WHERE id = ${u.id}
-      `;
+      await this.prisma.usuario.update({
+        where: { id: u.id },
+        data: { contrasenia: hashed, resetToken: null, resetTokenExpiry: null, creadoModificadoFecha: new Date() },
+      });
 
       return { ok: true, message: 'Contraseña actualizada correctamente' };
     } catch (error) {

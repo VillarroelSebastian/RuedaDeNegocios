@@ -1,22 +1,40 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { User, Lock, Camera, Save, LogOut, Eye, EyeOff } from 'lucide-react';
+import { User, Lock, Camera, Save, LogOut, Mail, KeyRound, CheckCircle2, X, Eye, EyeOff, Send } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useModal } from '@/components/ui/Modal';
 
 const API = 'http://localhost:3334';
 
+type ResetStep = 'idle' | 'sending' | 'code' | 'success';
+
+function maskEmail(email: string) {
+  const [user, domain] = email.split('@');
+  if (!domain) return email;
+  const visible = user.slice(0, 2);
+  return `${visible}${'*'.repeat(Math.max(2, user.length - 2))}@${domain}`;
+}
+
 export default function ConfiguracionPage() {
   const router = useRouter();
   const { showSuccess, showError, ModalComponent } = useModal();
+
   const [user, setUser] = useState<any>(null);
   const [form, setForm] = useState({ nombres: '', apellidoPaterno: '', apellidoMaterno: '', telefono: '', urlFotoPerfil: '' });
-  const [passForm, setPassForm] = useState({ contraseniaActual: '', nuevaContrasenia: '', confirmar: '' });
-  const [showPass, setShowPass] = useState({ actual: false, nueva: false, conf: false });
   const [saving, setSaving] = useState(false);
-  const [savingPass, setSavingPass] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [tab, setTab] = useState<'perfil' | 'seguridad'>('perfil');
+
+  // ── Cambio de contraseña por email ────────────────────────────────────────
+  const [resetStep, setResetStep] = useState<ResetStep>('idle');
+  const [modalOpen, setModalOpen] = useState(false);
+  const [codigo, setCodigo] = useState('');
+  const [nuevaPass, setNuevaPass] = useState('');
+  const [confirmar, setConfirmar] = useState('');
+  const [showNueva, setShowNueva] = useState(false);
+  const [showConf, setShowConf] = useState(false);
+  const [resetError, setResetError] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem('adminUser');
@@ -58,47 +76,179 @@ export default function ConfiguracionPage() {
     finally { setSaving(false); }
   };
 
-  const handleSavePassword = async () => {
-    if (!user) return;
-    if (!passForm.contraseniaActual || !passForm.nuevaContrasenia) {
-      showError('Campos requeridos', 'Ingresa la contraseña actual y la nueva.');
-      return;
-    }
-    if (passForm.nuevaContrasenia !== passForm.confirmar) {
-      showError('Las contraseñas no coinciden', 'La nueva contraseña y su confirmación deben ser iguales.');
-      return;
-    }
-    if (passForm.nuevaContrasenia.length < 6) {
-      showError('Contraseña muy corta', 'La contraseña debe tener al menos 6 caracteres.');
-      return;
-    }
-    setSavingPass(true);
+  const handleEnviarCodigo = async () => {
+    if (!user?.correo) return;
+    setResetStep('sending');
     try {
-      const res = await fetch(`${API}/admin/perfil/${user.id}`, {
-        method: 'PUT',
+      await fetch(`${API}/auth/solicitar-reset`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, contraseniaActual: passForm.contraseniaActual, nuevaContrasenia: passForm.nuevaContrasenia }),
+        body: JSON.stringify({ correo: user.correo }),
+      });
+      setResetStep('code');
+      setCodigo(''); setNuevaPass(''); setConfirmar(''); setResetError('');
+      setModalOpen(true);
+    } catch {
+      setResetStep('idle');
+      showError('Error', 'No se pudo enviar el correo. Intenta de nuevo.');
+    }
+  };
+
+  const handleConfirmarReset = async () => {
+    setResetError('');
+    if (codigo.length !== 6) { setResetError('Ingresa el código de 6 dígitos.'); return; }
+    if (nuevaPass.length < 6) { setResetError('La contraseña debe tener al menos 6 caracteres.'); return; }
+    if (nuevaPass !== confirmar) { setResetError('Las contraseñas no coinciden.'); return; }
+    setResetLoading(true);
+    try {
+      const res = await fetch(`${API}/auth/confirmar-reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ correo: user.correo, codigo, nuevaContrasenia: nuevaPass }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || 'Contraseña actual incorrecta.');
-      showSuccess('Contraseña actualizada', 'Tu contraseña fue cambiada correctamente.');
-      setPassForm({ contraseniaActual: '', nuevaContrasenia: '', confirmar: '' });
+      if (!res.ok) throw new Error(data?.message || 'Código incorrecto o expirado.');
+      setResetStep('success');
     } catch (e: any) {
-      showError('Error', e.message || 'No se pudo cambiar la contraseña.');
-    } finally { setSavingPass(false); }
+      setResetError(e.message);
+    } finally { setResetLoading(false); }
   };
+
+  const closeResetModal = () => {
+    setModalOpen(false);
+    setResetStep('idle');
+    setCodigo(''); setNuevaPass(''); setConfirmar(''); setResetError('');
+  };
+
+  const setF = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   const handleLogout = () => {
     localStorage.removeItem('adminUser');
     router.push('/auth/login');
   };
 
-  const setP = (k: string, v: string) => setPassForm((f) => ({ ...f, [k]: v }));
-  const setF = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
-
   return (
     <div className="p-8 max-w-3xl mx-auto">
       <ModalComponent />
+
+      {/* ── Modal cambio de contraseña ──────────────────────────────────────── */}
+      {modalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl">
+
+            {/* Header modal */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center">
+                  {resetStep === 'success'
+                    ? <CheckCircle2 className="w-5 h-5 text-[#449D3A]" />
+                    : <KeyRound className="w-5 h-5 text-[#449D3A]" />}
+                </div>
+                <h3 className="font-bold text-gray-900 text-lg">
+                  {resetStep === 'success' ? '¡Contraseña actualizada!' : 'Cambiar contraseña'}
+                </h3>
+              </div>
+              <button onClick={closeResetModal} className="text-gray-400 hover:text-gray-600 transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6">
+              {resetStep === 'code' && (
+                <div className="space-y-4">
+                  <p className="text-sm text-gray-500 leading-relaxed">
+                    Enviamos un código de verificación a{' '}
+                    <span className="font-semibold text-gray-700">{maskEmail(user?.correo ?? '')}</span>.{' '}
+                    Válido por <strong>15 minutos</strong>. Revisa también tu carpeta de spam.
+                  </p>
+
+                  {resetError && (
+                    <div className="bg-red-50 border border-red-200 text-red-600 rounded-xl px-4 py-3 text-sm font-semibold text-center">
+                      {resetError}
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Código de 6 dígitos</label>
+                    <input
+                      type="text"
+                      value={codigo}
+                      onChange={(e) => setCodigo(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      maxLength={6}
+                      placeholder="000000"
+                      className="w-full border border-gray-200 rounded-xl px-4 py-3 text-center text-2xl font-bold tracking-[14px] focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Nueva contraseña</label>
+                    <div className="relative">
+                      <input
+                        type={showNueva ? 'text' : 'password'}
+                        value={nuevaPass}
+                        onChange={(e) => setNuevaPass(e.target.value)}
+                        placeholder="Mínimo 6 caracteres"
+                        className="w-full border border-gray-200 rounded-xl px-4 py-3 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A]"
+                      />
+                      <button type="button" onClick={() => setShowNueva(v => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                        {showNueva ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Confirmar contraseña</label>
+                    <div className="relative">
+                      <input
+                        type={showConf ? 'text' : 'password'}
+                        value={confirmar}
+                        onChange={(e) => setConfirmar(e.target.value)}
+                        placeholder="Repite la contraseña"
+                        className="w-full border border-gray-200 rounded-xl px-4 py-3 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A]"
+                      />
+                      <button type="button" onClick={() => setShowConf(v => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                        {showConf ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={handleConfirmarReset}
+                    disabled={resetLoading}
+                    className="w-full bg-[#449D3A] text-white font-bold py-3 rounded-xl hover:bg-[#367d2e] disabled:opacity-50 transition-colors"
+                  >
+                    {resetLoading ? 'Actualizando...' : 'Actualizar contraseña'}
+                  </button>
+
+                  <button
+                    onClick={() => { setResetStep('idle'); setModalOpen(false); handleEnviarCodigo(); }}
+                    className="w-full py-2.5 rounded-xl text-sm font-semibold text-gray-500 hover:bg-gray-50 transition-colors"
+                  >
+                    Reenviar código
+                  </button>
+                </div>
+              )}
+
+              {resetStep === 'success' && (
+                <div className="text-center py-4">
+                  <CheckCircle2 className="w-16 h-16 text-[#449D3A] mx-auto mb-4" />
+                  <p className="text-gray-600 text-sm leading-relaxed mb-6">
+                    Tu contraseña fue cambiada correctamente. La próxima vez que inicies sesión usa tu nueva contraseña.
+                  </p>
+                  <button
+                    onClick={closeResetModal}
+                    className="w-full bg-[#449D3A] text-white font-bold py-3 rounded-xl hover:bg-[#367d2e] transition-colors"
+                  >
+                    Listo
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Configuración</h1>
@@ -115,16 +265,15 @@ export default function ConfiguracionPage() {
         ))}
       </div>
 
+      {/* ── TAB PERFIL ─────────────────────────────────────────────────────── */}
       {tab === 'perfil' && (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
-          {/* Foto */}
           <div className="p-6 border-b border-gray-100 flex items-center gap-5">
             <div className="relative">
               <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden border-2 border-white shadow-md">
                 {form.urlFotoPerfil
                   ? <img src={form.urlFotoPerfil} alt="Foto de perfil" className="w-full h-full object-cover" />
-                  : <User className="w-10 h-10 text-gray-400" />
-                }
+                  : <User className="w-10 h-10 text-gray-400" />}
               </div>
               <label className="absolute -bottom-1 -right-1 w-7 h-7 bg-[#449D3A] rounded-full flex items-center justify-center cursor-pointer shadow-sm hover:bg-[#367d2e] transition-colors">
                 <Camera className="w-3.5 h-3.5 text-white" />
@@ -134,35 +283,25 @@ export default function ConfiguracionPage() {
             <div>
               <p className="font-bold text-gray-900">{user?.nombres} {user?.apellidoPaterno}</p>
               <p className="text-sm text-gray-500">{user?.correo}</p>
-              <span className="inline-block mt-1 text-[10px] font-bold text-[#449D3A] bg-green-50 px-2 py-0.5 rounded-full uppercase">
-                {user?.rolEvento}
-              </span>
+              <span className="inline-block mt-1 text-[10px] font-bold text-[#449D3A] bg-green-50 px-2 py-0.5 rounded-full uppercase">{user?.rolEvento}</span>
               {uploading && <p className="text-xs text-[#449D3A] mt-1">Subiendo imagen...</p>}
             </div>
           </div>
 
           <div className="p-6 space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Nombres</label>
-                <input value={form.nombres} onChange={(e) => setF('nombres', e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Apellido paterno</label>
-                <input value={form.apellidoPaterno} onChange={(e) => setF('apellidoPaterno', e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Apellido materno</label>
-                <input value={form.apellidoMaterno} onChange={(e) => setF('apellidoMaterno', e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Teléfono</label>
-                <input value={form.telefono} onChange={(e) => setF('telefono', e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
-              </div>
+              {[
+                { label: 'Nombres', key: 'nombres' },
+                { label: 'Apellido paterno', key: 'apellidoPaterno' },
+                { label: 'Apellido materno', key: 'apellidoMaterno' },
+                { label: 'Teléfono', key: 'telefono' },
+              ].map(({ label, key }) => (
+                <div key={key}>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">{label}</label>
+                  <input value={form[key as keyof typeof form]} onChange={(e) => setF(key, e.target.value)}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
+                </div>
+              ))}
               <div className="col-span-2">
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Correo electrónico</label>
                 <input value={user?.correo || ''} disabled
@@ -170,7 +309,6 @@ export default function ConfiguracionPage() {
                 <p className="text-xs text-gray-400 mt-1">El correo no se puede modificar.</p>
               </div>
             </div>
-
             <div className="flex justify-end pt-2">
               <button onClick={handleSavePerfil} disabled={saving}
                 className="flex items-center gap-2 bg-[#449D3A] text-white font-semibold px-6 py-2.5 rounded-xl hover:bg-[#367d2e] disabled:opacity-50 transition-colors shadow-sm">
@@ -182,52 +320,46 @@ export default function ConfiguracionPage() {
         </div>
       )}
 
+      {/* ── TAB SEGURIDAD ──────────────────────────────────────────────────── */}
       {tab === 'seguridad' && (
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 bg-orange-50 rounded-lg flex items-center justify-center">
-              <Lock className="w-5 h-5 text-orange-500" />
-            </div>
-            <div>
-              <h2 className="font-bold text-gray-900">Cambiar contraseña</h2>
-              <p className="text-sm text-gray-500">Usa una contraseña de al menos 6 caracteres.</p>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            {[
-              { label: 'Contraseña actual', key: 'contraseniaActual', showKey: 'actual' },
-              { label: 'Nueva contraseña', key: 'nuevaContrasenia', showKey: 'nueva' },
-              { label: 'Confirmar nueva contraseña', key: 'confirmar', showKey: 'conf' },
-            ].map(({ label, key, showKey }) => (
-              <div key={key}>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">{label}</label>
-                <div className="relative">
-                  <input
-                    type={showPass[showKey as keyof typeof showPass] ? 'text' : 'password'}
-                    value={passForm[key as keyof typeof passForm]}
-                    onChange={(e) => setP(key, e.target.value)}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2.5 pr-10 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]"
-                  />
-                  <button type="button"
-                    onClick={() => setShowPass((p) => ({ ...p, [showKey]: !p[showKey as keyof typeof p] }))}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                    {showPass[showKey as keyof typeof showPass] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
+        <div className="space-y-4">
+          {/* Tarjeta cambio de contraseña */}
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+            <div className="flex items-start gap-4 mb-6">
+              <div className="w-11 h-11 bg-green-50 rounded-xl flex items-center justify-center shrink-0">
+                <Lock className="w-5 h-5 text-[#449D3A]" />
               </div>
-            ))}
-
-            <div className="flex justify-end pt-2">
-              <button onClick={handleSavePassword} disabled={savingPass}
-                className="flex items-center gap-2 bg-[#449D3A] text-white font-semibold px-6 py-2.5 rounded-xl hover:bg-[#367d2e] disabled:opacity-50 transition-colors shadow-sm">
-                <Save className="w-4 h-4" />
-                {savingPass ? 'Cambiando...' : 'Cambiar contraseña'}
-              </button>
+              <div>
+                <h2 className="font-bold text-gray-900 text-base">Cambiar contraseña</h2>
+                <p className="text-sm text-gray-500 mt-0.5 leading-relaxed">
+                  Por seguridad, verificamos tu identidad enviando un código a tu correo antes de permitir el cambio.
+                </p>
+              </div>
             </div>
+
+            {/* Info correo */}
+            <div className="bg-gray-50 rounded-xl px-4 py-3.5 flex items-center gap-3 mb-6 border border-gray-100">
+              <Mail className="w-4 h-4 text-gray-400 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-xs text-gray-400 font-medium">Se enviará el código a</p>
+                <p className="text-sm font-semibold text-gray-800 truncate">{maskEmail(user?.correo ?? '')}</p>
+              </div>
+            </div>
+
+            <button
+              onClick={handleEnviarCodigo}
+              disabled={resetStep === 'sending'}
+              className="flex items-center gap-2 bg-[#449D3A] text-white font-semibold px-6 py-3 rounded-xl hover:bg-[#367d2e] disabled:opacity-60 transition-colors shadow-sm"
+            >
+              <Send className="w-4 h-4" />
+              {resetStep === 'sending' ? 'Enviando código...' : 'Enviar código de verificación'}
+            </button>
           </div>
 
-          <div className="mt-8 pt-6 border-t border-gray-100">
+          {/* Cerrar sesión */}
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+            <h2 className="font-bold text-gray-900 text-base mb-1">Sesión</h2>
+            <p className="text-sm text-gray-500 mb-4">Cierra tu sesión de forma segura en este dispositivo.</p>
             <button onClick={handleLogout}
               className="flex items-center gap-2 px-5 py-2.5 border border-gray-200 text-gray-600 font-semibold rounded-xl hover:bg-gray-50 transition-colors">
               <LogOut className="w-4 h-4" />
