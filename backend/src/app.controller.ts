@@ -247,6 +247,88 @@ export class AppController implements OnModuleInit {
     return { ...evento, stats: { empresasCount, mesasCount, actividadesCount, tecnicosCount } };
   }
 
+  @Get('public/verificar-empresa')
+  async verificarEmpresa(@Query('correo') correo: string) {
+    if (!correo) return { existe: false };
+    const eventoId = await this.getPrincipalEventoId();
+    if (!eventoId) return { existe: false };
+    const empresa = await this.prisma.empresa.findFirst({
+      where: { correoCorporativo: correo.trim(), estaActivo: 1 },
+    });
+    if (!empresa) return { existe: false };
+    const ee = await this.prisma.empresaevento.findFirst({
+      where: { empresa_id: empresa.id, evento_id: eventoId, estaActivo: 1 },
+    });
+    return { existe: !!ee, nombreEmpresa: ee ? empresa.nombre : undefined };
+  }
+
+  @Get('public/seguimiento')
+  async getSeguimiento(@Query('ee') eeId: string) {
+    const id = Number(eeId);
+    if (!id) throw new BadRequestException('ID inválido');
+    const ee: any = await this.prisma.empresaevento.findUnique({
+      where: { id },
+      include: {
+        empresa: { select: { nombre: true, rubro: true, correoCorporativo: true, urlFotoPerfil: true } },
+        evento: { select: { nombre: true, urlLogoEvento: true } },
+        empresaeventocomprobantes: { where: { estaActivo: 1 }, orderBy: { id: 'desc' }, take: 1 },
+        empresa_usuario: {
+          include: { usuario: { select: { nombres: true, apellidoPaterno: true, correo: true } } },
+        },
+      },
+    } as any);
+    if (!ee) throw new BadRequestException('Registro no encontrado');
+    return {
+      id: ee.id,
+      empresa: ee.empresa,
+      evento: { nombre: ee.evento?.nombre, urlLogoEvento: ee.evento?.urlLogoEvento },
+      estadoVerificacionPago: ee.estadoVerificacionPago,
+      estadoHabilitacionAcceso: ee.estadoHabilitacionAcceso,
+      observacionSobreComprobante: ee.observacionSobreComprobante,
+      montoPagado: ee.montoPagado,
+      tipoParticipacion: ee.tipoParticipacion,
+      numeroParticipantes: ee.numeroParticipantes,
+      fechaHoraEnvioComprobante: ee.fechaHoraEnvioComprobante,
+      urlComprobante: ee.empresaeventocomprobantes?.[0]?.urlComprobantePagoInscripcion ?? null,
+      tieneComprobante: ee.empresaeventocomprobantes?.length > 0,
+      encargado: ee.empresa_usuario?.find((eu: any) => eu.esResponsable === 1)?.usuario ?? null,
+    };
+  }
+
+  @Post('public/seguimiento/:id/comprobante')
+  async resubirComprobante(@Param('id') id: string, @Body() body: { urlComprobante: string }) {
+    const eeId = Number(id);
+    if (!eeId || !body.urlComprobante) throw new BadRequestException('Datos inválidos');
+
+    const ee = await this.prisma.empresaevento.findUnique({ where: { id: eeId } });
+    if (!ee) throw new BadRequestException('Registro no encontrado');
+    if (ee.estadoVerificacionPago === 'COMPLETADO' || ee.estadoVerificacionPago === 'RECHAZADO') {
+      throw new BadRequestException('No se puede modificar el comprobante en el estado actual');
+    }
+
+    // Desactivar comprobantes anteriores
+    await this.prisma.empresaeventocomprobantes.updateMany({
+      where: { empresaEvento_id: eeId, estaActivo: 1 },
+      data: { estaActivo: 0 },
+    });
+
+    // Crear nuevo comprobante
+    await this.prisma.empresaeventocomprobantes.create({
+      data: { empresaEvento_id: eeId, urlComprobantePagoInscripcion: body.urlComprobante, estaActivo: 1 },
+    });
+
+    // Volver a PENDIENTE — se mantiene la observación para que el encargado y el admin la vean
+    await this.prisma.empresaevento.update({
+      where: { id: eeId },
+      data: {
+        estadoVerificacionPago: 'PENDIENTE',
+        fechaHoraEnvioComprobante: new Date(),
+      },
+    });
+
+    return { ok: true };
+  }
+
   @Get('public/ciudades')
   async getCiudadesPublic() {
     return this.prisma.ciudad.findMany({
@@ -333,10 +415,18 @@ export class AppController implements OnModuleInit {
     const participantesCreados: any[] = [];
 
     for (const p of (body.participantes || [])) {
-      const partes = (p.nombreCompleto || '').trim().split(/\s+/);
-      const nombres = partes.slice(0, 2).join(' ') || 'Sin nombre';
-      const apellidoPaterno = partes[2] || partes[0] || 'Participante';
-      const apellidoMaterno = partes.length > 3 ? partes.slice(3).join(' ') : null;
+      // Soporte para campos separados (nuevo) o nombre completo (legacy)
+      let nombres: string, apellidoPaterno: string, apellidoMaterno: string | null;
+      if (p.nombres) {
+        nombres = p.nombres.trim() || 'Sin nombre';
+        apellidoPaterno = (p.apellidoPaterno || '').trim() || 'Participante';
+        apellidoMaterno = p.apellidoMaterno?.trim() || null;
+      } else {
+        const partes = (p.nombreCompleto || '').trim().split(/\s+/);
+        nombres = partes.slice(0, 2).join(' ') || 'Sin nombre';
+        apellidoPaterno = partes[2] || partes[0] || 'Participante';
+        apellidoMaterno = partes.length > 3 ? partes.slice(3).join(' ') : null;
+      }
 
       const usuario = await this.prisma.usuario.create({
         data: {
@@ -372,7 +462,48 @@ export class AppController implements OnModuleInit {
       });
     }
 
+    // Enviar email de confirmación al encargado
+    const encargado = (body.participantes || []).find((p: any) => p.esResponsable);
+    if (encargado?.correo) {
+      try {
+        const baseUrl = process.env.WEB_URL || 'http://localhost:3000';
+        const trackingUrl = `${baseUrl}/seguimiento?ee=${ee.id}`;
+        const transporter = createMailTransporter();
+        await transporter.sendMail({
+          from: process.env.MAIL_FROM,
+          to: encargado.correo,
+          subject: `Solicitud de inscripción recibida — ${evento.nombre ?? 'Rueda de Negocios'}`,
+          html: `
+            <div style="font-family:sans-serif;max-width:540px;margin:0 auto;padding:32px;background:#f9fafb;border-radius:12px">
+              <h2 style="color:#449D3A;margin-bottom:4px">¡Solicitud recibida con éxito!</h2>
+              <p style="color:#374151;margin-bottom:20px">
+                Hola <strong>${encargado.nombres ? `${encargado.nombres} ${encargado.apellidoPaterno || ''}`.trim() : encargado.nombreCompleto}</strong>, tu registro como encargado de
+                <strong>${empresa.nombre}</strong> en la <strong>${evento.nombre ?? 'Rueda de Negocios'}</strong> fue recibido correctamente.
+              </p>
+              <div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:20px;margin-bottom:20px">
+                <p style="color:#6b7280;font-size:13px;margin:0 0 12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Resumen de inscripción</p>
+                <table style="width:100%;border-collapse:collapse">
+                  <tr><td style="padding:5px 0;color:#6b7280;font-size:13px;width:150px">Empresa</td><td style="padding:5px 0;font-weight:700;color:#111827">${empresa.nombre}</td></tr>
+                  <tr><td style="padding:5px 0;color:#6b7280;font-size:13px">Estado del pago</td><td style="padding:5px 0;font-weight:700;color:#d97706">Pendiente de verificación</td></tr>
+                  <tr><td style="padding:5px 0;color:#6b7280;font-size:13px">Participantes</td><td style="padding:5px 0;font-weight:700;color:#111827">${ee.numeroParticipantes}</td></tr>
+                  <tr><td style="padding:5px 0;color:#6b7280;font-size:13px">Monto declarado</td><td style="padding:5px 0;font-weight:700;color:#111827">${ee.montoPagado} Bs.</td></tr>
+                </table>
+              </div>
+              <p style="color:#374151;font-size:14px;margin-bottom:20px">
+                Nuestro equipo verificará tu comprobante de pago. Te notificaremos por correo cuando tu cuenta esté habilitada.
+              </p>
+              <a href="${trackingUrl}" style="display:inline-block;background:#449D3A;color:#fff;text-decoration:none;font-weight:700;padding:14px 28px;border-radius:10px;font-size:14px">
+                Ver estado de mi inscripción →
+              </a>
+              <p style="color:#9ca3af;font-size:12px;margin-top:24px">Si no realizaste este registro, ignora este correo.</p>
+            </div>
+          `,
+        });
+      } catch (_) { /* no bloquear el registro si falla el correo */ }
+    }
+
     return {
+      empresaeventoId: ee.id,
       empresa: { id: empresa.id, nombre: empresa.nombre, rubro: empresa.rubro },
       empresaevento: {
         id: ee.id,
@@ -884,15 +1015,20 @@ export class AppController implements OnModuleInit {
       });
 
       const esEncargado = eu.esResponsable === 1;
-      const rolLabel = esEncargado ? 'Encargado' : 'Usuario';
-      const rolDesc = esEncargado
-        ? 'Como <strong>Encargado</strong> podrás gestionar reuniones, ver las mesas asignadas, directorio de empresas y mucho más.'
-        : 'Como <strong>Usuario</strong> podrás consultar tus reuniones confirmadas, mesas, noticias y actividades del evento.';
+      const encargadoBanner = esEncargado
+        ? `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px 18px;margin-bottom:20px;display:flex;align-items:center;gap:10px">
+            <span style="font-size:20px">⭐</span>
+            <div>
+              <p style="margin:0;font-weight:700;color:#166534;font-size:14px">Eres el Encargado de la empresa</p>
+              <p style="margin:4px 0 0;color:#15803d;font-size:12px">Podrás gestionar reuniones, ver mesas asignadas y el directorio de empresas.</p>
+            </div>
+          </div>`
+        : '';
 
       await transporter.sendMail({
         from: process.env.MAIL_FROM,
         to: u.correo,
-        subject: `¡Tu acceso ha sido aprobado! — ${(ee as any).evento?.nombreEvento ?? 'Rueda de Negocios'}`,
+        subject: `¡Tu acceso ha sido aprobado! — ${(ee as any).evento?.nombre ?? 'Rueda de Negocios'}`,
         html: `
           <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px;background:#f9fafb;border-radius:12px">
             <h2 style="color:#449D3A;margin-bottom:4px">¡Bienvenido/a a la Rueda de Negocios!</h2>
@@ -900,15 +1036,14 @@ export class AppController implements OnModuleInit {
               Hola <strong>${u.nombres} ${u.apellidoPaterno}</strong>, tu registro como parte de
               <strong>${(ee as any).empresa?.nombre ?? ''}</strong> ha sido <strong style="color:#449D3A">aprobado</strong>.
             </p>
+            ${encargadoBanner}
             <div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:20px;margin-bottom:20px">
               <p style="color:#6b7280;font-size:13px;margin:0 0 12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Tus credenciales de acceso</p>
               <table style="width:100%;border-collapse:collapse">
                 <tr><td style="padding:6px 0;color:#6b7280;font-size:13px;width:110px">Correo</td><td style="padding:6px 0;font-weight:700;color:#111827">${u.correo}</td></tr>
                 <tr><td style="padding:6px 0;color:#6b7280;font-size:13px">Contraseña</td><td style="padding:6px 0;font-weight:700;color:#111827;font-size:18px;letter-spacing:2px">${pwd}</td></tr>
-                <tr><td style="padding:6px 0;color:#6b7280;font-size:13px">Rol</td><td style="padding:6px 0;font-weight:700;color:#449D3A">${rolLabel}</td></tr>
               </table>
             </div>
-            <p style="color:#374151;font-size:14px;margin-bottom:20px">${rolDesc}</p>
             <p style="color:#9ca3af;font-size:12px;margin:0">Por seguridad, te recomendamos cambiar tu contraseña después del primer inicio de sesión.</p>
           </div>
         `,
@@ -920,26 +1055,117 @@ export class AppController implements OnModuleInit {
 
   @Put('admin/pagos/:id/observar')
   async observarPago(@Param('id') id: string, @Body() body: { observacion: string }) {
-    return await this.prisma.empresaevento.update({
+    if (!body.observacion?.trim()) throw new BadRequestException('La observación es requerida');
+
+    const ee: any = await this.prisma.empresaevento.update({
       where: { id: Number(id) },
       data: {
         estadoVerificacionPago: 'OBSERVADO',
         estadoHabilitacionAcceso: 'NO_HABILITADO',
         observacionSobreComprobante: body.observacion,
       },
-    });
+      include: {
+        empresa: true,
+        evento: true,
+        empresa_usuario: {
+          where: { esResponsable: 1 },
+          include: { usuario: { select: { nombres: true, apellidoPaterno: true, correo: true } } },
+        },
+      },
+    } as any);
+
+    const encargado = ee.empresa_usuario?.[0]?.usuario;
+    if (encargado?.correo) {
+      try {
+        const transporter = createMailTransporter();
+        const baseUrl = process.env.WEB_URL || 'http://localhost:3000';
+        const trackingUrl = `${baseUrl}/seguimiento?ee=${ee.id}`;
+        await transporter.sendMail({
+          from: process.env.MAIL_FROM,
+          to: encargado.correo,
+          subject: `Comprobante con observaciones — ${ee.evento?.nombre ?? 'Rueda de Negocios'}`,
+          html: `
+            <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px;background:#f9fafb;border-radius:12px">
+              <h2 style="color:#d97706;margin-bottom:4px">Comprobante con observaciones</h2>
+              <p style="color:#374151;margin-bottom:20px">
+                Hola <strong>${encargado.nombres} ${encargado.apellidoPaterno}</strong>, el comprobante de pago de
+                <strong>${ee.empresa?.nombre ?? ''}</strong> para el evento <strong>${ee.evento?.nombre ?? 'Rueda de Negocios'}</strong> ha sido revisado y presenta observaciones.
+              </p>
+              <div style="background:#fff;border:2px solid #fbbf24;border-radius:10px;padding:20px;margin-bottom:20px">
+                <p style="color:#92400e;font-size:13px;margin:0 0 8px;font-weight:700;text-transform:uppercase">Observación del equipo:</p>
+                <p style="color:#374151;font-size:14px;margin:0">${body.observacion}</p>
+              </div>
+              <p style="color:#374151;font-size:14px;margin-bottom:20px">
+                Puedes subir un nuevo comprobante corregido directamente desde el enlace de seguimiento de tu inscripción:
+              </p>
+              <a href="${trackingUrl}" style="display:inline-block;background:#d97706;color:#fff;text-decoration:none;font-weight:700;padding:14px 28px;border-radius:10px;font-size:14px;margin-bottom:20px">
+                Ver seguimiento y subir nuevo comprobante →
+              </a>
+              <p style="color:#6b7280;font-size:13px;margin:0">
+                Si tienes dudas o necesitas ayuda, puedes responder a este correo o contactarnos directamente en
+                <a href="mailto:${process.env.MAIL_FROM}" style="color:#449D3A;font-weight:700">${process.env.MAIL_FROM}</a>.
+              </p>
+            </div>
+          `,
+        });
+      } catch (_) { /* no bloquear si falla el correo */ }
+    }
+
+    return ee;
   }
 
   @Put('admin/pagos/:id/rechazar')
   async rechazarPago(@Param('id') id: string, @Body() body: { motivo: string }) {
-    return await this.prisma.empresaevento.update({
+    if (!body.motivo?.trim()) throw new BadRequestException('El motivo de rechazo es requerido');
+
+    const ee: any = await this.prisma.empresaevento.update({
       where: { id: Number(id) },
       data: {
         estadoVerificacionPago: 'RECHAZADO',
         estadoHabilitacionAcceso: 'NO_HABILITADO',
         motivoRechazoAcceso: body.motivo,
+        observacionSobreComprobante: body.motivo,
       },
-    });
+      include: {
+        empresa: true,
+        evento: true,
+        empresa_usuario: {
+          where: { esResponsable: 1 },
+          include: { usuario: { select: { nombres: true, apellidoPaterno: true, correo: true } } },
+        },
+      },
+    } as any);
+
+    const encargado = ee.empresa_usuario?.[0]?.usuario;
+    if (encargado?.correo) {
+      try {
+        const transporter = createMailTransporter();
+        await transporter.sendMail({
+          from: process.env.MAIL_FROM,
+          to: encargado.correo,
+          subject: `Comprobante de pago rechazado — ${ee.evento?.nombre ?? 'Rueda de Negocios'}`,
+          html: `
+            <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px;background:#f9fafb;border-radius:12px">
+              <h2 style="color:#dc2626;margin-bottom:4px">Comprobante rechazado</h2>
+              <p style="color:#374151;margin-bottom:20px">
+                Hola <strong>${encargado.nombres} ${encargado.apellidoPaterno}</strong>, lamentamos informarte que el comprobante de pago de
+                <strong>${ee.empresa?.nombre ?? ''}</strong> para el evento <strong>${ee.evento?.nombre ?? 'Rueda de Negocios'}</strong> ha sido rechazado.
+              </p>
+              <div style="background:#fff;border:2px solid #fca5a5;border-radius:10px;padding:20px;margin-bottom:20px">
+                <p style="color:#991b1b;font-size:13px;margin:0 0 8px;font-weight:700;text-transform:uppercase">Motivo del rechazo:</p>
+                <p style="color:#374151;font-size:14px;margin:0">${body.motivo}</p>
+              </div>
+              <p style="color:#6b7280;font-size:13px;margin:0">
+                Si tienes dudas o crees que hay un error, puedes responder a este correo o contactarnos directamente en
+                <a href="mailto:${process.env.MAIL_FROM}" style="color:#449D3A;font-weight:700">${process.env.MAIL_FROM}</a>.
+              </p>
+            </div>
+          `,
+        });
+      } catch (_) { /* no bloquear si falla el correo */ }
+    }
+
+    return ee;
   }
 
   // ─── ACTIVIDADES DEL PROGRAMA ────────────────────────────────────────────────
@@ -2011,12 +2237,13 @@ export class AppController implements OnModuleInit {
   @Post('auth/solicitar-reset')
   async solicitarReset(@Body() body: { correo: string }) {
     try {
+      // Obtener el usuario más reciente con ese correo (evita afectar duplicados históricos)
       const u = await this.prisma.usuario.findFirst({
         where: { correo: body.correo, estaActivo: 1 },
         select: { id: true, nombres: true, correo: true },
+        orderBy: { id: 'desc' },
       });
-      // Siempre respondemos igual para no revelar si el correo existe
-      if (!u) return { ok: true };
+      if (!u) throw new BadRequestException('No existe una cuenta registrada con ese correo electrónico.');
 
       const codigo = generarCodigo();
       const hashed = await bcrypt.hash(codigo, 10);
@@ -2060,21 +2287,36 @@ export class AppController implements OnModuleInit {
       if (body.nuevaContrasenia.length < 6)
         throw new BadRequestException('La contraseña debe tener al menos 6 caracteres');
 
-      const u = await this.prisma.usuario.findFirst({
-        where: { correo: body.correo, estaActivo: 1 },
+      // Obtener el usuario con token más reciente para ese correo
+      const candidatos = await this.prisma.usuario.findMany({
+        where: { correo: body.correo, estaActivo: 1, resetToken: { not: null } },
         select: { id: true, resetToken: true, resetTokenExpiry: true },
+        orderBy: { id: 'desc' },
       });
-      if (!u || !u.resetToken) throw new BadRequestException('Código inválido o expirado');
+      if (!candidatos.length) throw new BadRequestException('Código inválido o expirado');
 
-      const expired = !u.resetTokenExpiry || new Date(u.resetTokenExpiry) < new Date();
-      if (expired) throw new BadRequestException('El código ha expirado. Solicita uno nuevo');
+      // Buscar el primer candidato cuyo token no haya expirado y cuyo código sea correcto
+      let usuarioValido: (typeof candidatos)[0] | null = null;
+      for (const c of candidatos) {
+        const expired = !c.resetTokenExpiry || new Date(c.resetTokenExpiry) < new Date();
+        if (expired) continue;
+        const valid = await bcrypt.compare(body.codigo, c.resetToken!);
+        if (valid) { usuarioValido = c; break; }
+      }
 
-      const valid = await bcrypt.compare(body.codigo, u.resetToken);
-      if (!valid) throw new BadRequestException('Código incorrecto');
+      if (!usuarioValido) {
+        // Verificar si algún candidato tiene el token correcto pero expirado
+        for (const c of candidatos) {
+          if (c.resetToken && await bcrypt.compare(body.codigo, c.resetToken)) {
+            throw new BadRequestException('El código ha expirado. Solicita uno nuevo');
+          }
+        }
+        throw new BadRequestException('Código incorrecto');
+      }
 
       const hashed = await bcrypt.hash(body.nuevaContrasenia, 10);
       await this.prisma.usuario.update({
-        where: { id: u.id },
+        where: { id: usuarioValido.id },
         data: { contrasenia: hashed, resetToken: null, resetTokenExpiry: null, creadoModificadoFecha: new Date() },
       });
 

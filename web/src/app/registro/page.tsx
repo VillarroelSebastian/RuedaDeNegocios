@@ -6,8 +6,8 @@ import Link from "next/link";
 import {
   Building2, Users, CreditCard, CheckCircle2,
   ChevronRight, ChevronLeft, Plus, Trash2,
-  Upload, QrCode, User,
-  AlertCircle, X, Check,
+  Upload, QrCode, User, MapPin, FileText, ClipboardList,
+  AlertCircle, X, Check, RefreshCw,
 } from "lucide-react";
 
 const API = "http://localhost:3334";
@@ -178,6 +178,8 @@ export default function RegistroPage() {
   const [result, setResult] = useState<any>(null);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [showParticipants, setShowParticipants] = useState(false);
+  const [correoError, setCorreoError] = useState<string | null>(null);
+  const [checkingCorreo, setCheckingCorreo] = useState(false);
 
   // Modal
   const [modal, setModal] = useState({ open: false, type: "error", title: "", message: "", onConfirm: undefined as any });
@@ -200,7 +202,8 @@ export default function RegistroPage() {
 
   // Step 3
   const [responsable, setResponsable] = useState({
-    nombreCompleto: "", cargo: "", correo: "", telefono: "", esResponsable: true,
+    nombres: "", apellidoPaterno: "", apellidoMaterno: "",
+    cargo: "", correo: "", telefono: "", esResponsable: true,
   });
   const [adicionales, setAdicionales] = useState<any[]>([]);
 
@@ -223,6 +226,24 @@ export default function RegistroPage() {
     (r: any) => participacion.numeroParticipantes >= r.rangoDesde && participacion.numeroParticipantes <= r.rangoHasta,
   ) ?? evento?.eventoreglaqr?.[0];
 
+  /* ─── Verificar correo duplicado ───────────────────────────── */
+  const verificarCorreo = async (correo: string): Promise<string | null> => {
+    if (!correo || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) return null;
+    setCheckingCorreo(true);
+    setCorreoError(null);
+    try {
+      const res = await fetch(`${API}/public/verificar-empresa?correo=${encodeURIComponent(correo)}`);
+      const data = await res.json();
+      if (data.existe) {
+        const msg = `La empresa "${data.nombreEmpresa}" ya está registrada con este correo para el evento actual.`;
+        setCorreoError(msg);
+        return msg;
+      }
+      return null;
+    } catch { return null; }
+    finally { setCheckingCorreo(false); }
+  };
+
   /* ─── File upload ───────────────────────────────────────────── */
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -244,6 +265,10 @@ export default function RegistroPage() {
     }
   };
 
+  /* ─── Helpers ──────────────────────────────────────────────── */
+  const sanitizeTel = (v: string) => v.replace(/[^\d\s+\-()]/g, "").slice(0, 20);
+  const validTel = (v: string) => /^[+]?\d[\d\s\-()]{5,19}$/.test(v.trim());
+
   /* ─── Validations ───────────────────────────────────────────── */
   const validateStep1 = () => {
     if (!empresa.nombre.trim()) return "El nombre de la empresa es obligatorio.";
@@ -253,6 +278,7 @@ export default function RegistroPage() {
     if (!empresa.correoCorporativo.trim()) return "El correo corporativo es obligatorio.";
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(empresa.correoCorporativo)) return "El correo corporativo no es válido.";
     if (!empresa.telefonoWhatsapp.trim()) return "El teléfono/WhatsApp es obligatorio.";
+    if (!validTel(empresa.telefonoWhatsapp)) return "El teléfono/WhatsApp no es válido. Usa solo dígitos, espacios, +, - o ().";
     if (participacion.numeroParticipantes < 1) return "Debe haber al menos 1 participante.";
     return null;
   };
@@ -262,17 +288,21 @@ export default function RegistroPage() {
     return null;
   };
   const validateStep3 = () => {
-    if (!responsable.nombreCompleto.trim()) return "El nombre completo del responsable es obligatorio.";
+    if (!responsable.nombres.trim()) return "El nombre del responsable es obligatorio.";
+    if (!responsable.apellidoPaterno.trim()) return "El apellido paterno del responsable es obligatorio.";
     if (!responsable.cargo.trim()) return "El cargo del responsable es obligatorio.";
     if (!responsable.correo.trim()) return "El correo del responsable es obligatorio.";
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(responsable.correo)) return "El correo del responsable no es válido.";
     if (!responsable.telefono.trim()) return "El teléfono del responsable es obligatorio.";
+    if (!validTel(responsable.telefono)) return "El teléfono del responsable no es válido. Usa solo dígitos, espacios, +, - o ().";
     for (const [i, p] of adicionales.entries()) {
-      if (!p.nombreCompleto.trim()) return `El nombre del participante ${i + 2} es obligatorio.`;
+      if (!p.nombres?.trim()) return `El nombre del participante ${i + 2} es obligatorio.`;
+      if (!p.apellidoPaterno?.trim()) return `El apellido paterno del participante ${i + 2} es obligatorio.`;
       if (!p.cargo.trim()) return `El cargo del participante ${i + 2} es obligatorio.`;
       if (!p.correo.trim()) return `El correo del participante ${i + 2} es obligatorio.`;
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.correo)) return `El correo del participante ${i + 2} no es válido.`;
       if (!p.telefono.trim()) return `El teléfono del participante ${i + 2} es obligatorio.`;
+      if (!validTel(p.telefono)) return `El teléfono del participante ${i + 2} no es válido. Usa solo dígitos, +, - o ().`;
     }
     const totalParticipantes = 1 + adicionales.length;
     if (totalParticipantes > participacion.numeroParticipantes) {
@@ -281,13 +311,23 @@ export default function RegistroPage() {
     return null;
   };
 
-  const goNext = () => {
-    let err: string | null = null;
-    if (step === 1) err = validateStep1();
-    if (step === 2) err = validateStep2();
-    if (step === 3) err = validateStep3();
-    if (err) { showModal("warning", "Campos requeridos", err); return; }
-    if (step === 3) { handleSubmit(); return; }
+  const goNext = async () => {
+    if (step === 1) {
+      // Validate fields first
+      const fieldErr = validateStep1();
+      if (fieldErr) { showModal("warning", "Campos requeridos", fieldErr); return; }
+      // Always verify email against DB when clicking Continuar
+      const emailErr = await verificarCorreo(empresa.correoCorporativo);
+      if (emailErr) return; // error already shown inline below the email field
+    } else if (step === 2) {
+      const err = validateStep2();
+      if (err) { showModal("warning", "Campos requeridos", err); return; }
+    } else if (step === 3) {
+      const err = validateStep3();
+      if (err) { showModal("warning", "Campos requeridos", err); return; }
+      handleSubmit();
+      return;
+    }
     setStep((s) => s + 1);
     window.scrollTo(0, 0);
   };
@@ -323,7 +363,7 @@ export default function RegistroPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || "Error al registrar.");
-      setResult(data);
+      setResult({ ...data, empresaeventoId: data.empresaeventoId ?? data.empresaevento?.id });
       setStep(4);
       window.scrollTo(0, 0);
     } catch (e: any) {
@@ -425,12 +465,29 @@ export default function RegistroPage() {
                     className={inputCls} placeholder="https://www.tuempresa.com" />
                 </Field>
                 <Field label="Email Corporativo" required>
-                  <input type="email" value={empresa.correoCorporativo} onChange={(e) => setEmpresa((f) => ({ ...f, correoCorporativo: e.target.value }))}
-                    className={inputCls} placeholder="contacto@empresa.com" />
+                  <input
+                    type="email"
+                    value={empresa.correoCorporativo}
+                    onChange={(e) => { setEmpresa((f) => ({ ...f, correoCorporativo: e.target.value })); setCorreoError(null); }}
+                    onBlur={(e) => verificarCorreo(e.target.value)}
+                    className={`${inputCls} ${correoError ? "border-red-400 focus:border-red-400 focus:ring-red-200" : ""}`}
+                    placeholder="contacto@empresa.com"
+                  />
+                  {checkingCorreo && <p className="text-xs text-gray-400 mt-1">Verificando...</p>}
+                  {correoError && (
+                    <div className="flex items-start gap-2 mt-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                      <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                      <p className="text-xs text-red-600 font-semibold">{correoError}</p>
+                    </div>
+                  )}
                 </Field>
                 <Field label="Teléfono / WhatsApp" required>
-                  <input value={empresa.telefonoWhatsapp} onChange={(e) => setEmpresa((f) => ({ ...f, telefonoWhatsapp: e.target.value }))}
-                    className={inputCls} placeholder="+591 70000000" />
+                  <input
+                    value={empresa.telefonoWhatsapp}
+                    onChange={(e) => setEmpresa((f) => ({ ...f, telefonoWhatsapp: sanitizeTel(e.target.value) }))}
+                    className={inputCls} placeholder="+591 70000000"
+                    inputMode="tel" maxLength={20}
+                  />
                 </Field>
                 <div className="sm:col-span-2">
                   <Field label="Descripción de la Empresa">
@@ -495,7 +552,7 @@ export default function RegistroPage() {
               {/* Resumen */}
               <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
                 <div className="flex items-center gap-2 mb-4">
-                  <span className="text-base">📋</span>
+                  <ClipboardList className="w-5 h-5 text-[#449D3A]" />
                   <h2 className="font-bold text-gray-900">1. Resumen de Inscripción</h2>
                 </div>
                 <div className="space-y-2 text-sm">
@@ -520,27 +577,30 @@ export default function RegistroPage() {
               {/* Comprobante */}
               <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
                 <div className="flex items-center gap-2 mb-4">
-                  <span className="text-base">📄</span>
+                  <FileText className="w-5 h-5 text-[#449D3A]" />
                   <h2 className="font-bold text-gray-900">3. Comprobante de Pago</h2>
                 </div>
                 <p className="text-xs text-gray-500 mb-3">Subir comprobante (Imagen o PDF)</p>
                 {urlComprobante ? (
-                  <div className="relative">
+                  <div>
                     <div
                       className="w-full h-40 rounded-xl border-2 border-[#449D3A] overflow-hidden bg-gray-50 flex items-center justify-center cursor-pointer"
                       onClick={() => setLightboxUrl(urlComprobante)}
                       title="Click para ampliar"
                     >
                       {urlComprobante.includes(".pdf") || urlComprobante.includes("/raw/upload/")
-                        ? <div className="text-center"><span className="text-4xl">📄</span><p className="text-sm text-gray-600 mt-1 font-semibold">PDF subido — click para ver</p></div>
+                        ? <div className="text-center"><FileText className="w-10 h-10 text-[#449D3A] mx-auto mb-1" /><p className="text-sm text-gray-600 font-semibold">PDF subido — clic para ver</p></div>
                         : <img src={urlComprobante} alt="Comprobante" className="w-full h-full object-contain" />
                       }
                     </div>
-                    <button onClick={() => setUrlComprobante("")}
-                      className="absolute top-2 right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600">
-                      <X className="w-3 h-3" />
-                    </button>
-                    <p className="text-[10px] text-gray-400 mt-1 text-center">Haz clic en la imagen para ampliar</p>
+                    <div className="flex items-center justify-between mt-2">
+                      <p className="text-[10px] text-gray-400">Clic en la imagen para ampliar</p>
+                      <label className="flex items-center gap-1.5 text-xs font-semibold text-[#449D3A] cursor-pointer hover:text-[#367d2e] transition-colors">
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        Cambiar comprobante
+                        <input type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => { setUrlComprobante(""); handleFileUpload(e); }} />
+                      </label>
+                    </div>
                   </div>
                 ) : (
                   <label className={`block w-full border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${uploadingFile ? "border-[#449D3A] bg-green-50" : "border-gray-200 hover:border-[#449D3A] hover:bg-green-50"}`}>
@@ -608,9 +668,17 @@ export default function RegistroPage() {
                 <h2 className="font-bold text-gray-900">Responsable principal</h2>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Field label="Nombre completo" required>
-                  <input value={responsable.nombreCompleto} onChange={(e) => setResponsable((r) => ({ ...r, nombreCompleto: e.target.value }))}
-                    className={inputCls} placeholder="Carlos Eduardo Mendoza" />
+                <Field label="Nombre(s)" required>
+                  <input value={responsable.nombres} onChange={(e) => setResponsable((r) => ({ ...r, nombres: e.target.value }))}
+                    className={inputCls} placeholder="Carlos Eduardo" />
+                </Field>
+                <Field label="Apellido paterno" required>
+                  <input value={responsable.apellidoPaterno} onChange={(e) => setResponsable((r) => ({ ...r, apellidoPaterno: e.target.value }))}
+                    className={inputCls} placeholder="Mendoza" />
+                </Field>
+                <Field label="Apellido materno">
+                  <input value={responsable.apellidoMaterno} onChange={(e) => setResponsable((r) => ({ ...r, apellidoMaterno: e.target.value }))}
+                    className={inputCls} placeholder="Quispe (opcional)" />
                 </Field>
                 <Field label="Cargo" required>
                   <input value={responsable.cargo} onChange={(e) => setResponsable((r) => ({ ...r, cargo: e.target.value }))}
@@ -621,8 +689,12 @@ export default function RegistroPage() {
                     className={inputCls} placeholder="carlos.mendoza@empresa.com" />
                 </Field>
                 <Field label="Teléfono" required>
-                  <input value={responsable.telefono} onChange={(e) => setResponsable((r) => ({ ...r, telefono: e.target.value }))}
-                    className={inputCls} placeholder="+591 789 45612" />
+                  <input
+                    value={responsable.telefono}
+                    onChange={(e) => setResponsable((r) => ({ ...r, telefono: sanitizeTel(e.target.value) }))}
+                    className={inputCls} placeholder="+591 789 45612"
+                    inputMode="tel" maxLength={20}
+                  />
                 </Field>
               </div>
             </section>
@@ -641,9 +713,17 @@ export default function RegistroPage() {
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <Field label="Nombre completo" required>
-                        <input value={p.nombreCompleto} onChange={(e) => setAdicionales((a) => a.map((x, j) => j === i ? { ...x, nombreCompleto: e.target.value } : x))}
-                          className={inputCls} placeholder="Ej: María López" />
+                      <Field label="Nombre(s)" required>
+                        <input value={p.nombres} onChange={(e) => setAdicionales((a) => a.map((x, j) => j === i ? { ...x, nombres: e.target.value } : x))}
+                          className={inputCls} placeholder="Ej: María" />
+                      </Field>
+                      <Field label="Apellido paterno" required>
+                        <input value={p.apellidoPaterno} onChange={(e) => setAdicionales((a) => a.map((x, j) => j === i ? { ...x, apellidoPaterno: e.target.value } : x))}
+                          className={inputCls} placeholder="Ej: López" />
+                      </Field>
+                      <Field label="Apellido materno">
+                        <input value={p.apellidoMaterno} onChange={(e) => setAdicionales((a) => a.map((x, j) => j === i ? { ...x, apellidoMaterno: e.target.value } : x))}
+                          className={inputCls} placeholder="Opcional" />
                       </Field>
                       <Field label="Cargo" required>
                         <input value={p.cargo} onChange={(e) => setAdicionales((a) => a.map((x, j) => j === i ? { ...x, cargo: e.target.value } : x))}
@@ -654,8 +734,12 @@ export default function RegistroPage() {
                           className={inputCls} placeholder="maria.lopez@empresa.com" />
                       </Field>
                       <Field label="Teléfono" required>
-                        <input value={p.telefono} onChange={(e) => setAdicionales((a) => a.map((x, j) => j === i ? { ...x, telefono: e.target.value } : x))}
-                          className={inputCls} placeholder="+591 7XX XXXXX" />
+                        <input
+                          value={p.telefono}
+                          onChange={(e) => setAdicionales((a) => a.map((x, j) => j === i ? { ...x, telefono: sanitizeTel(e.target.value) } : x))}
+                          className={inputCls} placeholder="+591 7XX XXXXX"
+                          inputMode="tel" maxLength={20}
+                        />
                       </Field>
                     </div>
                   </div>
@@ -669,7 +753,7 @@ export default function RegistroPage() {
                   showModal("warning", "Límite alcanzado", `Ya alcanzaste el número de participantes declarado (${participacion.numeroParticipantes}).`);
                   return;
                 }
-                setAdicionales((a) => [...a, { nombreCompleto: "", cargo: "", correo: "", telefono: "" }]);
+                setAdicionales((a) => [...a, { nombres: "", apellidoPaterno: "", apellidoMaterno: "", cargo: "", correo: "", telefono: "" }]);
               }}
                 className="flex items-center gap-2 px-5 py-2.5 border border-[#449D3A] text-[#449D3A] rounded-xl text-sm font-semibold hover:bg-green-50 transition-colors">
                 <Plus className="w-4 h-4" /> Agregar otro participante
@@ -699,12 +783,14 @@ export default function RegistroPage() {
               {/* Stats */}
               <div className="grid grid-cols-3 gap-4 mt-8">
                 {[
-                  { icon: "🏢", label: "EMPRESA",       value: result.empresa?.nombre },
-                  { icon: "👥", label: "PARTICIPANTES", value: `${result.empresaevento?.numeroParticipantes} registrado${result.empresaevento?.numeroParticipantes > 1 ? "s" : ""}` },
-                  { icon: "💳", label: "ESTADO PAGO",   value: "Pendiente verificación" },
+                  { Icon: Building2,  color: "bg-green-50 text-[#449D3A]",  label: "EMPRESA",       value: result.empresa?.nombre },
+                  { Icon: Users,      color: "bg-blue-50 text-blue-600",     label: "PARTICIPANTES", value: `${result.empresaevento?.numeroParticipantes} registrado${result.empresaevento?.numeroParticipantes > 1 ? "s" : ""}` },
+                  { Icon: CreditCard, color: "bg-amber-50 text-amber-600",   label: "ESTADO PAGO",   value: "Pendiente verificación" },
                 ].map((s) => (
                   <div key={s.label} className="bg-gray-50 border border-gray-100 rounded-xl p-4">
-                    <p className="text-2xl mb-1">{s.icon}</p>
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center mb-2 mx-auto ${s.color}`}>
+                      <s.Icon className="w-4 h-4" />
+                    </div>
                     <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">{s.label}</p>
                     <p className="text-sm font-bold text-gray-800 leading-tight">{s.value}</p>
                   </div>
@@ -724,6 +810,12 @@ export default function RegistroPage() {
                   className="flex items-center gap-2 bg-[#449D3A] text-white font-semibold px-6 py-3 rounded-xl hover:bg-[#367d2e] transition-colors">
                   Ir al Login
                 </Link>
+                {result.empresaeventoId && (
+                  <Link href={`/seguimiento?ee=${result.empresaeventoId}`}
+                    className="flex items-center gap-2 border border-[#449D3A] text-[#449D3A] font-semibold px-6 py-3 rounded-xl hover:bg-green-50 transition-colors">
+                    <CheckCircle2 className="w-4 h-4" /> Ver estado de inscripción
+                  </Link>
+                )}
                 <button onClick={() => setShowParticipants((v) => !v)}
                   className="flex items-center gap-2 border border-gray-200 text-gray-600 font-semibold px-6 py-3 rounded-xl hover:bg-gray-50 transition-colors">
                   <Users className="w-4 h-4" /> {showParticipants ? "Ocultar participantes" : "Ver participantes"}
@@ -742,7 +834,7 @@ export default function RegistroPage() {
                             {(p.nombres ?? p.nombreCompleto ?? "?")[0]?.toUpperCase()}
                           </div>
                           <div>
-                            <p className="text-sm font-semibold text-gray-800">{p.nombres ?? p.nombreCompleto} {p.apellidoPaterno ?? ""}</p>
+                            <p className="text-sm font-semibold text-gray-800">{[p.nombres, p.apellidoPaterno, p.apellidoMaterno].filter(Boolean).join(' ')}</p>
                             <p className="text-xs text-gray-500">{p.cargo} · {p.correo}</p>
                           </div>
                         </div>
@@ -770,8 +862,9 @@ export default function RegistroPage() {
                     {evento.sobreElEvento ?? evento.descripcion ?? "Conectando empresas, impulsando el desarrollo regional."}
                   </p>
                   {(evento.ciudadEvento || evento.paisEvento) && (
-                    <p className="text-green-300 text-xs mt-3 font-semibold">
-                      📍 {[evento.ciudadEvento, evento.paisEvento].filter(Boolean).join(", ")}
+                    <p className="text-green-300 text-xs mt-3 font-semibold flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5" />
+                      {[evento.ciudadEvento, evento.paisEvento].filter(Boolean).join(", ")}
                     </p>
                   )}
                 </div>
@@ -787,10 +880,10 @@ export default function RegistroPage() {
               className="flex items-center gap-2 px-6 py-3 border border-gray-200 text-gray-600 font-semibold rounded-xl hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
               <ChevronLeft className="w-4 h-4" /> Volver
             </button>
-            <button onClick={goNext} disabled={submitting}
+            <button onClick={goNext} disabled={submitting || checkingCorreo}
               className="flex items-center gap-2 bg-[#449D3A] text-white font-semibold px-8 py-3 rounded-xl hover:bg-[#367d2e] disabled:opacity-60 transition-colors shadow-sm">
-              {submitting ? "Registrando..." : step === 3 ? "Finalizar registro" : "Continuar"}
-              {!submitting && <ChevronRight className="w-4 h-4" />}
+              {submitting ? "Registrando..." : checkingCorreo ? "Verificando..." : step === 3 ? "Finalizar registro" : "Continuar"}
+              {!submitting && !checkingCorreo && <ChevronRight className="w-4 h-4" />}
             </button>
           </div>
         )}

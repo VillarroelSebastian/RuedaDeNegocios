@@ -1,32 +1,30 @@
-import { Controller, Post, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import { Controller, Post, UseInterceptors, UploadedFile, BadRequestException, Req } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { v2 as cloudinary } from 'cloudinary';
-import streamifier from 'streamifier';
-
-cloudinary.config({
-  cloud_name: 'dk5u8dljb',
-  api_key: '469869626472537',
-  api_secret: 'b0j3UEP2_AxbfLPgvVAqRmazQBg',
-});
+import { writeFileSync, mkdirSync } from 'fs';
+import { join, extname } from 'path';
+import { randomBytes } from 'crypto';
 
 @Controller('admin/imagenes')
 export class ImagenesController {
   @Post('upload')
   @UseInterceptors(FileInterceptor('file'))
-  async uploadImage(@UploadedFile() file: Express.Multer.File) {
-    if (!file) {
-      throw new BadRequestException('No se proporcionó ningún archivo');
-    }
+  async uploadImage(
+    @UploadedFile() file: Express.Multer.File,
+    @Req() req: any,
+  ) {
+    if (!file) throw new BadRequestException('No se proporcionó ningún archivo');
 
-    return new Promise((resolve, reject) => {
-      const uploadStream = cloudinary.uploader.upload_stream(
-        { folder: 'rueda-negocios', resource_type: 'auto' },
-        (error, result) => {
-          if (error || !result) return reject(new BadRequestException(error?.message || 'Error al subir a Cloudinary'));
-          resolve({ url: result.secure_url });
-        },
-      );
-      streamifier.createReadStream(file.buffer).pipe(uploadStream);
-    });
+    const uploadsDir = join(process.cwd(), 'uploads');
+    mkdirSync(uploadsDir, { recursive: true });
+
+    const ext = extname(file.originalname) || '.bin';
+    const filename = `${Date.now()}-${randomBytes(8).toString('hex')}${ext}`;
+    writeFileSync(join(uploadsDir, filename), file.buffer);
+
+    // Usar el host del request para que funcione tanto desde localhost como desde móvil en red local
+    const host = req.headers['host'] ?? `localhost:${process.env.PORT ?? 3334}`;
+    const url = `http://${host}/uploads/${filename}`;
+
+    return { url };
   }
 }

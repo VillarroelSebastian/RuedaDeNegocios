@@ -31,7 +31,7 @@ export default function LoginPage() {
       }
 
       const user = await res.json();
-      if (user.rolEvento === "Administrador") {
+      if (user.rolEvento === "ADMINISTRADOR") {
         localStorage.setItem("adminUser", JSON.stringify(user));
         router.push("/admin/dashboard");
       } else if (user.rolEvento === "TECNICO") {

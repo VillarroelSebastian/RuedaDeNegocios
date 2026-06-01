@@ -26,15 +26,18 @@ export default function ForgotPasswordPage() {
     if (!correo) { setError("Ingresa tu correo electrónico."); return; }
     setLoading(true);
     try {
-      await fetch(`${API}/auth/solicitar-reset`, {
+      const res = await fetch(`${API}/auth/solicitar-reset`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ correo }),
       });
-      // Siempre avanzamos para no revelar si el correo existe
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.message || "No se pudo enviar el correo. Verifica tu dirección e intenta de nuevo.");
+      }
       setStep("codigo");
-    } catch {
-      setError("No se pudo enviar el correo. Intenta de nuevo.");
+    } catch (err: any) {
+      setError(err.message || "No se pudo enviar el correo. Intenta de nuevo.");
     } finally {
       setLoading(false);
     }
