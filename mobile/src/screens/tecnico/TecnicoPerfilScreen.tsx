@@ -89,8 +89,7 @@ export default function TecnicoPerfilScreen({ navigation }: any) {
   const [uploadingPhoto,   setUploadingPhoto]   = useState(false);
 
   const handleLogout = () => {
-    userStore.clear();
-    navigation.replace('Login');
+    userStore.clear().then(() => navigation.replace('Login'));
   };
 
   // ── Pick & upload photo ──
@@ -150,7 +149,7 @@ export default function TecnicoPerfilScreen({ navigation }: any) {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message ?? 'Error');
       // update store
-      userStore.set({ ...user, nombres, apellidoPaterno, apellidoMaterno, telefono, urlFotoPerfil: urlFoto });
+      await userStore.set({ ...user, nombres, apellidoPaterno, apellidoMaterno, telefono, urlFotoPerfil: urlFoto });
       setModal({ visible: true, type: 'success', title: 'Perfil actualizado', message: 'Tu información fue guardada correctamente.' });
     } catch (err: any) {
       setModal({ visible: true, type: 'error', title: 'Error', message: err.message ?? 'No se pudo guardar el perfil.' });

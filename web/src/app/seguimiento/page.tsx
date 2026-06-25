@@ -2,7 +2,6 @@
 
 import React, { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import Image from 'next/image';
 import {
   Building2,
   CheckCircle2,
@@ -235,8 +234,8 @@ function SeguimientoContent() {
       <header className="bg-white border-b border-gray-100 shadow-sm">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center gap-3">
           {data?.evento.urlLogoEvento ? (
-            <div className="relative w-10 h-10 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
-              <Image src={data.evento.urlLogoEvento} alt="Logo" fill className="object-contain" />
+            <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+              <img src={data.evento.urlLogoEvento} alt="Logo" className="w-full h-full object-contain" />
             </div>
           ) : (
             <div className="w-10 h-10 rounded-lg bg-green-600 flex items-center justify-center flex-shrink-0">
@@ -316,13 +315,12 @@ function SeguimientoContent() {
           <>
             {/* Empresa card */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-              <div className="relative w-16 h-16 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0">
+              <div className="w-16 h-16 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0">
                 {data.empresa.urlFotoPerfil ? (
-                  <Image
+                  <img
                     src={data.empresa.urlFotoPerfil}
                     alt={data.empresa.nombre}
-                    fill
-                    className="object-cover"
+                    className="w-full h-full object-contain"
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">

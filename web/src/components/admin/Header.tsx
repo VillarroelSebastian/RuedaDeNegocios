@@ -33,6 +33,13 @@ export default function Header() {
   useEffect(() => {
     const stored = localStorage.getItem('adminUser');
     if (stored) setUser(JSON.parse(stored));
+
+    const onUpdate = () => {
+      const s = localStorage.getItem('adminUser');
+      if (s) setUser(JSON.parse(s));
+    };
+    window.addEventListener('profileUpdated', onUpdate);
+    return () => window.removeEventListener('profileUpdated', onUpdate);
   }, []);
 
   useEffect(() => {

@@ -86,11 +86,11 @@ export default function LoginScreen({ navigation }: any) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || 'Credenciales inválidas');
-      if (data.rolEvento === 'Administrador') {
-        userStore.set(data);
+      if (data.rolEvento === 'ADMINISTRADOR') {
+        await userStore.set(data);
         navigation.replace('AdminRoot');
       } else if (data.rolEvento === 'TECNICO') {
-        userStore.set(data);
+        await userStore.set(data);
         navigation.replace('TecnicoRoot');
       } else {
         setError('No tienes permisos de acceso.');

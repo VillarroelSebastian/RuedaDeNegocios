@@ -56,7 +56,7 @@ export default function ConfiguracionScreen({ navigation }: any) {
       });
       const updated = await res.json();
       const newUser = { ...user, ...updated };
-      userStore.set(newUser);
+      await userStore.set(newUser);
       setUser(newUser);
       show({ type: 'success', title: '¡Listo!', message: 'Perfil actualizado correctamente.' });
     } catch { show({ type: 'error', title: 'Error', message: 'No se pudo actualizar el perfil.' }); }
@@ -99,7 +99,7 @@ export default function ConfiguracionScreen({ navigation }: any) {
       message: '¿Estás seguro que quieres cerrar sesión?',
       confirmText: 'Cerrar sesión',
       cancelText: 'Cancelar',
-      onConfirm: () => { userStore.clear(); navigation.replace('Login'); },
+      onConfirm: () => { userStore.clear().then(() => navigation.replace('Login')); },
     });
   };
 

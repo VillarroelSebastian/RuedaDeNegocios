@@ -40,6 +40,7 @@ interface EventoPublico {
   urlImagenMapaRecinto: string | null;
   ciudadEvento: string | null;
   paisEvento: string | null;
+  montoBaseIncripcionBolivianos: number | null;
   eventoreglaqr: ReglaqR[];
 }
 interface ReglaqR { id: number; rangoDesde: number; rangoHasta: number; monto: number; urlQR: string }

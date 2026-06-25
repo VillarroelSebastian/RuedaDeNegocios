@@ -10,7 +10,7 @@ import {
   Play, Square, XCircle, UserCheck, Lock, Unlock,
 } from 'lucide-react-native';
 import { API_URL } from '../../utils/userStore';
-import AppModal, { useModal } from '../../components/AppModal';
+import { useModal } from '../../components/AppModal';
 
 const GREEN = '#449D3A';
 
@@ -172,7 +172,10 @@ type Tab = 'mesas' | 'historial';
 type FiltroEstado = 'TODAS' | 'LIBRE' | 'RESERVADA' | 'EN_USO' | 'INHABILITADA';
 
 export default function MesasScreen() {
-  const { modalState, showSuccess, showError, showConfirm, hideModal } = useModal();
+  const { show, hide, modal } = useModal();
+  const showSuccess = (title: string, message: string) => show({ type: 'success', title, message });
+  const showError   = (title: string, message: string) => show({ type: 'error',   title, message });
+  const showConfirm = (title: string, message: string, onConfirm: () => void) => show({ type: 'confirm', title, message, onConfirm });
 
   const [tab,          setTab]          = useState<Tab>('mesas');
   const [mesas,        setMesas]        = useState<any[]>([]);
@@ -300,7 +303,7 @@ export default function MesasScreen() {
 
   return (
     <View className="flex-1 bg-[#F9FAFB]">
-      <AppModal state={modalState} onHide={hideModal} />
+      {modal}
 
       <ScrollView
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchGrid(); }} tintColor={GREEN} />}

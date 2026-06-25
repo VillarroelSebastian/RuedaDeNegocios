@@ -12,6 +12,13 @@ export default function TecnicoHeader() {
   useEffect(() => {
     const stored = localStorage.getItem('tecnicoUser');
     if (stored) setUser(JSON.parse(stored));
+
+    const onUpdate = () => {
+      const s = localStorage.getItem('tecnicoUser');
+      if (s) setUser(JSON.parse(s));
+    };
+    window.addEventListener('profileUpdated', onUpdate);
+    return () => window.removeEventListener('profileUpdated', onUpdate);
   }, []);
 
   useEffect(() => {

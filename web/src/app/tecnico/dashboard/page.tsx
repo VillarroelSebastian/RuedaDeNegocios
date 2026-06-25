@@ -2,8 +2,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
-  Clock, CalendarCheck, Video, Armchair, Building2, CheckCircle,
-  AlertCircle, X, MapPin, ChevronRight, Calendar, Zap, Wifi,
+  CalendarCheck, Video, Armchair, CheckCircle,
+  AlertCircle, X, ChevronRight, Calendar, Zap,
   Activity, Newspaper,
 } from 'lucide-react';
 
@@ -286,28 +286,6 @@ export default function TecnicoDashboardPage() {
                       <span className="text-sm font-medium text-gray-700 flex-1">{a.label}</span>
                       <ChevronRight className="w-4 h-4 text-gray-400" />
                     </Link>
-                  ))}
-                </div>
-              </div>
-
-              {/* Estado del sistema */}
-              <div>
-                <h2 className="text-base font-bold text-gray-900 mb-4">Estado del sistema</h2>
-                <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3">
-                  {[
-                    { label:'Conexión Servidor', status:'Estable', pct:100, color:'bg-green-500' },
-                    { label:'Carga de Red',      status:'24%',     pct:24,  color:'bg-green-400' },
-                    { label:'Reuniones activas', status:`${stats.reunionesEnCurso ?? 0}`, pct: Math.min((stats.reunionesEnCurso ?? 0) * 5, 100), color:'bg-blue-400' },
-                  ].map((s) => (
-                    <div key={s.label}>
-                      <div className="flex items-center justify-between mb-1">
-                        <p className="text-xs font-medium text-gray-600">{s.label}</p>
-                        <p className="text-xs font-bold text-green-600">{s.status}</p>
-                      </div>
-                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                        <div className={`h-full ${s.color} rounded-full`} style={{ width: `${s.pct}%` }} />
-                      </div>
-                    </div>
                   ))}
                 </div>
               </div>

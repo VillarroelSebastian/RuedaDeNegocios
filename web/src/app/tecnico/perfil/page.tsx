@@ -96,6 +96,7 @@ export default function TecnicoPerfilPage() {
       const newUser = { ...user, ...updated };
       localStorage.setItem('tecnicoUser', JSON.stringify(newUser));
       setUser(newUser);
+      window.dispatchEvent(new CustomEvent('profileUpdated'));
       showSuccess('Perfil actualizado', 'Los cambios se guardaron correctamente.');
     } catch { showError('Error', 'No se pudo actualizar el perfil.'); }
     finally { setSaving(false); }
