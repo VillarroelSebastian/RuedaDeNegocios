@@ -23,7 +23,9 @@ export default function TecnicoHeader() {
   }, []);
 
   const handleLogout = () => {
+    localStorage.removeItem('adminUser');
     localStorage.removeItem('tecnicoUser');
+    localStorage.removeItem('empresaUser');
     router.push('/auth/login');
   };
 

@@ -10,7 +10,7 @@ import {
   Play, Square, XCircle, UserCheck, Lock, Unlock,
 } from 'lucide-react-native';
 import { API_URL } from '../../utils/userStore';
-import AppModal, { useModal } from '../../components/AppModal';
+import { useModal } from '../../components/AppModal';
 
 const GREEN = '#449D3A';
 
@@ -172,7 +172,7 @@ type Tab = 'mesas' | 'historial';
 type FiltroEstado = 'TODAS' | 'LIBRE' | 'RESERVADA' | 'EN_USO' | 'INHABILITADA';
 
 export default function MesasScreen() {
-  const { modalState, showSuccess, showError, showConfirm, hideModal } = useModal();
+  const { show, modal } = useModal();
 
   const [tab,          setTab]          = useState<Tab>('mesas');
   const [mesas,        setMesas]        = useState<any[]>([]);
@@ -223,23 +223,24 @@ export default function MesasScreen() {
 
   const toggleHabilitar = async (mesa: any) => {
     const nuevo = mesa.estaHabilitada === 1 ? 0 : 1;
-    showConfirm(
-      `${nuevo === 1 ? 'Habilitar' : 'Deshabilitar'} mesa ${mesa.numeroMesa}`,
-      `¿Deseas ${nuevo === 1 ? 'habilitar' : 'deshabilitar'} la Mesa ${mesa.numeroMesa}? ${nuevo === 0 ? 'Los usuarios no podrán usarla.' : 'Estará disponible para reuniones.'}`,
-      async () => {
+    show({
+      type: 'confirm',
+      title: `${nuevo === 1 ? 'Habilitar' : 'Deshabilitar'} mesa ${mesa.numeroMesa}`,
+      message: `¿Deseas ${nuevo === 1 ? 'habilitar' : 'deshabilitar'} la Mesa ${mesa.numeroMesa}? ${nuevo === 0 ? 'Los usuarios no podrán usarla.' : 'Estará disponible para reuniones.'}`,
+      onConfirm: async () => {
         setToggling(true);
         try {
           await fetch(`${API_URL}/admin/mesas/${mesa.id}/habilitar`, {
             method: 'PUT', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ estaHabilitada: nuevo }),
           });
-          showSuccess('Listo', `Mesa ${mesa.numeroMesa} ${nuevo === 1 ? 'habilitada' : 'deshabilitada'} correctamente.`);
+          show({ type: 'success', title: 'Listo', message: `Mesa ${mesa.numeroMesa} ${nuevo === 1 ? 'habilitada' : 'deshabilitada'} correctamente.` });
           setReunionModal(null);
           fetchGrid();
-        } catch { showError('Error', 'No se pudo cambiar la disponibilidad de la mesa.'); }
+        } catch { show({ type: 'error', title: 'Error', message: 'No se pudo cambiar la disponibilidad de la mesa.' }); }
         finally { setToggling(false); }
-      }
-    );
+      },
+    });
   };
 
   const actualizarReunion = async (reunionId: number, estado: string, extra?: { asistentes?: number }) => {
@@ -256,10 +257,10 @@ export default function MesasScreen() {
         FINALIZADA: 'Reunión finalizada y registrada.',
         CANCELADA: 'Reunión cancelada.',
       };
-      showSuccess('Listo', labels[estado] ?? 'Estado actualizado.');
+      show({ type: 'success', title: 'Listo', message: labels[estado] ?? 'Estado actualizado.' });
       setReunionModal(null);
       fetchGrid();
-    } catch { showError('Error', 'No se pudo actualizar el estado.'); }
+    } catch { show({ type: 'error', title: 'Error', message: 'No se pudo actualizar el estado.' }); }
     finally { setActing(false); }
   };
 
@@ -300,7 +301,7 @@ export default function MesasScreen() {
 
   return (
     <View className="flex-1 bg-[#F9FAFB]">
-      <AppModal state={modalState} onHide={hideModal} />
+      {modal}
 
       <ScrollView
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchGrid(); }} tintColor={GREEN} />}
@@ -621,7 +622,7 @@ export default function MesasScreen() {
                             <View className="flex-row gap-2">
                               <TouchableOpacity
                                 disabled={acting}
-                                onPress={() => showConfirm('Iniciar reunión', `¿Iniciar la reunión en Mesa ${m.numeroMesa} ahora?`, () => actualizarReunion(r.id, 'EN_CURSO'))}
+                                onPress={() => show({ type: 'confirm', title: 'Iniciar reunión', message: `¿Iniciar la reunión en Mesa ${m.numeroMesa} ahora?`, onConfirm: () => actualizarReunion(r.id, 'EN_CURSO') })}
                                 className="flex-1 flex-row items-center justify-center gap-2 py-3 rounded-xl"
                                 style={{ backgroundColor: acting ? '#9ca3af' : GREEN }} activeOpacity={0.85}>
                                 <Play color="white" size={16} />
@@ -629,7 +630,7 @@ export default function MesasScreen() {
                               </TouchableOpacity>
                               <TouchableOpacity
                                 disabled={acting}
-                                onPress={() => showConfirm('Cancelar reunión', `¿Cancelar la reunión en Mesa ${m.numeroMesa}?`, () => actualizarReunion(r.id, 'CANCELADA'))}
+                                onPress={() => show({ type: 'confirm', title: 'Cancelar reunión', message: `¿Cancelar la reunión en Mesa ${m.numeroMesa}?`, onConfirm: () => actualizarReunion(r.id, 'CANCELADA') })}
                                 className="flex-1 flex-row items-center justify-center gap-2 py-3 rounded-xl border border-red-200"
                                 style={{ backgroundColor: 'white' }} activeOpacity={0.85}>
                                 <XCircle color="#dc2626" size={16} />
@@ -653,7 +654,7 @@ export default function MesasScreen() {
                               </View>
                               <TouchableOpacity
                                 disabled={acting}
-                                onPress={() => showConfirm('Finalizar reunión', `¿Finalizar la reunión en Mesa ${m.numeroMesa}?`, () => actualizarReunion(r.id, 'FINALIZADA', { asistentes: Number(asistentes) || 0 }))}
+                                onPress={() => show({ type: 'confirm', title: 'Finalizar reunión', message: `¿Finalizar la reunión en Mesa ${m.numeroMesa}?`, onConfirm: () => actualizarReunion(r.id, 'FINALIZADA', { asistentes: Number(asistentes) || 0 }) })}
                                 className="flex-row items-center justify-center gap-2 py-3 rounded-xl"
                                 style={{ backgroundColor: acting ? '#9ca3af' : GREEN }} activeOpacity={0.85}>
                                 <Square color="white" size={16} />

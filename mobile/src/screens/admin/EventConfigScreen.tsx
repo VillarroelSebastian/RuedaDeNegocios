@@ -99,6 +99,7 @@ export default function EventConfigScreen() {
     tiempoEntreReuniones: '5',
     cantidadTotalMesasEvento: '50',
     capacidadPersonasPorMesa: '4',
+    maxParticipantesPorEmpresa: '5',
     montoBaseIncripcionBolivianos: '500',
     cantidadParticipantesIncluidos: '2',
     costoParticipanteExtra: '100',
@@ -132,7 +133,7 @@ export default function EventConfigScreen() {
 
   useEffect(() => { fetchEventos(); }, [viewState]);
 
-  // ── Subir imagen a Cloudinary ────────────────────────────────────────────────
+  // ── Subir imagen al servidor ─────────────────────────────────────────────────
   const handlePickImage = async (fieldKey: string, qrIndex?: number) => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
@@ -214,7 +215,8 @@ export default function EventConfigScreen() {
       setFormData({
         id: 0, nombre: '', edicion: '', descripcion: '', fechaInicioEvento: '', fechaFinEvento: '',
         duracionReunion: '20', tiempoEntreReuniones: '5', cantidadTotalMesasEvento: '50',
-        capacidadPersonasPorMesa: '4', montoBaseIncripcionBolivianos: '500',
+        capacidadPersonasPorMesa: '4', maxParticipantesPorEmpresa: '5',
+        montoBaseIncripcionBolivianos: '500',
         cantidadParticipantesIncluidos: '2', costoParticipanteExtra: '100',
         urlImagenMapaRecinto: '', urlImagenCronogramaCharlas: '', urlLogoEvento: '',
         sobreElEvento: '', correoContacto: '', telefonoContacto: '',
@@ -238,6 +240,7 @@ export default function EventConfigScreen() {
           tiempoEntreReuniones: String(data.tiempoEntreReuniones || 5),
           cantidadTotalMesasEvento: String(data.cantidadTotalMesasEvento || 50),
           capacidadPersonasPorMesa: String(data.capacidadPersonasPorMesa || 4),
+          maxParticipantesPorEmpresa: String(data.maxParticipantesPorEmpresa || 5),
           montoBaseIncripcionBolivianos: String(data.montoBaseIncripcionBolivianos || 500),
           cantidadParticipantesIncluidos: String(data.cantidadParticipantesIncluidos || 2),
           costoParticipanteExtra: String(data.costoParticipanteExtra || 100),
@@ -302,6 +305,7 @@ export default function EventConfigScreen() {
       tiempoEntreReuniones: Number(formData.tiempoEntreReuniones),
       cantidadTotalMesasEvento: Number(formData.cantidadTotalMesasEvento),
       capacidadPersonasPorMesa: Number(formData.capacidadPersonasPorMesa),
+      maxParticipantesPorEmpresa: Number(formData.maxParticipantesPorEmpresa),
       montoBaseIncripcionBolivianos: Number(formData.montoBaseIncripcionBolivianos),
       cantidadParticipantesIncluidos: Number(formData.cantidadParticipantesIncluidos),
       costoParticipanteExtra: Number(formData.costoParticipanteExtra),
@@ -682,6 +686,10 @@ export default function EventConfigScreen() {
                 keyboardType="numeric" className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm" />
             </View>
           </View>
+          <Text className="text-xs font-bold text-gray-700 mb-2 mt-4">Máx. participantes por empresa *</Text>
+          <TextInput value={formData.maxParticipantesPorEmpresa} onChangeText={(t) => handleChange('maxParticipantesPorEmpresa', t)}
+            keyboardType="numeric" placeholder="5" placeholderTextColor="#9ca3af"
+            className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm mb-4" />
         </View>
 
         {/* ── Reglas QR ── */}

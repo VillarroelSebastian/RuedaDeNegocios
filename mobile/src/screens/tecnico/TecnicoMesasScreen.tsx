@@ -8,7 +8,7 @@ import {
   ChevronUp, Timer, Star, History, Mail, Link2, Send, X,
 } from 'lucide-react-native';
 import { API_URL } from '../../utils/userStore';
-import AppModal, { useModal } from '../../components/AppModal';
+import { useModal } from '../../components/AppModal';
 
 const GREEN = '#449D3A';
 

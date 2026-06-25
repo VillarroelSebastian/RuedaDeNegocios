@@ -86,13 +86,15 @@ export default function LoginScreen({ navigation }: any) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || 'Credenciales inválidas');
-      if (data.rolEvento === 'Administrador') {
-        userStore.set(data);
+      userStore.set(data);
+      if (data.rolEvento === 'ADMINISTRADOR') {
         navigation.replace('AdminRoot');
       } else if (data.rolEvento === 'TECNICO') {
-        userStore.set(data);
         navigation.replace('TecnicoRoot');
+      } else if (data.rolEvento === 'EMPRESA') {
+        navigation.replace('EmpresaRoot');
       } else {
+        userStore.clear();
         setError('No tienes permisos de acceso.');
       }
     } catch (err: any) {

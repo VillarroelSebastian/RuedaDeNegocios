@@ -3,7 +3,7 @@ import {
   View, Text, ScrollView, TouchableOpacity,
   TextInput, ActivityIndicator, Linking, Image
 } from 'react-native';
-import { CheckCircle, AlertCircle, FileText, Download, Info } from 'lucide-react-native';
+import { CheckCircle, AlertCircle, FileText, Download, Info, XCircle } from 'lucide-react-native';
 import { API_URL } from '../../utils/userStore';
 import { useModal } from '../../components/AppModal';
 
@@ -41,6 +41,34 @@ export default function PagoDetailScreen({ route, navigation }: any) {
           show({ type: 'success', title: '¡Aprobado!', message: 'El pago fue aprobado correctamente.' });
           fetchPago();
         } catch { show({ type: 'error', title: 'Error', message: 'No se pudo aprobar el pago.' }); }
+        finally { setSubmitting(false); }
+      },
+    });
+  };
+
+  const handleRechazar = () => {
+    if (!observacion.trim()) {
+      show({ type: 'warning', title: 'Motivo requerido', message: 'Escribe el motivo del rechazo en el campo de observación.' });
+      return;
+    }
+    show({
+      type: 'confirm',
+      title: 'Rechazar pago',
+      message: 'El pago será marcado como rechazado con el motivo indicado.',
+      confirmText: 'Rechazar',
+      cancelText: 'Cancelar',
+      onConfirm: async () => {
+        setSubmitting(true);
+        try {
+          await fetch(`${API_URL}/admin/pagos/${id}/rechazar`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ motivo: observacion.trim() }),
+          });
+          show({ type: 'success', title: 'Rechazado', message: 'El pago fue marcado como rechazado.' });
+          setObservacion('');
+          fetchPago();
+        } catch { show({ type: 'error', title: 'Error', message: 'No se pudo rechazar el pago.' }); }
         finally { setSubmitting(false); }
       },
     });
@@ -180,6 +208,14 @@ export default function PagoDetailScreen({ route, navigation }: any) {
             >
               <AlertCircle color="#6b7280" size={20} />
               <Text className="text-gray-700 font-semibold text-base">Solicitar nueva evidencia</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleRechazar}
+              disabled={submitting}
+              className="flex-row items-center justify-center gap-2 py-4 rounded-2xl border border-red-200 bg-red-50"
+            >
+              <XCircle color="#dc2626" size={20} />
+              <Text className="font-semibold text-base" style={{ color: '#dc2626' }}>Rechazar pago</Text>
             </TouchableOpacity>
           </View>
         )}

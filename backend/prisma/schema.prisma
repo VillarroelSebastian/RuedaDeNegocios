@@ -73,6 +73,7 @@ model empresa_usuario {
   empresaevento_id Int
   cargo            String             @db.VarChar(55)
   esResponsable    Int                @db.SmallInt
+  estaActivo       Int                @default(1) @db.SmallInt
   empresa          empresa            @relation(fields: [empresa_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_empresa_usuario_empresa")
   empresaevento    empresaevento      @relation(fields: [empresaevento_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_empresa_usuario_empresaevento1")
   usuario          usuario            @relation(fields: [usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_empresa_usuario_usuario1")
@@ -121,6 +122,11 @@ model empresaeventocomprobantes {
   estaActivo                    Int           @default(1) @db.SmallInt
   fechaCreacion                 DateTime      @default(now()) @db.Timestamp(6)
   creadoModificadoFecha         DateTime?     @db.Timestamp(6)
+  tipoPago                      String        @default("INICIAL") @db.VarChar(20)
+  cantidadParticipantes         Int           @default(0) @db.SmallInt
+  montoPago                     Decimal?      @db.Decimal(10, 2)
+  estadoPago                    String        @default("PENDIENTE") @db.VarChar(45)
+  observacion                   String?       @db.VarChar(505)
   empresaevento                 empresaevento @relation(fields: [empresaEvento_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_empresaeventocomprobantes_empresaevento1")
 
   @@index([empresaEvento_id], map: "fk_empresaeventocomprobantes_empresaevento1_idx")
@@ -140,6 +146,7 @@ model evento {
   montoBaseIncripcionBolivianos  Decimal             @db.Decimal(10, 2)
   cantidadParticipantesIncluidos Int                 @db.SmallInt
   costoParticipanteExtra         Int                 @db.SmallInt
+  maxParticipantesPorEmpresa     Int                 @default(5) @db.SmallInt
   urlImagenMapaRecinto           String?             @db.VarChar(505)
   urlImagenCronogramaCharlas     String?             @db.VarChar(505)
   urlLogoEvento                  String?             @db.VarChar(505)

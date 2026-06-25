@@ -15,13 +15,15 @@ import {
   BarChart3,
   Settings,
   Star,
+  PlusCircle,
 } from 'lucide-react';
 
 const menuItems = [
   { name: 'Dashboard', icon: LayoutDashboard, href: '/admin/dashboard' },
   { name: 'Eventos', icon: CalendarCheck, href: '/admin/eventos' },
   { name: 'Empresas', icon: Building2, href: '/admin/empresas' },
-  { name: 'Pagos', icon: CreditCard, href: '/admin/pagos' },
+  { name: 'Pagos Iniciales', icon: CreditCard, href: '/admin/pagos' },
+  { name: 'Pagos Adicionales', icon: PlusCircle, href: '/admin/pagos-adicionales' },
   { name: 'Mesas', icon: Armchair, href: '/admin/mesas' },
   { name: 'Agenda de Mesas', icon: CalendarDays, href: '/admin/agenda' },
   { name: 'Actividades', icon: Star, href: '/admin/actividades' },
