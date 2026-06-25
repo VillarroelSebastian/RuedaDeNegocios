@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { CreditCard, Eye, ChevronLeft, ChevronRight, AlertCircle, CheckCircle, XCircle, Clock } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -14,7 +14,7 @@ const TABS = [
   { value: 'RECHAZADO', label: 'Rechazados', icon: XCircle },
 ];
 
-export default function PagosPage() {
+function PagosPageContent() {
   const searchParams = useSearchParams();
   const defaultEstado = searchParams.get('estado') || '';
   const [tab, setTab] = useState(defaultEstado);
@@ -159,5 +159,13 @@ export default function PagosPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function PagosPage() {
+  return (
+    <Suspense fallback={<div className="p-8">Cargando pagos...</div>}>
+      <PagosPageContent />
+    </Suspense>
   );
 }

@@ -42,6 +42,7 @@ interface EventoPublico {
   paisEvento: string | null;
   montoBaseIncripcionBolivianos: number | null;
   eventoreglaqr: ReglaqR[];
+  montoBaseIncripcionBolivianos?: number | null;
 }
 interface ReglaqR { id: number; rangoDesde: number; rangoHasta: number; monto: number; urlQR: string }
 interface Participante { nombre: string; apellido: string; correo: string; cargo: string; telefono: string }

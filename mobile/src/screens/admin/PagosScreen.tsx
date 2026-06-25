@@ -13,6 +13,7 @@ const TABS = [
   { value: 'PENDIENTE', label: 'Pendientes' },
   { value: 'COMPLETADO', label: 'Completados' },
   { value: 'OBSERVADO', label: 'Observados' },
+  { value: 'RECHAZADO', label: 'Rechazados' },
 ];
 
 export default function PagosScreen({ navigation }: any) {

@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { User, Lock, Camera, Save, LogOut, Mail, KeyRound, CheckCircle2, X, Eye, EyeOff, Send } from 'lucide-react';
+import { User, Lock, Camera, Save, LogOut, Mail, KeyRound, CheckCircle2, X, Eye, EyeOff, Send, Settings2, AlertCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useModal } from '@/components/ui/Modal';
 
@@ -15,6 +15,140 @@ function maskEmail(email: string) {
   return `${visible}${'*'.repeat(Math.max(2, user.length - 2))}@${domain}`;
 }
 
+// ─── Tab: Evento ──────────────────────────────────────────────────────────────
+
+function TabEvento() {
+  const [config, setConfig] = useState<any>(null);
+  const [form, setForm] = useState<any>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+
+  useEffect(() => {
+    fetch(`${API}/admin/evento/config`)
+      .then((r) => r.json())
+      .then((d) => {
+        setConfig(d);
+        setForm({
+          maxParticipantesPorEmpresa: d.maxParticipantesPorEmpresa ?? 5,
+          costoParticipanteExtra: d.costoParticipanteExtra ?? 0,
+          cantidadParticipantesIncluidos: d.cantidadParticipantesIncluidos ?? 2,
+          montoBaseIncripcionBolivianos: d.montoBaseIncripcionBolivianos ?? 800,
+          duracionReunion: d.duracionReunion ?? 20,
+          tiempoEntreReuniones: d.tiempoEntreReuniones ?? 5,
+        });
+      })
+      .catch(() => setMsg({ type: 'err', text: 'No se pudo cargar la configuración del evento.' }))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setMsg(null);
+    try {
+      const res = await fetch(`${API}/admin/evento/config`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          maxParticipantesPorEmpresa: Number(form.maxParticipantesPorEmpresa),
+          costoParticipanteExtra: Number(form.costoParticipanteExtra),
+          cantidadParticipantesIncluidos: Number(form.cantidadParticipantesIncluidos),
+          montoBaseIncripcionBolivianos: Number(form.montoBaseIncripcionBolivianos),
+          duracionReunion: Number(form.duracionReunion),
+          tiempoEntreReuniones: Number(form.tiempoEntreReuniones),
+        }),
+      });
+      if (!res.ok) throw new Error('Error al guardar');
+      setMsg({ type: 'ok', text: 'Configuración del evento guardada correctamente.' });
+    } catch {
+      setMsg({ type: 'err', text: 'No se pudo guardar la configuración.' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const setF = (k: string, v: string) => setForm((f: any) => ({ ...f, [k]: v }));
+
+  if (loading) return (
+    <div className="flex items-center justify-center h-40">
+      <div className="w-8 h-8 border-4 border-[#449D3A] border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-6">
+      {config && (
+        <div className="bg-gray-50 rounded-xl px-4 py-3 text-sm">
+          <p className="font-semibold text-gray-700">{config.nombre} — Edición {config.edicion}</p>
+          <p className="text-xs text-gray-400 mt-0.5">Los cambios aplican al evento principal activo.</p>
+        </div>
+      )}
+
+      {msg && (
+        <div className={`flex items-center gap-2 rounded-xl p-3 text-sm ${msg.type === 'ok' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+          {msg.type === 'ok' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
+          {msg.text}
+        </div>
+      )}
+
+      <div>
+        <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-4">Reglas de participantes</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Máx. participantes por empresa</label>
+            <input type="number" min={1} max={50} value={form.maxParticipantesPorEmpresa ?? ''} onChange={(e) => setF('maxParticipantesPorEmpresa', e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
+            <p className="text-xs text-gray-400 mt-1">Límite de participantes que puede tener una empresa en el evento.</p>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Participantes incluidos (base)</label>
+            <input type="number" min={1} value={form.cantidadParticipantesIncluidos ?? ''} onChange={(e) => setF('cantidadParticipantesIncluidos', e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
+            <p className="text-xs text-gray-400 mt-1">Participantes cubiertos por la inscripción base.</p>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Monto base inscripción (Bs.)</label>
+            <input type="number" min={0} value={form.montoBaseIncripcionBolivianos ?? ''} onChange={(e) => setF('montoBaseIncripcionBolivianos', e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Costo por participante extra (Bs.)</label>
+            <input type="number" min={0} value={form.costoParticipanteExtra ?? ''} onChange={(e) => setF('costoParticipanteExtra', e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
+            <p className="text-xs text-gray-400 mt-1">Costo aplicado a pagos adicionales de cupos.</p>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-4">Tiempos de reuniones</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Duración de reunión (minutos)</label>
+            <input type="number" min={5} max={60} value={form.duracionReunion ?? ''} onChange={(e) => setF('duracionReunion', e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Tiempo entre reuniones (minutos)</label>
+            <input type="number" min={0} max={30} value={form.tiempoEntreReuniones ?? ''} onChange={(e) => setF('tiempoEntreReuniones', e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
+          </div>
+        </div>
+      </div>
+
+      <div className="flex justify-end pt-2">
+        <button onClick={handleSave} disabled={saving}
+          className="flex items-center gap-2 bg-[#449D3A] text-white font-semibold px-6 py-2.5 rounded-xl hover:bg-[#367d2e] disabled:opacity-50 transition-colors shadow-sm">
+          <Save className="w-4 h-4" />
+          {saving ? 'Guardando...' : 'Guardar configuración del evento'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main page ────────────────────────────────────────────────────────────────
+
 export default function ConfiguracionPage() {
   const router = useRouter();
   const { showSuccess, showError, ModalComponent } = useModal();
@@ -23,7 +157,7 @@ export default function ConfiguracionPage() {
   const [form, setForm] = useState({ nombres: '', apellidoPaterno: '', apellidoMaterno: '', telefono: '', urlFotoPerfil: '' });
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [tab, setTab] = useState<'perfil' | 'seguridad'>('perfil');
+  const [tab, setTab] = useState<'perfil' | 'evento' | 'seguridad'>('perfil');
 
   // ── Cambio de contraseña por email ────────────────────────────────────────
   const [resetStep, setResetStep] = useState<ResetStep>('idle');
@@ -129,15 +263,13 @@ export default function ConfiguracionPage() {
   };
 
   return (
-    <div className="p-8 max-w-3xl mx-auto">
+    <div className="p-8 max-w-4xl mx-auto">
       <ModalComponent />
 
       {/* ── Modal cambio de contraseña ──────────────────────────────────────── */}
       {modalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl w-full max-w-md shadow-xl">
-
-            {/* Header modal */}
             <div className="flex items-center justify-between p-6 border-b border-gray-100">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center">
@@ -171,26 +303,18 @@ export default function ConfiguracionPage() {
 
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1.5">Código de 6 dígitos</label>
-                    <input
-                      type="text"
-                      value={codigo}
+                    <input type="text" value={codigo}
                       onChange={(e) => setCodigo(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                      maxLength={6}
-                      placeholder="000000"
-                      className="w-full border border-gray-200 rounded-xl px-4 py-3 text-center text-2xl font-bold tracking-[14px] focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A]"
-                    />
+                      maxLength={6} placeholder="000000"
+                      className="w-full border border-gray-200 rounded-xl px-4 py-3 text-center text-2xl font-bold tracking-[14px] focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A]" />
                   </div>
 
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1.5">Nueva contraseña</label>
                     <div className="relative">
-                      <input
-                        type={showNueva ? 'text' : 'password'}
-                        value={nuevaPass}
-                        onChange={(e) => setNuevaPass(e.target.value)}
-                        placeholder="Mínimo 6 caracteres"
-                        className="w-full border border-gray-200 rounded-xl px-4 py-3 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A]"
-                      />
+                      <input type={showNueva ? 'text' : 'password'} value={nuevaPass}
+                        onChange={(e) => setNuevaPass(e.target.value)} placeholder="Mínimo 6 caracteres"
+                        className="w-full border border-gray-200 rounded-xl px-4 py-3 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A]" />
                       <button type="button" onClick={() => setShowNueva(v => !v)}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                         {showNueva ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -201,13 +325,9 @@ export default function ConfiguracionPage() {
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1.5">Confirmar contraseña</label>
                     <div className="relative">
-                      <input
-                        type={showConf ? 'text' : 'password'}
-                        value={confirmar}
-                        onChange={(e) => setConfirmar(e.target.value)}
-                        placeholder="Repite la contraseña"
-                        className="w-full border border-gray-200 rounded-xl px-4 py-3 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A]"
-                      />
+                      <input type={showConf ? 'text' : 'password'} value={confirmar}
+                        onChange={(e) => setConfirmar(e.target.value)} placeholder="Repite la contraseña"
+                        className="w-full border border-gray-200 rounded-xl px-4 py-3 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A]" />
                       <button type="button" onClick={() => setShowConf(v => !v)}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                         {showConf ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -215,18 +335,13 @@ export default function ConfiguracionPage() {
                     </div>
                   </div>
 
-                  <button
-                    onClick={handleConfirmarReset}
-                    disabled={resetLoading}
-                    className="w-full bg-[#449D3A] text-white font-bold py-3 rounded-xl hover:bg-[#367d2e] disabled:opacity-50 transition-colors"
-                  >
+                  <button onClick={handleConfirmarReset} disabled={resetLoading}
+                    className="w-full bg-[#449D3A] text-white font-bold py-3 rounded-xl hover:bg-[#367d2e] disabled:opacity-50 transition-colors">
                     {resetLoading ? 'Actualizando...' : 'Actualizar contraseña'}
                   </button>
 
-                  <button
-                    onClick={() => { setResetStep('idle'); setModalOpen(false); handleEnviarCodigo(); }}
-                    className="w-full py-2.5 rounded-xl text-sm font-semibold text-gray-500 hover:bg-gray-50 transition-colors"
-                  >
+                  <button onClick={() => { setResetStep('idle'); setModalOpen(false); handleEnviarCodigo(); }}
+                    className="w-full py-2.5 rounded-xl text-sm font-semibold text-gray-500 hover:bg-gray-50 transition-colors">
                     Reenviar código
                   </button>
                 </div>
@@ -236,12 +351,10 @@ export default function ConfiguracionPage() {
                 <div className="text-center py-4">
                   <CheckCircle2 className="w-16 h-16 text-[#449D3A] mx-auto mb-4" />
                   <p className="text-gray-600 text-sm leading-relaxed mb-6">
-                    Tu contraseña fue cambiada correctamente. La próxima vez que inicies sesión usa tu nueva contraseña.
+                    Tu contraseña fue cambiada correctamente.
                   </p>
-                  <button
-                    onClick={closeResetModal}
-                    className="w-full bg-[#449D3A] text-white font-bold py-3 rounded-xl hover:bg-[#367d2e] transition-colors"
-                  >
+                  <button onClick={closeResetModal}
+                    className="w-full bg-[#449D3A] text-white font-bold py-3 rounded-xl hover:bg-[#367d2e] transition-colors">
                     Listo
                   </button>
                 </div>
@@ -253,15 +366,19 @@ export default function ConfiguracionPage() {
 
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Configuración</h1>
-        <p className="text-sm text-gray-500 mt-1">Gestiona tu perfil y seguridad de la cuenta.</p>
+        <p className="text-sm text-gray-500 mt-1">Gestiona tu perfil, reglas del evento y seguridad.</p>
       </div>
 
       {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 p-1 rounded-xl mb-6 w-fit">
-        {(['perfil', 'seguridad'] as const).map((t) => (
-          <button key={t} onClick={() => setTab(t)}
-            className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all capitalize ${tab === t ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-            {t === 'perfil' ? 'Mi perfil' : 'Seguridad'}
+        {([
+          { key: 'perfil',    label: 'Mi perfil' },
+          { key: 'evento',    label: 'Evento' },
+          { key: 'seguridad', label: 'Seguridad' },
+        ] as const).map(({ key, label }) => (
+          <button key={key} onClick={() => setTab(key)}
+            className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${tab === key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+            {label}
           </button>
         ))}
       </div>
@@ -321,10 +438,12 @@ export default function ConfiguracionPage() {
         </div>
       )}
 
+      {/* ── TAB EVENTO ─────────────────────────────────────────────────────── */}
+      {tab === 'evento' && <TabEvento />}
+
       {/* ── TAB SEGURIDAD ──────────────────────────────────────────────────── */}
       {tab === 'seguridad' && (
         <div className="space-y-4">
-          {/* Tarjeta cambio de contraseña */}
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
             <div className="flex items-start gap-4 mb-6">
               <div className="w-11 h-11 bg-green-50 rounded-xl flex items-center justify-center shrink-0">
@@ -338,7 +457,6 @@ export default function ConfiguracionPage() {
               </div>
             </div>
 
-            {/* Info correo */}
             <div className="bg-gray-50 rounded-xl px-4 py-3.5 flex items-center gap-3 mb-6 border border-gray-100">
               <Mail className="w-4 h-4 text-gray-400 shrink-0" />
               <div className="min-w-0">
@@ -347,17 +465,13 @@ export default function ConfiguracionPage() {
               </div>
             </div>
 
-            <button
-              onClick={handleEnviarCodigo}
-              disabled={resetStep === 'sending'}
-              className="flex items-center gap-2 bg-[#449D3A] text-white font-semibold px-6 py-3 rounded-xl hover:bg-[#367d2e] disabled:opacity-60 transition-colors shadow-sm"
-            >
+            <button onClick={handleEnviarCodigo} disabled={resetStep === 'sending'}
+              className="flex items-center gap-2 bg-[#449D3A] text-white font-semibold px-6 py-3 rounded-xl hover:bg-[#367d2e] disabled:opacity-60 transition-colors shadow-sm">
               <Send className="w-4 h-4" />
               {resetStep === 'sending' ? 'Enviando código...' : 'Enviar código de verificación'}
             </button>
           </div>
 
-          {/* Cerrar sesión */}
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
             <h2 className="font-bold text-gray-900 text-base mb-1">Sesión</h2>
             <p className="text-sm text-gray-500 mb-4">Cierra tu sesión de forma segura en este dispositivo.</p>

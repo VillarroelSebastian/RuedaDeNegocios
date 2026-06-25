@@ -2,7 +2,7 @@ import { Platform, NativeModules } from 'react-native';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const USER_KEY = 'currentUser';
+const STORAGE_KEY = 'rueda_current_user';
 const BACKEND_PORT = 3334;
 
 let currentUser: any = null;
@@ -10,27 +10,33 @@ let currentUser: any = null;
 export const userStore = {
   set: async (user: any) => {
     currentUser = user;
-    await AsyncStorage.setItem(USER_KEY, JSON.stringify(user));
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(user));
   },
   get: () => currentUser,
-  load: async (): Promise<any | null> => {
-    if (currentUser) return currentUser;
-    try {
-      const stored = await AsyncStorage.getItem(USER_KEY);
-      if (stored) { currentUser = JSON.parse(stored); }
-    } catch {}
-    return currentUser;
-  },
   clear: async () => {
     currentUser = null;
-    await AsyncStorage.removeItem(USER_KEY);
+    await AsyncStorage.removeItem(STORAGE_KEY);
+  },
+  load: async (): Promise<any | null> => {
+    try {
+      const stored = await AsyncStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const user = JSON.parse(stored);
+        currentUser = user;
+        return user;
+      }
+    } catch (e) {
+      console.warn('[userStore] AsyncStorage load error:', e);
+    }
+    return null;
   },
 };
 
 function resolveApiUrl(): string {
   // 1. Variable de entorno explícita (override manual si se necesita)
-  if (process.env.EXPO_PUBLIC_API_URL) {
-    return process.env.EXPO_PUBLIC_API_URL;
+  const envUrl = process.env.EXPO_PUBLIC_API_URL;
+  if (envUrl && envUrl.trim()) {
+    return envUrl.trim();
   }
 
   // 2. URL del bundle Metro — siempre tiene la IP real del servidor de desarrollo
@@ -53,7 +59,7 @@ function resolveApiUrl(): string {
     (Constants as any).manifest?.debuggerHost;
 
   if (hostUri) {
-    const host = hostUri.split(':')[0];
+    const host = String(hostUri).split(':')[0];
     if (host && host !== 'localhost' && host !== '127.0.0.1') {
       return `http://${host}:${BACKEND_PORT}`;
     }

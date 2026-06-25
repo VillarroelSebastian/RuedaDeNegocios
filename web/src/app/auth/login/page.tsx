@@ -31,12 +31,21 @@ export default function LoginPage() {
       }
 
       const user = await res.json();
+
+      // Limpiar TODAS las sesiones previas antes de guardar la nueva
+      localStorage.removeItem("adminUser");
+      localStorage.removeItem("tecnicoUser");
+      localStorage.removeItem("empresaUser");
+
       if (user.rolEvento === "ADMINISTRADOR") {
         localStorage.setItem("adminUser", JSON.stringify(user));
         router.push("/admin/dashboard");
       } else if (user.rolEvento === "TECNICO") {
         localStorage.setItem("tecnicoUser", JSON.stringify(user));
         router.push("/tecnico/dashboard");
+      } else if (user.rolEvento === "EMPRESA") {
+        localStorage.setItem("empresaUser", JSON.stringify(user));
+        router.push("/empresa/dashboard");
       } else {
         throw new Error("Acceso denegado: no tienes permisos de acceso");
       }
