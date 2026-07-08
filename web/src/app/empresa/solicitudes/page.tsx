@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, Suspense } from "react";
+import React, { useState, useEffect, useRef, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Send, Clock, CheckCircle2, XCircle, AlertCircle, AlertTriangle,
@@ -107,34 +107,78 @@ function MesaPicker({ inicio, fin, value, onChange, onUnavailable }: MesaPickerP
 
 // ── Modal nueva solicitud ───────────────────────────────────────────────────
 
+function fmtTime(iso: string) {
+  return new Date(iso).toLocaleTimeString("es-BO", { hour: "2-digit", minute: "2-digit" });
+}
+function fmtOnlyDate(iso: string) {
+  return new Date(iso).toLocaleDateString("es-BO", { weekday: "short", day: "2-digit", month: "short" });
+}
+
 function NuevaSolicitudModal({ ctx, receptoraId, receptoraNombre, onClose, onCreada }: {
   ctx: any; receptoraId: number; receptoraNombre: string; onClose: () => void; onCreada: () => void;
 }) {
   const [tipo, setTipo] = useState<"PRESENCIAL" | "VIRTUAL">("PRESENCIAL");
-  const [franjas, setFranjas] = useState<any[]>([]);
-  const [franja, setFranja] = useState<any>(null);
+  const [horarios, setHorarios] = useState<any[]>([]);
+  const [duracionMin, setDuracionMin] = useState<number>(0);
+  const [horario, setHorario] = useState<any>(null);
+  const [horaSelec, setHoraSelec] = useState<string>("");
+  const [minutosStr, setMinutosStr] = useState<string>("00");
   const [mesa, setMesa] = useState<number | null>(null);
   const [mesaInvalida, setMesaInvalida] = useState(false);
   const [enlace, setEnlace] = useState("");
   const [mensaje, setMensaje] = useState("");
-  const [cargandoFranjas, setCargandoFranjas] = useState(false);
+  const [cargando, setCargando] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  const horasDisponibles = useMemo(() =>
+    [...new Set(horarios.map((h: any) => new Date(h.inicio).getHours()))].sort((a, b) => a - b),
+    [horarios]
+  );
+  const minutosParaHora = useMemo(() => {
+    if (horaSelec === "") return [];
+    return horarios
+      .filter((h: any) => new Date(h.inicio).getHours() === parseInt(horaSelec))
+      .map((h: any) => new Date(h.inicio).getMinutes())
+      .sort((a, b) => a - b);
+  }, [horarios, horaSelec]);
+  const horarioMatch = useMemo(() => {
+    if (horaSelec === "") return null;
+    const mins = parseInt(minutosStr) || 0;
+    return horarios.find((h: any) => {
+      const d = new Date(h.inicio);
+      return d.getHours() === parseInt(horaSelec) && d.getMinutes() === mins;
+    }) ?? null;
+  }, [horarios, horaSelec, minutosStr]);
+  const minutosInvalidos = horaSelec !== "" && minutosStr !== "" && !horarioMatch;
+
+  useEffect(() => {
+    setHorario(horarioMatch);
+    if (!horarioMatch) { setMesa(null); setMesaInvalida(false); }
+  }, [horarioMatch]);
+
   useEffect(() => {
     if (!ctx) return;
-    setCargandoFranjas(true);
-    setFranja(null); setMesa(null); setMesaInvalida(false);
+    setCargando(true);
+    setHorario(null); setHoraSelec(""); setMinutosStr("00"); setMesa(null); setMesaInvalida(false);
     fetch(`${API}/empresa/horarios?eeId=${ctx.empresaeventoId}&eeReceptoraId=${receptoraId}`)
       .then((r) => r.json())
-      .then((data) => setFranjas(Array.isArray(data) ? data : []))
-      .catch(() => setFranjas([]))
-      .finally(() => setCargandoFranjas(false));
+      .then((data) => {
+        const hrs: any[] = Array.isArray(data?.horarios) ? data.horarios : [];
+        setHorarios(hrs);
+        setDuracionMin(data?.duracionMinutos ?? 0);
+        const available = [...new Set(hrs.map((h: any) => new Date(h.inicio).getHours()))].sort((a, b) => a - b) as number[];
+        const cur = new Date().getHours();
+        const auto = available.find((h) => h >= cur) ?? available[0];
+        if (auto !== undefined) { setHoraSelec(String(auto)); setMinutosStr("00"); }
+      })
+      .catch(() => setHorarios([]))
+      .finally(() => setCargando(false));
   }, [ctx, receptoraId]);
 
   const handleSubmit = async () => {
     setErr(null);
-    if (!franja) { setErr("Selecciona un horario disponible."); return; }
+    if (!horario) { setErr("Selecciona un horario disponible."); return; }
     if (tipo === "PRESENCIAL" && !mesa) { setErr("Selecciona una mesa."); return; }
     setEnviando(true);
     try {
@@ -143,7 +187,7 @@ function NuevaSolicitudModal({ ctx, receptoraId, receptoraNombre, onClose, onCre
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           eeId: ctx.empresaeventoId, eeReceptoraId: receptoraId, euId: ctx.empresaUsuarioId,
-          tipo, inicio: franja.inicio, fin: franja.fin,
+          tipo, inicio: horario.inicio, fin: horario.fin,
           mesaId: tipo === "PRESENCIAL" ? mesa : undefined,
           enlace: tipo === "VIRTUAL" ? enlace : undefined, mensaje,
         }),
@@ -154,8 +198,6 @@ function NuevaSolicitudModal({ ctx, receptoraId, receptoraNombre, onClose, onCre
     } catch (e: any) { setErr(e.message); }
     finally { setEnviando(false); }
   };
-
-  const disponibles = franjas.filter((f) => f.disponible);
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -176,7 +218,7 @@ function NuevaSolicitudModal({ ctx, receptoraId, receptoraNombre, onClose, onCre
             <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Modalidad</label>
             <div className="grid grid-cols-2 gap-3">
               {(["PRESENCIAL", "VIRTUAL"] as const).map((t) => (
-                <button key={t} onClick={() => { setTipo(t); setFranja(null); setMesa(null); }}
+                <button key={t} onClick={() => { setTipo(t); setHorario(null); setMesa(null); }}
                   className={`flex items-center gap-2.5 p-3.5 rounded-xl border-2 text-sm font-bold transition-all ${
                     tipo === t ? "border-[#449D3A] bg-green-50 text-[#449D3A]" : "border-gray-200 text-gray-500 hover:border-gray-300"
                   }`}>
@@ -187,34 +229,78 @@ function NuevaSolicitudModal({ ctx, receptoraId, receptoraNombre, onClose, onCre
             </div>
           </div>
 
-          {/* Franja horaria */}
-          <div>
-            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Horario disponible</label>
-            {cargandoFranjas ? (
+          {/* Horario */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Hora de inicio</label>
+              {duracionMin > 0 && (
+                <span className="text-xs text-[#449D3A] font-semibold bg-green-50 px-2 py-0.5 rounded-lg">
+                  Duración: {duracionMin} min
+                </span>
+              )}
+            </div>
+
+            {cargando ? (
               <div className="flex items-center gap-2 text-sm text-gray-400 py-3">
-                <div className="w-4 h-4 border-2 border-[#449D3A] border-t-transparent rounded-full animate-spin" />Cargando...
+                <div className="w-4 h-4 border-2 border-[#449D3A] border-t-transparent rounded-full animate-spin" />Buscando horarios disponibles...
               </div>
-            ) : disponibles.length === 0 ? (
+            ) : horarios.length === 0 ? (
               <p className="text-sm text-amber-600 bg-amber-50 rounded-xl p-3">
                 No hay horarios disponibles entre estas dos empresas.
               </p>
             ) : (
-              <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
-                {disponibles.map((f: any, i: number) => (
-                  <button key={i} onClick={() => { setFranja(f); setMesa(null); setMesaInvalida(false); }}
-                    className={`flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-xs font-semibold transition-all ${
-                      franja?.inicio === f.inicio ? "border-[#449D3A] bg-green-50 text-[#449D3A]" : "border-gray-200 text-gray-600 hover:border-green-300"
-                    }`}>
-                    <Calendar className="w-3 h-3 shrink-0" />
-                    <span className="truncate">{formatDT(f.inicio)}</span>
-                  </button>
-                ))}
-              </div>
+              <>
+                {/* Hour + Minutes pickers */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1 block">Hora</label>
+                    <select
+                      value={horaSelec}
+                      onChange={(e) => { setHoraSelec(e.target.value); setMinutosStr("00"); }}
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A] bg-white"
+                    >
+                      <option value="">-- Hora --</option>
+                      {horasDisponibles.map((h) => (
+                        <option key={h} value={String(h)}>{String(h).padStart(2, "0")}:00</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1 block">Minutos</label>
+                    <input
+                      type="number" min={0} max={59}
+                      value={minutosStr}
+                      onChange={(e) => setMinutosStr(e.target.value)}
+                      disabled={!horaSelec}
+                      placeholder="00"
+                      className={`w-full border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A] disabled:opacity-40 disabled:bg-gray-50 ${
+                        minutosInvalidos ? "border-amber-300 bg-amber-50" : "border-gray-200"
+                      }`}
+                    />
+                  </div>
+                </div>
+
+                {/* Warning: outside range */}
+                {minutosInvalidos && (
+                  <div className="flex items-start gap-2 bg-amber-50 border border-amber-100 rounded-xl p-3 text-xs text-amber-700">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                    <span>La empresa no tiene disponibilidad a las {horaSelec}:{minutosStr.padStart(2,"0")}. Prueba con otro horario.</span>
+                  </div>
+                )}
+
+                {/* Confirmation */}
+                {horario && (
+                  <div className="flex items-center gap-2 bg-green-50 border border-green-100 rounded-xl p-2.5 text-xs text-green-700 font-semibold">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+                    Horario disponible confirmado: {fmtOnlyDate(horario.inicio)} a las {fmtTime(horario.inicio)}
+                  </div>
+                )}
+              </>
             )}
           </div>
 
           {/* Mesa con polling */}
-          {tipo === "PRESENCIAL" && franja && (
+          {tipo === "PRESENCIAL" && horario && (
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Mesa</label>
@@ -227,7 +313,7 @@ function NuevaSolicitudModal({ ctx, receptoraId, receptoraNombre, onClose, onCre
                 </div>
               )}
               <MesaPicker
-                inicio={franja.inicio} fin={franja.fin}
+                inicio={horario.inicio} fin={horario.fin}
                 value={mesa} onChange={setMesa}
                 onUnavailable={() => setMesaInvalida(true)}
               />
@@ -263,7 +349,7 @@ function NuevaSolicitudModal({ ctx, receptoraId, receptoraNombre, onClose, onCre
               Cancelar
             </button>
             <button onClick={handleSubmit}
-              disabled={enviando || !franja || (tipo === "PRESENCIAL" && !mesa)}
+              disabled={enviando || !horario || (tipo === "PRESENCIAL" && !mesa)}
               className="flex-1 py-2.5 rounded-xl bg-[#449D3A] hover:bg-[#3a8531] text-white text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
               {enviando ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Send className="w-4 h-4" />}
               Enviar solicitud
@@ -291,7 +377,7 @@ function RechazarModal({ sol, eeId, onClose, onOk }: { sol: any; eeId: number; o
     } catch (e: any) { setErr(e.message); } finally { setLoading(false); }
   };
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
         <h3 className="font-extrabold text-gray-900">Rechazar solicitud</h3>
         <p className="text-sm text-gray-500">De <span className="font-bold">{sol.solicitante?.nombre}</span></p>
@@ -313,18 +399,15 @@ function RechazarModal({ sol, eeId, onClose, onOk }: { sol: any; eeId: number; o
 // ── Aceptar Modal ───────────────────────────────────────────────────────────
 
 function AceptarModal({ sol, eeId, onClose, onOk }: { sol: any; eeId: number; onClose: () => void; onOk: () => void }) {
-  const [mesa, setMesa] = useState<number | null>(null);
-  const [mesaInvalida, setMesaInvalida] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   const ok = async () => {
-    if (sol.tipo === "PRESENCIAL" && !mesa) { setErr("Selecciona una mesa."); return; }
     setEnviando(true); setErr(null);
     try {
       const res = await fetch(`${API}/empresa/solicitudes/${sol.id}/aceptar`, {
         method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eeId, mesaId: mesa }),
+        body: JSON.stringify({ eeId }),
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
       onOk();
@@ -332,43 +415,218 @@ function AceptarModal({ sol, eeId, onClose, onOk }: { sol: any; eeId: number; on
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
-        <h3 className="font-extrabold text-gray-900">Aceptar solicitud</h3>
-        <p className="text-sm text-gray-500">De <span className="font-bold">{sol.solicitante?.nombre}</span> — {formatDT(sol.inicio)}</p>
-
-        {sol.tipo === "PRESENCIAL" && (
+    <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-y-auto max-h-[90vh]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Selecciona una mesa</label>
-              <span className="text-[10px] text-gray-400">Actualización cada 5 s</span>
+            <h3 className="font-extrabold text-gray-900">Aceptar solicitud de reunión</h3>
+            <p className="text-xs text-gray-400 mt-0.5">Revisa los detalles antes de confirmar</p>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center">
+            <X className="w-4 h-4 text-gray-500" />
+          </button>
+        </div>
+
+        <div className="px-6 py-5 space-y-4">
+          {/* Info de la reunión */}
+          <div className="bg-gray-50 rounded-xl p-4 space-y-2.5">
+            <div className="flex items-center gap-2">
+              <Users className="w-4 h-4 text-[#449D3A] shrink-0" />
+              <span className="text-xs text-gray-500 w-24 shrink-0">Empresa</span>
+              <span className="text-sm font-bold text-gray-900">{sol.solicitante?.nombre ?? "—"}</span>
             </div>
-            {mesaInvalida && (
-              <div className="flex items-center gap-2 bg-amber-50 text-amber-700 rounded-xl p-2 text-xs mb-2">
-                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                La mesa seleccionada ya no está disponible.
+            <div className="flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-[#449D3A] shrink-0" />
+              <span className="text-xs text-gray-500 w-24 shrink-0">Fecha y hora</span>
+              <span className="text-sm font-semibold text-gray-900">{formatDT(sol.inicio)}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {sol.tipo === "PRESENCIAL"
+                ? <Users className="w-4 h-4 text-blue-500 shrink-0" />
+                : <Monitor className="w-4 h-4 text-purple-500 shrink-0" />}
+              <span className="text-xs text-gray-500 w-24 shrink-0">Modalidad</span>
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${sol.tipo === "PRESENCIAL" ? "bg-blue-50 text-blue-600" : "bg-purple-50 text-purple-600"}`}>
+                {sol.tipo === "PRESENCIAL" ? "Presencial" : "Virtual"}
+              </span>
+            </div>
+            {sol.enlace && (
+              <div className="flex items-center gap-2">
+                <Monitor className="w-4 h-4 text-purple-500 shrink-0" />
+                <span className="text-xs text-gray-500 w-24 shrink-0">Enlace</span>
+                <a href={sol.enlace} target="_blank" rel="noreferrer" className="text-xs text-purple-600 font-semibold hover:underline truncate">{sol.enlace}</a>
               </div>
             )}
-            <MesaPicker
-              inicio={sol.inicio} fin={sol.fin}
-              value={mesa} onChange={setMesa}
-              onUnavailable={() => { setMesa(null); setMesaInvalida(true); }}
-            />
+            {sol.mensaje && (
+              <div className="flex items-start gap-2 pt-1 border-t border-gray-100">
+                <AlertCircle className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                <span className="text-xs text-gray-500 w-24 shrink-0 pt-0.5">Mensaje</span>
+                <p className="text-xs text-gray-700 italic">"{sol.mensaje}"</p>
+              </div>
+            )}
           </div>
-        )}
 
-        {err && (
-          <div className="flex items-center gap-2 bg-red-50 text-red-700 rounded-xl p-3 text-sm">
-            <AlertCircle className="w-4 h-4 shrink-0" />{err}
+          {sol.tipo === "PRESENCIAL" && (
+            <div className="flex items-center gap-2 bg-blue-50 text-blue-700 rounded-xl p-3 text-xs">
+              <Table2 className="w-4 h-4 shrink-0" />
+              {sol.mesa?.numeroMesa
+                ? <>Mesa elegida por el solicitante: <strong>Mesa {sol.mesa.numeroMesa}</strong></>
+                : "Se asignará automáticamente la primera mesa disponible para ese horario."}
+            </div>
+          )}
+
+          {err && (
+            <div className="flex items-center gap-2 bg-red-50 text-red-700 rounded-xl p-3 text-sm">
+              <AlertCircle className="w-4 h-4 shrink-0" />{err}
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-1">
+            <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50">Cancelar</button>
+            <button onClick={ok} disabled={enviando}
+              className="flex-1 py-2.5 rounded-xl bg-[#449D3A] hover:bg-[#3a8531] text-white text-sm font-bold disabled:opacity-50 flex items-center justify-center gap-2">
+              {enviando ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+              {enviando ? "Confirmando..." : "Confirmar reunión"}
+            </button>
           </div>
-        )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
-        <div className="flex gap-3">
-          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50">Cancelar</button>
-          <button onClick={ok} disabled={enviando || (sol.tipo === "PRESENCIAL" && !mesa)}
-            className="flex-1 py-2.5 rounded-xl bg-[#449D3A] hover:bg-[#3a8531] text-white text-sm font-bold disabled:opacity-50">
-            {enviando ? "Aceptando..." : "Confirmar reunión"}
+// ── Detalle Modal ────────────────────────────────────────────────────────────
+
+const STATUS_LEFT: Record<string, string> = {
+  PENDIENTE: "border-l-amber-400",
+  ACEPTADA:  "border-l-[#449D3A]",
+  RECHAZADA: "border-l-red-400",
+  CANCELADA: "border-l-gray-300",
+};
+
+function DetalleSolicitudModal({ sol, tab, eeId, onClose, onAceptar, onRechazar, onCancelar }: {
+  sol: any; tab: "enviadas" | "recibidas"; eeId: number;
+  onClose: () => void; onAceptar: () => void; onRechazar: () => void; onCancelar: () => void;
+}) {
+  const empresa = tab === "enviadas" ? sol.receptora : sol.solicitante;
+  const isPendiente = sol.estado === "PENDIENTE";
+
+  const Row = ({ label, children }: { label: string; children: React.ReactNode }) => (
+    <div className="flex items-start gap-3 py-3 border-b border-gray-50 last:border-0">
+      <span className="text-xs font-bold text-gray-400 uppercase tracking-wider w-28 shrink-0 pt-0.5">{label}</span>
+      <div className="text-sm font-semibold text-gray-800 flex-1">{children}</div>
+    </div>
+  );
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-y-auto max-h-[90vh]">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <div>
+            <h3 className="font-extrabold text-gray-900">Detalle de solicitud</h3>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {tab === "enviadas" ? "Solicitud enviada" : "Solicitud recibida"}
+            </p>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center">
+            <X className="w-4 h-4 text-gray-500" />
           </button>
+        </div>
+
+        <div className="px-6 py-5 space-y-4">
+          {/* Badges */}
+          <div className="flex flex-wrap gap-2">
+            {estadoBadge(sol.estado)}
+            <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${sol.tipo === "PRESENCIAL" ? "bg-blue-50 text-blue-600" : "bg-purple-50 text-purple-600"}`}>
+              {sol.tipo === "PRESENCIAL" ? <><Users className="w-3 h-3 inline mr-1" />Presencial</> : <><Monitor className="w-3 h-3 inline mr-1" />Virtual</>}
+            </span>
+          </div>
+
+          {/* Conflict warning */}
+          {sol.tieneConflicto && (
+            <div className="flex items-start gap-2 bg-amber-50 border border-amber-100 rounded-xl p-3 text-xs text-amber-700">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+              Hay otra solicitud pendiente para el mismo horario. Solo puedes aceptar una.
+            </div>
+          )}
+
+          {/* Info rows */}
+          <div className="bg-gray-50 rounded-2xl px-4 py-1">
+            <Row label="Empresa">
+              <span className="flex items-center gap-2">
+                <span className="w-7 h-7 rounded-full bg-[#449D3A]/10 flex items-center justify-center text-xs font-bold text-[#449D3A] shrink-0">
+                  {(empresa?.nombre ?? "E")[0].toUpperCase()}
+                </span>
+                {empresa?.nombre ?? "—"}
+              </span>
+            </Row>
+            <Row label="Fecha y hora">
+              <span className="flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                {formatDT(sol.inicio)}
+              </span>
+            </Row>
+            {sol.reunion?.mesa?.numeroMesa && (
+              <Row label="Mesa">
+                <span className="flex items-center gap-1.5">
+                  <Table2 className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                  Mesa {sol.reunion.mesa.numeroMesa}
+                </span>
+              </Row>
+            )}
+            {sol.tipo === "PRESENCIAL" && sol.mesa?.numeroMesa && (
+              <Row label="Mesa elegida">
+                <span className="flex items-center gap-1.5">
+                  <Table2 className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                  Mesa {sol.mesa.numeroMesa}
+                </span>
+              </Row>
+            )}
+            {sol.enlace && (
+              <Row label="Enlace">
+                <a href={sol.enlace} target="_blank" rel="noreferrer"
+                  className="text-[#449D3A] font-bold hover:underline flex items-center gap-1">
+                  <Monitor className="w-3.5 h-3.5" />Unirse a la reunión
+                </a>
+              </Row>
+            )}
+            {sol.mensaje && (
+              <Row label="Mensaje">
+                <em className="text-gray-600 font-normal">"{sol.mensaje}"</em>
+              </Row>
+            )}
+            {sol.motivo && (
+              <Row label="Motivo de rechazo">
+                <span className="text-red-600">{sol.motivo}</span>
+              </Row>
+            )}
+          </div>
+
+          {/* Actions */}
+          <div className="space-y-2 pt-1">
+            {tab === "recibidas" && isPendiente && (
+              <div className="grid grid-cols-2 gap-2">
+                <button onClick={onAceptar}
+                  className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#449D3A] hover:bg-[#3a8531] text-white text-sm font-bold transition-colors">
+                  <CheckCircle2 className="w-4 h-4" />Aceptar
+                </button>
+                <button onClick={onRechazar}
+                  className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-bold transition-colors">
+                  <XCircle className="w-4 h-4" />Rechazar
+                </button>
+              </div>
+            )}
+            {tab === "enviadas" && isPendiente && (
+              <button onClick={onCancelar}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-sm font-bold text-gray-600 transition-colors">
+                <Ban className="w-4 h-4" />Cancelar solicitud
+              </button>
+            )}
+            <button onClick={onClose}
+              className="w-full py-2.5 rounded-xl border border-gray-100 hover:bg-gray-50 text-sm font-bold text-gray-400 transition-colors">
+              Cerrar
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -387,15 +645,21 @@ function SolicitudesContent() {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"enviadas" | "recibidas">("enviadas");
   const [modalNueva, setModalNueva] = useState<{ id: number; nombre: string } | null>(null);
+  const [modalDetalle, setModalDetalle] = useState<any | null>(null);
   const [modalRechazar, setModalRechazar] = useState<any | null>(null);
   const [modalAceptar, setModalAceptar] = useState<any | null>(null);
   const [cancelando, setCancelando] = useState<number | null>(null);
-  const [mensajeExito, setMensajeExito] = useState<string | null>(null);
+  const [toastMsg, setToastMsg] = useState<{ tipo: "ok" | "err"; msg: string } | null>(null);
 
   const cargarSolicitudes = (eeId: number) =>
     fetch(`${API}/empresa/solicitudes?eeId=${eeId}`)
       .then((r) => r.json())
       .then((d) => setSolicitudes(Array.isArray(d) ? d : []));
+
+  const toast = (tipo: "ok" | "err", msg: string) => {
+    setToastMsg({ tipo, msg });
+    setTimeout(() => setToastMsg(null), 4000);
+  };
 
   useEffect(() => {
     const raw = localStorage.getItem("empresaUser");
@@ -432,10 +696,10 @@ function SolicitudesContent() {
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.message ?? "Error al cancelar");
-      setMensajeExito("Solicitud cancelada correctamente.");
-      setTimeout(() => setMensajeExito(null), 4000);
+      setModalDetalle(null);
+      toast("ok", "Solicitud cancelada correctamente.");
       recargar();
-    } catch (e: any) { alert(e.message); }
+    } catch (e: any) { toast("err", e.message); }
     finally { setCancelando(null); }
   };
 
@@ -461,22 +725,35 @@ function SolicitudesContent() {
       {modalNueva && ctx && (
         <NuevaSolicitudModal ctx={ctx} receptoraId={modalNueva.id} receptoraNombre={modalNueva.nombre}
           onClose={() => setModalNueva(null)}
-          onCreada={() => { setModalNueva(null); setMensajeExito("Solicitud enviada correctamente."); setTimeout(() => setMensajeExito(null), 4000); recargar(); }} />
+          onCreada={() => { setModalNueva(null); toast("ok", "Solicitud enviada correctamente."); recargar(); }} />
       )}
       {modalRechazar && ctx && (
         <RechazarModal sol={modalRechazar} eeId={ctx.empresaeventoId}
           onClose={() => setModalRechazar(null)}
-          onOk={() => { setModalRechazar(null); setMensajeExito("Solicitud rechazada."); setTimeout(() => setMensajeExito(null), 4000); recargar(); }} />
+          onOk={() => { setModalRechazar(null); setModalDetalle(null); toast("ok", "Solicitud rechazada."); recargar(); }} />
       )}
       {modalAceptar && ctx && (
         <AceptarModal sol={modalAceptar} eeId={ctx.empresaeventoId}
           onClose={() => setModalAceptar(null)}
-          onOk={() => { setModalAceptar(null); setMensajeExito("¡Reunión confirmada!"); setTimeout(() => setMensajeExito(null), 4000); recargar(); }} />
+          onOk={() => { setModalAceptar(null); setModalDetalle(null); toast("ok", "¡Reunión confirmada!"); recargar(); }} />
+      )}
+      {modalDetalle && ctx && (
+        <DetalleSolicitudModal
+          sol={modalDetalle} tab={tab} eeId={ctx.empresaeventoId}
+          onClose={() => setModalDetalle(null)}
+          onAceptar={() => { setModalAceptar(modalDetalle); }}
+          onRechazar={() => { setModalRechazar(modalDetalle); }}
+          onCancelar={() => handleCancelar(modalDetalle.id)}
+        />
       )}
 
       <div className="p-6 space-y-5">
+        {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <h1 className="text-2xl font-extrabold text-gray-900">Solicitudes de reunión</h1>
+          <div>
+            <h1 className="text-2xl font-extrabold text-gray-900">Solicitudes de reunión</h1>
+            <p className="text-sm text-gray-400 mt-0.5">{solicitudes.length} solicitudes en total</p>
+          </div>
           <button onClick={() => router.push("/empresa/empresas")}
             className="flex items-center gap-2 bg-[#449D3A] hover:bg-[#3a8531] text-white text-sm font-bold px-4 py-2.5 rounded-xl transition-colors">
             <Send className="w-4 h-4" />
@@ -484,9 +761,13 @@ function SolicitudesContent() {
           </button>
         </div>
 
-        {mensajeExito && (
-          <div className="flex items-center gap-2 bg-green-50 text-green-700 rounded-xl p-3 text-sm">
-            <CheckCircle2 className="w-4 h-4 shrink-0" />{mensajeExito}
+        {/* Toast */}
+        {toastMsg && (
+          <div className={`flex items-center gap-2 rounded-xl p-3 text-sm ${
+            toastMsg.tipo === "ok" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
+          }`}>
+            {toastMsg.tipo === "ok" ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
+            {toastMsg.msg}
           </div>
         )}
 
@@ -502,74 +783,105 @@ function SolicitudesContent() {
           ))}
         </div>
 
+        {/* List */}
         {lista.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center text-gray-400">
-            <Send className="w-12 h-12 mx-auto mb-3 opacity-30" />
-            <p className="text-sm">{tab === "enviadas" ? "No has enviado solicitudes aún." : "No has recibido solicitudes."}</p>
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center mx-auto mb-4">
+              <Send className="w-7 h-7 text-gray-300" />
+            </div>
+            <p className="text-sm font-semibold text-gray-400">
+              {tab === "enviadas" ? "No has enviado solicitudes aún." : "No has recibido solicitudes."}
+            </p>
           </div>
         ) : (
           <div className="space-y-3">
-            {lista.map((sol: any) => (
-              <div key={sol.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                {/* Advertencia de conflicto */}
-                {sol.tieneConflicto && (
-                  <div className="flex items-center gap-2 bg-amber-50 border-b border-amber-100 px-5 py-2 text-xs font-bold text-amber-700">
-                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                    Conflicto: hay otra solicitud pendiente para el mismo horario. Solo puedes aceptar una.
-                  </div>
-                )}
-                <div className="p-5 flex flex-wrap items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                      {estadoBadge(sol.estado)}
-                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${sol.tipo === "PRESENCIAL" ? "bg-blue-50 text-blue-600" : "bg-purple-50 text-purple-600"}`}>
-                        {sol.tipo === "PRESENCIAL" ? "Presencial" : "Virtual"}
-                      </span>
-                      {sol.reunion?.mesa?.numeroMesa && (
-                        <span className="text-xs text-gray-400 flex items-center gap-1">
-                          <Table2 className="w-3 h-3" />Mesa {sol.reunion.mesa.numeroMesa}
+            {lista.map((sol: any) => {
+              const empresa = tab === "enviadas" ? sol.receptora : sol.solicitante;
+              const initial = (empresa?.nombre ?? "E")[0].toUpperCase();
+              const leftCls = STATUS_LEFT[sol.estado] ?? "border-l-gray-200";
+
+              return (
+                <div
+                  key={sol.id}
+                  onClick={() => setModalDetalle(sol)}
+                  className={`w-full bg-white rounded-2xl border border-gray-100 border-l-4 ${leftCls} shadow-sm overflow-hidden text-left hover:shadow-md transition-all active:scale-[0.995] group cursor-pointer`}
+                >
+                  {/* Conflict banner */}
+                  {sol.tieneConflicto && (
+                    <div className="flex items-center gap-2 bg-amber-50 border-b border-amber-100 px-5 py-2 text-xs font-bold text-amber-700">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                      Conflicto de horario — revisa antes de aceptar
+                    </div>
+                  )}
+
+                  <div className="p-5 flex items-center gap-4">
+                    {/* Avatar */}
+                    <div className="w-11 h-11 rounded-xl bg-[#449D3A]/10 flex items-center justify-center shrink-0 font-bold text-[#449D3A] text-lg">
+                      {initial}
+                    </div>
+
+                    {/* Main info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+                        {estadoBadge(sol.estado)}
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${sol.tipo === "PRESENCIAL" ? "bg-blue-50 text-blue-600" : "bg-purple-50 text-purple-600"}`}>
+                          {sol.tipo === "PRESENCIAL" ? "Presencial" : "Virtual"}
                         </span>
+                        {(sol.reunion?.mesa?.numeroMesa || sol.mesa?.numeroMesa) && (
+                          <span className="text-[10px] text-gray-400 flex items-center gap-0.5">
+                            <Table2 className="w-2.5 h-2.5" />
+                            Mesa {sol.reunion?.mesa?.numeroMesa ?? sol.mesa?.numeroMesa}
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="font-bold text-gray-900 text-sm truncate">{empresa?.nombre ?? "Empresa"}</p>
+
+                      {sol.inicio && (
+                        <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
+                          <Calendar className="w-3 h-3 shrink-0" />
+                          {formatDT(sol.inicio)}
+                        </p>
+                      )}
+
+                      {sol.mensaje && (
+                        <p className="text-xs text-gray-400 mt-1 italic truncate">"{sol.mensaje}"</p>
+                      )}
+                      {sol.motivo && (
+                        <p className="text-xs text-red-400 mt-1 truncate">Motivo: {sol.motivo}</p>
                       )}
                     </div>
-                    <p className="font-bold text-gray-900 text-sm">
-                      {tab === "enviadas" ? `→ ${sol.receptora?.nombre ?? "Empresa"}` : `← ${sol.solicitante?.nombre ?? "Empresa"}`}
-                    </p>
-                    {sol.inicio && (
-                      <p className="text-xs text-gray-500 mt-1 flex items-center gap-1.5">
-                        <Calendar className="w-3 h-3" />{formatDT(sol.inicio)}
-                      </p>
-                    )}
-                    {sol.mensaje && <p className="text-xs text-gray-400 mt-1.5 italic line-clamp-2">"{sol.mensaje}"</p>}
-                    {sol.motivo && <p className="text-xs text-red-500 mt-1.5">Motivo: {sol.motivo}</p>}
-                  </div>
 
-                  {/* Acciones */}
-                  <div className="flex gap-2 shrink-0">
-                    {/* Recibida PENDIENTE: aceptar/rechazar */}
-                    {tab === "recibidas" && sol.estado === "PENDIENTE" && (
-                      <>
-                        <button onClick={() => setModalAceptar(sol)}
-                          className="flex items-center gap-1.5 px-3 py-2 bg-green-100 hover:bg-green-200 text-green-700 text-xs font-bold rounded-xl transition-colors">
-                          <CheckCircle2 className="w-3.5 h-3.5" />Aceptar
+                    {/* Quick actions or chevron */}
+                    <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                      {tab === "recibidas" && sol.estado === "PENDIENTE" && (
+                        <>
+                          <button onClick={(e) => { e.stopPropagation(); setModalAceptar(sol); }}
+                            className="p-2 rounded-xl bg-green-100 hover:bg-green-200 text-green-700 transition-colors" title="Aceptar">
+                            <CheckCircle2 className="w-4 h-4" />
+                          </button>
+                          <button onClick={(e) => { e.stopPropagation(); setModalRechazar(sol); }}
+                            className="p-2 rounded-xl bg-red-100 hover:bg-red-200 text-red-600 transition-colors" title="Rechazar">
+                            <XCircle className="w-4 h-4" />
+                          </button>
+                        </>
+                      )}
+                      {tab === "enviadas" && sol.estado === "PENDIENTE" && (
+                        <button onClick={(e) => { e.stopPropagation(); handleCancelar(sol.id); }}
+                          disabled={cancelando === sol.id}
+                          className="p-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-500 transition-colors disabled:opacity-50" title="Cancelar">
+                          <Ban className="w-4 h-4" />
                         </button>
-                        <button onClick={() => setModalRechazar(sol)}
-                          className="flex items-center gap-1.5 px-3 py-2 bg-red-100 hover:bg-red-200 text-red-600 text-xs font-bold rounded-xl transition-colors">
-                          <XCircle className="w-3.5 h-3.5" />Rechazar
-                        </button>
-                      </>
-                    )}
-                    {/* Enviada PENDIENTE: cancelar */}
-                    {tab === "enviadas" && sol.estado === "PENDIENTE" && (
-                      <button onClick={() => handleCancelar(sol.id)} disabled={cancelando === sol.id}
-                        className="flex items-center gap-1.5 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-bold rounded-xl transition-colors disabled:opacity-50">
-                        <Ban className="w-3.5 h-3.5" />
-                        {cancelando === sol.id ? "Cancelando..." : "Cancelar"}
-                      </button>
-                    )}
+                      )}
+                    </div>
+
+                    <svg className="w-4 h-4 text-gray-300 shrink-0 group-hover:text-gray-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

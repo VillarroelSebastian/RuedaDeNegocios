@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect, useCallback } from 'react';
 import { Search, Building2, Users, Eye, Trash2, ChevronLeft, ChevronRight, Filter, X } from 'lucide-react';
+import ImagenLightbox from '@/components/ui/ImagenLightbox';
 import { useModal } from '@/components/ui/Modal';
 
 const API = 'http://localhost:3334';
@@ -243,7 +244,7 @@ export default function EmpresasPage() {
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-lg bg-green-100 flex items-center justify-center shrink-0 overflow-hidden">
                           {emp.urlFotoPerfil
-                            ? <img src={emp.urlFotoPerfil} alt="" className="w-full h-full object-contain" />
+                            ? <ImagenLightbox src={emp.urlFotoPerfil} className="w-full h-full" />
                             : <Building2 className="w-5 h-5 text-green-600" />
                           }
                         </div>

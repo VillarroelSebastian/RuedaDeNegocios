@@ -5,18 +5,19 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, CalendarDays, Newspaper, Building2,
-  Send, Users, Star, User, Briefcase,
+  Send, Users, Star, User, Briefcase, Clock,
 } from 'lucide-react';
 
-const menuItems = [
-  { name: 'Dashboard',     icon: LayoutDashboard, href: '/empresa/dashboard' },
-  { name: 'Eventos',       icon: CalendarDays,    href: '/empresa/eventos' },
-  { name: 'Comunicados',   icon: Newspaper,       href: '/empresa/comunicados' },
-  { name: 'Empresas',      icon: Building2,       href: '/empresa/empresas' },
-  { name: 'Solicitudes',   icon: Send,            href: '/empresa/solicitudes' },
-  { name: 'Mis Reuniones', icon: Users,           href: '/empresa/reuniones' },
-  { name: 'Resultados',    icon: Star,            href: '/empresa/resultados' },
-  { name: 'Mi Perfil',     icon: User,            href: '/empresa/perfil' },
+const allMenuItems = [
+  { name: 'Dashboard',     icon: LayoutDashboard, href: '/empresa/dashboard',    soloEncargado: false },
+  { name: 'Eventos',       icon: CalendarDays,    href: '/empresa/eventos',      soloEncargado: false },
+  { name: 'Comunicados',   icon: Newspaper,       href: '/empresa/comunicados',  soloEncargado: false },
+  { name: 'Mis Reuniones', icon: Users,           href: '/empresa/reuniones',    soloEncargado: false },
+  { name: 'Empresas',      icon: Building2,       href: '/empresa/empresas',     soloEncargado: true  },
+  { name: 'Solicitudes',   icon: Send,            href: '/empresa/solicitudes',  soloEncargado: true  },
+  { name: 'Mis Horarios',  icon: Clock,           href: '/empresa/horarios',     soloEncargado: true  },
+  { name: 'Resultados',    icon: Star,            href: '/empresa/resultados',   soloEncargado: true  },
+  { name: 'Mi Perfil',     icon: User,            href: '/empresa/perfil',       soloEncargado: false },
 ];
 
 interface EmpresaSidebarProps {
@@ -44,7 +45,7 @@ export default function EmpresaSidebar({ esEncargado = false }: EmpresaSidebarPr
         </div>
       )}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {menuItems.map((item) => {
+        {allMenuItems.filter(item => esEncargado || !item.soloEncargado).map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
           return (
             <Link

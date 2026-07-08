@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   User, Building2, Save, AlertCircle, CheckCircle2, Edit3,
   Users, UserPlus, UserX, CreditCard, AlertTriangle,
+  KeyRound, Shield, X, Upload, FileText,
 } from "lucide-react";
 
 const API = "http://localhost:3334";
@@ -97,14 +98,37 @@ function AgregarParticipanteModal({ eeId, euEncargadoId, slotsDisponibles, maxPe
 function PagoAdicionalModal({ eeId, euEncargadoId, maxPermitidos, slotsPagados, onClose, onOk }: any) {
   const [cantidad, setCantidad] = useState(1);
   const [urlComprobante, setUrlComprobante] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   const maxAdicionales = maxPermitidos - slotsPagados;
 
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) { setErr("El archivo no debe superar 10 MB."); return; }
+    setUploading(true); setErr(null); setPreviewUrl(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch(`${API}/admin/imagenes/upload`, { method: "POST", body: fd });
+      const data = await res.json();
+      if (!data.url) throw new Error("No se obtuvo URL del archivo");
+      setUrlComprobante(data.url);
+      setPreviewUrl(data.url);
+    } catch (e: any) {
+      setErr(e.message || "Error al subir el comprobante");
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  };
+
   const submit = async () => {
     setErr(null);
-    if (!urlComprobante.trim()) { setErr("Debes ingresar la URL del comprobante de pago"); return; }
+    if (!urlComprobante.trim()) { setErr("Debes subir el comprobante de pago"); return; }
     if (cantidad < 1) { setErr("La cantidad debe ser al menos 1"); return; }
     setEnviando(true);
     try {
@@ -123,9 +147,11 @@ function PagoAdicionalModal({ eeId, euEncargadoId, maxPermitidos, slotsPagados, 
     }
   };
 
+  const isPdf = previewUrl && (previewUrl.includes(".pdf") || previewUrl.includes("/raw/upload/"));
+
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4 max-h-[90vh] overflow-y-auto">
         <h3 className="font-extrabold text-gray-900">Solicitar cupos adicionales</h3>
         {maxAdicionales <= 0 ? (
           <>
@@ -149,13 +175,31 @@ function PagoAdicionalModal({ eeId, euEncargadoId, maxPermitidos, slotsPagados, 
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">URL del comprobante de pago</label>
-              <input
-                type="url" value={urlComprobante} onChange={(e) => setUrlComprobante(e.target.value)}
-                placeholder="https://drive.google.com/..."
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30"
-              />
-              <p className="text-xs text-gray-400 mt-1">Sube el comprobante a Google Drive u otro servicio y pega el enlace.</p>
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Comprobante de pago *</label>
+
+              {/* Preview */}
+              {previewUrl && (
+                <div className="mb-3 rounded-xl border border-gray-200 overflow-hidden bg-gray-50 h-40 flex items-center justify-center">
+                  {isPdf ? (
+                    <div className="flex flex-col items-center gap-2 text-gray-500">
+                      <FileText className="w-10 h-10 text-[#449D3A]" />
+                      <p className="text-xs font-semibold">Archivo PDF adjunto</p>
+                    </div>
+                  ) : (
+                    <img src={previewUrl} alt="Comprobante" className="w-full h-full object-contain" />
+                  )}
+                </div>
+              )}
+
+              {/* Upload zone */}
+              <label className={`flex flex-col items-center justify-center w-full border-2 border-dashed rounded-xl p-5 cursor-pointer transition-all ${uploading ? "border-[#449D3A] bg-green-50" : "border-gray-200 hover:border-[#449D3A] hover:bg-green-50"}`}>
+                <input type="file" accept="image/*,.pdf" className="hidden" onChange={handleFileChange} disabled={uploading} />
+                <Upload className={`w-6 h-6 mb-1.5 ${uploading ? "text-[#449D3A] animate-bounce" : "text-gray-400"}`} />
+                <p className={`text-sm font-semibold ${uploading ? "text-[#449D3A]" : "text-gray-600"}`}>
+                  {uploading ? "Subiendo..." : previewUrl ? "Reemplazar comprobante" : "Subir comprobante"}
+                </p>
+                <p className="text-xs text-gray-400 mt-0.5">Imagen o PDF — Máx. 10 MB</p>
+              </label>
             </div>
             {err && (
               <div className="flex items-center gap-2 bg-red-50 text-red-700 rounded-xl p-3 text-sm">
@@ -164,7 +208,7 @@ function PagoAdicionalModal({ eeId, euEncargadoId, maxPermitidos, slotsPagados, 
             )}
             <div className="flex gap-3">
               <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50">Cancelar</button>
-              <button onClick={submit} disabled={enviando} className="flex-1 py-2.5 rounded-xl bg-[#449D3A] hover:bg-[#3a8531] text-white text-sm font-bold disabled:opacity-50">
+              <button onClick={submit} disabled={enviando || uploading || !urlComprobante} className="flex-1 py-2.5 rounded-xl bg-[#449D3A] hover:bg-[#3a8531] text-white text-sm font-bold disabled:opacity-50">
                 {enviando ? "Enviando..." : "Solicitar cupos"}
               </button>
             </div>
@@ -196,8 +240,64 @@ export default function EmpresaPerfilPage() {
   const [modalAgregar, setModalAgregar] = useState(false);
   const [modalPago, setModalPago] = useState(false);
   const [desactivando, setDesactivando] = useState<number | null>(null);
+  const [modalDesactivarEu, setModalDesactivarEu] = useState<number | null>(null);
   const [mensajeP, setMensajeP] = useState<string | null>(null);
   const [mensajeErrP, setMensajeErrP] = useState<string | null>(null);
+
+  // Password reset via email (code flow)
+  const [resetStep,    setResetStep]    = useState<"idle"|"sending"|"code"|"success">("idle");
+  const [resetModal,   setResetModal]   = useState(false);
+  const [resetCodigo,  setResetCodigo]  = useState("");
+  const [resetNueva,   setResetNueva]   = useState("");
+  const [resetConf,    setResetConf]    = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetErr,     setResetErr]     = useState<string | null>(null);
+
+  const handleEnviarCodigo = async () => {
+    const correo = ctx?.usuario?.correo;
+    if (!correo) return;
+    setResetStep("sending");
+    try {
+      await fetch(`${API}/auth/solicitar-reset`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ correo }),
+      });
+      setResetCodigo(""); setResetNueva(""); setResetConf(""); setResetErr(null);
+      setResetStep("code");
+      setResetModal(true);
+    } catch {
+      setResetStep("idle");
+    }
+  };
+
+  const handleConfirmarReset = async () => {
+    setResetErr(null);
+    if (resetCodigo.length !== 6) { setResetErr("Ingresa el código de 6 dígitos."); return; }
+    if (resetNueva.length < 6)    { setResetErr("La contraseña debe tener al menos 6 caracteres."); return; }
+    if (resetNueva !== resetConf)  { setResetErr("Las contraseñas no coinciden."); return; }
+    setResetLoading(true);
+    try {
+      const res = await fetch(`${API}/auth/confirmar-reset`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ correo: ctx?.usuario?.correo, codigo: resetCodigo, nuevaContrasenia: resetNueva }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d?.message || "Código incorrecto o expirado.");
+      setResetStep("success");
+    } catch (e: any) {
+      setResetErr(e.message);
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  const closeResetModal = () => {
+    setResetModal(false);
+    setResetStep("idle");
+    setResetCodigo(""); setResetNueva(""); setResetConf(""); setResetErr(null);
+  };
 
   const cargarParticipantes = useCallback(async (eeId: number) => {
     setLoadingParticipantes(true);
@@ -264,8 +364,10 @@ export default function EmpresaPerfilPage() {
     }
   };
 
-  const handleDesactivar = async (euId: number) => {
-    if (!ctx || !confirm("¿Desactivar a este participante? Ya no podrá acceder.")) return;
+  const confirmarDesactivar = async () => {
+    if (!ctx || !modalDesactivarEu) return;
+    const euId = modalDesactivarEu;
+    setModalDesactivarEu(null);
     setDesactivando(euId);
     try {
       const res = await fetch(`${API}/empresa/participantes/${euId}/desactivar`, {
@@ -284,6 +386,11 @@ export default function EmpresaPerfilPage() {
     } finally {
       setDesactivando(null);
     }
+  };
+
+  const handleDesactivar = (euId: number) => {
+    if (!ctx) return;
+    setModalDesactivarEu(euId);
   };
 
   // ─── Loading / error states ───────────────────────────────────────────────
@@ -337,6 +444,31 @@ export default function EmpresaPerfilPage() {
             cargarParticipantes(ctx.empresaeventoId);
           }}
         />
+      )}
+      {modalDesactivarEu && (
+        <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                <AlertCircle className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-gray-900">Desactivar participante</h3>
+                <p className="text-sm text-gray-500">Ya no podrá acceder al evento.</p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setModalDesactivarEu(null)}
+                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50">
+                Cancelar
+              </button>
+              <button onClick={confirmarDesactivar}
+                className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-bold">
+                Desactivar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <div className="p-6 space-y-6 max-w-5xl">
@@ -669,6 +801,106 @@ export default function EmpresaPerfilPage() {
                 )}
               </>
             ) : null}
+          </>
+        )}
+
+        {/* Cambiar contraseña */}
+        {ctx && (
+          <>
+            {/* Modal reset por código */}
+            {resetModal && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-2xl w-full max-w-md shadow-xl">
+                  <div className="flex items-center justify-between p-6 border-b border-gray-100">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center">
+                        {resetStep === "success"
+                          ? <CheckCircle2 className="w-5 h-5 text-[#449D3A]" />
+                          : <KeyRound className="w-5 h-5 text-[#449D3A]" />}
+                      </div>
+                      <h3 className="font-bold text-gray-900 text-lg">
+                        {resetStep === "success" ? "¡Contraseña actualizada!" : "Cambiar contraseña"}
+                      </h3>
+                    </div>
+                    <button onClick={closeResetModal} className="text-gray-400 hover:text-gray-600">
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  <div className="p-6 space-y-4">
+                    {resetStep === "success" ? (
+                      <div className="text-center space-y-4 py-4">
+                        <CheckCircle2 className="w-12 h-12 text-[#449D3A] mx-auto" />
+                        <p className="text-gray-600">Tu contraseña fue actualizada correctamente.</p>
+                        <button onClick={closeResetModal}
+                          className="px-6 py-2.5 bg-[#449D3A] hover:bg-[#3a8531] text-white font-bold rounded-xl text-sm transition-colors">
+                          Cerrar
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-sm text-gray-500">
+                          Ingresa el código de 6 dígitos que enviamos a <strong>{ctx.usuario?.correo}</strong>.
+                        </p>
+                        {resetErr && (
+                          <div className="flex items-center gap-2 bg-red-50 text-red-700 rounded-xl p-3 text-sm">
+                            <AlertCircle className="w-4 h-4 shrink-0" />{resetErr}
+                          </div>
+                        )}
+                        <div>
+                          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Código de verificación</label>
+                          <input
+                            type="text" maxLength={6} value={resetCodigo}
+                            onChange={(e) => setResetCodigo(e.target.value.replace(/\D/g, ""))}
+                            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A] tracking-[0.5em] font-bold text-center"
+                            placeholder="000000"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Nueva contraseña</label>
+                          <input type="password" value={resetNueva} onChange={(e) => setResetNueva(e.target.value)}
+                            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A]"
+                            placeholder="••••••••" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Confirmar contraseña</label>
+                          <input type="password" value={resetConf} onChange={(e) => setResetConf(e.target.value)}
+                            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A]"
+                            placeholder="••••••••" />
+                        </div>
+                        <button onClick={handleConfirmarReset} disabled={resetLoading}
+                          className="w-full py-2.5 bg-[#449D3A] hover:bg-[#3a8531] text-white font-bold rounded-xl text-sm disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
+                          {resetLoading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                          {resetLoading ? "Verificando..." : "Confirmar cambio"}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
+              <div className="flex items-center gap-2 px-6 py-4 border-b border-gray-100">
+                <Shield className="w-5 h-5 text-[#449D3A]" />
+                <h3 className="font-bold text-gray-900">Seguridad</h3>
+              </div>
+              <div className="p-6 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">Contraseña</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Te enviaremos un código a tu correo para verificar tu identidad.</p>
+                </div>
+                <button
+                  onClick={handleEnviarCodigo}
+                  disabled={resetStep === "sending"}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-[#449D3A] hover:bg-[#3a8531] text-white text-sm font-bold rounded-xl disabled:opacity-50 transition-colors shrink-0 ml-4"
+                >
+                  {resetStep === "sending"
+                    ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Enviando...</>
+                    : <><KeyRound className="w-4 h-4" />Cambiar contraseña</>}
+                </button>
+              </div>
+            </div>
           </>
         )}
       </div>

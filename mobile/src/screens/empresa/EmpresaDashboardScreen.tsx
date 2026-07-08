@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   Briefcase, CalendarDays, Send, Inbox,
-  Newspaper, ChevronRight, LogOut, AlertCircle,
+  Newspaper, ChevronRight, AlertCircle,
 } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
 
@@ -67,6 +67,7 @@ export default function EmpresaDashboardScreen({ navigation }: any) {
 
   const esEncargado = !!ctx?.esResponsable;
   const proximaReunion = stats?.proximaReunion;
+  const estadoPago = stats?.estadoPago ?? ctx?.estadoPago;
 
   return (
     <SafeAreaView style={s.root} edges={['top']}>
@@ -109,8 +110,8 @@ export default function EmpresaDashboardScreen({ navigation }: any) {
           </View>
         )}
 
-        {/* Alerta solicitudes pendientes */}
-        {stats?.pendientesRecibidas > 0 && (
+        {/* Alerta solicitudes pendientes — solo encargado */}
+        {esEncargado && stats?.pendientesRecibidas > 0 && (
           <TouchableOpacity style={s.alertBox} onPress={() => navigation.navigate('Solicitudes')} activeOpacity={0.8}>
             <AlertCircle size={16} color="#92400e" style={{ marginRight: 8 }} />
             <Text style={s.alertText}>
@@ -122,10 +123,16 @@ export default function EmpresaDashboardScreen({ navigation }: any) {
         {/* Stats */}
         {stats && (
           <View style={s.statsGrid}>
-            <StatCard icon={<Inbox size={20} color={GREEN} />} label="Recibidas" value={stats.pendientesRecibidas ?? 0} color="#f0fdf4" />
-            <StatCard icon={<Send size={20} color="#2563eb" />} label="Enviadas" value={stats.pendientesEnviadas ?? 0} color="#eff6ff" />
+            {esEncargado && (
+              <>
+                <StatCard icon={<Inbox size={20} color={GREEN} />} label="Recibidas" value={stats.pendientesRecibidas ?? 0} color="#f0fdf4" />
+                <StatCard icon={<Send size={20} color="#2563eb" />} label="Enviadas" value={stats.pendientesEnviadas ?? 0} color="#eff6ff" />
+              </>
+            )}
             <StatCard icon={<CalendarDays size={20} color="#7c3aed" />} label="Reuniones" value={stats.reunionesTotal ?? 0} color="#f5f3ff" />
-            <StatCard icon={<Briefcase size={20} color="#059669" />} label="Estado" value={null} status={stats.estadoPago ?? ctx?.estadoPago} color="#ecfdf5" />
+            {estadoPago !== 'COMPLETADO' && (
+              <StatCard icon={<Briefcase size={20} color="#059669" />} label="Estado" value={null} status={estadoPago} color="#ecfdf5" />
+            )}
           </View>
         )}
 
@@ -192,11 +199,12 @@ export default function EmpresaDashboardScreen({ navigation }: any) {
           <Text style={s.sectionTitle}>Acceso rápido</Text>
           <View style={s.quickGrid}>
             {[
-              { label: 'Comunicados', screen: 'Comunicados', color: '#f0fdf4' },
-              { label: 'Actividades', screen: 'Eventos',     color: '#eff6ff' },
-              { label: 'Resultados',  screen: 'Resultados',  color: '#f5f3ff' },
-              { label: 'Solicitudes', screen: 'Solicitudes', color: '#fff7ed' },
-            ].map((q) => (
+              { label: 'Comunicados', screen: 'Comunicados', color: '#f0fdf4', soloEncargado: false },
+              { label: 'Actividades', screen: 'Eventos',     color: '#eff6ff', soloEncargado: false },
+              { label: 'Resultados',  screen: 'Resultados',  color: '#f5f3ff', soloEncargado: true  },
+              { label: 'Solicitudes', screen: 'Solicitudes', color: '#fff7ed', soloEncargado: true  },
+              { label: 'Horarios',    screen: 'Horarios',    color: '#ecfdf5', soloEncargado: true  },
+            ].filter(q => esEncargado || !q.soloEncargado).map((q) => (
               <TouchableOpacity
                 key={q.screen}
                 style={[s.quickCard, { backgroundColor: q.color }]}
@@ -219,7 +227,7 @@ function StatCard({ icon, label, value, status, color }: any) {
   return (
     <View style={[s.statCard, { backgroundColor: color }]}>
       {icon}
-      <Text style={s.statValue}>{value !== null ? String(value) : (status ?? '—')}</Text>
+      <Text style={s.statValue}>{value === null ? (status ?? '—') : String(value)}</Text>
       <Text style={s.statLabel}>{label}</Text>
     </View>
   );

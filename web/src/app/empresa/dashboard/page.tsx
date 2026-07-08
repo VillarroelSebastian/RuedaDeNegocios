@@ -106,8 +106,8 @@ export default function EmpresaDashboardPage() {
         </div>
       )}
 
-      {/* Alerta solicitudes pendientes recibidas */}
-      {stats?.pendientesRecibidas > 0 && (
+      {/* Alerta solicitudes pendientes recibidas — solo encargado */}
+      {esResponsable && stats?.pendientesRecibidas > 0 && (
         <Link href="/empresa/solicitudes" className="block">
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-3 hover:border-amber-300 transition-colors cursor-pointer">
             <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
@@ -125,14 +125,14 @@ export default function EmpresaDashboardPage() {
       {stats && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
-            {
+            esResponsable && {
               label: "Sol. recibidas pendientes",
               value: stats.pendientesRecibidas,
               Icon: AlertTriangle,
               color: stats.pendientesRecibidas > 0 ? "bg-amber-50 text-amber-600" : "bg-gray-50 text-gray-400",
               href: "/empresa/solicitudes",
             },
-            {
+            esResponsable && {
               label: "Sol. enviadas pendientes",
               value: stats.pendientesEnviadas,
               Icon: Send,
@@ -146,14 +146,14 @@ export default function EmpresaDashboardPage() {
               color: stats.reunionesTotal > 0 ? "bg-green-50 text-[#449D3A]" : "bg-gray-50 text-gray-400",
               href: "/empresa/reuniones",
             },
-            {
+            estadoPago !== "COMPLETADO" && {
               label: "Estado de participación",
               badge: estadoPago,
               Icon: CreditCard,
               color: "bg-purple-50 text-purple-600",
               href: null,
             },
-          ].map((c: any, i) => (
+          ].filter(Boolean).map((c: any, i) => (
             c.href ? (
               <Link key={i} href={c.href}
                 className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 hover:border-green-200 transition-colors group">
@@ -341,13 +341,13 @@ export default function EmpresaDashboardPage() {
           <h2 className="font-bold text-gray-900 mb-4">Acceso rápido</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {[
-              { href: "/empresa/empresas",   Icon: Building2,   label: "Ver empresas",  desc: "Directorio de participantes" },
-              { href: "/empresa/solicitudes",Icon: Send,        label: "Solicitudes",   desc: "Gestión de reuniones" },
-              { href: "/empresa/reuniones",  Icon: Users,       label: "Mis reuniones", desc: "Citas confirmadas" },
-              { href: "/empresa/resultados", Icon: Star,        label: "Resultados",    desc: "Registra acuerdos" },
-              { href: "/empresa/eventos",    Icon: Calendar,    label: "Programa",      desc: "Actividades del evento" },
-              { href: "/empresa/comunicados",Icon: Megaphone,   label: "Comunicados",   desc: "Noticias y anuncios" },
-            ].map(({ href, Icon, label, desc }) => (
+              { href: "/empresa/empresas",   Icon: Building2,   label: "Ver empresas",  desc: "Directorio de participantes", soloEncargado: true },
+              { href: "/empresa/solicitudes",Icon: Send,        label: "Solicitudes",   desc: "Gestión de reuniones",        soloEncargado: true },
+              { href: "/empresa/reuniones",  Icon: Users,       label: "Mis reuniones", desc: "Citas confirmadas",           soloEncargado: false },
+              { href: "/empresa/resultados", Icon: Star,        label: "Resultados",    desc: "Registra acuerdos",           soloEncargado: true },
+              { href: "/empresa/eventos",    Icon: Calendar,    label: "Programa",      desc: "Actividades del evento",      soloEncargado: false },
+              { href: "/empresa/comunicados",Icon: Megaphone,   label: "Comunicados",   desc: "Noticias y anuncios",         soloEncargado: false },
+            ].filter((item) => esResponsable || !item.soloEncargado).map(({ href, Icon, label, desc }) => (
               <Link key={href} href={href}
                 className="flex items-center gap-3 p-3.5 rounded-xl border border-gray-100 hover:border-green-200 hover:bg-green-50 transition-all group">
                 <div className="w-9 h-9 bg-green-50 rounded-lg flex items-center justify-center group-hover:bg-green-100 shrink-0">

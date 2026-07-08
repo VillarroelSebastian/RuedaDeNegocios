@@ -28,6 +28,10 @@ export default function EmpresaComunicadosPage() {
   const [expandido, setExpandido] = useState<number | null>(null);
 
   useEffect(() => {
+    localStorage.setItem('comunicadosLastSeen', new Date().toISOString());
+  }, []);
+
+  useEffect(() => {
     fetch(`${API}/empresa/comunicados`)
       .then((r) => r.json())
       .then((data) => setComunicados(Array.isArray(data) ? data : []))

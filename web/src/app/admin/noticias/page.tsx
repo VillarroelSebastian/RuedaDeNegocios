@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Pencil, Trash2, X, Upload, Image as ImageIcon } from 'lucide-react';
+import ImagenLightbox from '@/components/ui/ImagenLightbox';
 import { useModal } from '@/components/ui/Modal';
 
 const API = 'http://localhost:3334';
@@ -145,7 +146,7 @@ export default function NoticiasPage() {
             <div key={n.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
               {n.urlImagenNoticia && (
                 <div className="h-36 overflow-hidden">
-                  <img src={n.urlImagenNoticia} alt="" className="w-full h-full object-cover" />
+                  <ImagenLightbox src={n.urlImagenNoticia} className="w-full h-full" />
                 </div>
               )}
               <div className="p-5">

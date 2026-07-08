@@ -21,6 +21,14 @@ import {
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
+interface Participante {
+  nombres: string;
+  apellidoPaterno: string;
+  correo: string;
+  cargo: string;
+  esResponsable: boolean;
+}
+
 interface SeguimientoData {
   id: number;
   empresa: {
@@ -47,6 +55,7 @@ interface SeguimientoData {
     apellidoPaterno: string;
     correo: string;
   } | null;
+  participantes: Participante[];
 }
 
 const ESTADO_CONFIG: Record<
@@ -336,7 +345,7 @@ function SeguimientoContent() {
                   {data.empresa.correoCorporativo}
                 </p>
               </div>
-              <StatusBadge estado={estadoPago} />
+              {!pagoCompletado && <StatusBadge estado={estadoPago} />}
             </div>
 
             {/* Observación */}
@@ -527,25 +536,33 @@ function SeguimientoContent() {
               </dl>
             </div>
 
-            {/* Encargado */}
-            {data.encargado && (
+            {/* Participantes */}
+            {data.participantes?.length > 0 && (
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                 <h3 className="text-sm font-semibold text-gray-700 mb-4 uppercase tracking-wide">
-                  Encargado de la empresa
+                  Participantes registrados ({data.participantes.length})
                 </h3>
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
-                    <User className="w-5 h-5 text-green-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">
-                      {data.encargado.nombres} {data.encargado.apellidoPaterno}
-                    </p>
-                    <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
-                      <Mail className="w-3 h-3" />
-                      {data.encargado.correo}
-                    </p>
-                  </div>
+                <div className="space-y-3">
+                  {data.participantes.map((p, i) => (
+                    <div key={i} className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0">
+                      <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${p.esResponsable ? 'bg-green-100' : 'bg-blue-50'}`}>
+                        <User className={`w-4 h-4 ${p.esResponsable ? 'text-green-600' : 'text-blue-400'}`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 truncate">
+                          {p.nombres} {p.apellidoPaterno}
+                          {p.esResponsable && (
+                            <span className="ml-2 text-[10px] font-bold text-green-700 bg-green-100 px-1.5 py-0.5 rounded-full">Encargado</span>
+                          )}
+                        </p>
+                        <p className="text-xs text-gray-500 truncate">{p.cargo || '—'}</p>
+                        <p className="text-xs text-gray-400 flex items-center gap-1 truncate">
+                          <Mail className="w-3 h-3 flex-shrink-0" />
+                          {p.correo}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}

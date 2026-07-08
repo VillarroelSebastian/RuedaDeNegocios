@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, CheckCircle, AlertCircle, XCircle, Download, FileText, Info, Eye } from 'lucide-react';
+import { ArrowLeft, CheckCircle, AlertCircle, XCircle, Download, FileText, Info, Eye, Users } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { useModal } from '@/components/ui/Modal';
 import Link from 'next/link';
@@ -233,6 +233,35 @@ export default function PagoDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Participantes */}
+      {pago.empresa_usuario?.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 mb-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Users className="w-5 h-5 text-[#449D3A]" />
+            <h2 className="font-bold text-gray-900">Participantes registrados ({pago.empresa_usuario.length})</h2>
+          </div>
+          <div className="divide-y divide-gray-50">
+            {pago.empresa_usuario.map((eu: any) => (
+              <div key={eu.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
+                <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold ${eu.esResponsable === 1 ? 'bg-green-100 text-green-700' : 'bg-blue-50 text-blue-500'}`}>
+                  {(eu.usuario?.nombres?.[0] ?? '?').toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 flex items-center gap-2 flex-wrap">
+                    {eu.usuario?.nombres} {eu.usuario?.apellidoPaterno}
+                    {eu.esResponsable === 1 && (
+                      <span className="text-[10px] font-bold text-green-700 bg-green-100 px-1.5 py-0.5 rounded-full">Encargado</span>
+                    )}
+                  </p>
+                  <p className="text-xs text-gray-500">{eu.cargo || '—'}</p>
+                  <p className="text-xs text-gray-400">{eu.usuario?.correo}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Acciones */}
       {(puedeObservar || puedeRechazar) && (

@@ -2,12 +2,16 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { LogOut, User, ChevronDown } from 'lucide-react';
+import { LogOut, ChevronDown, Bell } from 'lucide-react';
+
+const API = 'http://localhost:3334';
+const LS_KEY = 'comunicadosLastSeen';
 
 export default function EmpresaHeader() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [showProfile, setShowProfile] = useState(false);
+  const [unread, setUnread] = useState(0);
   const profileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -15,6 +19,24 @@ export default function EmpresaHeader() {
     if (raw) {
       try { setUser(JSON.parse(raw)); } catch {}
     }
+  }, []);
+
+  useEffect(() => {
+    const check = async () => {
+      try {
+        const lastSeen = localStorage.getItem(LS_KEY);
+        const res = await fetch(`${API}/empresa/comunicados`);
+        if (!res.ok) return;
+        const data: any[] = await res.json();
+        const count = lastSeen
+          ? data.filter((c) => new Date(c.fechaHoraPublicacion).getTime() > new Date(lastSeen).getTime()).length
+          : data.length;
+        setUnread(count);
+      } catch {}
+    };
+    check();
+    const iv = setInterval(check, 60_000);
+    return () => clearInterval(iv);
   }, []);
 
   useEffect(() => {
@@ -40,7 +62,21 @@ export default function EmpresaHeader() {
     <header className="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6 sticky top-0 z-10 w-full">
       <h1 className="text-xl font-bold text-gray-800 hidden sm:block">Rueda de Negocios — Panel Empresa</h1>
 
-      <div ref={profileRef} className="relative ml-auto">
+      {/* Bell */}
+      <button
+        onClick={() => router.push('/empresa/comunicados')}
+        className="relative mr-2 p-2 rounded-xl hover:bg-gray-50 transition-colors"
+        title="Comunicados"
+      >
+        <Bell className="w-5 h-5 text-gray-600" />
+        {unread > 0 && (
+          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 leading-none">
+            {unread > 99 ? '99+' : unread}
+          </span>
+        )}
+      </button>
+
+      <div ref={profileRef} className="relative">
         <button
           onClick={() => setShowProfile(!showProfile)}
           className="flex items-center gap-2 rounded-xl hover:bg-gray-50 px-2 py-1.5 transition-colors"

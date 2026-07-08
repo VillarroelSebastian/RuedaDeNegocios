@@ -110,9 +110,31 @@ model empresaevento {
   resultadoreunion_resultadoreunion_empresaeventoCalificada_idToempresaevento   resultadoreunion[]          @relation("resultadoreunion_empresaeventoCalificada_idToempresaevento")
   solicitudreunion_solicitudreunion_empresaEvento_idToempresaevento             solicitudreunion[]          @relation("solicitudreunion_empresaEvento_idToempresaevento")
   solicitudreunion_solicitudreunion_empresaEventorReceptora_idToempresaevento   solicitudreunion[]          @relation("solicitudreunion_empresaEventorReceptora_idToempresaevento")
+  empresa_bloqueo                                                               empresa_bloqueo[]
+  empresa_horario                                                               empresa_horario[]
 
   @@index([empresa_id], map: "fk_empresaevento_empresa1_idx")
   @@index([evento_id], map: "fk_empresaevento_evento1_idx")
+}
+
+model empresa_bloqueo {
+  id               Int           @id @default(autoincrement())
+  empresaevento_id Int
+  inicio           DateTime      @db.Timestamp(6)
+  fin              DateTime      @db.Timestamp(6)
+  empresaevento    empresaevento @relation(fields: [empresaevento_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([empresaevento_id])
+}
+
+model empresa_horario {
+  id               Int           @id @default(autoincrement())
+  empresaevento_id Int
+  desde_hora       String        @db.VarChar(5)
+  hasta_hora       String        @db.VarChar(5)
+  empresaevento    empresaevento @relation(fields: [empresaevento_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([empresaevento_id])
 }
 
 model empresaeventocomprobantes {
@@ -195,9 +217,10 @@ model mesa {
   estaHabilitada        Int          @default(1) @db.SmallInt
   fechaCreacion         DateTime     @default(now()) @db.Timestamp(6)
   creadoModificadoFecha DateTime?    @db.Timestamp(6)
-  evento                evento       @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_mesa_evento1")
+  evento                evento            @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_mesa_evento1")
   mesabloque            mesabloque[]
   reunion               reunion[]
+  solicitudreunion      solicitudreunion[]
 
   @@index([evento_id], map: "fk_mesa_evento1_idx")
 }
@@ -327,10 +350,12 @@ model solicitudreunion {
   mensajeParaEmpresaReceptora                                              String?         @db.VarChar(505)
   estadoSolicitud                                                          String          @db.VarChar(45)
   motivoRechazoSolicitud                                                   String?         @db.VarChar(505)
+  mesa_id                                                                  Int?
   estaActivo                                                               Int             @default(1) @db.SmallInt
   fechaCreacion                                                            DateTime?       @default(now()) @db.Timestamp(6)
   creadoModificadoFecha                                                    DateTime?       @db.Timestamp(6)
   reunion                                                                  reunion[]
+  mesa                                                                     mesa?           @relation(fields: [mesa_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_solicitudreunion_mesa1")
   empresa_usuario                                                          empresa_usuario @relation(fields: [empresa_usuarioResponsableSolicitud], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_solicitudreunion_empresa_usuario1")
   empresaevento_solicitudreunion_empresaEvento_idToempresaevento           empresaevento   @relation("solicitudreunion_empresaEvento_idToempresaevento", fields: [empresaEvento_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_solicitudreunion_empresaevento1")
   empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento empresaevento   @relation("solicitudreunion_empresaEventorReceptora_idToempresaevento", fields: [empresaEventorReceptora_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_solicitudreunion_empresaevento2")

@@ -1,22 +1,86 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { TouchableOpacity, View, Text, StyleSheet } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator }   from '@react-navigation/bottom-tabs';
-import { LayoutDashboard, Building2, Send, CalendarDays, User } from 'lucide-react-native';
+import { useNavigation }              from '@react-navigation/native';
+import { LayoutDashboard, Building2, Send, CalendarDays, User, Bell } from 'lucide-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsistenteChatModal, { AsistenteChatButton } from '../components/AsistenteChatMobile';
+import { useNotificacionesMobile } from '../hooks/useNotificaciones';
 
-import EmpresaDashboardScreen  from '../screens/empresa/EmpresaDashboardScreen';
-import EmpresaEmpresasScreen   from '../screens/empresa/EmpresaEmpresasScreen';
+import EmpresaDashboardScreen   from '../screens/empresa/EmpresaDashboardScreen';
+import EmpresaEmpresasScreen    from '../screens/empresa/EmpresaEmpresasScreen';
 import EmpresaSolicitudesScreen from '../screens/empresa/EmpresaSolicitudesScreen';
-import EmpresaReunionesScreen  from '../screens/empresa/EmpresaReunionesScreen';
-import EmpresaPerfilScreen     from '../screens/empresa/EmpresaPerfilScreen';
+import EmpresaReunionesScreen   from '../screens/empresa/EmpresaReunionesScreen';
+import EmpresaPerfilScreen      from '../screens/empresa/EmpresaPerfilScreen';
 import EmpresaComunicadosScreen from '../screens/empresa/EmpresaComunicadosScreen';
-import EmpresaEventosScreen    from '../screens/empresa/EmpresaEventosScreen';
-import EmpresaResultadosScreen from '../screens/empresa/EmpresaResultadosScreen';
+import EmpresaEventosScreen     from '../screens/empresa/EmpresaEventosScreen';
+import EmpresaResultadosScreen  from '../screens/empresa/EmpresaResultadosScreen';
+import EmpresaHorariosScreen    from '../screens/empresa/EmpresaHorariosScreen';
+import { userStore, API_URL }   from '../utils/userStore';
 
 const Tab   = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
 const GREEN = '#449D3A';
 const GRAY  = '#9ca3af';
+const LS_KEY = 'comunicadosLastSeen';
+
+// ── Bell button ─────────────────────────────────────────────────────────────
+
+function BellButton() {
+  const navigation = useNavigation<any>();
+  const [count, setCount] = useState(0);
+
+  const refresh = useCallback(async () => {
+    try {
+      const lastSeen = await AsyncStorage.getItem(LS_KEY);
+      const res = await fetch(`${API_URL}/empresa/comunicados`);
+      if (!res.ok) return;
+      const data: any[] = await res.json();
+      const n = lastSeen
+        ? data.filter((c) => new Date(c.fechaHoraPublicacion).getTime() > new Date(lastSeen).getTime()).length
+        : data.length;
+      setCount(n);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    refresh();
+    const iv = setInterval(refresh, 30_000);
+    return () => clearInterval(iv);
+  }, [refresh]);
+
+  return (
+    <TouchableOpacity
+      onPress={() => navigation.navigate('Comunicados')}
+      style={bell.btn}
+      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      activeOpacity={0.7}
+    >
+      <Bell size={22} color="#374151" />
+      {count > 0 && (
+        <View style={bell.badge}>
+          <Text style={bell.badgeTxt}>{count > 99 ? '99+' : String(count)}</Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+}
+
+const bell = StyleSheet.create({
+  btn:      { marginRight: 8, padding: 6 },
+  badge:    {
+    position: 'absolute', top: 0, right: 0,
+    minWidth: 16, height: 16, borderRadius: 8,
+    backgroundColor: '#ef4444',
+    alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  badgeTxt: { color: '#fff', fontSize: 9, fontWeight: '800' },
+});
+
+// ── Tab options ──────────────────────────────────────────────────────────────
 
 const tabOptions = {
   headerShown: false,
@@ -32,7 +96,8 @@ const tabOptions = {
   tabBarLabelStyle: { fontSize: 10, fontWeight: '600' as const },
 };
 
-function EmpresaTabs() {
+// Encargado: acceso completo
+function EncargadoTabs() {
   return (
     <Tab.Navigator screenOptions={tabOptions}>
       <Tab.Screen
@@ -64,21 +129,70 @@ function EmpresaTabs() {
   );
 }
 
-export default function EmpresaNavigator() {
+// Participante: solo info — reuniones, comunicados, eventos, perfil
+function ParticipanteTabs() {
   return (
-    <Stack.Navigator
-      screenOptions={{
-        headerStyle:      { backgroundColor: '#ffffff' },
-        headerTintColor:  '#0f172a',
-        headerTitleStyle: { fontWeight: 'bold' as const, fontSize: 16 },
-        headerShadowVisible: false,
-        headerBackTitle:  'Volver',
-      }}
-    >
-      <Stack.Screen name="EmpresaTabs"  component={EmpresaTabs}           options={{ headerShown: false }} />
-      <Stack.Screen name="Comunicados"  component={EmpresaComunicadosScreen} options={{ title: 'Comunicados' }} />
-      <Stack.Screen name="Eventos"      component={EmpresaEventosScreen}  options={{ title: 'Actividades' }} />
-      <Stack.Screen name="Resultados"   component={EmpresaResultadosScreen} options={{ title: 'Resultados' }} />
-    </Stack.Navigator>
+    <Tab.Navigator screenOptions={tabOptions}>
+      <Tab.Screen
+        name="Inicio"
+        component={EmpresaDashboardScreen}
+        options={{ title: 'Inicio', tabBarIcon: ({ color }) => <LayoutDashboard color={color} size={22} /> }}
+      />
+      <Tab.Screen
+        name="Reuniones"
+        component={EmpresaReunionesScreen}
+        options={{ title: 'Reuniones', tabBarIcon: ({ color }) => <CalendarDays color={color} size={22} /> }}
+      />
+      <Tab.Screen
+        name="Perfil"
+        component={EmpresaPerfilScreen}
+        options={{ title: 'Perfil', tabBarIcon: ({ color }) => <User color={color} size={22} /> }}
+      />
+    </Tab.Navigator>
+  );
+}
+
+export default function EmpresaNavigator() {
+  const esEncargado = !!userStore.get()?.esResponsable;
+  const [chatOpen, setChatOpen] = useState(false);
+  const eeId = userStore.get()?.empresaeventoId ?? null;
+  useNotificacionesMobile(eeId);
+
+  return (
+    <>
+      <AsistenteChatModal visible={chatOpen} onClose={() => setChatOpen(false)} />
+      <Stack.Navigator
+        screenOptions={{
+          headerStyle:      { backgroundColor: '#ffffff' },
+          headerTintColor:  '#0f172a',
+          headerTitleStyle: { fontWeight: 'bold' as const, fontSize: 16 },
+          headerShadowVisible: false,
+          headerBackTitle:  'Volver',
+        }}
+      >
+        <Stack.Screen
+          name="EmpresaTabs"
+          component={esEncargado ? EncargadoTabs : ParticipanteTabs}
+          options={{
+            headerShown: true,
+            headerTitle: 'Rueda de Negocios',
+            headerRight: () => (
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <AsistenteChatButton onOpen={() => setChatOpen(true)} />
+                <BellButton />
+              </View>
+            ),
+          }}
+        />
+      <Stack.Screen name="Comunicados" component={EmpresaComunicadosScreen} options={{ title: 'Comunicados' }} />
+      <Stack.Screen name="Eventos"     component={EmpresaEventosScreen}     options={{ title: 'Actividades' }} />
+      {esEncargado && (
+        <Stack.Screen name="Resultados"  component={EmpresaResultadosScreen}  options={{ title: 'Resultados' }} />
+      )}
+      {esEncargado && (
+        <Stack.Screen name="Horarios"    component={EmpresaHorariosScreen}    options={{ title: 'Mis horarios disponibles' }} />
+      )}
+      </Stack.Navigator>
+    </>
   );
 }

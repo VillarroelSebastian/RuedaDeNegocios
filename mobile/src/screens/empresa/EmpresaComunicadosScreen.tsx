@@ -1,11 +1,13 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity,
-  ActivityIndicator, RefreshControl, StyleSheet, Image,
+  ActivityIndicator, RefreshControl, StyleSheet,
 } from 'react-native';
+import ImagenLightbox from '../../components/ImagenLightbox';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Newspaper, AlertCircle } from 'lucide-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '../../utils/userStore';
 
 const GREEN = '#449D3A';
@@ -37,7 +39,10 @@ export default function EmpresaComunicadosScreen() {
     }
   }, []);
 
-  useFocusEffect(useCallback(() => { fetchData(); }, [fetchData]));
+  useFocusEffect(useCallback(() => {
+    AsyncStorage.setItem('comunicadosLastSeen', new Date().toISOString());
+    fetchData();
+  }, [fetchData]));
 
   const toggle = (id: number) => setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
 
@@ -69,12 +74,7 @@ export default function EmpresaComunicadosScreen() {
           return (
             <TouchableOpacity style={s.card} onPress={() => toggle(item.id)} activeOpacity={0.8}>
               {item.urlImagen ? (
-                <Image
-                  source={{ uri: item.urlImagen }}
-                  style={s.cardImg}
-                  resizeMode="cover"
-                  onError={() => {}}
-                />
+                <ImagenLightbox uri={item.urlImagen} style={s.cardImg} imgStyle={{ resizeMode: 'cover' }} />
               ) : (
                 <View style={s.cardImgPlaceholder}>
                   <Newspaper size={32} color="#d1d5db" />

@@ -1,14 +1,15 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, TextInput,
   ActivityIndicator, RefreshControl, StyleSheet, Modal, ScrollView,
-  KeyboardAvoidingView, Platform,
+  KeyboardAvoidingView, Platform, Image,
 } from 'react-native';
+import ImagenLightbox from '../../components/ImagenLightbox';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import {
   Search, Building2, Send, X, MapPin, Video, Check,
-  AlertCircle, ChevronLeft, Globe, Clock, RefreshCw,
+  AlertCircle, ChevronLeft, Globe, Clock, RefreshCw, AlertTriangle, CheckCircle2, Star,
 } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
 
@@ -55,7 +56,10 @@ export default function EmpresaEmpresasScreen() {
 
   // Horarios
   const [horarios,   setHorarios]   = useState<any[]>([]);
+  const [duracionMin,setDuracionMin] = useState(0);
   const [horarioSel, setHorarioSel] = useState<any>(null);
+  const [horaSel,    setHoraSel]    = useState<number | null>(null);
+  const [minutosStr, setMinutosStr] = useState('00');
   const [loadingH,   setLoadingH]   = useState(false);
 
   // Mesas + polling
@@ -78,6 +82,12 @@ export default function EmpresaEmpresasScreen() {
   const mesaSelRef      = useRef<any>(null);
 
   const user = userStore.get();
+  const navigation = useNavigation();
+
+  // Guard: solo encargados
+  useFocusEffect(useCallback(() => {
+    if (!user?.esResponsable) { (navigation as any).navigate('Inicio'); }
+  }, [user, navigation]));
 
   // Keep refs in sync with state
   useEffect(() => { horarioSelRef.current = horarioSel; }, [horarioSel]);
@@ -152,8 +162,14 @@ export default function EmpresaEmpresasScreen() {
     setLoadingH(true);
     try {
       const res = await fetch(`${API_URL}/empresa/horarios?eeId=${eeId}&eeReceptoraId=${eeReceptoraId}`);
-      const data = res.ok ? await res.json() : [];
-      setHorarios(Array.isArray(data) ? data : []);
+      const data = res.ok ? await res.json() : {};
+      const hrs: any[] = Array.isArray(data?.horarios) ? data.horarios : [];
+      setHorarios(hrs);
+      setDuracionMin(data?.duracionMinutos ?? 0);
+      const available = [...new Set(hrs.map((h: any) => new Date(h.inicio).getHours()))].sort((a: any, b: any) => a - b) as number[];
+      const cur = new Date().getHours();
+      const auto = available.find((h) => h >= cur) ?? available[0];
+      if (auto !== undefined) { setHoraSel(auto); setMinutosStr('00'); }
     } catch {}
     finally { setLoadingH(false); }
   };
@@ -188,6 +204,8 @@ export default function EmpresaEmpresasScreen() {
     setModalidad('PRESENCIAL');
     setHorarios([]);
     setHorarioSel(null);
+    setHoraSel(null);
+    setMinutosStr('00');
     setMesas([]);
     setMesaSel(null);
     setMesaWarning('');
@@ -336,12 +354,22 @@ export default function EmpresaEmpresasScreen() {
           </View>
         }
         renderItem={({ item }) => (
-          <View style={s.card}>
+          <View style={[s.card, item.esRecomendada && s.cardRecomendada]}>
+            {item.esRecomendada && (
+              <View style={s.recoBadge}>
+                <Star size={10} color={GREEN} fill={GREEN} />
+                <Text style={s.recoText}>Recomendada · Mismo rubro</Text>
+              </View>
+            )}
             {/* Card top: avatar + name + rubro */}
             <View style={s.cardTop}>
-              <View style={s.cardAvatar}>
-                <Text style={s.cardAvatarText}>{(item.nombre ?? 'E')[0].toUpperCase()}</Text>
-              </View>
+              {item.urlFotoPerfil ? (
+                <ImagenLightbox uri={item.urlFotoPerfil} style={s.cardAvatar} imgStyle={{ borderRadius: 12 }} />
+              ) : (
+                <View style={s.cardAvatar}>
+                  <Text style={s.cardAvatarText}>{(item.nombre ?? 'E')[0].toUpperCase()}</Text>
+                </View>
+              )}
               <View style={{ flex: 1 }}>
                 <Text style={s.cardName} numberOfLines={2}>{item.nombre}</Text>
                 {!!item.rubro && (
@@ -561,51 +589,33 @@ export default function EmpresaEmpresasScreen() {
 
                   {/* ── STEP 2: Horario ── */}
                   {step === 'horario' && (
-                    <>
-                      <StepBadge current={2} total={totalSteps} label="Horario disponible" />
-                      <BackBtn onPress={() => setStep('modalidad')} />
-
-                      {loadingH ? (
-                        <View style={s.loadBox}>
-                          <ActivityIndicator color={GREEN} size="small" />
-                          <Text style={s.loadText}>Buscando horarios disponibles...</Text>
-                        </View>
-                      ) : horarios.length === 0 ? (
-                        <View style={s.emptyState}>
-                          <Clock size={36} color="#d1d5db" />
-                          <Text style={s.emptyStateTitle}>Sin horarios disponibles</Text>
-                          <Text style={s.emptyStateSub}>
-                            Puede que tengan reuniones coincidentes o no queden franjas libres.
-                          </Text>
-                        </View>
-                      ) : (
-                        <>
-                          <Text style={s.stepLabel}>Selecciona un horario</Text>
-                          {horarios.map((h: any) => (
-                            <TouchableOpacity
-                              key={h.inicio}
-                              style={[s.slotCard, horarioSel?.inicio === h.inicio && s.slotCardActive]}
-                              onPress={() => selectHorario(h)}
-                              activeOpacity={0.8}
-                            >
-                              <View style={{ flex: 1 }}>
-                                <Text style={[s.slotDate, horarioSel?.inicio === h.inicio && s.slotDateActive]}>
-                                  {fmtDate(h.inicio)}
-                                </Text>
-                                <Text style={[s.slotTime, horarioSel?.inicio === h.inicio && s.slotTimeActive]}>
-                                  {fmtTime(h.inicio)} – {fmtTime(h.fin)}
-                                </Text>
-                              </View>
-                              {horarioSel?.inicio === h.inicio
-                                ? <Check size={16} color={GREEN} />
-                                : <ChevronLeft size={16} color="#9ca3af" style={{ transform: [{ scaleX: -1 }] }} />
-                              }
-                            </TouchableOpacity>
-                          ))}
-                        </>
-                      )}
-                      <View style={{ height: 16 }} />
-                    </>
+                    <HorarioPicker
+                      horarios={horarios}
+                      duracionMin={duracionMin}
+                      loadingH={loadingH}
+                      horaSel={horaSel}
+                      minutosStr={minutosStr}
+                      horarioSel={horarioSel}
+                      onHoraChange={(h) => {
+                        setHoraSel(h);
+                        setMinutosStr('00');
+                        setHorarioSel(null);
+                        horarioSelRef.current = null;
+                      }}
+                      onMinutosChange={(m) => {
+                        setMinutosStr(m);
+                        const mins = parseInt(m) || 0;
+                        const match = horarios.find((h: any) => {
+                          const d = new Date(h.inicio);
+                          return horaSel !== null && d.getHours() === horaSel && d.getMinutes() === mins;
+                        }) ?? null;
+                        setHorarioSel(match);
+                        horarioSelRef.current = match;
+                      }}
+                      onSelectMatch={(h) => selectHorario(h)}
+                      onBack={() => setStep('modalidad')}
+                      totalSteps={totalSteps}
+                    />
                   )}
 
                   {/* ── STEP 3: Mesa (PRESENCIAL) ── */}
@@ -768,6 +778,174 @@ export default function EmpresaEmpresasScreen() {
   );
 }
 
+// ── HorarioPicker ─────────────────────────────────────────────────────────────
+
+function HorarioPicker({ horarios, duracionMin, loadingH, horaSel, minutosStr, horarioSel,
+  onHoraChange, onMinutosChange, onSelectMatch, onBack, totalSteps }: {
+  horarios: any[]; duracionMin: number; loadingH: boolean;
+  horaSel: number | null; minutosStr: string; horarioSel: any;
+  onHoraChange: (h: number) => void; onMinutosChange: (m: string) => void;
+  onSelectMatch: (h: any) => void; onBack: () => void; totalSteps: number;
+}) {
+  const GREEN = '#449D3A';
+  const horasDisponibles = [...new Set(horarios.map((h: any) => new Date(h.inicio).getHours()))].sort((a: any, b: any) => a - b) as number[];
+  const minutosParaHora = horaSel !== null
+    ? horarios.filter((h: any) => new Date(h.inicio).getHours() === horaSel).map((h: any) => new Date(h.inicio).getMinutes()).sort((a: any, b: any) => a - b)
+    : [];
+  const mins = parseInt(minutosStr) || 0;
+  const horarioMatch = horaSel !== null
+    ? horarios.find((h: any) => {
+        const d = new Date(h.inicio);
+        return d.getHours() === horaSel && d.getMinutes() === mins;
+      }) ?? null
+    : null;
+  const minutosInvalidos = horaSel !== null && minutosStr !== '' && !horarioMatch;
+
+  return (
+    <>
+      <StepBadge current={2} total={totalSteps} label="Hora de inicio" />
+      <BackBtn onPress={onBack} />
+
+      {loadingH ? (
+        <View style={hp.loadBox}>
+          <ActivityIndicator color={GREEN} size="small" />
+          <Text style={hp.loadText}>Buscando horarios disponibles...</Text>
+        </View>
+      ) : horarios.length === 0 ? (
+        <View style={hp.emptyBox}>
+          <Clock size={36} color="#d1d5db" />
+          <Text style={hp.emptyTitle}>Sin horarios disponibles</Text>
+          <Text style={hp.emptySub}>Puede que tengan reuniones coincidentes o no queden franjas libres.</Text>
+        </View>
+      ) : (
+        <>
+          {duracionMin > 0 && (
+            <View style={hp.durBanner}>
+              <Clock size={13} color={GREEN} style={{ marginRight: 6 }} />
+              <Text style={hp.durText}>Las reuniones durarán {duracionMin} minutos</Text>
+            </View>
+          )}
+
+          {/* Hour buttons */}
+          <Text style={hp.label}>Hora</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {horasDisponibles.map((h: number) => (
+                <TouchableOpacity
+                  key={h}
+                  onPress={() => onHoraChange(h)}
+                  style={[hp.horaBtn, horaSel === h && hp.horaBtnActive]}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[hp.horaBtnText, horaSel === h && hp.horaBtnTextActive]}>
+                    {String(h).padStart(2,'0')}:00
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
+
+          {/* Minutes input */}
+          {horaSel !== null && (
+            <>
+              <Text style={hp.label}>Minutos</Text>
+              <TextInput
+                value={minutosStr}
+                onChangeText={onMinutosChange}
+                keyboardType="number-pad"
+                maxLength={2}
+                placeholder="00"
+                style={[hp.minsInput, minutosInvalidos && hp.minsInputErr]}
+              />
+
+              {minutosInvalidos && (
+                <View style={hp.warnBox}>
+                  <AlertTriangle size={13} color="#d97706" style={{ marginRight: 6, flexShrink: 0 }} />
+                  <Text style={hp.warnText}>
+                    La empresa no tiene disponibilidad a las {String(horaSel).padStart(2,'0')}:{minutosStr.padStart(2,'0')}. Prueba con otro horario.
+                  </Text>
+                </View>
+              )}
+
+              {horarioMatch && (
+                <View style={hp.okBox}>
+                  <CheckCircle2 size={13} color={GREEN} style={{ marginRight: 6 }} />
+                  <Text style={hp.okText}>
+                    Disponible: {fmtDate(horarioMatch.inicio)} a las {fmtTime(horarioMatch.inicio)}
+                  </Text>
+                </View>
+              )}
+
+              {horarioMatch && (
+                <TouchableOpacity
+                  style={[hp.nextBtn]}
+                  onPress={() => onSelectMatch(horarioMatch)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={hp.nextBtnText}>Siguiente: {horarioMatch && 'Mesa / Confirmar'}</Text>
+                </TouchableOpacity>
+              )}
+            </>
+          )}
+        </>
+      )}
+      <View style={{ height: 16 }} />
+    </>
+  );
+}
+
+const hp = StyleSheet.create({
+  loadBox: { alignItems: 'center', paddingVertical: 32, gap: 10 },
+  loadText: { fontSize: 13, color: '#94a3b8' },
+  emptyBox: { alignItems: 'center', paddingVertical: 28, gap: 8 },
+  emptyTitle: { fontSize: 15, fontWeight: '700', color: '#374151', textAlign: 'center' },
+  emptySub: { fontSize: 12, color: '#94a3b8', textAlign: 'center', lineHeight: 18 },
+  durBanner: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#f0fdf4', borderRadius: 10, padding: 10, marginBottom: 10,
+    borderWidth: 1, borderColor: '#bbf7d0',
+  },
+  durText: { fontSize: 13, color: '#166534', fontWeight: '600' },
+  infoBanner: {
+    flexDirection: 'row', alignItems: 'flex-start',
+    backgroundColor: '#eff6ff', borderRadius: 10, padding: 10, marginBottom: 14,
+    borderWidth: 1, borderColor: '#bfdbfe',
+  },
+  infoText: { fontSize: 12, color: '#1e40af', flex: 1, lineHeight: 18 },
+  label: { fontSize: 12, fontWeight: '700', color: '#374151', marginBottom: 8 },
+  labelHint: { fontSize: 11, fontWeight: '400', color: '#9ca3af' },
+  horaBtn: {
+    paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10,
+    borderWidth: 1.5, borderColor: '#e2e8f0', backgroundColor: '#f8fafc',
+  },
+  horaBtnActive: { borderColor: '#449D3A', backgroundColor: '#f0fdf4' },
+  horaBtnText: { fontSize: 15, fontWeight: '700', color: '#475569' },
+  horaBtnTextActive: { color: '#166534' },
+  minsInput: {
+    borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 12,
+    paddingHorizontal: 14, paddingVertical: 10, fontSize: 18, fontWeight: '700',
+    color: '#0f172a', marginBottom: 10, textAlign: 'center', backgroundColor: '#f8fafc',
+  },
+  minsInputErr: { borderColor: '#fca5a5', backgroundColor: '#fef2f2' },
+  warnBox: {
+    flexDirection: 'row', alignItems: 'flex-start',
+    backgroundColor: '#fffbeb', borderRadius: 10, padding: 10, marginBottom: 10,
+    borderWidth: 1, borderColor: '#fde68a',
+  },
+  warnText: { fontSize: 12, color: '#d97706', flex: 1, lineHeight: 18 },
+  okBox: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#f0fdf4', borderRadius: 10, padding: 10, marginBottom: 10,
+    borderWidth: 1, borderColor: '#bbf7d0',
+  },
+  okText: { fontSize: 12, color: '#166534', fontWeight: '600', flex: 1 },
+  nextBtn: {
+    backgroundColor: '#449D3A', borderRadius: 14, height: 50,
+    alignItems: 'center', justifyContent: 'center', marginTop: 4,
+  },
+  nextBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+});
+
 // ── Helper components ─────────────────────────────────────────────────────────
 
 function StepBadge({ current, total, label }: { current: number; total: number; label: string }) {
@@ -864,6 +1042,15 @@ const s = StyleSheet.create({
     shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 }, elevation: 2,
   },
+  cardRecomendada: {
+    borderColor: '#449D3A', borderWidth: 1.5,
+  },
+  recoBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: '#f0fdf4', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3,
+    alignSelf: 'flex-start', marginBottom: 8,
+  },
+  recoText: { fontSize: 10, fontWeight: '700', color: '#449D3A', letterSpacing: 0.4 },
   cardTop: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10 },
   cardAvatar: {
     width: 52, height: 52, borderRadius: 26,
@@ -935,6 +1122,14 @@ const s = StyleSheet.create({
   emptyState:      { alignItems: 'center', paddingVertical: 28, gap: 8 },
   emptyStateTitle: { fontSize: 15, fontWeight: '700', color: '#374151', textAlign: 'center' },
   emptyStateSub:   { fontSize: 12, color: '#94a3b8', textAlign: 'center', lineHeight: 18 },
+
+  // Duration banner
+  duracionBanner: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#f0fdf4', borderRadius: 10, padding: 10, marginBottom: 12,
+    borderWidth: 1, borderColor: '#bbf7d0',
+  },
+  duracionText: { fontSize: 13, color: '#166534', fontWeight: '600' },
 
   // Time slots
   slotCard: {

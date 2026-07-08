@@ -3,7 +3,8 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Building2, MapPin, Send, Search, AlertCircle, Globe } from "lucide-react";
+import { Building2, MapPin, Send, Search, AlertCircle, Globe, Star } from "lucide-react";
+import ImagenLightbox from "@/components/ui/ImagenLightbox";
 
 const API = "http://localhost:3334";
 
@@ -24,11 +25,12 @@ export default function EmpresasPage() {
     fetch(`${API}/empresa/mi-empresa?usuarioId=${user.id}`)
       .then((r) => r.json())
       .then((ctx) => {
+        if (!ctx?.esResponsable) { router.replace("/empresa/reuniones"); return null; }
         setEeId(ctx.empresaeventoId);
         return fetch(`${API}/empresa/empresas?eeId=${ctx.empresaeventoId}`);
       })
-      .then((r) => r.json())
-      .then((data) => setEmpresas(Array.isArray(data) ? data : []))
+      .then((r) => r ? r.json() : null)
+      .then((data) => { if (data) setEmpresas(Array.isArray(data) ? data : []); })
       .catch(() => setError("No se pudo cargar el directorio de empresas."))
       .finally(() => setLoading(false));
   }, [router]);
@@ -79,14 +81,20 @@ export default function EmpresasPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtradas.map((em: any) => (
-            <div key={em.empresaeventoId} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+            <div key={em.empresaeventoId} className={`bg-white rounded-2xl border shadow-sm overflow-hidden hover:shadow-md transition-shadow ${em.esRecomendada ? "border-[#449D3A]/40 ring-1 ring-[#449D3A]/20" : "border-gray-100"}`}>
               <div className="p-5">
+                {em.esRecomendada && (
+                  <div className="flex items-center gap-1 mb-2">
+                    <Star className="w-3 h-3 text-[#449D3A] fill-[#449D3A]" />
+                    <span className="text-[10px] font-bold text-[#449D3A] uppercase tracking-wide">Recomendada · Mismo rubro</span>
+                  </div>
+                )}
                 <div className="flex items-start gap-3 mb-3">
                   {em.urlFotoPerfil ? (
-                    <img
+                    <ImagenLightbox
                       src={em.urlFotoPerfil}
                       alt={em.nombre}
-                      className="w-12 h-12 rounded-xl object-cover border border-gray-100 shrink-0"
+                      className="w-12 h-12 rounded-xl border border-gray-100 shrink-0 overflow-hidden"
                     />
                   ) : (
                     <div className="w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center shrink-0">

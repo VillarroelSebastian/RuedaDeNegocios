@@ -25,6 +25,9 @@ export default function PagosAdicionalesAdminPage() {
   const [procesando, setProcesando] = useState<number | null>(null);
   const [modalObs, setModalObs] = useState<{ id: number } | null>(null);
   const [observacion, setObservacion] = useState("");
+  const [modalAprobar, setModalAprobar] = useState<number | null>(null);
+  const [modalRechazar, setModalRechazar] = useState<{ id: number } | null>(null);
+  const [motivoRechazo, setMotivoRechazo] = useState("");
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -42,8 +45,10 @@ export default function PagosAdicionalesAdminPage() {
 
   useEffect(() => { cargar(); }, [cargar]);
 
-  const aprobar = async (id: number) => {
-    if (!confirm("Aprobar este pago adicional? Se incrementaran los cupos de la empresa.")) return;
+  const confirmarAprobar = async () => {
+    if (!modalAprobar) return;
+    const id = modalAprobar;
+    setModalAprobar(null);
     setProcesando(id);
     try {
       const res = await fetch(`${API}/admin/pagos-adicionales/${id}/aprobar`, { method: "PUT" });
@@ -56,14 +61,17 @@ export default function PagosAdicionalesAdminPage() {
     finally { setProcesando(null); }
   };
 
-  const rechazar = async (id: number) => {
-    const motivo = prompt("Motivo de rechazo (opcional):");
+  const confirmarRechazar = async () => {
+    if (!modalRechazar) return;
+    const id = modalRechazar.id;
+    const motivo = motivoRechazo.trim() || undefined;
+    setModalRechazar(null); setMotivoRechazo("");
     setProcesando(id);
     try {
       const res = await fetch(`${API}/admin/pagos-adicionales/${id}/rechazar`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ motivo: motivo ?? undefined }),
+        body: JSON.stringify({ motivo }),
       });
       if (!res.ok) throw new Error("Error al rechazar");
       setMensaje("Pago rechazado.");
@@ -95,6 +103,42 @@ export default function PagosAdicionalesAdminPage() {
 
   return (
     <div className="p-6 space-y-6">
+      {/* Modal confirmar aprobar */}
+      {modalAprobar && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+                <CheckCircle2 className="w-5 h-5 text-green-600" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-gray-900">Aprobar pago adicional</h3>
+                <p className="text-sm text-gray-500">Se incrementarán los cupos de la empresa.</p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setModalAprobar(null)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50">Cancelar</button>
+              <button onClick={confirmarAprobar} className="flex-1 py-2.5 rounded-xl bg-green-600 hover:bg-green-700 text-white text-sm font-bold">Confirmar</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Modal rechazar con motivo */}
+      {modalRechazar && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+            <h3 className="font-extrabold text-gray-900">Rechazar pago adicional</h3>
+            <p className="text-sm text-gray-500">Indica el motivo del rechazo (opcional).</p>
+            <textarea value={motivoRechazo} onChange={(e) => setMotivoRechazo(e.target.value)}
+              rows={3} placeholder="Motivo del rechazo..."
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-300 resize-none" />
+            <div className="flex gap-3">
+              <button onClick={() => { setModalRechazar(null); setMotivoRechazo(""); }} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50">Cancelar</button>
+              <button onClick={confirmarRechazar} className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-bold">Rechazar</button>
+            </div>
+          </div>
+        </div>
+      )}
       {modalObs && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
@@ -190,7 +234,7 @@ export default function PagosAdicionalesAdminPage() {
                         )}
                         {p.estadoPago === 'PENDIENTE' && (
                           <>
-                            <button onClick={() => aprobar(p.id)} disabled={procesando === p.id}
+                            <button onClick={() => setModalAprobar(p.id)} disabled={procesando === p.id}
                               className="flex items-center gap-1 px-2.5 py-1.5 bg-green-50 hover:bg-green-100 text-green-700 rounded-lg text-xs font-bold disabled:opacity-50">
                               <Check className="w-3.5 h-3.5" />Aprobar
                             </button>
@@ -198,7 +242,7 @@ export default function PagosAdicionalesAdminPage() {
                               className="flex items-center gap-1 px-2.5 py-1.5 bg-orange-50 hover:bg-orange-100 text-orange-700 rounded-lg text-xs font-bold disabled:opacity-50">
                               <AlertCircle className="w-3.5 h-3.5" />Observar
                             </button>
-                            <button onClick={() => rechazar(p.id)} disabled={procesando === p.id}
+                            <button onClick={() => setModalRechazar({ id: p.id })} disabled={procesando === p.id}
                               className="flex items-center gap-1 px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg text-xs font-bold disabled:opacity-50">
                               <X className="w-3.5 h-3.5" />Rechazar
                             </button>

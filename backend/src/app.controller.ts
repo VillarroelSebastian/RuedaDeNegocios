@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, UnauthorizedException, BadRequestException, Query, OnModuleInit } from '@nestjs/common';
 import { AppService } from './app.service.js';
 import { PrismaService } from './prisma/prisma.service.js';
+import { NotificacionesGateway } from './notificaciones/notificaciones.gateway.js';
 import * as bcrypt from 'bcrypt';
 import * as nodemailer from 'nodemailer';
 
@@ -27,6 +28,7 @@ export class AppController implements OnModuleInit {
   constructor(
     private readonly appService: AppService,
     private readonly prisma: PrismaService,
+    private readonly notifGateway: NotificacionesGateway,
   ) {}
 
   async onModuleInit() {
@@ -89,6 +91,15 @@ export class AppController implements OnModuleInit {
       }
     }
 
+    let esResponsable: boolean | undefined;
+    if (user.rolEvento === 'EMPRESA') {
+      const eventoId = await this.getPrincipalEventoId();
+      const eu = await this.prisma.empresa_usuario.findFirst({
+        where: { usuario_id: user.id, estaActivo: 1, empresaevento: { evento_id: eventoId ?? undefined } },
+      });
+      esResponsable = eu?.esResponsable === 1;
+    }
+
     return {
       id: user.id,
       correo: user.correo,
@@ -99,6 +110,7 @@ export class AppController implements OnModuleInit {
       rolEvento: user.rolEvento,
       urlFotoPerfil: user.urlFotoPerfil,
       evento_id: user.evento_id,
+      ...(esResponsable !== undefined && { esResponsable }),
     };
   }
 
@@ -169,6 +181,13 @@ export class AppController implements OnModuleInit {
       urlComprobante: ee.empresaeventocomprobantes?.[0]?.urlComprobantePagoInscripcion ?? null,
       tieneComprobante: ee.empresaeventocomprobantes?.length > 0,
       encargado: ee.empresa_usuario?.find((eu: any) => eu.esResponsable === 1)?.usuario ?? null,
+      participantes: (ee.empresa_usuario ?? []).map((eu: any) => ({
+        nombres: eu.usuario?.nombres,
+        apellidoPaterno: eu.usuario?.apellidoPaterno,
+        correo: eu.usuario?.correo,
+        cargo: eu.cargo,
+        esResponsable: eu.esResponsable === 1,
+      })),
     };
   }
 
@@ -994,6 +1013,9 @@ export class AppController implements OnModuleInit {
       }
     }
 
+    this.notifGateway.emitirParaEe((ee as any).id, 'pago:aprobado', {
+      mensaje: `Tu pago de inscripción fue aprobado. ¡Ya tienes acceso al evento!`,
+    });
     return ee;
   }
 
@@ -1109,6 +1131,9 @@ export class AppController implements OnModuleInit {
       } catch (_) { /* no bloquear si falla el correo */ }
     }
 
+    this.notifGateway.emitirParaEe((ee as any).id, 'pago:rechazado', {
+      mensaje: `Tu comprobante de pago fue rechazado. Motivo: ${(body as any).motivo}`,
+    });
     return ee;
   }
 
@@ -1219,7 +1244,7 @@ export class AppController implements OnModuleInit {
       const eventoId = body.evento_id ? Number(body.evento_id) : await this.getPrincipalEventoId();
       if (!eventoId) throw new BadRequestException('No hay evento principal configurado');
 
-      return await this.prisma.noticia.create({
+      const noticia = await this.prisma.noticia.create({
         data: {
           evento_id: eventoId,
           usuario_id: Number(body.usuario_id) || 1,
@@ -1232,6 +1257,13 @@ export class AppController implements OnModuleInit {
           estaActivo: 1,
         },
       });
+      if (body.estadoPublicacion === 'PUBLICADO' || !body.estadoPublicacion) {
+        this.notifGateway.emitirGlobal('comunicado:nuevo', {
+          mensaje: `Nuevo comunicado: ${body.tituloNoticia}`,
+          titulo: body.tituloNoticia,
+        });
+      }
+      return noticia;
     } catch (error) {
       throw new BadRequestException(error instanceof Error ? error.message : 'Error al crear noticia');
     }
@@ -2376,58 +2408,223 @@ export class AppController implements OnModuleInit {
     if (!eeId) throw new BadRequestException('eeId requerido');
     const eventoId = await this.getPrincipalEventoId();
     if (!eventoId) return [];
-    const ees = await this.prisma.empresaevento.findMany({
-      where: {
-        evento_id: eventoId,
-        estaActivo: 1,
-        estadoVerificacionPago: 'COMPLETADO',
-        estadoHabilitacionAcceso: 'HABILITADO',
-        id: { not: Number(eeId) },
-      },
-      include: {
-        empresa: { include: { ciudad: { include: { pais: true } } } },
-      },
-      orderBy: { empresa: { nombre: 'asc' } },
+
+    const [miEe, ees] = await Promise.all([
+      this.prisma.empresaevento.findUnique({
+        where: { id: Number(eeId) },
+        include: { empresa: true },
+      }),
+      this.prisma.empresaevento.findMany({
+        where: {
+          evento_id: eventoId,
+          estaActivo: 1,
+          estadoVerificacionPago: 'COMPLETADO',
+          estadoHabilitacionAcceso: 'HABILITADO',
+          id: { not: Number(eeId) },
+        },
+        include: {
+          empresa: { include: { ciudad: { include: { pais: true } } } },
+        },
+      }),
+    ]);
+
+    const miRubro = miEe?.empresa?.rubro ?? null;
+
+    const mapped = ees.map((ee) => {
+      const esRecomendada = !!miRubro && !!ee.empresa.rubro && ee.empresa.rubro === miRubro;
+      return {
+        empresaeventoId: ee.id,
+        empresaId: ee.empresa_id,
+        nombre: ee.empresa.nombre,
+        rubro: ee.empresa.rubro,
+        descripcion: ee.empresa.descripcion,
+        urlFotoPerfil: ee.empresa.urlFotoPerfil,
+        sitioWeb: ee.empresa.sitioWeb,
+        ciudad: ee.empresa.ciudad?.nombre ?? null,
+        pais: ee.empresa.ciudad?.pais?.nombre ?? null,
+        tipoParticipacion: ee.tipoParticipacion,
+        esRecomendada,
+      };
     });
-    return ees.map((ee) => ({
-      empresaeventoId: ee.id,
-      empresaId: ee.empresa_id,
-      nombre: ee.empresa.nombre,
-      rubro: ee.empresa.rubro,
-      descripcion: ee.empresa.descripcion,
-      urlFotoPerfil: ee.empresa.urlFotoPerfil,
-      sitioWeb: ee.empresa.sitioWeb,
-      ciudad: ee.empresa.ciudad?.nombre ?? null,
-      pais: ee.empresa.ciudad?.pais?.nombre ?? null,
-      tipoParticipacion: ee.tipoParticipacion,
-    }));
+
+    return mapped.sort((a, b) => {
+      if (a.esRecomendada && !b.esRecomendada) return -1;
+      if (!a.esRecomendada && b.esRecomendada) return 1;
+      return (a.nombre ?? '').localeCompare(b.nombre ?? '', 'es');
+    });
+  }
+
+  // ── Asistente virtual rule-based ─────────────────────────────────────────────
+  @Post('empresa/asistente')
+  async asistente(@Body() body: { eeId: number; mensaje: string }) {
+    const { eeId, mensaje = '' } = body;
+    if (!eeId) throw new BadRequestException('eeId requerido');
+    const msg = mensaje.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+    const eventoId = await this.getPrincipalEventoId();
+    if (!eventoId) return { respuesta: 'No hay un evento activo en este momento.' };
+    const evento = await this.prisma.evento.findUnique({ where: { id: eventoId } });
+    if (!evento) return { respuesta: 'No hay un evento activo en este momento.' };
+
+    const fmtFecha = (d: Date | null) =>
+      d ? new Date(d).toLocaleDateString('es-BO', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }) : '—';
+    const fmtHora = (d: Date | null) =>
+      d ? new Date(d).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' }) : '—';
+
+    // ── próxima reunión ──────────────────────────────────────────────────────
+    if (/reunion|reunione|siguiente|proxim|cuando me reun/i.test(msg)) {
+      const ahora = new Date();
+      const reunion = await this.prisma.reunion.findFirst({
+        where: {
+          evento_id: eventoId, estaActivo: 1,
+          estadoReunion: { in: ['PROGRAMADA', 'EN_CURSO'] },
+          solicitudreunion: { OR: [{ empresaEvento_id: eeId }, { empresaEventorReceptora_id: eeId }] },
+          fechaHoraInicioReunion: { gte: ahora },
+        },
+        orderBy: { fechaHoraInicioReunion: 'asc' },
+        include: {
+          mesa: true,
+          solicitudreunion: {
+            include: {
+              empresaevento_solicitudreunion_empresaEvento_idToempresaevento: { include: { empresa: true } },
+              empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento: { include: { empresa: true } },
+            },
+          },
+        },
+      });
+      if (!reunion) return { respuesta: 'No tienes reuniones programadas próximamente.' };
+      const sr = (reunion as any).solicitudreunion;
+      const contraparteEmpresa = sr.empresaEvento_id === eeId
+        ? sr.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento?.empresa
+        : sr.empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa;
+      const contraparte = contraparteEmpresa?.nombre ?? 'desconocida';
+      const mesaNum = (reunion as any).mesa ? `Mesa ${(reunion as any).mesa.numeroMesa}` : 'por confirmar';
+      return {
+        respuesta: `Tu próxima reunión es el ${fmtFecha(reunion.fechaHoraInicioReunion)} a las ${fmtHora(reunion.fechaHoraInicioReunion)} con ${contraparte}. ${mesaNum}. Estado: ${reunion.estadoReunion}.`,
+      };
+    }
+
+    // ── mesa asignada ────────────────────────────────────────────────────────
+    if (/mesa|donde|lugar/i.test(msg)) {
+      const reuniones = await this.prisma.reunion.findMany({
+        where: {
+          evento_id: eventoId, estaActivo: 1,
+          estadoReunion: { in: ['PROGRAMADA', 'EN_CURSO'] },
+          solicitudreunion: { OR: [{ empresaEvento_id: eeId }, { empresaEventorReceptora_id: eeId }] },
+          mesa_id: { gt: 0 },
+        },
+        include: { mesa: true },
+        orderBy: { fechaHoraInicioReunion: 'asc' },
+      });
+      if (reuniones.length === 0) return { respuesta: 'Aún no tienes mesas asignadas para reuniones próximas.' };
+      const mesas = [...new Set(reuniones.map((r) => (r as any).mesa ? `Mesa ${(r as any).mesa.numeroMesa}` : null).filter(Boolean))];
+      return { respuesta: `Tus reuniones próximas se llevarán a cabo en: ${mesas.join(', ')}.` };
+    }
+
+    // ── mapa / recinto ───────────────────────────────────────────────────────
+    if (/mapa|recinto|ubicacion|donde es|donde esta/i.test(msg)) {
+      if ((evento as any).urlImagenMapaRecinto) {
+        return { respuesta: `Aquí tienes el mapa del recinto.`, imageUrl: (evento as any).urlImagenMapaRecinto };
+      }
+      return { respuesta: 'El mapa del recinto aún no está disponible. Consulta con el administrador.' };
+    }
+
+    // ── cronograma / charlas ─────────────────────────────────────────────────
+    if (/cronograma|charla|conferencia|programa|agenda/i.test(msg)) {
+      if ((evento as any).urlImagenCronogramaCharlas) {
+        return { respuesta: 'Aquí tienes el cronograma de charlas del evento.', imageUrl: (evento as any).urlImagenCronogramaCharlas };
+      }
+      return { respuesta: 'El cronograma de charlas aún no está disponible.' };
+    }
+
+    // ── fecha / horario del evento ───────────────────────────────────────────
+    if (/fecha|cuando|horario|inicio|fin del evento/i.test(msg)) {
+      const ini = fmtFecha(evento.fechaInicioEvento);
+      const fin = fmtFecha(evento.fechaFinEvento);
+      return { respuesta: `El evento "${evento.nombre}" se realiza desde el ${ini} hasta el ${fin}.` };
+    }
+
+    // ── estado de pago / monto ───────────────────────────────────────────────
+    if (/pago|monto|inscripcion|precio|cuanto cuesta|cuanto es/i.test(msg)) {
+      const ee = await this.prisma.empresaevento.findUnique({ where: { id: eeId } });
+      const estado = ee?.estadoVerificacionPago ?? 'PENDIENTE';
+      const monto = (evento as any).montoBaseIncripcionBolivianos;
+      const estadoTexto: Record<string, string> = {
+        COMPLETADO: 'aprobado',
+        PENDIENTE: 'pendiente de verificación',
+        RECHAZADO: 'rechazado',
+        OBSERVADO: 'observado — revisar comentarios',
+      };
+      return {
+        respuesta: `Estado de tu pago de inscripción: ${estadoTexto[estado] ?? estado}. Monto base: Bs. ${monto ?? '—'}.`,
+      };
+    }
+
+    // ── solicitudes pendientes ───────────────────────────────────────────────
+    if (/solicitud|pedido|pendiente/i.test(msg)) {
+      const pendientes = await this.prisma.solicitudreunion.count({
+        where: {
+          estaActivo: 1,
+          estadoSolicitud: 'PENDIENTE',
+          OR: [{ empresaEvento_id: eeId }, { empresaEventorReceptora_id: eeId }],
+        },
+      });
+      return {
+        respuesta: pendientes > 0
+          ? `Tienes ${pendientes} solicitud(es) de reunión pendiente(s). Revísalas en la sección Solicitudes.`
+          : 'No tienes solicitudes de reunión pendientes.',
+      };
+    }
+
+    // ── cupos / participantes ────────────────────────────────────────────────
+    if (/cupo|participante|slot|espacio/i.test(msg)) {
+      const ee = await this.prisma.empresaevento.findUnique({ where: { id: eeId } });
+      if (!ee) return { respuesta: 'No se pudo obtener información de cupos.' };
+      const usados = await this.prisma.empresa_usuario.count({
+        where: { empresaevento_id: eeId, estaActivo: 1 },
+      });
+      const total = ee.numeroParticipantes ?? 0;
+      const disponibles = total - usados;
+      return {
+        respuesta: `Tienes ${usados} participante(s) registrado(s) de ${total} cupo(s) totales. Cupos disponibles: ${Math.max(0, disponibles)}.`,
+      };
+    }
+
+    // ── ayuda / comando no reconocido ────────────────────────────────────────
+    return {
+      respuesta: `Hola! Puedo ayudarte con:\n• Tu próxima reunión\n• Mesa asignada\n• Fecha y horario del evento\n• Estado de tu pago\n• Mapa del recinto\n• Cronograma de charlas\n• Solicitudes pendientes\n• Cupos disponibles\n\n¿Sobre qué te puedo informar?`,
+    };
   }
 
   @Get('empresa/horarios')
   async getHorariosDisponibles(
     @Query('eeId') eeId: string,
     @Query('eeReceptoraId') eeReceptoraId: string,
+    @Query('excludeReunionId') excludeReunionId?: string,
   ) {
     if (!eeId || !eeReceptoraId) throw new BadRequestException('eeId y eeReceptoraId requeridos');
     const eventoId = await this.getPrincipalEventoId();
-    if (!eventoId) return [];
+    if (!eventoId) return { duracionMinutos: 0, horarios: [] };
     const evento = await this.prisma.evento.findUnique({ where: { id: eventoId } });
-    if (!evento) return [];
+    if (!evento) return { duracionMinutos: 0, horarios: [] };
 
     const franjas = this.generarFranjas(evento);
-    if (franjas.length === 0) return [];
+    if (franjas.length === 0) return { duracionMinutos: evento.duracionReunion, horarios: [] };
 
-    // Reuniones activas de ambas empresas en este evento
+    const excludeId = excludeReunionId ? Number(excludeReunionId) : undefined;
+
+    const [bloqueosA, bloqueosB, rangosReceptora] = await Promise.all([
+      this.prisma.empresa_bloqueo.findMany({ where: { empresaevento_id: Number(eeId) } }),
+      this.prisma.empresa_bloqueo.findMany({ where: { empresaevento_id: Number(eeReceptoraId) } }),
+      this.prisma.empresa_horario.findMany({ where: { empresaevento_id: Number(eeReceptoraId) } }),
+    ]);
+
     const reunionesA = await this.prisma.reunion.findMany({
       where: {
         evento_id: eventoId, estaActivo: 1,
         estadoReunion: { not: 'CANCELADA' },
-        solicitudreunion: {
-          OR: [
-            { empresaEvento_id: Number(eeId) },
-            { empresaEventorReceptora_id: Number(eeId) },
-          ],
-        },
+        ...(excludeId ? { id: { not: excludeId } } : {}),
+        solicitudreunion: { OR: [{ empresaEvento_id: Number(eeId) }, { empresaEventorReceptora_id: Number(eeId) }] },
       },
       select: { fechaHoraInicioReunion: true, fechaHoraFinReunion: true },
     });
@@ -2435,12 +2632,8 @@ export class AppController implements OnModuleInit {
       where: {
         evento_id: eventoId, estaActivo: 1,
         estadoReunion: { not: 'CANCELADA' },
-        solicitudreunion: {
-          OR: [
-            { empresaEvento_id: Number(eeReceptoraId) },
-            { empresaEventorReceptora_id: Number(eeReceptoraId) },
-          ],
-        },
+        ...(excludeId ? { id: { not: excludeId } } : {}),
+        solicitudreunion: { OR: [{ empresaEvento_id: Number(eeReceptoraId) }, { empresaEventorReceptora_id: Number(eeReceptoraId) }] },
       },
       select: { fechaHoraInicioReunion: true, fechaHoraFinReunion: true },
     });
@@ -2448,13 +2641,27 @@ export class AppController implements OnModuleInit {
     const solapaCon = (r: { fechaHoraInicioReunion: Date; fechaHoraFinReunion: Date }, ini: Date, fin: Date) =>
       r.fechaHoraInicioReunion < fin && r.fechaHoraFinReunion > ini;
 
-    return franjas.map((f) => ({
-      inicio: f.inicio.toISOString(),
-      fin: f.fin.toISOString(),
-      disponible:
+    const dentroDeRangoReceptora = (ini: Date) => {
+      if (rangosReceptora.length === 0) return true;
+      const hh = String(ini.getHours()).padStart(2, '0');
+      const mm = String(ini.getMinutes()).padStart(2, '0');
+      const hhmm = `${hh}:${mm}`;
+      return rangosReceptora.some((r) => hhmm >= r.desde_hora && hhmm < r.hasta_hora);
+    };
+
+    const disponibles = franjas.filter(
+      (f) =>
         !reunionesA.some((r) => solapaCon(r, f.inicio, f.fin)) &&
-        !reunionesB.some((r) => solapaCon(r, f.inicio, f.fin)),
-    }));
+        !reunionesB.some((r) => solapaCon(r, f.inicio, f.fin)) &&
+        !bloqueosA.some((b) => new Date(b.inicio).getTime() === f.inicio.getTime()) &&
+        !bloqueosB.some((b) => new Date(b.inicio).getTime() === f.inicio.getTime()) &&
+        dentroDeRangoReceptora(f.inicio),
+    );
+
+    return {
+      duracionMinutos: evento.duracionReunion,
+      horarios: disponibles.map((f) => ({ inicio: f.inicio.toISOString(), fin: f.fin.toISOString() })),
+    };
   }
 
   @Get('empresa/mesas-disponibles')
@@ -2491,6 +2698,105 @@ export class AppController implements OnModuleInit {
     return mesasUnicas
       .filter((m) => !ocupadasIds.has(m.id))
       .map((m) => ({ id: m.id, numeroMesa: m.numeroMesa, capacidadPersonas: m.capacidadPersonas }));
+  }
+
+  // ── Horarios disponibles (blocklist) ──────────────────────────────────────
+
+  @Get('empresa/horarios-empresa/rangos')
+  async getRangosHorario(@Query('eeId') eeId: string) {
+    if (!eeId) throw new BadRequestException('eeId requerido');
+    return this.prisma.empresa_horario.findMany({
+      where: { empresaevento_id: Number(eeId) },
+      orderBy: { desde_hora: 'asc' },
+    });
+  }
+
+  @Post('empresa/horarios-empresa/rangos')
+  async aplicarRangosHorario(@Body() body: { eeId: number; rangos: { desde: string; hasta: string }[] }) {
+    const { eeId, rangos = [] } = body;
+    if (!eeId) throw new BadRequestException('eeId requerido');
+
+    // Persist ranges
+    await this.prisma.empresa_horario.deleteMany({ where: { empresaevento_id: Number(eeId) } });
+    for (const r of rangos) {
+      await this.prisma.empresa_horario.create({
+        data: { empresaevento_id: Number(eeId), desde_hora: r.desde, hasta_hora: r.hasta },
+      });
+    }
+
+    // Recompute blocks: block every franja outside any saved range
+    await this.prisma.empresa_bloqueo.deleteMany({ where: { empresaevento_id: Number(eeId) } });
+    if (rangos.length > 0) {
+      const eventoId = await this.getPrincipalEventoId();
+      const evento = eventoId ? await this.prisma.evento.findUnique({ where: { id: eventoId } }) : null;
+      if (evento) {
+        const franjas = this.generarFranjas(evento);
+        for (const f of franjas) {
+          const hh = String(f.inicio.getHours()).padStart(2, '0');
+          const mm = String(f.inicio.getMinutes()).padStart(2, '0');
+          const hhmm = `${hh}:${mm}`;
+          const dentroDeRango = rangos.some((r) => hhmm >= r.desde && hhmm < r.hasta);
+          if (!dentroDeRango) {
+            await this.prisma.empresa_bloqueo.create({
+              data: { empresaevento_id: Number(eeId), inicio: f.inicio, fin: f.fin },
+            });
+          }
+        }
+      }
+    }
+    return { ok: true };
+  }
+
+  @Get('empresa/horarios-empresa')
+  async getHorariosEmpresa(@Query('eeId') eeId: string) {
+    if (!eeId) throw new BadRequestException('eeId requerido');
+    const eventoId = await this.getPrincipalEventoId();
+    if (!eventoId) return [];
+    const evento = await this.prisma.evento.findUnique({ where: { id: eventoId } });
+    if (!evento) return [];
+
+    const franjas = this.generarFranjas(evento);
+    const bloqueos = await this.prisma.empresa_bloqueo.findMany({
+      where: { empresaevento_id: Number(eeId) },
+    });
+
+    return franjas.map((f) => {
+      const inicio = f.inicio.toISOString();
+      const fin = f.fin.toISOString();
+      const bloqueado = bloqueos.some(
+        (b) => new Date(b.inicio).getTime() === f.inicio.getTime(),
+      );
+      return { inicio, fin, disponible: !bloqueado };
+    });
+  }
+
+  @Delete('empresa/horarios-empresa/todos')
+  async resetHorariosEmpresa(@Query('eeId') eeId: string) {
+    if (!eeId) throw new BadRequestException('eeId requerido');
+    await this.prisma.empresa_bloqueo.deleteMany({ where: { empresaevento_id: Number(eeId) } });
+    return { ok: true };
+  }
+
+  @Put('empresa/horarios-empresa/toggle')
+  async toggleHorarioEmpresa(@Body() body: { eeId: number; inicio: string; fin: string }) {
+    const { eeId, inicio, fin } = body;
+    if (!eeId || !inicio || !fin) throw new BadRequestException('eeId, inicio y fin requeridos');
+
+    const iniDate = new Date(inicio);
+    const finDate = new Date(fin);
+    const existing = await this.prisma.empresa_bloqueo.findFirst({
+      where: { empresaevento_id: eeId, inicio: iniDate },
+    });
+
+    if (existing) {
+      await this.prisma.empresa_bloqueo.delete({ where: { id: existing.id } });
+      return { disponible: true };
+    } else {
+      await this.prisma.empresa_bloqueo.create({
+        data: { empresaevento_id: eeId, inicio: iniDate, fin: finDate },
+      });
+      return { disponible: false };
+    }
   }
 
   @Post('empresa/solicitudes')
@@ -2572,12 +2878,11 @@ export class AppController implements OnModuleInit {
         fechaHoraFinPropuesta: finDate,
         mensajeParaEmpresaReceptora: mensaje || null,
         estadoSolicitud: 'PENDIENTE',
+        mesa_id: mesaAsignada,
         estaActivo: 1,
       },
     });
 
-    // Guardar la mesa reservada en el solicitud (usamos un campo auxiliar en reunion al aceptar)
-    // Por ahora guardamos el mesaId en memoria de la respuesta para que el frontend pueda mostrarlo
     return { ...sol, mesaId: mesaAsignada };
   }
 
@@ -2599,6 +2904,7 @@ export class AppController implements OnModuleInit {
         empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento: {
           include: { empresa: { select: { id: true, nombre: true, rubro: true, urlFotoPerfil: true } } },
         },
+        mesa: { select: { id: true, numeroMesa: true } },
         reunion: {
           where: { estaActivo: 1 },
           select: { id: true, estadoReunion: true, mesa_id: true, mesa: { select: { numeroMesa: true } } },
@@ -2631,6 +2937,8 @@ export class AppController implements OnModuleInit {
         enlace: s.enlaceReunionVirtual,
         mensaje: s.mensajeParaEmpresaReceptora,
         motivo: s.motivoRechazoSolicitud,
+        mesa_id: s.mesa_id,
+        mesa: (s as any).mesa ?? null,
         fechaCreacion: s.fechaCreacion,
         esMiSolicitud: s.empresaEvento_id === Number(eeId),
         tieneConflicto,
@@ -2642,7 +2950,7 @@ export class AppController implements OnModuleInit {
   }
 
   @Put('empresa/solicitudes/:id/aceptar')
-  async aceptarSolicitud(@Param('id') id: string, @Body() body: { eeId: number; mesaId?: number }) {
+  async aceptarSolicitud(@Param('id') id: string, @Body() body: { eeId: number }) {
     const sol = await this.prisma.solicitudreunion.findFirst({
       where: { id: Number(id), estaActivo: 1, estadoSolicitud: 'PENDIENTE' },
     });
@@ -2654,9 +2962,10 @@ export class AppController implements OnModuleInit {
     const iniDate = sol.fechaHoraInicioPropuesta;
     const finDate = sol.fechaHoraFinPropuesta;
 
-    // Determinar mesa
-    let mesaId = body.mesaId ?? null;
+    // Usar la mesa que eligió la empresa solicitante al crear la solicitud
+    let mesaId = sol.mesa_id ?? null;
     if (!mesaId) {
+      // Fallback: auto-asignar si por algún motivo no tiene mesa (reunión virtual o error)
       const mesaLibre = await this.prisma.mesa.findFirst({
         where: {
           evento_id: eventoId!,
@@ -2671,9 +2980,10 @@ export class AppController implements OnModuleInit {
         },
         orderBy: { numeroMesa: 'asc' },
       });
-      if (!mesaLibre) throw new BadRequestException('No hay mesas disponibles para ese horario. Elige otro momento.');
+      if (!mesaLibre) throw new BadRequestException('No hay mesas disponibles para ese horario.');
       mesaId = mesaLibre.id;
     } else {
+      // Verificar que la mesa elegida por el solicitante sigue libre
       const ocupada = await this.prisma.reunion.findFirst({
         where: {
           mesa_id: mesaId, estaActivo: 1, estadoReunion: { not: 'CANCELADA' },
@@ -2681,7 +2991,7 @@ export class AppController implements OnModuleInit {
           fechaHoraFinReunion: { gt: iniDate },
         },
       });
-      if (ocupada) throw new BadRequestException('La mesa ya está ocupada. Elige otra.');
+      if (ocupada) throw new BadRequestException('La mesa elegida por la empresa solicitante ya está ocupada. Rechaza esta solicitud y solicita que elijan otro horario o mesa.');
     }
 
     // Verificar disponibilidad de ambas empresas
@@ -2723,6 +3033,12 @@ export class AppController implements OnModuleInit {
       }),
     ]);
 
+    this.notifGateway.emitirParaEe(sol.empresaEvento_id, 'solicitud:aceptada', {
+      mensaje: 'Tu solicitud de reunión fue aceptada. Revisa el horario en Reuniones.',
+    });
+    this.notifGateway.emitirParaEe(sol.empresaEventorReceptora_id, 'solicitud:aceptada', {
+      mensaje: 'Aceptaste una solicitud de reunión. Revisa los detalles en Reuniones.',
+    });
     return { ok: true, reunion };
   }
 
@@ -2738,6 +3054,9 @@ export class AppController implements OnModuleInit {
     await this.prisma.solicitudreunion.update({
       where: { id: Number(id) },
       data: { estadoSolicitud: 'RECHAZADA', motivoRechazoSolicitud: body.motivo || null, creadoModificadoFecha: new Date() },
+    });
+    this.notifGateway.emitirParaEe(sol.empresaEvento_id, 'solicitud:rechazada', {
+      mensaje: `Tu solicitud de reunión fue rechazada.${body.motivo ? ' Motivo: ' + body.motivo : ''}`,
     });
     return { ok: true };
   }
@@ -2813,6 +3132,115 @@ export class AppController implements OnModuleInit {
         solicitanteEeId: solicitanteEe?.id,
         receptoraEeId: receptoraEe?.id,
       };
+    });
+  }
+
+  @Put('empresa/reuniones/:id/cambiar-horario')
+  async cambiarHorarioReunion(
+    @Param('id') id: string,
+    @Body() body: { eeId: number; inicio: string },
+  ) {
+    const { eeId, inicio } = body;
+    if (!eeId || !inicio) throw new BadRequestException('eeId e inicio requeridos');
+
+    const reunion = await this.prisma.reunion.findFirst({
+      where: {
+        id: Number(id), estaActivo: 1, estadoReunion: 'PROGRAMADA',
+        solicitudreunion: { OR: [{ empresaEvento_id: Number(eeId) }, { empresaEventorReceptora_id: Number(eeId) }] },
+      },
+      include: { solicitudreunion: true, mesabloque: { where: { estaActivo: 1 } } },
+    });
+    if (!reunion) throw new BadRequestException('Reunión no encontrada o no tienes permiso para cambiarla');
+
+    const eventoId = await this.getPrincipalEventoId();
+    const evento = await this.prisma.evento.findUnique({ where: { id: eventoId! } });
+    if (!evento) throw new BadRequestException('No hay evento activo');
+
+    const iniDate = new Date(inicio);
+    const finDate = new Date(iniDate.getTime() + evento.duracionReunion * 60000);
+    const sol = (reunion as any).solicitudreunion;
+    const eeA = sol.empresaEvento_id;
+    const eeB = sol.empresaEventorReceptora_id;
+
+    const [bloqueosA, bloqueosB, reunionesA, reunionesB] = await Promise.all([
+      this.prisma.empresa_bloqueo.findMany({ where: { empresaevento_id: eeA } }),
+      this.prisma.empresa_bloqueo.findMany({ where: { empresaevento_id: eeB } }),
+      this.prisma.reunion.findMany({
+        where: { estaActivo: 1, estadoReunion: { not: 'CANCELADA' }, id: { not: Number(id) }, solicitudreunion: { OR: [{ empresaEvento_id: eeA }, { empresaEventorReceptora_id: eeA }] } },
+        select: { fechaHoraInicioReunion: true, fechaHoraFinReunion: true },
+      }),
+      this.prisma.reunion.findMany({
+        where: { estaActivo: 1, estadoReunion: { not: 'CANCELADA' }, id: { not: Number(id) }, solicitudreunion: { OR: [{ empresaEvento_id: eeB }, { empresaEventorReceptora_id: eeB }] } },
+        select: { fechaHoraInicioReunion: true, fechaHoraFinReunion: true },
+      }),
+    ]);
+
+    const solapaCon = (r: any, ini: Date, fin: Date) => r.fechaHoraInicioReunion < fin && r.fechaHoraFinReunion > ini;
+
+    if (
+      reunionesA.some((r) => solapaCon(r, iniDate, finDate)) ||
+      reunionesB.some((r) => solapaCon(r, iniDate, finDate)) ||
+      bloqueosA.some((b) => new Date(b.inicio).getTime() === iniDate.getTime()) ||
+      bloqueosB.some((b) => new Date(b.inicio).getTime() === iniDate.getTime())
+    ) {
+      throw new BadRequestException('Ese horario ya no está disponible para una de las empresas');
+    }
+
+    // For PRESENCIAL: keep same mesa or find another if occupied
+    let mesaId = reunion.mesa_id;
+    if (reunion.tipoReunion === 'PRESENCIAL') {
+      const ocupada = await this.prisma.mesabloque.findFirst({
+        where: {
+          mesa_id: mesaId!, fechaHoraInicio: iniDate, estaOcupado: 1, estaActivo: 1,
+          id: { notIn: (reunion as any).mesabloque.map((m: any) => m.id) },
+        },
+      });
+      if (ocupada) {
+        const todasMesas = await this.prisma.mesa.findMany({ where: { evento_id: eventoId!, estaActivo: 1, estaHabilitada: 1 } });
+        const ocupadas = await this.prisma.mesabloque.findMany({ where: { fechaHoraInicio: iniDate, estaOcupado: 1, estaActivo: 1 } });
+        const ocupadasIds = new Set(ocupadas.map((m) => m.mesa_id));
+        const libreM = todasMesas.find((m) => !ocupadasIds.has(m.id));
+        if (!libreM) throw new BadRequestException('No hay mesas disponibles en ese horario');
+        mesaId = libreM.id;
+      }
+    }
+
+    // Soft-delete old mesabloque, create new
+    for (const mb of (reunion as any).mesabloque) {
+      await this.prisma.mesabloque.update({ where: { id: mb.id }, data: { estaOcupado: 0, estaActivo: 0 } });
+    }
+    if (reunion.tipoReunion === 'PRESENCIAL' && mesaId) {
+      await this.prisma.mesabloque.create({
+        data: { mesa_id: mesaId, reunion_id: Number(id), fechaHoraInicio: iniDate, fechaHoraFin: finDate, estaOcupado: 1, estaActivo: 1 },
+      });
+    }
+
+    await this.prisma.reunion.update({
+      where: { id: Number(id) },
+      data: { fechaHoraInicioReunion: iniDate, fechaHoraFinReunion: finDate, mesa_id: mesaId },
+    });
+
+    return { ok: true, inicio: iniDate.toISOString(), fin: finDate.toISOString() };
+  }
+
+  @Put('empresa/reuniones/:id/finalizar')
+  async finalizarReunion(
+    @Param('id') id: string,
+    @Body() body: { eeId: number },
+  ) {
+    const { eeId } = body;
+    if (!eeId) throw new BadRequestException('eeId requerido');
+    const reunion = await this.prisma.reunion.findFirst({
+      where: {
+        id: Number(id), estaActivo: 1,
+        estadoReunion: { in: ['PROGRAMADA', 'EN_CURSO'] },
+        solicitudreunion: { OR: [{ empresaEvento_id: Number(eeId) }, { empresaEventorReceptora_id: Number(eeId) }] },
+      },
+    });
+    if (!reunion) throw new BadRequestException('Reunión no encontrada o no se puede finalizar');
+    return await this.prisma.reunion.update({
+      where: { id: Number(id) },
+      data: { estadoReunion: 'FINALIZADA', creadoModificadoFecha: new Date() },
     });
   }
 
@@ -3257,6 +3685,9 @@ export class AppController implements OnModuleInit {
       where: { id: ee.id },
       data: { numeroParticipantes: nuevoTotal, creadoModificadoFecha: new Date() },
     });
+    this.notifGateway.emitirParaEe(ee.id, 'pago-adicional:aprobado', {
+      mensaje: `Tu pago adicional fue aprobado. Ahora tienes ${nuevoTotal} cupos totales.`,
+    });
     return { ok: true, nuevoTotalSlots: nuevoTotal };
   }
 
@@ -3269,6 +3700,9 @@ export class AppController implements OnModuleInit {
     await this.prisma.empresaeventocomprobantes.update({
       where: { id: Number(id) },
       data: { estadoPago: 'RECHAZADO', observacion: body.motivo ?? null },
+    });
+    this.notifGateway.emitirParaEe((comp as any).empresaEvento_id, 'pago-adicional:rechazado', {
+      mensaje: `Tu pago adicional fue rechazado.${body.motivo ? ' Motivo: ' + body.motivo : ''}`,
     });
     return { ok: true };
   }

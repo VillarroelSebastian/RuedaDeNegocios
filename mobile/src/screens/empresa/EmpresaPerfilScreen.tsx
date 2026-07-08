@@ -1,13 +1,15 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  ActivityIndicator, RefreshControl, StyleSheet, Modal, Alert,
+  ActivityIndicator, RefreshControl, StyleSheet, Modal, Alert, Image,
 } from 'react-native';
+import ImagenLightbox from '../../components/ImagenLightbox';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+import * as ImagePicker from 'expo-image-picker';
 import {
   User, Building2, LogOut, Edit3, UserPlus, UserX,
-  ShieldCheck, Users, CreditCard, AlertCircle, Check, X,
+  ShieldCheck, Users, CreditCard, AlertCircle, Check, X, Upload,
 } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
 
@@ -41,14 +43,25 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
   const [addError,    setAddError]    = useState('');
   const [addOk,       setAddOk]       = useState(false);
 
+  // Change password via email code
+  const [passModal,   setPassModal]   = useState(false);
+  const [passStep,    setPassStep]    = useState<'sending'|'code'|'success'>('code');
+  const [resetCodigo, setResetCodigo] = useState('');
+  const [passNueva,   setPassNueva]   = useState('');
+  const [passConf,    setPassConf]    = useState('');
+  const [passLoading, setPassLoading] = useState(false);
+  const [passError,   setPassError]   = useState('');
+
   // Additional payment modal
-  const [pagoModal,   setPagoModal]   = useState(false);
-  const [pagoCant,    setPagoCant]    = useState('1');
-  const [pagoUrl,     setPagoUrl]     = useState('');
-  const [pagoMonto,   setPagoMonto]   = useState('');
-  const [pagandoAd,   setPagandoAd]   = useState(false);
-  const [pagoError,   setPagoError]   = useState('');
-  const [pagoOk,      setPagoOk]      = useState(false);
+  const [pagoModal,     setPagoModal]     = useState(false);
+  const [pagoCant,      setPagoCant]      = useState('1');
+  const [pagoUrl,       setPagoUrl]       = useState('');
+  const [pagoPreview,   setPagoPreview]   = useState<string | null>(null);
+  const [pagoMonto,     setPagoMonto]     = useState('');
+  const [pagandoAd,     setPagandoAd]     = useState(false);
+  const [pagoUploading, setPagoUploading] = useState(false);
+  const [pagoError,     setPagoError]     = useState('');
+  const [pagoOk,        setPagoOk]        = useState(false);
 
   const user = userStore.get();
 
@@ -180,13 +193,38 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
   };
 
   const openPagoAdicional = () => {
-    setPagoCant('1'); setPagoUrl(''); setPagoMonto('');
-    setPagoError(''); setPagoOk(false);
+    setPagoCant('1'); setPagoUrl(''); setPagoPreview(null); setPagoMonto('');
+    setPagoError(''); setPagoOk(false); setPagoUploading(false);
     setPagoModal(true);
   };
 
+  const pickComprobante = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) { setPagoError('Se necesita permiso para acceder a la galería.'); return; }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.85,
+    });
+    if (result.canceled || !result.assets?.length) return;
+    const asset = result.assets[0];
+    setPagoUploading(true); setPagoError('');
+    try {
+      const fd = new FormData();
+      fd.append('file', { uri: asset.uri, name: 'comprobante.jpg', type: 'image/jpeg' } as any);
+      const res = await fetch(`${API_URL}/admin/imagenes/upload`, { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!data.url) throw new Error('No se obtuvo URL');
+      setPagoUrl(data.url);
+      setPagoPreview(asset.uri);
+    } catch (e: any) {
+      setPagoError(e.message || 'Error al subir la imagen');
+    } finally {
+      setPagoUploading(false);
+    }
+  };
+
   const handlePagoAdicional = async () => {
-    if (!pagoUrl.trim()) { setPagoError('Ingresa la URL del comprobante.'); return; }
+    if (!pagoUrl.trim()) { setPagoError('Debes subir el comprobante de pago.'); return; }
     setPagoError(''); setPagandoAd(true);
     try {
       const eeId = empresa?.empresaeventoId;
@@ -209,6 +247,48 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
       setPagoError(e.message || 'Error de red');
     } finally {
       setPagandoAd(false);
+    }
+  };
+
+  const handleEnviarCodigo = async () => {
+    const correo = user?.correo;
+    if (!correo) return;
+    setPassStep('sending');
+    setPassError('');
+    try {
+      await fetch(`${API_URL}/auth/solicitar-reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ correo }),
+      });
+      setResetCodigo(''); setPassNueva(''); setPassConf('');
+      setPassStep('code');
+      setPassModal(true);
+    } catch {
+      setPassStep('code');
+      setPassError('No se pudo enviar el correo. Intenta de nuevo.');
+    }
+  };
+
+  const handleConfirmarReset = async () => {
+    setPassError('');
+    if (resetCodigo.length !== 6) { setPassError('Ingresa el código de 6 dígitos.'); return; }
+    if (passNueva.length < 6)     { setPassError('La contraseña debe tener al menos 6 caracteres.'); return; }
+    if (passNueva !== passConf)   { setPassError('Las contraseñas no coinciden.'); return; }
+    setPassLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/auth/confirmar-reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ correo: user?.correo, codigo: resetCodigo, nuevaContrasenia: passNueva }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || 'Código incorrecto o expirado.');
+      setPassStep('success');
+    } catch (e: any) {
+      setPassError(e.message || 'Error de red');
+    } finally {
+      setPassLoading(false);
     }
   };
 
@@ -412,6 +492,21 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
           </>
         )}
 
+        {/* Cambiar contraseña */}
+        <TouchableOpacity
+          style={s.changePassBtn}
+          onPress={handleEnviarCodigo}
+          disabled={passStep === 'sending'}
+          activeOpacity={0.8}
+        >
+          {passStep === 'sending'
+            ? <ActivityIndicator size="small" color="#2563eb" style={{ marginRight: 8 }} />
+            : <ShieldCheck size={18} color="#2563eb" style={{ marginRight: 8 }} />}
+          <Text style={s.changePassText}>
+            {passStep === 'sending' ? 'Enviando código...' : 'Cambiar contraseña'}
+          </Text>
+        </TouchableOpacity>
+
         {/* Logout */}
         <TouchableOpacity style={s.logoutBtn} onPress={handleLogout} activeOpacity={0.8}>
           <LogOut size={18} color="#dc2626" style={{ marginRight: 8 }} />
@@ -525,12 +620,92 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
                 {!!pagoError && <View style={s.errorBox}><Text style={s.errorText}>{pagoError}</Text></View>}
                 <Text style={s.label}>Cantidad de cupos a solicitar</Text>
                 <TextInput style={s.input} value={pagoCant} onChangeText={setPagoCant} keyboardType="number-pad" placeholder="1" placeholderTextColor="#9ca3af" />
-                <Text style={s.label}>URL del comprobante de pago *</Text>
-                <TextInput style={s.input} value={pagoUrl} onChangeText={setPagoUrl} placeholder="https://..." placeholderTextColor="#9ca3af" autoCapitalize="none" />
+                <Text style={s.label}>Comprobante de pago *</Text>
+                {pagoPreview && (
+                  <ImagenLightbox uri={pagoPreview} style={s.previewBox} imgStyle={{ borderRadius: 10 }} />
+                )}
+                <TouchableOpacity
+                  style={[s.uploadBtn, pagoUploading && { opacity: 0.7 }]}
+                  onPress={pickComprobante}
+                  disabled={pagoUploading}
+                  activeOpacity={0.75}
+                >
+                  {pagoUploading
+                    ? <ActivityIndicator size="small" color={GREEN} />
+                    : <Upload size={18} color={GREEN} />
+                  }
+                  <Text style={s.uploadBtnText}>
+                    {pagoUploading ? 'Subiendo...' : pagoPreview ? 'Cambiar comprobante' : 'Seleccionar imagen'}
+                  </Text>
+                </TouchableOpacity>
+                {pagoUrl && !pagoPreview && (
+                  <Text style={s.uploadedOk}>✓ Comprobante cargado</Text>
+                )}
                 <Text style={s.label}>Monto pagado (opcional)</Text>
                 <TextInput style={s.input} value={pagoMonto} onChangeText={setPagoMonto} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor="#9ca3af" />
-                <TouchableOpacity style={[s.btnPrimary, pagandoAd && { opacity: 0.7 }]} onPress={handlePagoAdicional} disabled={pagandoAd}>
+                <TouchableOpacity
+                  style={[s.btnPrimary, (pagandoAd || pagoUploading || !pagoUrl) && { opacity: 0.5 }]}
+                  onPress={handlePagoAdicional}
+                  disabled={pagandoAd || pagoUploading || !pagoUrl}
+                >
                   {pagandoAd ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Enviar solicitud</Text>}
+                </TouchableOpacity>
+                <View style={{ height: 20 }} />
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Cambiar contraseña modal */}
+      <Modal visible={passModal} animationType="slide" transparent statusBarTranslucent>
+        <View style={s.overlay}>
+          <View style={s.modalCard}>
+            <View style={s.modalHeader}>
+              <Text style={s.modalTitle}>
+                {passStep === 'success' ? '¡Contraseña actualizada!' : 'Cambiar contraseña'}
+              </Text>
+              <TouchableOpacity onPress={() => { setPassModal(false); setPassStep('code'); setPassError(''); }}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <X size={22} color="#6b7280" />
+              </TouchableOpacity>
+            </View>
+            {passStep === 'success' ? (
+              <View style={s.successBox}>
+                <Check size={40} color={GREEN} />
+                <Text style={s.successText}>Tu contraseña fue actualizada correctamente.</Text>
+                <TouchableOpacity style={s.btnPrimary} onPress={() => { setPassModal(false); setPassStep('code'); }}>
+                  <Text style={s.btnText}>Cerrar</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <>
+                <Text style={{ fontSize: 13, color: '#6b7280', marginBottom: 12 }}>
+                  Ingresa el código de 6 dígitos enviado a <Text style={{ fontWeight: '700' }}>{user?.correo}</Text>.
+                </Text>
+                {!!passError && <View style={s.errorBox}><Text style={s.errorText}>{passError}</Text></View>}
+                <Text style={s.label}>Código de verificación *</Text>
+                <TextInput
+                  style={[s.input, { letterSpacing: 6, textAlign: 'center', fontWeight: '700' }]}
+                  value={resetCodigo} onChangeText={(v) => setResetCodigo(v.replace(/\D/g, ''))}
+                  maxLength={6} keyboardType="number-pad" placeholder="000000" placeholderTextColor="#9ca3af"
+                />
+                <Text style={s.label}>Nueva contraseña *</Text>
+                <TextInput
+                  style={s.input} value={passNueva} onChangeText={setPassNueva}
+                  secureTextEntry placeholder="••••••••" placeholderTextColor="#9ca3af"
+                />
+                <Text style={s.label}>Confirmar contraseña *</Text>
+                <TextInput
+                  style={s.input} value={passConf} onChangeText={setPassConf}
+                  secureTextEntry placeholder="••••••••" placeholderTextColor="#9ca3af"
+                />
+                <TouchableOpacity
+                  style={[s.btnPrimary, passLoading && { opacity: 0.7 }]}
+                  onPress={handleConfirmarReset}
+                  disabled={passLoading}
+                >
+                  {passLoading ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Confirmar cambio</Text>}
                 </TouchableOpacity>
                 <View style={{ height: 20 }} />
               </>
@@ -691,6 +866,12 @@ const s = StyleSheet.create({
   pagoEstado:      { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
   pagoEstadoText:  { fontSize: 10, fontWeight: '700' },
 
+  changePassBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#eff6ff', borderRadius: 16, padding: 16, marginBottom: 10,
+    borderWidth: 1, borderColor: '#bfdbfe',
+  },
+  changePassText: { color: '#2563eb', fontSize: 15, fontWeight: '700' },
   logoutBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     backgroundColor: '#fef2f2', borderRadius: 16, padding: 16, marginBottom: 8,
@@ -723,4 +904,17 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: '#fde68a', maxWidth: '100%',
   },
   infoText: { fontSize: 12, color: '#92400e', flex: 1, lineHeight: 18 },
+  previewBox: {
+    width: '100%', height: 160, borderRadius: 12,
+    overflow: 'hidden', backgroundColor: '#f1f5f9',
+    marginBottom: 10, borderWidth: 1, borderColor: '#e2e8f0',
+  },
+  previewImg: { width: '100%', height: '100%' },
+  uploadBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, borderWidth: 2, borderColor: GREEN, borderStyle: 'dashed',
+    borderRadius: 12, paddingVertical: 14, marginBottom: 4,
+  },
+  uploadBtnText: { fontSize: 14, fontWeight: '700', color: GREEN },
+  uploadedOk: { fontSize: 12, color: '#449D3A', fontWeight: '600', textAlign: 'center', marginBottom: 4 },
 });

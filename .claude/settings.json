@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git pull *)",
+      "Bash(git stash *)",
+      "Bash(node -e ' *)",
+      "Bash(node -e \"const bcrypt = require\\('bcrypt'\\); bcrypt.hash\\('admin1234', 10\\).then\\(h => console.log\\('ADMIN_HASH:' + h\\)\\); bcrypt.hash\\('tecnico1234', 10\\).then\\(h => console.log\\('TECNICO_HASH:' + h\\)\\);\")",
+      "Bash(node -e 'const bcrypt = require\\('\\\\''bcrypt'\\\\''\\); bcrypt.hash\\('\\\\''admin1234'\\\\'', 10\\).then\\(h => { const adminHash = h; bcrypt.hash\\('\\\\''tecnico1234'\\\\'', 10\\).then\\(t => { const sql = ` *)",
+      "Bash(node -e \"const bcrypt = require\\('bcrypt'\\); bcrypt.hash\\('admin1234', 10\\).then\\(adminHash => { bcrypt.hash\\('tecnico1234', 10\\).then\\(tecnicoHash => { const { execSync } = require\\('child_process'\\); const sql = \\\\`INSERT INTO usuario \\(evento_id, nombres, \\\\\"apellidoPaterno\\\\\", \\\\\"apellidoMaterno\\\\\", correo, contrasenia, telefono, \\\\\"urlFotoPerfil\\\\\", \\\\\"rolEvento\\\\\", \\\\\"estaActivo\\\\\"\\) SELECT id, 'Administrador', 'Principal', '', 'admin@ruedadenegocios.com', '\\\\${adminHash}', '70000000', '', 'ADMINISTRADOR', 1 FROM evento WHERE \\\\\"esPrincipal\\\\\" = 1 LIMIT 1; INSERT INTO usuario \\(evento_id, nombres, \\\\\"apellidoPaterno\\\\\", \\\\\"apellidoMaterno\\\\\", correo, contrasenia, telefono, \\\\\"urlFotoPerfil\\\\\", \\\\\"rolEvento\\\\\", \\\\\"estaActivo\\\\\"\\) SELECT id, 'Tecnico', 'Principal', '', 'tecnico@ruedadenegocios.com', '\\\\${tecnicoHash}', '70000001', '', 'TECNICO', 1 FROM evento WHERE \\\\\"esPrincipal\\\\\" = 1 LIMIT 1;\\\\`; try { const result = execSync\\(\\\\`psql -U postgres -d ruedanegocios -c \\\\\"\\\\${sql}\\\\\"\\\\`, { env: { ...process.env, PGPASSWORD: 'sebastian5' } }\\); console.log\\(result.toString\\(\\)\\); } catch\\(e\\) { console.error\\(e.stderr?.toString\\(\\) || e.message\\); } }\\); }\\);\")",
+      "Bash(type prisma\\\\.env)",
+      "Bash(type .env)"
+    ]
+  }
+}

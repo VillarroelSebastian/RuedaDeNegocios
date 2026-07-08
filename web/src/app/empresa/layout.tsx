@@ -4,12 +4,15 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import EmpresaSidebar from '@/components/empresa/EmpresaSidebar';
 import EmpresaHeader from '@/components/empresa/EmpresaHeader';
+import AsistenteChat from '@/components/empresa/AsistenteChat';
+import NotificacionToast from '@/components/empresa/NotificacionToast';
 
 const API = 'http://localhost:3334';
 
 export default function EmpresaLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [esEncargado, setEsEncargado] = useState(false);
+  const [eeId, setEeId] = useState<number | null>(null);
 
   useEffect(() => {
     const raw = localStorage.getItem('empresaUser');
@@ -28,6 +31,7 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
       .then((r) => r.json())
       .then((ctx) => {
         if (ctx?.esResponsable) setEsEncargado(true);
+        if (ctx?.empresaeventoId) setEeId(ctx.empresaeventoId);
       })
       .catch(() => {
         // silently ignore — sidebar defaults to no encargado items
@@ -41,6 +45,8 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
         <EmpresaHeader />
         <main className="flex-1">{children}</main>
       </div>
+      <NotificacionToast eeId={eeId} />
+      <AsistenteChat />
     </div>
   );
 }
