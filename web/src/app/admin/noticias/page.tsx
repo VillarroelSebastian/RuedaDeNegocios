@@ -210,7 +210,7 @@ export default function NoticiasPage() {
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Imagen del anuncio (Opcional)</label>
                 {form.urlImagenNoticia ? (
                   <div className="relative">
-                    <img src={form.urlImagenNoticia} alt="" className="w-full h-32 object-cover rounded-lg border border-gray-200" />
+                    <img src={form.urlImagenNoticia} alt="" className="w-full h-32 object-contain rounded-lg border border-gray-200" />
                     <button onClick={() => set('urlImagenNoticia', '')}
                       className="absolute top-2 right-2 p-1 bg-white rounded-full shadow-sm text-gray-500 hover:text-red-500">
                       <X className="w-4 h-4" />

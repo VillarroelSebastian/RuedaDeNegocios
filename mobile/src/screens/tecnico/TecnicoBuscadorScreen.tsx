@@ -35,7 +35,7 @@ function EmpresaCard({ e }: { e: any }) {
       padding:14, marginBottom:8, flexDirection:'row', alignItems:'center', gap:12,
       shadowColor:'#000', shadowOpacity:0.03, shadowRadius:4, elevation:1 }}>
       {e.urlFotoPerfil
-        ? <Image source={{ uri: e.urlFotoPerfil }} style={{ width:44, height:44, borderRadius:22 }} resizeMode="cover" />
+        ? <Image source={{ uri: e.urlFotoPerfil }} style={{ width:44, height:44, borderRadius:22 }} resizeMode="contain" />
         : <View style={{ width:44, height:44, borderRadius:22, backgroundColor:'#dcfce7',
             alignItems:'center', justifyContent:'center' }}>
             <Building2 color={GREEN} size={18} />

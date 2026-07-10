@@ -45,7 +45,8 @@ export function useNotificaciones(eeId: number | null) {
     const EVENTOS = [
       "pago:aprobado", "pago:rechazado",
       "pago-adicional:aprobado", "pago-adicional:rechazado",
-      "solicitud:aceptada", "solicitud:rechazada",
+      "solicitud:nueva", "solicitud:aceptada", "solicitud:rechazada",
+      "reunion:reprogramada", "reunion:recordatorio",
       "comunicado:nuevo",
     ];
 

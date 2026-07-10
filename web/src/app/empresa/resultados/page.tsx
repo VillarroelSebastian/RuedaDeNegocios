@@ -275,7 +275,9 @@ function ResultadosContent() {
           <p className="text-sm text-gray-400">
             {reuniones.length === 0
               ? "No tienes reuniones confirmadas aún."
-              : "Has evaluado todas tus reuniones."}
+              : yaEvaluadas.length === 0
+                ? "Aún no tienes reuniones finalizadas para evaluar. Podrás registrar el resultado cuando una reunión termine."
+                : "Has evaluado todas tus reuniones finalizadas."}
           </p>
         </div>
       )}

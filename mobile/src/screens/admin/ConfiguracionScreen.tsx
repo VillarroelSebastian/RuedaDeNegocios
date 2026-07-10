@@ -116,7 +116,7 @@ export default function ConfiguracionScreen({ navigation }: any) {
           <View className="relative">
             <View className="w-24 h-24 rounded-full bg-gray-100 items-center justify-center overflow-hidden border-4 border-white shadow-md">
               {form.urlFotoPerfil
-                ? <Image source={{ uri: form.urlFotoPerfil }} className="w-full h-full" resizeMode="cover" />
+                ? <Image source={{ uri: form.urlFotoPerfil }} className="w-full h-full" resizeMode="contain" />
                 : <User color="#9ca3af" size={36} />
               }
             </View>

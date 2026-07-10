@@ -852,7 +852,7 @@ export default function RegistroPage() {
             {evento && (
               <div className="relative rounded-2xl overflow-hidden min-h-[160px] flex items-center">
                 {evento.urlImagenMapaRecinto
-                  ? <img src={evento.urlImagenMapaRecinto} alt="Recinto" className="absolute inset-0 w-full h-full object-cover" />
+                  ? <img src={evento.urlImagenMapaRecinto} alt="Recinto" className="absolute inset-0 w-full h-full object-contain" />
                   : <div className="absolute inset-0 bg-gradient-to-br from-green-800 to-emerald-600" />
                 }
                 <div className="absolute inset-0 bg-black/50" />

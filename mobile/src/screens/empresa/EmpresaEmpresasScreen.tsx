@@ -355,10 +355,16 @@ export default function EmpresaEmpresasScreen() {
         }
         renderItem={({ item }) => (
           <View style={[s.card, item.esRecomendada && s.cardRecomendada]}>
-            {item.esRecomendada && (
+            {item.afinidad === 'alta' && (
               <View style={s.recoBadge}>
                 <Star size={10} color={GREEN} fill={GREEN} />
                 <Text style={s.recoText}>Recomendada · Mismo rubro</Text>
+              </View>
+            )}
+            {item.afinidad === 'media' && (
+              <View style={[s.recoBadge, s.recoBadgeMedia]}>
+                <Star size={10} color="#d97706" />
+                <Text style={[s.recoText, { color: '#d97706' }]}>Recomendada · Rubro complementario</Text>
               </View>
             )}
             {/* Card top: avatar + name + rubro */}
@@ -1051,6 +1057,7 @@ const s = StyleSheet.create({
     alignSelf: 'flex-start', marginBottom: 8,
   },
   recoText: { fontSize: 10, fontWeight: '700', color: '#449D3A', letterSpacing: 0.4 },
+  recoBadgeMedia: { backgroundColor: '#fffbeb' },
   cardTop: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10 },
   cardAvatar: {
     width: 52, height: 52, borderRadius: 26,

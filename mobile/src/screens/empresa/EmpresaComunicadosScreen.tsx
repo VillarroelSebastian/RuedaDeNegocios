@@ -6,9 +6,9 @@ import {
 import ImagenLightbox from '../../components/ImagenLightbox';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { Newspaper, AlertCircle } from 'lucide-react-native';
+import { Newspaper, AlertCircle, Bell } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_URL } from '../../utils/userStore';
+import { API_URL, userStore } from '../../utils/userStore';
 
 const GREEN = '#449D3A';
 
@@ -17,8 +17,13 @@ function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString('es-BO', { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
+function fmtNotifFecha(f: string) {
+  return new Date(f).toLocaleDateString('es-BO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+
 export default function EmpresaComunicadosScreen() {
   const [items,     setItems]     = useState<any[]>([]);
+  const [avisos,    setAvisos]    = useState<any[]>([]);
   const [loading,   setLoading]   = useState(true);
   const [refreshing,setRefreshing] = useState(false);
   const [error,     setError]     = useState('');
@@ -31,6 +36,23 @@ export default function EmpresaComunicadosScreen() {
       if (!res.ok) throw new Error('Error cargando comunicados');
       const data = await res.json();
       setItems(Array.isArray(data) ? data : []);
+
+      // Mis avisos personales (notificaciones persistentes) + marcar como leídas
+      const eeId = userStore.get()?.empresaeventoId;
+      if (eeId) {
+        const nRes = await fetch(`${API_URL}/empresa/notificaciones?eeId=${eeId}`);
+        if (nRes.ok) {
+          const nData = await nRes.json();
+          setAvisos(nData.notificaciones ?? []);
+          if ((nData.noLeidas ?? 0) > 0) {
+            fetch(`${API_URL}/empresa/notificaciones/leidas`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ eeId }),
+            }).catch(() => {});
+          }
+        }
+      }
     } catch (e: any) {
       setError(e.message || 'Error de red');
     } finally {
@@ -63,6 +85,24 @@ export default function EmpresaComunicadosScreen() {
         keyExtractor={(item) => String(item.id)}
         contentContainerStyle={s.list}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(); }} tintColor={GREEN} />}
+        ListHeaderComponent={
+          avisos.length > 0 ? (
+            <View style={s.avisosBox}>
+              <View style={s.avisosHeader}>
+                <Bell size={14} color={GREEN} />
+                <Text style={s.avisosTitle}>Mis avisos</Text>
+              </View>
+              {avisos.slice(0, 8).map((a) => (
+                <View key={a.id} style={[s.avisoItem, !a.leida && s.avisoNoLeido]}>
+                  <Text style={s.avisoTitulo}>{a.titulo}</Text>
+                  <Text style={s.avisoMensaje}>{a.mensaje}</Text>
+                  <Text style={s.avisoFecha}>{fmtNotifFecha(a.fecha)}</Text>
+                </View>
+              ))}
+              <Text style={s.avisosSubtitle}>Comunicados del evento</Text>
+            </View>
+          ) : null
+        }
         ListEmptyComponent={
           <View style={s.empty}>
             <Newspaper size={48} color="#d1d5db" />
@@ -74,7 +114,7 @@ export default function EmpresaComunicadosScreen() {
           return (
             <TouchableOpacity style={s.card} onPress={() => toggle(item.id)} activeOpacity={0.8}>
               {item.urlImagen ? (
-                <ImagenLightbox uri={item.urlImagen} style={s.cardImg} imgStyle={{ resizeMode: 'cover' }} />
+                <ImagenLightbox uri={item.urlImagen} style={s.cardImg} />
               ) : (
                 <View style={s.cardImgPlaceholder}>
                   <Newspaper size={32} color="#d1d5db" />
@@ -100,6 +140,19 @@ const s = StyleSheet.create({
   root:   { flex: 1, backgroundColor: '#f8fafc' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   list:   { padding: 16, paddingBottom: 32 },
+  // Mis avisos (notificaciones personales)
+  avisosBox:    { marginBottom: 8 },
+  avisosHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 },
+  avisosTitle:  { fontSize: 14, fontWeight: '800', color: '#0f172a' },
+  avisoItem: {
+    backgroundColor: '#fff', borderRadius: 14, padding: 12, marginBottom: 8,
+    borderWidth: 1, borderColor: '#e2e8f0',
+  },
+  avisoNoLeido: { borderColor: '#86efac', backgroundColor: '#f0fdf4' },
+  avisoTitulo:  { fontSize: 13, fontWeight: '700', color: '#0f172a' },
+  avisoMensaje: { fontSize: 12, color: '#475569', marginTop: 2, lineHeight: 17 },
+  avisoFecha:   { fontSize: 10, color: '#94a3b8', marginTop: 6 },
+  avisosSubtitle: { fontSize: 14, fontWeight: '800', color: '#0f172a', marginTop: 12, marginBottom: 10 },
   errorBox: {
     flexDirection: 'row', alignItems: 'center',
     margin: 16, padding: 12, borderRadius: 12,

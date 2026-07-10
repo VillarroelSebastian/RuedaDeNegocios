@@ -71,13 +71,13 @@ function ReunionCard({ r, onCambiarEstado }: { r: any; onCambiarEstado: (id:numb
         <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:8 }}>
           <View style={{ width:8, height:8, borderRadius:4, backgroundColor:est.dot }} />
           {ea?.urlFotoPerfil
-            ? <Image source={{ uri: ea.urlFotoPerfil }} style={{ width:28, height:28, borderRadius:14 }} resizeMode="cover"/>
+            ? <Image source={{ uri: ea.urlFotoPerfil }} style={{ width:28, height:28, borderRadius:14 }} resizeMode="contain"/>
             : <View style={{ width:28, height:28, borderRadius:14, backgroundColor:'#dcfce7', alignItems:'center', justifyContent:'center' }}><Building2 color={GREEN} size={12}/></View>
           }
           <Text style={{ fontSize:12, fontWeight:'700', color:'#111827', flex:1 }} numberOfLines={1}>{ea?.nombre ?? '—'}</Text>
           <Text style={{ color:'#9ca3af', fontSize:12, marginHorizontal:2 }}>↔</Text>
           {eb?.urlFotoPerfil
-            ? <Image source={{ uri: eb.urlFotoPerfil }} style={{ width:28, height:28, borderRadius:14 }} resizeMode="cover"/>
+            ? <Image source={{ uri: eb.urlFotoPerfil }} style={{ width:28, height:28, borderRadius:14 }} resizeMode="contain"/>
             : <View style={{ width:28, height:28, borderRadius:14, backgroundColor:'#dbeafe', alignItems:'center', justifyContent:'center' }}><Building2 color="#2563eb" size={12}/></View>
           }
           <Text style={{ fontSize:12, fontWeight:'700', color:'#111827', flex:1 }} numberOfLines={1}>{eb?.nombre ?? '—'}</Text>

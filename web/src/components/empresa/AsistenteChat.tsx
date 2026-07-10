@@ -10,36 +10,25 @@ interface Msg {
   role: "user" | "bot";
   text: string;
   imageUrl?: string;
+  opciones?: string[];
 }
 
 const SUGERENCIAS = [
+  "Agendar una reunión",
   "¿Cuándo es mi próxima reunión?",
   "¿En qué mesa me toca?",
-  "¿Cuáles son las fechas del evento?",
   "¿Cuál es el estado de mi pago?",
-  "¿Cuántos cupos tengo disponibles?",
-  "Ver mapa del recinto",
-  "Ver cronograma de charlas",
 ];
 
-export default function AsistenteChat() {
+export default function AsistenteChat({ eeId, euId }: { eeId: number | null; euId?: number | null }) {
   const [open, setOpen] = useState(false);
   const [msgs, setMsgs] = useState<Msg[]>([
     { role: "bot", text: "¡Hola! Soy tu asistente virtual. ¿En qué te puedo ayudar hoy?" },
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [eeId, setEeId] = useState<number | null>(null);
+  const [contexto, setContexto] = useState<any>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem("empresaUser");
-      if (!raw) return;
-      const user = JSON.parse(raw);
-      if (user?.empresaeventoId) setEeId(user.empresaeventoId);
-    } catch {}
-  }, []);
 
   useEffect(() => {
     if (open) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -55,10 +44,11 @@ export default function AsistenteChat() {
       const res = await fetch(`${API}/empresa/asistente`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eeId, mensaje: t }),
+        body: JSON.stringify({ eeId, euId: euId ?? undefined, mensaje: t, contexto }),
       });
       const data = await res.json();
-      setMsgs((prev) => [...prev, { role: "bot", text: data.respuesta, imageUrl: data.imageUrl }]);
+      setContexto(data.contexto ?? null);
+      setMsgs((prev) => [...prev, { role: "bot", text: data.respuesta, imageUrl: data.imageUrl, opciones: data.opciones }]);
     } catch {
       setMsgs((prev) => [...prev, { role: "bot", text: "Lo siento, no pude conectarme al servidor. Intenta de nuevo." }]);
     } finally {
@@ -113,6 +103,20 @@ export default function AsistenteChat() {
                       src={m.imageUrl}
                       className="w-full h-40 rounded-xl overflow-hidden border border-gray-200"
                     />
+                  )}
+                  {/* Quick replies: solo en el último mensaje del bot */}
+                  {m.role === "bot" && m.opciones && m.opciones.length > 0 && i === msgs.length - 1 && !loading && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {m.opciones.map((op) => (
+                        <button
+                          key={op}
+                          onClick={() => send(op)}
+                          className="text-[11px] bg-white border border-[#449D3A]/40 text-[#449D3A] font-semibold px-2.5 py-1.5 rounded-lg hover:bg-[#449D3A]/10 transition-colors"
+                        >
+                          {op}
+                        </button>
+                      ))}
+                    </div>
                   )}
                 </div>
                 {m.role === "user" && (

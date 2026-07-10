@@ -266,7 +266,7 @@ export default function TecnicoPerfilScreen({ navigation }: any) {
         <View style={{ alignItems: 'center', marginBottom: 28 }}>
           <View style={{ position: 'relative' }}>
             {urlFoto
-              ? <Image source={{ uri: urlFoto }} style={{ width: 90, height: 90, borderRadius: 45 }} resizeMode="cover" />
+              ? <Image source={{ uri: urlFoto }} style={{ width: 90, height: 90, borderRadius: 45 }} resizeMode="contain" />
               : <View style={{ width: 90, height: 90, borderRadius: 45, backgroundColor: GREEN, alignItems: 'center', justifyContent: 'center' }}>
                   {uploadingPhoto
                     ? <ActivityIndicator color="#fff" />

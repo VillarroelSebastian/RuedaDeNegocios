@@ -31,12 +31,84 @@ export class AppController implements OnModuleInit {
     private readonly notifGateway: NotificacionesGateway,
   ) {}
 
+  // Notifica a una empresa: persiste en la tabla notificacion (historial/campanita)
+  // y emite en tiempo real por Socket.IO. Nunca bloquea el flujo principal.
+  private async notificar(
+    eeId: number,
+    tipo: string,
+    titulo: string,
+    mensaje: string,
+    referenciaId = 0,
+    referenciaTabla = '-',
+  ) {
+    try {
+      await this.prisma.notificacion.create({
+        data: {
+          empresaevento_id: eeId,
+          tituloNotificacion: titulo,
+          mensajeNotificacion: mensaje,
+          tipoNotificacion: tipo,
+          referenciaId,
+          referenciaNombreTabla: referenciaTabla,
+          haSidoLeida: 0,
+          estaActivo: 1,
+        },
+      });
+    } catch (_) { /* la notificación en vivo sigue aunque falle la persistencia */ }
+    this.notifGateway.emitirParaEe(eeId, tipo, { titulo, mensaje });
+  }
+
   async onModuleInit() {
     await this.prisma.empresaevento.updateMany({
       where: { estadoVerificacionPago: 'APROBADO' },
       data: { estaActivo: 0 },
     });
     await this.ensureMesasExist();
+
+    // Recordatorio de reuniones próximas: cada 60s busca reuniones que comienzan
+    // dentro de los próximos 15 minutos y avisa a ambas empresas (una sola vez,
+    // usando seEnvioNotificacionDeRetraso como bandera de enviado).
+    setInterval(() => { this.enviarRecordatoriosReuniones().catch(() => {}); }, 60_000);
+  }
+
+  private async enviarRecordatoriosReuniones() {
+    const ahora = new Date();
+    const limite = new Date(ahora.getTime() + 15 * 60000);
+    const proximas = await this.prisma.reunion.findMany({
+      where: {
+        estaActivo: 1,
+        estadoReunion: { in: ['PROGRAMADA', 'REPROGRAMADA'] },
+        seEnvioNotificacionDeRetraso: 0,
+        fechaHoraInicioReunion: { gte: ahora, lte: limite },
+      },
+      include: {
+        mesa: { select: { numeroMesa: true } },
+        solicitudreunion: {
+          include: {
+            empresaevento_solicitudreunion_empresaEvento_idToempresaevento: { include: { empresa: { select: { nombre: true } } } },
+            empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento: { include: { empresa: { select: { nombre: true } } } },
+          },
+        },
+      },
+    });
+
+    for (const r of proximas) {
+      const sol = (r as any).solicitudreunion;
+      const nombreA = sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa?.nombre ?? 'la otra empresa';
+      const nombreB = sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento?.empresa?.nombre ?? 'la otra empresa';
+      const hora = new Date(r.fechaHoraInicioReunion).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' });
+      const mesa = (r as any).mesa ? ` en la Mesa ${(r as any).mesa.numeroMesa}` : '';
+
+      await this.notificar(sol.empresaEvento_id, 'reunion:recordatorio', 'Reunión próxima',
+        `Tu reunión con ${nombreB} comienza a las ${hora}${mesa}. ¡No llegues tarde!`, r.id, 'reunion');
+      await this.notificar(sol.empresaEventorReceptora_id, 'reunion:recordatorio', 'Reunión próxima',
+        `Tu reunión con ${nombreA} comienza a las ${hora}${mesa}. ¡No llegues tarde!`, r.id, 'reunion');
+
+      await this.prisma.reunion.update({
+        where: { id: r.id },
+        data: { seEnvioNotificacionDeRetraso: 1 },
+      });
+    }
   }
 
   // Solo crea mesas si el evento principal no tiene ninguna; nunca borra datos reales.
@@ -608,7 +680,7 @@ export class AppController implements OnModuleInit {
   async getEventoById(@Param('id') id: string) {
     const evento = await this.prisma.evento.findUnique({
       where: { id: Number(id) },
-      include: { eventoreglaqr: true },
+      include: { eventoreglaqr: { where: { estadoActivo: 1 }, orderBy: { rangoDesde: 'asc' } } },
     });
     if (!evento) return {};
     return evento;
@@ -688,7 +760,11 @@ export class AppController implements OnModuleInit {
       await this.prisma.evento.update({ where: { id: eventId }, data: eventoData });
 
       if (reglasQR && Array.isArray(reglasQR)) {
-        await this.prisma.eventoreglaqr.deleteMany({ where: { evento_id: eventId } });
+        // Eliminación lógica: se desactivan las reglas anteriores y se crean las nuevas
+        await this.prisma.eventoreglaqr.updateMany({
+          where: { evento_id: eventId, estadoActivo: 1 },
+          data: { estadoActivo: 0, fechaModificacion: new Date() },
+        });
         if (reglasQR.length > 0) {
           await this.prisma.eventoreglaqr.createMany({
             data: this.sanitizeReglasQR(reglasQR).map((r) => ({ ...r, evento_id: eventId })),
@@ -698,7 +774,7 @@ export class AppController implements OnModuleInit {
 
       return await this.prisma.evento.findUnique({
         where: { id: eventId },
-        include: { eventoreglaqr: true },
+        include: { eventoreglaqr: { where: { estadoActivo: 1 }, orderBy: { rangoDesde: 'asc' } } },
       });
     } catch (error) {
       throw new BadRequestException(error instanceof Error ? error.message : JSON.stringify(error));
@@ -1013,9 +1089,8 @@ export class AppController implements OnModuleInit {
       }
     }
 
-    this.notifGateway.emitirParaEe((ee as any).id, 'pago:aprobado', {
-      mensaje: `Tu pago de inscripción fue aprobado. ¡Ya tienes acceso al evento!`,
-    });
+    await this.notificar((ee as any).id, 'pago:aprobado', 'Pago aprobado',
+      'Tu pago de inscripción fue aprobado. ¡Ya tienes acceso al evento!');
     return ee;
   }
 
@@ -1131,9 +1206,8 @@ export class AppController implements OnModuleInit {
       } catch (_) { /* no bloquear si falla el correo */ }
     }
 
-    this.notifGateway.emitirParaEe((ee as any).id, 'pago:rechazado', {
-      mensaje: `Tu comprobante de pago fue rechazado. Motivo: ${(body as any).motivo}`,
-    });
+    await this.notificar((ee as any).id, 'pago:rechazado', 'Pago rechazado',
+      `Tu comprobante de pago fue rechazado. Motivo: ${(body as any).motivo}`);
     return ee;
   }
 
@@ -1431,13 +1505,43 @@ export class AppController implements OnModuleInit {
       },
     });
 
+    // Solicitudes PENDIENTES con mesa elegida: la mesa queda "pre-reservada"
+    // para que el administrador vea la intención aunque aún no se acepte.
+    const solicitudesPendientes = await this.prisma.solicitudreunion.findMany({
+      where: {
+        estaActivo: 1,
+        estadoSolicitud: 'PENDIENTE',
+        mesa_id: { gt: 0 },
+        empresaevento_solicitudreunion_empresaEvento_idToempresaevento: { evento_id: eventoId },
+      },
+      include: {
+        empresaevento_solicitudreunion_empresaEvento_idToempresaevento: { include: { empresa: { select: { nombre: true } } } },
+        empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento: { include: { empresa: { select: { nombre: true } } } },
+      },
+    });
+    const pendientesPorMesa = new Map<number, any[]>();
+    for (const s of solicitudesPendientes) {
+      if (!s.mesa_id) continue;
+      const arr = pendientesPorMesa.get(s.mesa_id) ?? [];
+      arr.push({
+        solicitudId: s.id,
+        inicio: s.fechaHoraInicioPropuesta,
+        fin: s.fechaHoraFinPropuesta,
+        solicitante: (s as any).empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa?.nombre ?? '—',
+        receptora: (s as any).empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento?.empresa?.nombre ?? '—',
+      });
+      pendientesPorMesa.set(s.mesa_id, arr);
+    }
+
     const mesasConEstado = mesas.map((m) => {
-      const estadoMesa = this.computeEstadoMesa(m.reunion);
+      let estadoMesa = this.computeEstadoMesa(m.reunion);
+      const solicitudesEnEspera = pendientesPorMesa.get(m.id) ?? [];
+      if (estadoMesa === 'LIBRE' && solicitudesEnEspera.length > 0) estadoMesa = 'PRE_RESERVADA';
       const reunionActual =
         m.reunion.find((r: any) => r.estadoReunion === 'EN_CURSO') ||
-        m.reunion.find((r: any) => r.estadoReunion === 'PROGRAMADA') ||
+        m.reunion.find((r: any) => r.estadoReunion === 'PROGRAMADA' || r.estadoReunion === 'REPROGRAMADA') ||
         null;
-      return { ...m, estadoMesa, reunionActual };
+      return { ...m, estadoMesa, reunionActual, solicitudesEnEspera };
     });
 
     return { mesas: mesasConEstado, eventoConfig: evento };
@@ -1668,8 +1772,10 @@ export class AppController implements OnModuleInit {
       const eventoId = await this.getPrincipalEventoId();
       if (!eventoId) throw new BadRequestException('No hay un evento principal activo');
 
-      const hashed = await bcrypt.hash(body.contrasenia, 10);
-      return await this.prisma.usuario.create({
+      // Credenciales generadas por el sistema y enviadas al correo del técnico
+      const pwd = generarPasswordTemporal();
+      const hashed = await bcrypt.hash(pwd, 10);
+      const tecnico = await this.prisma.usuario.create({
         data: {
           nombres: body.nombres,
           apellidoPaterno: body.apellidoPaterno,
@@ -1688,6 +1794,49 @@ export class AppController implements OnModuleInit {
           evento: { select: { id: true, nombre: true, edicion: true } },
         },
       });
+
+      const evento = await this.prisma.evento.findUnique({ where: { id: eventoId }, select: { nombre: true, edicion: true } });
+      const isDevEmail = !process.env.MAIL_USER || process.env.MAIL_USER === 'tu_correo@gmail.com';
+      let correoEnviado = false;
+      if (!isDevEmail) {
+        try {
+          const transporter = createMailTransporter();
+          await transporter.sendMail({
+            from: process.env.MAIL_FROM,
+            to: body.correo,
+            subject: `Tus credenciales de Técnico — ${evento?.nombre ?? 'Rueda de Negocios'}`,
+            html: `
+              <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px;background:#f9fafb;border-radius:12px">
+                <h2 style="color:#449D3A;margin-bottom:4px">¡Bienvenido/a al equipo técnico!</h2>
+                <p style="color:#374151;margin-bottom:20px">
+                  Hola <strong>${body.nombres} ${body.apellidoPaterno}</strong>, fuiste registrado/a como técnico
+                  del evento <strong>${evento?.nombre ?? 'Rueda de Negocios'} ${evento?.edicion ?? ''}</strong>.
+                </p>
+                <div style="background:#fff;border:2px solid #bbf7d0;border-radius:10px;padding:20px;margin-bottom:20px">
+                  <p style="color:#166534;font-size:13px;margin:0 0 8px;font-weight:700;text-transform:uppercase">Tus credenciales de acceso:</p>
+                  <p style="color:#374151;font-size:14px;margin:0 0 4px"><strong>Correo:</strong> ${body.correo}</p>
+                  <p style="color:#374151;font-size:14px;margin:0"><strong>Contraseña:</strong> <code style="background:#f0fdf4;padding:2px 8px;border-radius:6px;font-size:15px">${pwd}</code></p>
+                </div>
+                <p style="color:#6b7280;font-size:13px;margin:0">
+                  Ingresa al sistema con estas credenciales. Por seguridad, te recomendamos cambiar tu contraseña desde tu perfil.
+                </p>
+              </div>
+            `,
+          });
+          correoEnviado = true;
+        } catch (emailErr) {
+          console.warn(`[WARN] No se pudo enviar credenciales a ${body.correo}:`, emailErr instanceof Error ? emailErr.message : emailErr);
+        }
+      }
+      if (!correoEnviado) {
+        console.log('\n╔══════════════════════════════════════════════════════╗');
+        console.log('║  [DEV] CREDENCIALES DE TÉCNICO (email no enviado)     ║');
+        console.log(`║  Correo    : ${body.correo}`);
+        console.log(`║  Contraseña: ${pwd}`);
+        console.log('╚══════════════════════════════════════════════════════╝\n');
+      }
+
+      return { ...tecnico, correoEnviado };
     } catch (error) {
       throw new BadRequestException(error instanceof Error ? error.message : 'Error al crear técnico');
     }
@@ -1793,6 +1942,9 @@ export class AppController implements OnModuleInit {
       reunionesProgramadas,
       reunionesFinalizadas,
       reunionesEnCurso,
+      reunionesCanceladas,
+      reunionesReprogramadas,
+      acuerdosRegistrados,
       pagosVerificados,
       pagosPendientes,
       pagosObservados,
@@ -1807,6 +1959,11 @@ export class AppController implements OnModuleInit {
       this.prisma.reunion.count({ where: { ...ef, estaActivo: 1, estadoReunion: 'PROGRAMADA' } }),
       this.prisma.reunion.count({ where: { ...ef, estaActivo: 1, estadoReunion: 'FINALIZADA' } }),
       this.prisma.reunion.count({ where: { ...ef, estaActivo: 1, estadoReunion: 'EN_CURSO' } }),
+      this.prisma.reunion.count({ where: { ...ef, estaActivo: 1, estadoReunion: 'CANCELADA' } }),
+      this.prisma.reunion.count({ where: { ...ef, estaActivo: 1, estadoReunion: 'REPROGRAMADA' } }),
+      eventoId
+        ? this.prisma.resultadoreunion.count({ where: { estaActivo: 1, reunion: { evento_id: eventoId, estaActivo: 1 } } })
+        : Promise.resolve(0),
       this.prisma.empresaevento.count({ where: { ...ef, estadoVerificacionPago: 'COMPLETADO', estaActivo: 1 } }),
       this.prisma.empresaevento.count({ where: { ...ef, estadoVerificacionPago: 'PENDIENTE', estaActivo: 1 } }),
       this.prisma.empresaevento.count({ where: { ...ef, estadoVerificacionPago: 'OBSERVADO', estaActivo: 1 } }),
@@ -1815,7 +1972,35 @@ export class AppController implements OnModuleInit {
       eventoId ? this.prisma.actividadprograma.count({ where: { evento_id: eventoId, estaActivo: 1 } }) : Promise.resolve(0),
     ]);
 
-    const reunionesTotal = reunionesProgramadas + reunionesFinalizadas + reunionesEnCurso;
+    // Top 5 empresas con más reuniones (no canceladas)
+    const reunionesConEmpresas = eventoId
+      ? await this.prisma.reunion.findMany({
+          where: { evento_id: eventoId, estaActivo: 1, estadoReunion: { not: 'CANCELADA' } },
+          select: {
+            solicitudreunion: {
+              select: {
+                empresaevento_solicitudreunion_empresaEvento_idToempresaevento: { select: { id: true, empresa: { select: { nombre: true } } } },
+                empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento: { select: { id: true, empresa: { select: { nombre: true } } } },
+              },
+            },
+          },
+        })
+      : [];
+    const conteoEmpresas = new Map<number, { nombre: string; total: number }>();
+    for (const r of reunionesConEmpresas) {
+      const sol = (r as any).solicitudreunion;
+      for (const ee of [
+        sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento,
+        sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento,
+      ]) {
+        if (!ee) continue;
+        const prev = conteoEmpresas.get(ee.id);
+        conteoEmpresas.set(ee.id, { nombre: ee.empresa?.nombre ?? '—', total: (prev?.total ?? 0) + 1 });
+      }
+    }
+    const topEmpresas = [...conteoEmpresas.values()].sort((a, b) => b.total - a.total).slice(0, 5);
+
+    const reunionesTotal = reunionesProgramadas + reunionesFinalizadas + reunionesEnCurso + reunionesReprogramadas;
     const pagosTotal = pagosVerificados + pagosPendientes + pagosObservados;
 
     const mesas = eventoId
@@ -1849,6 +2034,7 @@ export class AppController implements OnModuleInit {
         participantesTotales: participantesTotal,
         reunionesProgramadas: reunionesTotal,
         reunionesRealizadas: reunionesFinalizadas,
+        acuerdosRegistrados,
         pagosVerificados,
         pagosPendientes,
         mesasHabilitadas: mesasActivas,
@@ -1858,8 +2044,11 @@ export class AppController implements OnModuleInit {
         programadas: reunionesProgramadas,
         enCurso: reunionesEnCurso,
         finalizadas: reunionesFinalizadas,
+        canceladas: reunionesCanceladas,
+        reprogramadas: reunionesReprogramadas,
         total: reunionesTotal,
       },
+      topEmpresas,
       pagosPorEstado: {
         verificados: pagosVerificados,
         pendientes: pagosPendientes,
@@ -1874,6 +2063,93 @@ export class AppController implements OnModuleInit {
       mesasInhabilitadas,
       empresasPorRubro: empresasPorRubroRaw.map((r) => ({ rubro: r.rubro, count: r._count.id })),
     };
+  }
+
+  // ─── REPORTES ────────────────────────────────────────────────────────────────
+  // Filas planas listas para tabla / exportación CSV, siempre acotadas al evento principal.
+  @Get('admin/reportes')
+  async getReportes(@Query('tipo') tipo: string) {
+    const eventoId = await this.getPrincipalEventoId();
+    if (!eventoId) return { tipo, filas: [] };
+
+    if (tipo === 'empresas') {
+      const ees = await this.prisma.empresaevento.findMany({
+        where: { evento_id: eventoId, estaActivo: 1 },
+        include: {
+          empresa: { include: { ciudad: { include: { pais: true } } } },
+          empresa_usuario: { where: { estaActivo: 1 } },
+        },
+        orderBy: { fechaCreacion: 'asc' },
+      });
+      return {
+        tipo,
+        filas: ees.map((ee: any) => ({
+          Empresa: ee.empresa.nombre,
+          Rubro: ee.empresa.rubro,
+          Ciudad: ee.empresa.ciudad?.nombre ?? '—',
+          Pais: ee.empresa.ciudad?.pais?.nombre ?? '—',
+          Participantes: ee.empresa_usuario.length,
+          CuposPagados: ee.numeroParticipantes,
+          EstadoPago: ee.estadoVerificacionPago,
+          Acceso: ee.estadoHabilitacionAcceso,
+          FechaRegistro: ee.fechaCreacion?.toISOString().slice(0, 10) ?? '—',
+        })),
+      };
+    }
+
+    if (tipo === 'reuniones') {
+      const reuniones = await this.prisma.reunion.findMany({
+        where: { evento_id: eventoId, estaActivo: 1 },
+        include: this.reunionInclude(),
+        orderBy: { fechaHoraInicioReunion: 'asc' },
+      });
+      return {
+        tipo,
+        filas: reuniones.map((r: any) => {
+          const sol = r.solicitudreunion;
+          return {
+            Fecha: r.fechaHoraInicioReunion?.toISOString().slice(0, 10) ?? '—',
+            HoraInicio: new Date(r.fechaHoraInicioReunion).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' }),
+            HoraFin: new Date(r.fechaHoraFinReunion).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' }),
+            EmpresaSolicitante: sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa?.nombre ?? '—',
+            EmpresaReceptora: sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento?.empresa?.nombre ?? '—',
+            Tipo: r.tipoReunion,
+            Mesa: r.mesa?.numeroMesa ?? '—',
+            Estado: r.estadoReunion,
+          };
+        }),
+      };
+    }
+
+    if (tipo === 'resultados') {
+      const resultados = await this.prisma.resultadoreunion.findMany({
+        where: { estaActivo: 1, reunion: { evento_id: eventoId, estaActivo: 1 } },
+        include: {
+          reunion: { select: { fechaHoraInicioReunion: true, mesa: { select: { numeroMesa: true } } } },
+          empresaevento_resultadoreunion_empresaeventoCalificadora_idToempresaevento: { select: { empresa: { select: { nombre: true } } } },
+          empresaevento_resultadoreunion_empresaeventoCalificada_idToempresaevento: { select: { empresa: { select: { nombre: true } } } },
+          empresa_usuario: { include: { usuario: { select: { nombres: true, apellidoPaterno: true } } } },
+        },
+        orderBy: { fechaCreacion: 'desc' },
+      });
+      return {
+        tipo,
+        filas: resultados.map((res: any) => ({
+          FechaReunion: res.reunion?.fechaHoraInicioReunion?.toISOString().slice(0, 10) ?? '—',
+          Mesa: res.reunion?.mesa?.numeroMesa ?? '—',
+          EmpresaCalificadora: res.empresaevento_resultadoreunion_empresaeventoCalificadora_idToempresaevento?.empresa?.nombre ?? '—',
+          EmpresaCalificada: res.empresaevento_resultadoreunion_empresaeventoCalificada_idToempresaevento?.empresa?.nombre ?? '—',
+          Calificacion: `${res.calificacionReunion}/5`,
+          RangoAcuerdo: res.rangoAcuerdoComercial ?? '—',
+          Observaciones: res.observacionesPuntosTratados ?? '—',
+          RegistradoPor: res.empresa_usuario?.usuario
+            ? `${res.empresa_usuario.usuario.nombres} ${res.empresa_usuario.usuario.apellidoPaterno}`
+            : '—',
+        })),
+      };
+    }
+
+    throw new BadRequestException('tipo debe ser: empresas, reuniones o resultados');
   }
 
   // ─── TÉCNICO ─────────────────────────────────────────────────────────────────
@@ -1907,7 +2183,7 @@ export class AppController implements OnModuleInit {
   private computeEstadoMesa(reuniones: any[]): string {
     const activas = (reuniones ?? []).filter((r: any) => r.estaActivo === 1);
     if (activas.some((r: any) => r.estadoReunion === 'EN_CURSO')) return 'EN_USO';
-    if (activas.some((r: any) => r.estadoReunion === 'PROGRAMADA')) return 'RESERVADA';
+    if (activas.some((r: any) => r.estadoReunion === 'PROGRAMADA' || r.estadoReunion === 'REPROGRAMADA')) return 'RESERVADA';
     return 'LIBRE';
   }
 
@@ -1923,11 +2199,11 @@ export class AppController implements OnModuleInit {
       await Promise.all([
         this.prisma.evento.findUnique({ where: { id: eventoId }, select: { nombre: true, edicion: true, fechaInicioEvento: true, fechaFinEvento: true } }),
         this.prisma.reunion.count({ where: { ...ef, estadoReunion: 'EN_CURSO' } }),
-        this.prisma.reunion.count({ where: { ...ef, estadoReunion: 'PROGRAMADA', fechaHoraInicioReunion: { gte: ahora } } }),
+        this.prisma.reunion.count({ where: { ...ef, estadoReunion: { in: ['PROGRAMADA', 'REPROGRAMADA'] }, fechaHoraInicioReunion: { gte: ahora } } }),
         this.prisma.reunion.count({ where: { ...ef, tipoReunion: { in: ['VIRTUAL', 'MIXTA'] }, estadoReunion: { not: 'CANCELADA' } } }),
         this.prisma.mesa.count({ where: { evento_id: eventoId, estaActivo: 1 } }),
         this.prisma.reunion.findMany({
-          where: { ...ef, estadoReunion: { in: ['PROGRAMADA', 'EN_CURSO'] }, fechaHoraInicioReunion: { gte: ahora } },
+          where: { ...ef, estadoReunion: { in: ['PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO'] }, fechaHoraInicioReunion: { gte: ahora } },
           orderBy: { fechaHoraInicioReunion: 'asc' },
           take: 8,
           include: this.reunionInclude(),
@@ -2403,6 +2679,34 @@ export class AppController implements OnModuleInit {
     }));
   }
 
+  // Rubros complementarios para la recomendación de reuniones (reglas simples de afinidad).
+  // Afinidad ALTA = mismo rubro; MEDIA = rubro complementario según este mapa (se evalúa en ambas direcciones).
+  private static readonly RUBROS_COMPLEMENTARIOS: Record<string, string[]> = {
+    'Agropecuario y Ganadería':        ['Transporte y Logística', 'Industria y Manufactura', 'Comercio y Distribución', 'Tecnología e Innovación', 'Medio Ambiente y Energía', 'Gastronomía y Turismo'],
+    'Comercio y Distribución':         ['Transporte y Logística', 'Industria y Manufactura', 'Agropecuario y Ganadería', 'Gastronomía y Turismo', 'Artesanía y Cultura', 'Finanzas y Seguros'],
+    'Construcción e Infraestructura':  ['Inmobiliario', 'Minería e Hidrocarburos', 'Finanzas y Seguros', 'Transporte y Logística', 'Medio Ambiente y Energía'],
+    'Educación y Capacitación':        ['Tecnología e Innovación', 'Servicios Profesionales', 'Salud y Bienestar', 'Artesanía y Cultura'],
+    'Finanzas y Seguros':              ['Servicios Profesionales', 'Comercio y Distribución', 'Construcción e Infraestructura', 'Inmobiliario'],
+    'Gastronomía y Turismo':           ['Agropecuario y Ganadería', 'Artesanía y Cultura', 'Transporte y Logística', 'Comercio y Distribución'],
+    'Industria y Manufactura':         ['Comercio y Distribución', 'Transporte y Logística', 'Agropecuario y Ganadería', 'Minería e Hidrocarburos'],
+    'Minería e Hidrocarburos':         ['Construcción e Infraestructura', 'Transporte y Logística', 'Medio Ambiente y Energía', 'Industria y Manufactura'],
+    'Salud y Bienestar':               ['Educación y Capacitación', 'Servicios Profesionales', 'Tecnología e Innovación'],
+    'Servicios Profesionales':         ['Finanzas y Seguros', 'Tecnología e Innovación', 'Educación y Capacitación', 'Inmobiliario'],
+    'Tecnología e Innovación':         ['Agropecuario y Ganadería', 'Educación y Capacitación', 'Salud y Bienestar', 'Servicios Profesionales', 'Comercio y Distribución', 'Finanzas y Seguros'],
+    'Transporte y Logística':          ['Agropecuario y Ganadería', 'Comercio y Distribución', 'Industria y Manufactura', 'Gastronomía y Turismo', 'Minería e Hidrocarburos'],
+    'Artesanía y Cultura':             ['Gastronomía y Turismo', 'Comercio y Distribución', 'Educación y Capacitación'],
+    'Medio Ambiente y Energía':        ['Agropecuario y Ganadería', 'Minería e Hidrocarburos', 'Construcción e Infraestructura', 'Tecnología e Innovación'],
+    'Inmobiliario':                    ['Construcción e Infraestructura', 'Finanzas y Seguros', 'Servicios Profesionales'],
+  };
+
+  private calcularAfinidad(miRubro: string | null, otroRubro: string | null): 'alta' | 'media' | null {
+    if (!miRubro || !otroRubro) return null;
+    if (miRubro === otroRubro) return 'alta';
+    const directa = AppController.RUBROS_COMPLEMENTARIOS[miRubro]?.includes(otroRubro);
+    const inversa = AppController.RUBROS_COMPLEMENTARIOS[otroRubro]?.includes(miRubro);
+    return directa || inversa ? 'media' : null;
+  }
+
   @Get('empresa/empresas')
   async getEmpresasParticipantes(@Query('eeId') eeId: string) {
     if (!eeId) throw new BadRequestException('eeId requerido');
@@ -2431,7 +2735,7 @@ export class AppController implements OnModuleInit {
     const miRubro = miEe?.empresa?.rubro ?? null;
 
     const mapped = ees.map((ee) => {
-      const esRecomendada = !!miRubro && !!ee.empresa.rubro && ee.empresa.rubro === miRubro;
+      const afinidad = this.calcularAfinidad(miRubro, ee.empresa.rubro);
       return {
         empresaeventoId: ee.id,
         empresaId: ee.empresa_id,
@@ -2443,20 +2747,23 @@ export class AppController implements OnModuleInit {
         ciudad: ee.empresa.ciudad?.nombre ?? null,
         pais: ee.empresa.ciudad?.pais?.nombre ?? null,
         tipoParticipacion: ee.tipoParticipacion,
-        esRecomendada,
+        afinidad,
+        esRecomendada: afinidad !== null,
       };
     });
 
+    const peso = { alta: 2, media: 1 } as Record<string, number>;
     return mapped.sort((a, b) => {
-      if (a.esRecomendada && !b.esRecomendada) return -1;
-      if (!a.esRecomendada && b.esRecomendada) return 1;
+      const pa = a.afinidad ? peso[a.afinidad] : 0;
+      const pb = b.afinidad ? peso[b.afinidad] : 0;
+      if (pa !== pb) return pb - pa;
       return (a.nombre ?? '').localeCompare(b.nombre ?? '', 'es');
     });
   }
 
   // ── Asistente virtual rule-based ─────────────────────────────────────────────
   @Post('empresa/asistente')
-  async asistente(@Body() body: { eeId: number; mensaje: string }) {
+  async asistente(@Body() body: { eeId: number; euId?: number; mensaje: string; contexto?: any }) {
     const { eeId, mensaje = '' } = body;
     if (!eeId) throw new BadRequestException('eeId requerido');
     const msg = mensaje.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -2471,13 +2778,17 @@ export class AppController implements OnModuleInit {
     const fmtHora = (d: Date | null) =>
       d ? new Date(d).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' }) : '—';
 
+    // ── agendar reunión (flujo multi-paso) ───────────────────────────────────
+    const respAgendar = await this.asistenteAgendarReunion(Number(eeId), body.euId, msg, body.contexto, eventoId);
+    if (respAgendar) return respAgendar;
+
     // ── próxima reunión ──────────────────────────────────────────────────────
     if (/reunion|reunione|siguiente|proxim|cuando me reun/i.test(msg)) {
       const ahora = new Date();
       const reunion = await this.prisma.reunion.findFirst({
         where: {
           evento_id: eventoId, estaActivo: 1,
-          estadoReunion: { in: ['PROGRAMADA', 'EN_CURSO'] },
+          estadoReunion: { in: ['PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO'] },
           solicitudreunion: { OR: [{ empresaEvento_id: eeId }, { empresaEventorReceptora_id: eeId }] },
           fechaHoraInicioReunion: { gte: ahora },
         },
@@ -2509,7 +2820,7 @@ export class AppController implements OnModuleInit {
       const reuniones = await this.prisma.reunion.findMany({
         where: {
           evento_id: eventoId, estaActivo: 1,
-          estadoReunion: { in: ['PROGRAMADA', 'EN_CURSO'] },
+          estadoReunion: { in: ['PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO'] },
           solicitudreunion: { OR: [{ empresaEvento_id: eeId }, { empresaEventorReceptora_id: eeId }] },
           mesa_id: { gt: 0 },
         },
@@ -2592,8 +2903,248 @@ export class AppController implements OnModuleInit {
 
     // ── ayuda / comando no reconocido ────────────────────────────────────────
     return {
-      respuesta: `Hola! Puedo ayudarte con:\n• Tu próxima reunión\n• Mesa asignada\n• Fecha y horario del evento\n• Estado de tu pago\n• Mapa del recinto\n• Cronograma de charlas\n• Solicitudes pendientes\n• Cupos disponibles\n\n¿Sobre qué te puedo informar?`,
+      respuesta: `Hola! Puedo ayudarte con:\n• Agendar una reunión con otra empresa\n• Tu próxima reunión\n• Mesa asignada\n• Fecha y horario del evento\n• Estado de tu pago\n• Mapa del recinto\n• Cronograma de charlas\n• Solicitudes pendientes\n• Cupos disponibles\n\n¿Sobre qué te puedo informar?`,
     };
+  }
+
+  private fmtSlotAsistente(iso: string) {
+    const d = new Date(iso);
+    const fecha = d.toLocaleDateString('es-BO', { weekday: 'short', day: '2-digit', month: '2-digit' });
+    const hora = d.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' });
+    return `${fecha} ${hora}`;
+  }
+
+  // Flujo conversacional para agendar reuniones desde el asistente.
+  // Stateless en el servidor: el estado del diálogo viaja en `contexto` (round-trip con el cliente)
+  // y la creación final pasa por crearSolicitud(), que re-valida todo.
+  private async asistenteAgendarReunion(
+    eeId: number,
+    euId: number | undefined,
+    msg: string,
+    contexto: any,
+    eventoId: number,
+  ): Promise<{ respuesta: string; contexto?: any; opciones?: string[] } | null> {
+    const enFlujo = contexto?.flujo === 'agendar';
+    const quiereAgendar =
+      /(agendar|programar|solicitar|pedir)\s+(una\s+|otra\s+)?reunion/.test(msg) || /reunion con\s+\S+/.test(msg);
+    if (!enFlujo && !quiereAgendar) return null;
+
+    const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+    if (enFlujo && /cancelar|salir|olvidalo|dejalo|ya no/.test(msg)) {
+      return { respuesta: 'Listo, cancelé el agendamiento. ¿Te ayudo con algo más?', contexto: null };
+    }
+
+    // Solo el encargado puede agendar
+    if (!euId) {
+      return { respuesta: 'Para agendar reuniones necesito identificar tu cuenta. Cierra sesión y vuelve a entrar, luego intenta de nuevo.', contexto: null };
+    }
+    const eu = await this.prisma.empresa_usuario.findFirst({
+      where: { id: Number(euId), empresaevento_id: eeId, estaActivo: 1 },
+    });
+    if (!eu || eu.esResponsable !== 1) {
+      return { respuesta: 'Solo el encargado de tu empresa puede agendar reuniones. Pídele a tu encargado que envíe la solicitud.', contexto: null };
+    }
+
+    const buscarEmpresas = (term: string) =>
+      this.prisma.empresaevento.findMany({
+        where: {
+          evento_id: eventoId,
+          estaActivo: 1,
+          estadoVerificacionPago: 'COMPLETADO',
+          estadoHabilitacionAcceso: 'HABILITADO',
+          id: { not: eeId },
+          empresa: { nombre: { contains: term, mode: 'insensitive' } },
+        },
+        include: { empresa: { select: { nombre: true } } },
+        take: 6,
+        orderBy: { empresa: { nombre: 'asc' } },
+      });
+
+    const presentarHorarios = async (receptoraEeId: number, receptoraNombre: string) => {
+      const disp: any = await this.getHorariosDisponibles(String(eeId), String(receptoraEeId));
+      const slots: string[] = (disp.horarios ?? []).slice(0, 6).map((h: any) => h.inicio);
+      if (slots.length === 0) {
+        return {
+          respuesta: `${receptoraNombre} no tiene horarios disponibles por ahora. Intenta más tarde o escribe el nombre de otra empresa.`,
+          contexto: { flujo: 'agendar', paso: 'empresa' },
+        };
+      }
+      const lista = slots.map((s, i) => `${i + 1}. ${this.fmtSlotAsistente(s)}`).join('\n');
+      return {
+        respuesta: `Estos son los horarios disponibles con ${receptoraNombre}:\n${lista}\n\nResponde con el número o la hora (ej: 09:30).`,
+        contexto: { flujo: 'agendar', paso: 'horario', receptoraEeId, receptoraNombre, slots, duracionMin: disp.duracionMinutos },
+        opciones: slots.map((s) => this.fmtSlotAsistente(s)),
+      };
+    };
+
+    const procesarBusqueda = async (term: string) => {
+      const encontradas: any[] = await buscarEmpresas(term);
+      if (encontradas.length === 0) {
+        return {
+          respuesta: `No encontré ninguna empresa habilitada que se llame "${term}". Escribe otro nombre o "cancelar".`,
+          contexto: { flujo: 'agendar', paso: 'empresa' },
+        };
+      }
+      if (encontradas.length === 1) {
+        return presentarHorarios(encontradas[0].id, encontradas[0].empresa.nombre);
+      }
+      return {
+        respuesta: `Encontré varias empresas:\n${encontradas.map((e, i) => `${i + 1}. ${e.empresa.nombre}`).join('\n')}\n\n¿Cuál eliges? Responde con el número o el nombre.`,
+        contexto: {
+          flujo: 'agendar', paso: 'empresa',
+          candidatos: encontradas.map((e) => ({ id: e.id, nombre: e.empresa.nombre })),
+        },
+        opciones: encontradas.map((e) => e.empresa.nombre),
+      };
+    };
+
+    // ── inicio del flujo ─────────────────────────────────────────────────────
+    if (!enFlujo) {
+      const matchCon = msg.match(/reunion con\s+(.+)$/);
+      const term = matchCon?.[1]?.trim();
+      if (!term) {
+        return {
+          respuesta: '¡Claro! ¿Con qué empresa quieres agendar la reunión? Escribe su nombre (o "cancelar" para salir).',
+          contexto: { flujo: 'agendar', paso: 'empresa' },
+        };
+      }
+      return procesarBusqueda(term);
+    }
+
+    // ── pasos del flujo en curso ─────────────────────────────────────────────
+    const paso = contexto.paso;
+
+    if (paso === 'empresa') {
+      const candidatos: { id: number; nombre: string }[] = contexto.candidatos ?? [];
+      if (candidatos.length > 0) {
+        const idx = parseInt(msg, 10);
+        let elegido = !isNaN(idx) ? candidatos[idx - 1] : undefined;
+        if (!elegido) elegido = candidatos.find((c) => msg.includes(norm(c.nombre)) || norm(c.nombre).includes(msg.trim()));
+        if (!elegido) {
+          return {
+            respuesta: 'No entendí cuál empresa. Responde con el número de la lista, el nombre exacto, o "cancelar".',
+            contexto,
+            opciones: candidatos.map((c) => c.nombre),
+          };
+        }
+        return presentarHorarios(elegido.id, elegido.nombre);
+      }
+      return procesarBusqueda(msg.trim());
+    }
+
+    if (paso === 'horario') {
+      const slots: string[] = contexto.slots ?? [];
+      let iso: string | undefined;
+      const idx = parseInt(msg, 10);
+      if (!isNaN(idx) && slots[idx - 1]) iso = slots[idx - 1];
+      if (!iso) {
+        const m = msg.match(/(\d{1,2})[:.](\d{2})/);
+        if (m) {
+          const hhmm = `${m[1].padStart(2, '0')}:${m[2]}`;
+          iso = slots.find((s) => {
+            const d = new Date(s);
+            return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` === hhmm;
+          });
+        }
+      }
+      if (!iso) {
+        return {
+          respuesta: 'No reconocí ese horario. Responde con el número de la lista (ej: 1) o la hora exacta (ej: 09:30).',
+          contexto,
+          opciones: slots.map((s) => this.fmtSlotAsistente(s)),
+        };
+      }
+      return {
+        respuesta: `Perfecto: ${this.fmtSlotAsistente(iso)} con ${contexto.receptoraNombre}. ¿La reunión será presencial o virtual?`,
+        contexto: { ...contexto, paso: 'tipo', inicio: iso },
+        opciones: ['Presencial', 'Virtual'],
+      };
+    }
+
+    if (paso === 'tipo') {
+      const tipo = /virtual/.test(msg) ? 'VIRTUAL' : /presencial/.test(msg) ? 'PRESENCIAL' : null;
+      if (!tipo) {
+        return { respuesta: '¿La reunión será presencial o virtual?', contexto, opciones: ['Presencial', 'Virtual'] };
+      }
+      return {
+        respuesta: `Resumen de tu solicitud:\n• Empresa: ${contexto.receptoraNombre}\n• Horario: ${this.fmtSlotAsistente(contexto.inicio)}\n• Tipo: ${tipo === 'PRESENCIAL' ? 'Presencial' : 'Virtual'}\n\n¿Envío la solicitud?`,
+        contexto: { ...contexto, paso: 'confirmar', tipo },
+        opciones: ['Sí, enviar', 'No, cancelar'],
+      };
+    }
+
+    if (paso === 'confirmar') {
+      if (/(^|\s)no(\s|$|,)/.test(msg) || /cancelar/.test(msg)) {
+        return { respuesta: 'Solicitud cancelada. ¿Te ayudo con algo más?', contexto: null };
+      }
+      if (!/(^|\s)(si|sii+|confirmo|enviar|dale|ok|listo)(\s|$|,)/.test(msg)) {
+        return { respuesta: 'Responde "sí" para enviar la solicitud o "no" para cancelar.', contexto, opciones: ['Sí, enviar', 'No, cancelar'] };
+      }
+      const iniDate = new Date(contexto.inicio);
+      const finDate = new Date(iniDate.getTime() + (Number(contexto.duracionMin) || 20) * 60000);
+      try {
+        await this.crearSolicitud({
+          eeId,
+          eeReceptoraId: contexto.receptoraEeId,
+          euId,
+          tipo: contexto.tipo,
+          inicio: contexto.inicio,
+          fin: finDate.toISOString(),
+          mensaje: 'Solicitud enviada desde el asistente virtual',
+        });
+        return {
+          respuesta: `✅ ¡Listo! Envié la solicitud de reunión a ${contexto.receptoraNombre} para el ${this.fmtSlotAsistente(contexto.inicio)}. Te avisaré cuando respondan; puedes ver el estado en la sección Solicitudes.`,
+          contexto: null,
+        };
+      } catch (e: any) {
+        return {
+          respuesta: `No pude crear la solicitud: ${e?.message ?? 'error desconocido'}. Escribe "agendar reunión" para intentar con otro horario.`,
+          contexto: null,
+        };
+      }
+    }
+
+    // Contexto desconocido: reiniciar el flujo
+    return {
+      respuesta: '¿Con qué empresa quieres agendar la reunión? Escribe su nombre.',
+      contexto: { flujo: 'agendar', paso: 'empresa' },
+    };
+  }
+
+  // ── Notificaciones persistentes (campanita) ─────────────────────────────────
+  @Get('empresa/notificaciones')
+  async getNotificacionesEmpresa(@Query('eeId') eeId: string) {
+    if (!eeId) throw new BadRequestException('eeId requerido');
+    const notifs = await this.prisma.notificacion.findMany({
+      where: { empresaevento_id: Number(eeId), estaActivo: 1 },
+      orderBy: { fechaCreacion: 'desc' },
+      take: 30,
+    });
+    const noLeidas = await this.prisma.notificacion.count({
+      where: { empresaevento_id: Number(eeId), estaActivo: 1, haSidoLeida: 0 },
+    });
+    return {
+      noLeidas,
+      notificaciones: notifs.map((n) => ({
+        id: n.id,
+        titulo: n.tituloNotificacion,
+        mensaje: n.mensajeNotificacion,
+        tipo: n.tipoNotificacion,
+        leida: n.haSidoLeida === 1,
+        fecha: n.fechaCreacion,
+      })),
+    };
+  }
+
+  @Put('empresa/notificaciones/leidas')
+  async marcarNotificacionesLeidas(@Body() body: { eeId: number }) {
+    if (!body.eeId) throw new BadRequestException('eeId requerido');
+    await this.prisma.notificacion.updateMany({
+      where: { empresaevento_id: Number(body.eeId), estaActivo: 1, haSidoLeida: 0 },
+      data: { haSidoLeida: 1, creadoModificadoFecha: new Date() },
+    });
+    return { ok: true };
   }
 
   @Get('empresa/horarios')
@@ -2883,6 +3434,14 @@ export class AppController implements OnModuleInit {
       },
     });
 
+    const emisora = await this.prisma.empresaevento.findUnique({
+      where: { id: Number(eeId) },
+      include: { empresa: { select: { nombre: true } } },
+    });
+    await this.notificar(Number(eeReceptoraId), 'solicitud:nueva', 'Nueva solicitud de reunión',
+      `${(emisora as any)?.empresa?.nombre ?? 'Una empresa'} te envió una solicitud de reunión. Revísala en Solicitudes.`,
+      sol.id, 'solicitudreunion');
+
     return { ...sol, mesaId: mesaAsignada };
   }
 
@@ -3033,12 +3592,10 @@ export class AppController implements OnModuleInit {
       }),
     ]);
 
-    this.notifGateway.emitirParaEe(sol.empresaEvento_id, 'solicitud:aceptada', {
-      mensaje: 'Tu solicitud de reunión fue aceptada. Revisa el horario en Reuniones.',
-    });
-    this.notifGateway.emitirParaEe(sol.empresaEventorReceptora_id, 'solicitud:aceptada', {
-      mensaje: 'Aceptaste una solicitud de reunión. Revisa los detalles en Reuniones.',
-    });
+    await this.notificar(sol.empresaEvento_id, 'solicitud:aceptada', 'Solicitud aceptada',
+      'Tu solicitud de reunión fue aceptada. Revisa el horario en Reuniones.', reunion.id, 'reunion');
+    await this.notificar(sol.empresaEventorReceptora_id, 'solicitud:aceptada', 'Reunión confirmada',
+      'Aceptaste una solicitud de reunión. Revisa los detalles en Reuniones.', reunion.id, 'reunion');
     return { ok: true, reunion };
   }
 
@@ -3055,9 +3612,8 @@ export class AppController implements OnModuleInit {
       where: { id: Number(id) },
       data: { estadoSolicitud: 'RECHAZADA', motivoRechazoSolicitud: body.motivo || null, creadoModificadoFecha: new Date() },
     });
-    this.notifGateway.emitirParaEe(sol.empresaEvento_id, 'solicitud:rechazada', {
-      mensaje: `Tu solicitud de reunión fue rechazada.${body.motivo ? ' Motivo: ' + body.motivo : ''}`,
-    });
+    await this.notificar(sol.empresaEvento_id, 'solicitud:rechazada', 'Solicitud rechazada',
+      `Tu solicitud de reunión fue rechazada.${body.motivo ? ' Motivo: ' + body.motivo : ''}`, sol.id, 'solicitudreunion');
     return { ok: true };
   }
 
@@ -3145,7 +3701,7 @@ export class AppController implements OnModuleInit {
 
     const reunion = await this.prisma.reunion.findFirst({
       where: {
-        id: Number(id), estaActivo: 1, estadoReunion: 'PROGRAMADA',
+        id: Number(id), estaActivo: 1, estadoReunion: { in: ['PROGRAMADA', 'REPROGRAMADA'] },
         solicitudreunion: { OR: [{ empresaEvento_id: Number(eeId) }, { empresaEventorReceptora_id: Number(eeId) }] },
       },
       include: { solicitudreunion: true, mesabloque: { where: { estaActivo: 1 } } },
@@ -3215,10 +3771,32 @@ export class AppController implements OnModuleInit {
       });
     }
 
+    const mesaCambio = mesaId !== reunion.mesa_id;
     await this.prisma.reunion.update({
       where: { id: Number(id) },
-      data: { fechaHoraInicioReunion: iniDate, fechaHoraFinReunion: finDate, mesa_id: mesaId },
+      data: {
+        fechaHoraInicioReunion: iniDate,
+        fechaHoraFinReunion: finDate,
+        mesa_id: mesaId,
+        estadoReunion: 'REPROGRAMADA',
+        seEnvioNotificacionDeRetraso: 0, // reactivar el recordatorio para el nuevo horario
+        creadoModificadoFecha: new Date(),
+      },
     });
+
+    // Notificar a ambas empresas del cambio de horario (y de mesa si aplica)
+    const nuevaHora = this.fmtSlotAsistente(iniDate.toISOString());
+    const mesaInfo = mesaCambio && mesaId
+      ? await this.prisma.mesa.findUnique({ where: { id: mesaId }, select: { numeroMesa: true } })
+      : null;
+    const detalleMesa = mesaInfo ? ` Nueva mesa: ${mesaInfo.numeroMesa}.` : '';
+    const quienCambio = Number(eeId);
+    for (const ee of [eeA, eeB]) {
+      const mensaje = ee === quienCambio
+        ? `Reprogramaste tu reunión para el ${nuevaHora}.${detalleMesa}`
+        : `Tu reunión fue reprogramada para el ${nuevaHora}.${detalleMesa} Revisa los detalles en Reuniones.`;
+      await this.notificar(ee, 'reunion:reprogramada', 'Reunión reprogramada', mensaje, Number(id), 'reunion');
+    }
 
     return { ok: true, inicio: iniDate.toISOString(), fin: finDate.toISOString() };
   }
@@ -3233,7 +3811,7 @@ export class AppController implements OnModuleInit {
     const reunion = await this.prisma.reunion.findFirst({
       where: {
         id: Number(id), estaActivo: 1,
-        estadoReunion: { in: ['PROGRAMADA', 'EN_CURSO'] },
+        estadoReunion: { in: ['PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO'] },
         solicitudreunion: { OR: [{ empresaEvento_id: Number(eeId) }, { empresaEventorReceptora_id: Number(eeId) }] },
       },
     });
@@ -3242,6 +3820,73 @@ export class AppController implements OnModuleInit {
       where: { id: Number(id) },
       data: { estadoReunion: 'FINALIZADA', creadoModificadoFecha: new Date() },
     });
+  }
+
+  // Iniciar la reunión: si ya es la hora basta un encargado; antes de la hora
+  // se requiere que AMBAS empresas presionen "Iniciar ahora" (consentimiento mutuo).
+  @Put('empresa/reuniones/:id/iniciar')
+  async iniciarReunion(@Param('id') id: string, @Body() body: { eeId: number }) {
+    const { eeId } = body;
+    if (!eeId) throw new BadRequestException('eeId requerido');
+
+    const reunion = await this.prisma.reunion.findFirst({
+      where: {
+        id: Number(id), estaActivo: 1,
+        estadoReunion: { in: ['PROGRAMADA', 'REPROGRAMADA'] },
+        solicitudreunion: { OR: [{ empresaEvento_id: Number(eeId) }, { empresaEventorReceptora_id: Number(eeId) }] },
+      },
+      include: {
+        solicitudreunion: {
+          include: {
+            empresaevento_solicitudreunion_empresaEvento_idToempresaevento: { include: { empresa: { select: { nombre: true } } } },
+            empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento: { include: { empresa: { select: { nombre: true } } } },
+          },
+        },
+      },
+    });
+    if (!reunion) throw new BadRequestException('Reunión no encontrada o ya no se puede iniciar');
+
+    const sol = (reunion as any).solicitudreunion;
+    const soyA = sol.empresaEvento_id === Number(eeId);
+    const contraparteEeId = soyA ? sol.empresaEventorReceptora_id : sol.empresaEvento_id;
+    const miNombre = soyA
+      ? sol.empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa?.nombre
+      : sol.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento?.empresa?.nombre;
+
+    const iniciar = async () => {
+      await this.prisma.reunion.update({
+        where: { id: Number(id) },
+        data: { estadoReunion: 'EN_CURSO', inicioAnticipadoPor: null, creadoModificadoFecha: new Date() },
+      });
+      await this.notificar(sol.empresaEvento_id, 'reunion:iniciada', 'Reunión iniciada',
+        'Tu reunión comenzó. ¡Éxitos en la negociación!', Number(id), 'reunion');
+      await this.notificar(sol.empresaEventorReceptora_id, 'reunion:iniciada', 'Reunión iniciada',
+        'Tu reunión comenzó. ¡Éxitos en la negociación!', Number(id), 'reunion');
+      return { ok: true, iniciada: true };
+    };
+
+    // Ya es la hora: inicia directo
+    if (new Date() >= new Date(reunion.fechaHoraInicioReunion)) {
+      return iniciar();
+    }
+
+    // Antes de la hora: consentimiento mutuo
+    const yaSolicito = (reunion as any).inicioAnticipadoPor;
+    if (!yaSolicito) {
+      await this.prisma.reunion.update({
+        where: { id: Number(id) },
+        data: { inicioAnticipadoPor: Number(eeId), creadoModificadoFecha: new Date() },
+      });
+      await this.notificar(contraparteEeId, 'reunion:inicio-solicitado', 'Quieren iniciar la reunión',
+        `${miNombre ?? 'La otra empresa'} quiere iniciar la reunión antes de la hora. Presiona "Iniciar ahora" en Reuniones para aceptar.`,
+        Number(id), 'reunion');
+      return { ok: true, iniciada: false, esperandoContraparte: true };
+    }
+    if (yaSolicito === Number(eeId)) {
+      return { ok: true, iniciada: false, esperandoContraparte: true };
+    }
+    // La contraparte ya lo había pedido: ambos de acuerdo → iniciar
+    return iniciar();
   }
 
   @Post('empresa/resultados')
@@ -3685,9 +4330,8 @@ export class AppController implements OnModuleInit {
       where: { id: ee.id },
       data: { numeroParticipantes: nuevoTotal, creadoModificadoFecha: new Date() },
     });
-    this.notifGateway.emitirParaEe(ee.id, 'pago-adicional:aprobado', {
-      mensaje: `Tu pago adicional fue aprobado. Ahora tienes ${nuevoTotal} cupos totales.`,
-    });
+    await this.notificar(ee.id, 'pago-adicional:aprobado', 'Pago adicional aprobado',
+      `Tu pago adicional fue aprobado. Ahora tienes ${nuevoTotal} cupos totales.`);
     return { ok: true, nuevoTotalSlots: nuevoTotal };
   }
 
@@ -3701,9 +4345,8 @@ export class AppController implements OnModuleInit {
       where: { id: Number(id) },
       data: { estadoPago: 'RECHAZADO', observacion: body.motivo ?? null },
     });
-    this.notifGateway.emitirParaEe((comp as any).empresaEvento_id, 'pago-adicional:rechazado', {
-      mensaje: `Tu pago adicional fue rechazado.${body.motivo ? ' Motivo: ' + body.motivo : ''}`,
-    });
+    await this.notificar((comp as any).empresaEvento_id, 'pago-adicional:rechazado', 'Pago adicional rechazado',
+      `Tu pago adicional fue rechazado.${body.motivo ? ' Motivo: ' + body.motivo : ''}`);
     return { ok: true };
   }
 

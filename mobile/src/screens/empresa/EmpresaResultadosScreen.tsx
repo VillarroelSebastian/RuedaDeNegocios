@@ -46,8 +46,22 @@ export default function EmpresaResultadosScreen({ route }: any) {
   const user = userStore.get();
 
   const fetchData = useCallback(async () => {
-    const eeId = user?.empresaeventoId;
-    if (!eeId) { setLoading(false); return; }
+    let eeId = userStore.get()?.empresaeventoId;
+    // Resolver contexto si aún no está en el store (evita pantalla vacía)
+    if (!eeId) {
+      const usuarioId = userStore.get()?.id;
+      if (usuarioId) {
+        try {
+          const ctxRes = await fetch(`${API_URL}/empresa/mi-empresa?usuarioId=${usuarioId}`);
+          const ctx = await ctxRes.json();
+          if (ctx?.empresaeventoId) {
+            await userStore.set({ ...userStore.get(), empresaeventoId: ctx.empresaeventoId, empresaUsuarioId: ctx.empresaUsuarioId });
+            eeId = ctx.empresaeventoId;
+          }
+        } catch {}
+      }
+    }
+    if (!eeId) { setLoading(false); setError('No se pudo cargar tu información de empresa.'); return; }
     setError('');
     try {
       const [reuRes, resRes] = await Promise.all([
@@ -84,14 +98,14 @@ export default function EmpresaResultadosScreen({ route }: any) {
     setSaveError('');
     setSaving(true);
     try {
-      const eeId = user?.empresaeventoId;
+      const eeId = userStore.get()?.empresaeventoId;
       const res = await fetch(`${API_URL}/empresa/resultados`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           reunionId: selectedReu.id,
           eeId,
-          euId: user?.empresaUsuarioId,
+          euId: userStore.get()?.empresaUsuarioId,
           calificacion,
           rango,
           observaciones: observacion.trim(),

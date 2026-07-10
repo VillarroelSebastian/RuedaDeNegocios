@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Armchair, Video, Search, Newspaper,
-  UserCircle, LogOut, Shield,
+  UserCircle, LogOut, Shield, Menu, X,
 } from 'lucide-react';
 
 const menuItems = [
@@ -21,6 +21,10 @@ export default function TecnicoSidebar() {
   const pathname  = usePathname();
   const router    = useRouter();
   const [user, setUser] = useState<any>(null);
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Cerrar el drawer al navegar
+  useEffect(() => { setMobileOpen(false); }, [pathname]);
 
   useEffect(() => {
     const stored = localStorage.getItem('tecnicoUser');
@@ -40,7 +44,26 @@ export default function TecnicoSidebar() {
   };
 
   return (
-    <aside className="w-64 bg-white border-r border-gray-200 flex flex-col h-screen fixed left-0 top-0 overflow-y-auto z-20">
+    <>
+      {/* Botón hamburguesa (solo móvil) */}
+      <button
+        onClick={() => setMobileOpen(true)}
+        className="md:hidden fixed top-3.5 left-4 z-30 p-2 bg-white border border-gray-200 rounded-xl shadow-sm"
+        aria-label="Abrir menú"
+      >
+        <Menu className="w-5 h-5 text-gray-700" />
+      </button>
+      {mobileOpen && (
+        <div className="fixed inset-0 bg-black/40 z-30 md:hidden" onClick={() => setMobileOpen(false)} aria-hidden="true" />
+      )}
+      <aside className={`w-64 bg-white border-r border-gray-200 flex flex-col h-screen fixed left-0 top-0 overflow-y-auto z-40 transition-transform duration-200 md:translate-x-0 md:z-20 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <button
+          onClick={() => setMobileOpen(false)}
+          className="md:hidden absolute top-4 right-3 p-1.5 rounded-lg hover:bg-gray-100"
+          aria-label="Cerrar menú"
+        >
+          <X className="w-4 h-4 text-gray-500" />
+        </button>
       {/* Logo */}
       <div className="flex items-center px-5 h-16 border-b border-gray-100 shrink-0">
         <div className="relative h-10 w-44">
@@ -86,6 +109,7 @@ export default function TecnicoSidebar() {
         </button>
         <p className="text-[10px] text-gray-400 text-center mt-3">© 2026 Rueda de Negocios del Beni</p>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }

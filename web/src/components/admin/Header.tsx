@@ -94,7 +94,7 @@ export default function Header() {
   return (
     <header className="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6 sticky top-0 z-10 w-full">
       <div className="flex-1 shrink-0">
-        <h1 className="text-xl font-bold text-gray-800 hidden sm:block">Rueda de Negocios del Beni</h1>
+        <h1 className="text-xl font-bold text-gray-800 hidden md:block">Rueda de Negocios del Beni</h1>
       </div>
 
       <div className="flex items-center space-x-4 flex-1 justify-end shrink-0">
@@ -194,7 +194,7 @@ export default function Header() {
           >
             <div className="h-9 w-9 rounded-full bg-[#E5D7B5] flex items-center justify-center border-2 border-white shadow-sm ring-1 ring-gray-200 overflow-hidden">
               {user?.urlFotoPerfil ? (
-                <img src={user.urlFotoPerfil} alt="Perfil" className="w-full h-full object-cover" />
+                <img src={user.urlFotoPerfil} alt="Perfil" className="w-full h-full object-contain" />
               ) : (
                 <User className="w-5 h-5 text-gray-600" />
               )}

@@ -57,7 +57,7 @@ function CompanySection({ empresa, label }: { empresa: any; label: string }) {
       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">{label}</p>
       <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
         {empresa?.urlFotoPerfil
-          ? <img src={empresa.urlFotoPerfil} className="w-10 h-10 rounded-full object-cover border border-gray-100 shrink-0" alt={empresa.nombre} />
+          ? <img src={empresa.urlFotoPerfil} className="w-10 h-10 rounded-full object-contain border border-gray-100 shrink-0" alt={empresa.nombre} />
           : (
             <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center shrink-0">
               <Building2 className="w-5 h-5 text-green-600" />
@@ -288,7 +288,7 @@ export default function ReunionDetailPage() {
                   return (
                     <div key={idx} className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-gray-50">
                       {u.urlFotoPerfil
-                        ? <img src={u.urlFotoPerfil} className="w-7 h-7 rounded-full object-cover shrink-0" alt="" />
+                        ? <img src={u.urlFotoPerfil} className="w-7 h-7 rounded-full object-contain shrink-0" alt="" />
                         : (
                           <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
                             <User className="w-3.5 h-3.5 text-gray-400" />

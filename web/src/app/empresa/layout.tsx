@@ -13,6 +13,8 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
   const router = useRouter();
   const [esEncargado, setEsEncargado] = useState(false);
   const [eeId, setEeId] = useState<number | null>(null);
+  const [euId, setEuId] = useState<number | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     const raw = localStorage.getItem('empresaUser');
@@ -32,6 +34,7 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
       .then((ctx) => {
         if (ctx?.esResponsable) setEsEncargado(true);
         if (ctx?.empresaeventoId) setEeId(ctx.empresaeventoId);
+        if (ctx?.empresaUsuarioId) setEuId(ctx.empresaUsuarioId);
       })
       .catch(() => {
         // silently ignore — sidebar defaults to no encargado items
@@ -40,13 +43,13 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
 
   return (
     <div className="min-h-screen bg-[#F9FAFB]">
-      <EmpresaSidebar esEncargado={esEncargado} />
+      <EmpresaSidebar esEncargado={esEncargado} mobileOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="md:ml-64 flex flex-col min-h-screen">
-        <EmpresaHeader />
+        <EmpresaHeader onMenuClick={() => setSidebarOpen(true)} eeId={eeId} />
         <main className="flex-1">{children}</main>
       </div>
       <NotificacionToast eeId={eeId} />
-      <AsistenteChat />
+      <AsistenteChat eeId={eeId} euId={euId} />
     </div>
   );
 }

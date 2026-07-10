@@ -7,6 +7,7 @@ import { Plus, X, Newspaper } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { API_URL, userStore } from '../../utils/userStore';
 import { useModal } from '../../components/AppModal';
+import ImagenLightbox from '../../components/ImagenLightbox';
 
 const GREEN = '#449D3A';
 
@@ -119,7 +120,7 @@ export default function NoticiasScreen() {
             noticias.map((n) => (
               <View key={n.id} className="mx-4 mt-3 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                 {n.urlImagenNoticia && (
-                  <Image source={{ uri: n.urlImagenNoticia }} className="w-full h-32" resizeMode="cover" />
+                  <ImagenLightbox uri={n.urlImagenNoticia} style={{ width: '100%', height: 128 }} />
                 )}
                 <View className="p-4">
                   <View className="flex-row items-center justify-between mb-2">
@@ -182,7 +183,7 @@ export default function NoticiasScreen() {
                 <Text className="text-sm font-semibold text-gray-700 mb-1">Imagen (opcional)</Text>
                 {form.urlImagenNoticia ? (
                   <View>
-                    <Image source={{ uri: form.urlImagenNoticia }} className="w-full h-24 rounded-xl" resizeMode="cover" />
+                    <Image source={{ uri: form.urlImagenNoticia }} className="w-full h-24 rounded-xl" resizeMode="contain" />
                     <TouchableOpacity onPress={() => set('urlImagenNoticia', '')} className="mt-1">
                       <Text className="text-xs text-red-500">Eliminar imagen</Text>
                     </TouchableOpacity>

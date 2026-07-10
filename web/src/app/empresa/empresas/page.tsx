@@ -83,10 +83,16 @@ export default function EmpresasPage() {
           {filtradas.map((em: any) => (
             <div key={em.empresaeventoId} className={`bg-white rounded-2xl border shadow-sm overflow-hidden hover:shadow-md transition-shadow ${em.esRecomendada ? "border-[#449D3A]/40 ring-1 ring-[#449D3A]/20" : "border-gray-100"}`}>
               <div className="p-5">
-                {em.esRecomendada && (
+                {em.afinidad === "alta" && (
                   <div className="flex items-center gap-1 mb-2">
                     <Star className="w-3 h-3 text-[#449D3A] fill-[#449D3A]" />
                     <span className="text-[10px] font-bold text-[#449D3A] uppercase tracking-wide">Recomendada · Mismo rubro</span>
+                  </div>
+                )}
+                {em.afinidad === "media" && (
+                  <div className="flex items-center gap-1 mb-2">
+                    <Star className="w-3 h-3 text-amber-500" />
+                    <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wide">Recomendada · Rubro complementario</span>
                   </div>
                 )}
                 <div className="flex items-start gap-3 mb-3">

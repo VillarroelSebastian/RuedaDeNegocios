@@ -122,7 +122,7 @@ export default function TecnicosPage() {
             <div key={t.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 flex items-start gap-4">
               <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center shrink-0 overflow-hidden">
                 {t.urlFotoPerfil
-                  ? <img src={t.urlFotoPerfil} alt="" className="w-full h-full object-cover" />
+                  ? <img src={t.urlFotoPerfil} alt="" className="w-full h-full object-contain" />
                   : <User className="w-6 h-6 text-gray-400" />
                 }
               </div>
@@ -169,7 +169,7 @@ export default function TecnicosPage() {
               <div className="flex items-center gap-4">
                 <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden shrink-0">
                   {form.urlFotoPerfil
-                    ? <img src={form.urlFotoPerfil} alt="" className="w-full h-full object-cover" />
+                    ? <img src={form.urlFotoPerfil} alt="" className="w-full h-full object-contain" />
                     : <User className="w-8 h-8 text-gray-400" />
                   }
                 </div>

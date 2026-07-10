@@ -76,13 +76,13 @@ function ReunionCard({ r, onEstadoChange }: { r: any; onEstadoChange: (id: numbe
         {/* Empresas */}
         <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginBottom:10 }}>
           {ea?.urlFotoPerfil
-            ? <Image source={{ uri: ea.urlFotoPerfil }} style={{ width:32, height:32, borderRadius:16 }} resizeMode="cover" />
+            ? <Image source={{ uri: ea.urlFotoPerfil }} style={{ width:32, height:32, borderRadius:16 }} resizeMode="contain" />
             : <View style={{ width:32, height:32, borderRadius:16, backgroundColor:'#dcfce7', alignItems:'center', justifyContent:'center' }}><Building2 color={GREEN} size={14} /></View>
           }
           <Text style={{ flex:1, fontSize:12, fontWeight:'700', color:'#111827' }} numberOfLines={1}>{ea?.nombre ?? '—'}</Text>
           <Text style={{ color:'#9ca3af', fontSize:12 }}>↔</Text>
           {eb?.urlFotoPerfil
-            ? <Image source={{ uri: eb.urlFotoPerfil }} style={{ width:32, height:32, borderRadius:16 }} resizeMode="cover" />
+            ? <Image source={{ uri: eb.urlFotoPerfil }} style={{ width:32, height:32, borderRadius:16 }} resizeMode="contain" />
             : <View style={{ width:32, height:32, borderRadius:16, backgroundColor:'#dbeafe', alignItems:'center', justifyContent:'center' }}><Building2 color="#2563eb" size={14} /></View>
           }
           <Text style={{ flex:1, fontSize:12, fontWeight:'700', color:'#111827' }} numberOfLines={1}>{eb?.nombre ?? '—'}</Text>

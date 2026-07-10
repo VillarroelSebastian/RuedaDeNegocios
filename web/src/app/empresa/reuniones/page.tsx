@@ -23,10 +23,11 @@ function fmtOnlyDate(dt: string) {
 
 function estadoBadge(estado: string, small = false) {
   const map: Record<string, { cls: string; Icon: React.ElementType; label: string }> = {
-    PROGRAMADA: { cls: "bg-blue-100 text-blue-700",   Icon: Clock,         label: "Programada" },
-    EN_CURSO:   { cls: "bg-green-100 text-green-700", Icon: Users,         label: "En curso" },
-    FINALIZADA: { cls: "bg-gray-100 text-gray-600",   Icon: CheckCircle2,  label: "Finalizada" },
-    CANCELADA:  { cls: "bg-red-100 text-red-600",     Icon: AlertCircle,   label: "Cancelada" },
+    PROGRAMADA:   { cls: "bg-blue-100 text-blue-700",     Icon: Clock,         label: "Programada" },
+    REPROGRAMADA: { cls: "bg-amber-100 text-amber-700",   Icon: Clock,         label: "Reprogramada" },
+    EN_CURSO:     { cls: "bg-green-100 text-green-700",   Icon: Users,         label: "En curso" },
+    FINALIZADA:   { cls: "bg-gray-100 text-gray-600",     Icon: CheckCircle2,  label: "Finalizada" },
+    CANCELADA:    { cls: "bg-red-100 text-red-600",       Icon: AlertCircle,   label: "Cancelada" },
   };
   const { cls, Icon, label } = map[estado] ?? map.PROGRAMADA;
   return (
@@ -207,9 +208,9 @@ function DetalleReunionModal({ reunion, eeId, esEncargado, onClose, onCambiarHor
   onClose: () => void; onCambiarHorario: () => void; onRefresh: () => void;
 }) {
   const ahora = new Date();
-  const esProgramada = reunion.estado === "PROGRAMADA" && new Date(reunion.fin) > ahora;
+  const esProgramada = (reunion.estado === "PROGRAMADA" || reunion.estado === "REPROGRAMADA") && new Date(reunion.fin) > ahora;
   const esFinalizada = reunion.estado === "FINALIZADA" || new Date(reunion.fin) <= ahora;
-  const puedeFinalizarEncargado = esEncargado && (reunion.estado === "PROGRAMADA" || reunion.estado === "EN_CURSO");
+  const puedeFinalizarEncargado = esEncargado && ["PROGRAMADA", "REPROGRAMADA", "EN_CURSO"].includes(reunion.estado);
   const [finalizando, setFinalizando] = useState(false);
   const [errFin, setErrFin] = useState<string | null>(null);
   const [confirmandoFin, setConfirmandoFin] = useState(false);
@@ -328,7 +329,7 @@ function DetalleReunionModal({ reunion, eeId, esEncargado, onClose, onCambiarHor
                 )}
               </>
             )}
-            {esFinalizada && !reunion.miResultado && (
+            {esEncargado && esFinalizada && !reunion.miResultado && (
               <Link href={`/empresa/resultados?reunionId=${reunion.id}`}
                 className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#449D3A] text-white text-sm font-bold hover:bg-[#3a8531]">
                 <Star className="w-4 h-4" />
@@ -461,7 +462,7 @@ export default function ReunionesPage() {
           <div className="space-y-4">
             {filtradas.map((r: any) => {
               const esFinalizada = r.estado === "FINALIZADA" || new Date(r.fin) <= ahora;
-              const esProgramada = r.estado === "PROGRAMADA" && new Date(r.fin) > ahora;
+              const esProgramada = (r.estado === "PROGRAMADA" || r.estado === "REPROGRAMADA") && new Date(r.fin) > ahora;
               return (
                 <button
                   key={r.id}

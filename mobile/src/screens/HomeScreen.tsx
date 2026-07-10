@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { Calendar, MapPin, Phone, Mail, Users, LayoutGrid, Layers, Building2 } from 'lucide-react-native';
 import { API_URL } from '../utils/userStore';
+import ImagenLightbox from '../components/ImagenLightbox';
 
 // ─── Paleta ────────────────────────────────────────────────────────────────
 const C = {
@@ -148,7 +149,7 @@ export default function HomeScreen({ navigation }: any) {
         <ImageBackground
           source={{ uri: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=900&q=80' }}
           style={s.heroBg}
-          resizeMode="cover"
+          resizeMode="contain"
         >
           {/* Overlay degradado */}
           <View style={s.heroOverlay} />
@@ -235,8 +236,8 @@ export default function HomeScreen({ navigation }: any) {
           {/* Mapa recinto */}
           {evento.urlImagenMapaRecinto && (
             <View style={s.recintoImg}>
-              <Image source={{ uri: evento.urlImagenMapaRecinto }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-              <View style={s.recintoLabel}>
+              <ImagenLightbox uri={evento.urlImagenMapaRecinto} style={{ width: '100%', height: '100%' }} />
+              <View style={s.recintoLabel} pointerEvents="none">
                 <MapPin size={11} color="#374151" />
                 <Text style={s.recintoLabelText}> Mapa del recinto</Text>
               </View>

@@ -28,7 +28,8 @@ function fmtTime(iso: string) {
 }
 
 const STATUS_STYLE: Record<string, { bg: string; text: string; label: string }> = {
-  PROGRAMADA: { bg: '#dbeafe', text: '#1e40af', label: 'Programada' },
+  PROGRAMADA:   { bg: '#dbeafe', text: '#1e40af', label: 'Programada' },
+  REPROGRAMADA: { bg: '#fef3c7', text: '#92400e', label: 'Reprogramada' },
   EN_CURSO:   { bg: '#fef9c3', text: '#854d0e', label: 'En curso'   },
   FINALIZADA: { bg: '#dcfce7', text: '#166534', label: 'Finalizada' },
   CANCELADA:  { bg: '#fee2e2', text: '#dc2626', label: 'Cancelada'  },
@@ -260,36 +261,26 @@ function DetalleReunionModal({ reunion, eeId, esEncargado, navigation, onClose, 
   navigation: any; onClose: () => void; onCambiarHorario: () => void; onFinalizado: () => void;
 }) {
   const ahora = new Date();
-  const esProgramada = reunion.estado === 'PROGRAMADA' && new Date(reunion.fin) > ahora;
+  const esProgramada = (reunion.estado === 'PROGRAMADA' || reunion.estado === 'REPROGRAMADA') && new Date(reunion.fin) > ahora;
   const esFinalizada = reunion.estado === 'FINALIZADA' || new Date(reunion.fin) <= ahora;
-  const puedeFinalizarEncargado = esEncargado && (reunion.estado === 'PROGRAMADA' || reunion.estado === 'EN_CURSO');
+  const puedeFinalizarEncargado = esEncargado && ['PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO'].includes(reunion.estado);
   const st = STATUS_STYLE[reunion.estado] ?? { bg: '#f1f5f9', text: '#475569', label: reunion.estado };
   const isVirtual = reunion.tipo === 'VIRTUAL';
   const [finalizando, setFinalizando] = useState(false);
   const [errFin, setErrFin] = useState<string | null>(null);
+  const [confirmandoFin, setConfirmandoFin] = useState(false);
 
-  const handleFinalizar = () => {
-    Alert.alert(
-      'Finalizar reunión',
-      '¿Estás seguro de que deseas finalizar esta reunión? Esta acción no se puede deshacer.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Finalizar', style: 'destructive',
-          onPress: async () => {
-            setFinalizando(true); setErrFin(null);
-            try {
-              const res = await fetch(`${API_URL}/empresa/reuniones/${reunion.id}/finalizar`, {
-                method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ eeId }),
-              });
-              if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
-              onFinalizado();
-            } catch (e: any) { setErrFin(e.message || 'Error al finalizar'); setFinalizando(false); }
-          },
-        },
-      ],
-    );
+  const handleFinalizar = async () => {
+    setConfirmandoFin(false);
+    setFinalizando(true); setErrFin(null);
+    try {
+      const res = await fetch(`${API_URL}/empresa/reuniones/${reunion.id}/finalizar`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eeId }),
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
+      onFinalizado();
+    } catch (e: any) { setErrFin(e.message || 'Error al finalizar'); setFinalizando(false); }
   };
 
   const Row = ({ label, value }: { label: string; value: string | React.ReactNode }) => (
@@ -392,20 +383,37 @@ function DetalleReunionModal({ reunion, eeId, esEncargado, navigation, onClose, 
                       <Text style={{ color: '#dc2626', fontSize: 12, textAlign: 'center' }}>{errFin}</Text>
                     </View>
                   )}
-                  <TouchableOpacity
-                    onPress={handleFinalizar}
-                    disabled={finalizando}
-                    style={[dm.finalizarBtn, finalizando && { opacity: 0.6 }]}
-                    activeOpacity={0.8}
-                  >
-                    {finalizando
-                      ? <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />
-                      : <CheckCircle2 size={14} color="#fff" style={{ marginRight: 8 }} />}
-                    <Text style={dm.finalizarBtnText}>Finalizar reunión</Text>
-                  </TouchableOpacity>
+                  {confirmandoFin ? (
+                    <View style={dm.confirmFinBox}>
+                      <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10 }}>
+                        <AlertTriangle size={15} color="#f97316" style={{ marginRight: 6, marginTop: 1 }} />
+                        <Text style={dm.confirmFinText}>¿Finalizar esta reunión? Esta acción no se puede deshacer.</Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <TouchableOpacity onPress={() => setConfirmandoFin(false)} style={dm.confirmFinCancel} activeOpacity={0.8}>
+                          <Text style={dm.confirmFinCancelText}>Cancelar</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={handleFinalizar} disabled={finalizando} style={[dm.confirmFinOk, finalizando && { opacity: 0.6 }]} activeOpacity={0.8}>
+                          {finalizando
+                            ? <ActivityIndicator size="small" color="#fff" />
+                            : <Text style={dm.finalizarBtnText}>Confirmar</Text>}
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      onPress={() => setConfirmandoFin(true)}
+                      disabled={finalizando}
+                      style={[dm.finalizarBtn, finalizando && { opacity: 0.6 }]}
+                      activeOpacity={0.8}
+                    >
+                      <CheckCircle2 size={14} color="#fff" style={{ marginRight: 8 }} />
+                      <Text style={dm.finalizarBtnText}>Finalizar reunión</Text>
+                    </TouchableOpacity>
+                  )}
                 </>
               )}
-              {esFinalizada && !reunion.miResultado && (
+              {esEncargado && esFinalizada && !reunion.miResultado && (
                 <TouchableOpacity
                   onPress={() => { onClose(); navigation.navigate('Resultados', { reunionId: reunion.id, contraparte: reunion.contraparte?.nombre }); }}
                   style={dm.primaryBtn} activeOpacity={0.8}
@@ -459,6 +467,11 @@ const dm = StyleSheet.create({
   closeBtnText: { fontSize: 14, fontWeight: '700', color: '#64748b' },
   finalizarBtn: { flexDirection: 'row', backgroundColor: '#f97316', borderRadius: 14, height: 50, alignItems: 'center', justifyContent: 'center' },
   finalizarBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  confirmFinBox: { backgroundColor: '#fff7ed', borderWidth: 1, borderColor: '#fed7aa', borderRadius: 14, padding: 12 },
+  confirmFinText: { flex: 1, color: '#9a3412', fontSize: 13, fontWeight: '600', lineHeight: 18 },
+  confirmFinCancel: { flex: 1, height: 42, borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  confirmFinCancelText: { color: '#475569', fontSize: 13, fontWeight: '700' },
+  confirmFinOk: { flex: 1, height: 42, borderRadius: 10, backgroundColor: '#f97316', alignItems: 'center', justifyContent: 'center' },
 });
 
 // ── Main Screen ───────────────────────────────────────────────────────────────

@@ -319,6 +319,7 @@ model reunion {
   estadoReunion                 String             @db.VarChar(45)
   observacionesReunion          String?            @db.VarChar(505)
   seEnvioNotificacionDeRetraso  Int                @db.SmallInt
+  inicioAnticipadoPor           Int?
   cantidadAsistentesRegistrados Int                @db.SmallInt
   estaActivo                    Int                @default(1) @db.SmallInt
   fechaCreacion                 DateTime           @default(now()) @db.Timestamp(6)

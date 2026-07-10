@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, CalendarDays, Newspaper, Building2,
-  Send, Users, Star, User, Briefcase, Clock,
+  Send, Users, Star, User, Briefcase, Clock, X,
 } from 'lucide-react';
 
 const allMenuItems = [
@@ -22,13 +22,31 @@ const allMenuItems = [
 
 interface EmpresaSidebarProps {
   esEncargado?: boolean;
+  mobileOpen?: boolean;
+  onClose?: () => void;
 }
 
-export default function EmpresaSidebar({ esEncargado = false }: EmpresaSidebarProps) {
+export default function EmpresaSidebar({ esEncargado = false, mobileOpen = false, onClose }: EmpresaSidebarProps) {
   const pathname = usePathname();
 
   return (
-    <aside className="w-64 bg-white border-r border-gray-200 flex flex-col h-screen fixed left-0 top-0 overflow-y-auto z-20">
+    <>
+      {/* Overlay móvil */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 bg-black/40 z-30 md:hidden"
+          onClick={onClose}
+          aria-hidden="true"
+        />
+      )}
+      <aside className={`w-64 bg-white border-r border-gray-200 flex flex-col h-screen fixed left-0 top-0 overflow-y-auto z-40 transition-transform duration-200 md:translate-x-0 md:z-20 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <button
+          onClick={onClose}
+          className="md:hidden absolute top-4 right-3 p-1.5 rounded-lg hover:bg-gray-100"
+          aria-label="Cerrar menú"
+        >
+          <X className="w-4 h-4 text-gray-500" />
+        </button>
       <div className="flex items-center gap-2.5 px-5 h-16 border-b border-gray-100 shrink-0">
         <div className="w-8 h-8 bg-[#449D3A] rounded-lg flex items-center justify-center">
           <Briefcase className="w-4 h-4 text-white" />
@@ -51,6 +69,7 @@ export default function EmpresaSidebar({ esEncargado = false }: EmpresaSidebarPr
             <Link
               key={item.name}
               href={item.href}
+              onClick={onClose}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${
                 isActive
                   ? 'bg-green-50 text-[#449D3A] border-r-2 border-[#449D3A]'
@@ -64,9 +83,10 @@ export default function EmpresaSidebar({ esEncargado = false }: EmpresaSidebarPr
         })}
       </nav>
 
-      <div className="px-5 py-4 border-t border-gray-100">
-        <p className="text-[10px] text-gray-400 text-center">Rueda de Negocios del Beni</p>
-      </div>
-    </aside>
+        <div className="px-5 py-4 border-t border-gray-100">
+          <p className="text-[10px] text-gray-400 text-center">Rueda de Negocios del Beni</p>
+        </div>
+      </aside>
+    </>
   );
 }

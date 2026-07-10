@@ -54,15 +54,21 @@ export default function EstadisticasPage() {
     { label: 'PAGOS PENDIENTES', value: stats.kpis.pagosPendientes, icon: Clock, color: 'text-orange-600', bg: 'bg-orange-50' },
     { label: 'MESAS HABILITADAS', value: stats.kpis.mesasHabilitadas, icon: Armchair, color: 'text-pink-600', bg: 'bg-pink-50' },
     { label: 'EVENTOS INTERNOS', value: stats.kpis.eventosInternos, icon: CalendarDays, color: 'text-teal-600', bg: 'bg-teal-50' },
+    { label: 'ACUERDOS REGISTRADOS', value: stats.kpis.acuerdosRegistrados ?? 0, icon: Handshake, color: 'text-amber-600', bg: 'bg-amber-50' },
   ];
 
   const { reunionesPorEstado, pagosPorEstado } = stats;
-  const maxReuniones = Math.max(reunionesPorEstado.programadas, reunionesPorEstado.enCurso, reunionesPorEstado.finalizadas, 1);
+  const maxReuniones = Math.max(
+    reunionesPorEstado.programadas, reunionesPorEstado.enCurso, reunionesPorEstado.finalizadas,
+    reunionesPorEstado.reprogramadas ?? 0, reunionesPorEstado.canceladas ?? 0, 1,
+  );
 
   const reunionesBarras = [
     { label: 'Programadas', value: reunionesPorEstado.programadas, color: 'bg-blue-400' },
+    { label: 'Reprogramadas', value: reunionesPorEstado.reprogramadas ?? 0, color: 'bg-amber-400' },
     { label: 'En curso', value: reunionesPorEstado.enCurso, color: 'bg-orange-400' },
     { label: 'Finalizadas', value: reunionesPorEstado.finalizadas, color: 'bg-[#449D3A]' },
+    { label: 'Canceladas', value: reunionesPorEstado.canceladas ?? 0, color: 'bg-red-400' },
   ];
 
   // Donut chart manual
@@ -230,6 +236,31 @@ export default function EstadisticasPage() {
                   </div>
                   <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
                     <div className="h-full bg-[#449D3A] rounded-full" style={{ width: `${(r.count / maxR) * 100}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Top empresas con más reuniones */}
+      {stats.topEmpresas && stats.topEmpresas.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 mt-6">
+          <h2 className="font-bold text-gray-900 mb-5">Empresas con más reuniones (Top 5)</h2>
+          <div className="space-y-3">
+            {stats.topEmpresas.map((e: any, i: number) => {
+              const maxT = stats.topEmpresas[0].total;
+              return (
+                <div key={e.nombre}>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="text-gray-600">
+                      <span className="inline-block w-5 font-bold text-[#449D3A]">{i + 1}.</span>{e.nombre}
+                    </span>
+                    <span className="font-bold text-gray-900">{e.total} reunión(es)</span>
+                  </div>
+                  <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-blue-400 rounded-full" style={{ width: `${(e.total / maxT) * 100}%` }} />
                   </div>
                 </div>
               );

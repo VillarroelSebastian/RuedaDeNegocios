@@ -11,9 +11,9 @@ import ImagenLightbox from './ImagenLightbox';
 const GREEN = '#449D3A';
 
 const SUGERENCIAS = [
+  'Agendar una reunión',
   '¿Cuándo es mi próxima reunión?',
   '¿En qué mesa me toca?',
-  '¿Cuáles son las fechas del evento?',
   '¿Cuál es el estado de mi pago?',
 ];
 
@@ -21,6 +21,7 @@ interface Msg {
   role: 'user' | 'bot';
   text: string;
   imageUrl?: string;
+  opciones?: string[];
 }
 
 export function AsistenteChatButton({ onOpen }: { onOpen: () => void }) {
@@ -42,8 +43,27 @@ export default function AsistenteChatModal({ visible, onClose }: { visible: bool
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [eeId, setEeId] = useState<number | null>(userStore.get()?.empresaeventoId ?? null);
+  const [contexto, setContexto] = useState<any>(null);
   const listRef = useRef<FlatList>(null);
-  const eeId = userStore.get()?.empresaeventoId;
+
+  // Resolver eeId si aún no está en el userStore (ej: chat abierto antes de cargar dashboard)
+  useEffect(() => {
+    if (!visible || eeId) return;
+    const stored = userStore.get()?.empresaeventoId;
+    if (stored) { setEeId(stored); return; }
+    const usuarioId = userStore.get()?.id;
+    if (!usuarioId) return;
+    fetch(`${API_URL}/empresa/mi-empresa?usuarioId=${usuarioId}`)
+      .then((r) => r.json())
+      .then((ctx) => {
+        if (ctx?.empresaeventoId) {
+          setEeId(ctx.empresaeventoId);
+          userStore.set({ ...userStore.get(), empresaeventoId: ctx.empresaeventoId, empresaUsuarioId: ctx.empresaUsuarioId });
+        }
+      })
+      .catch(() => {});
+  }, [visible, eeId]);
 
   useEffect(() => {
     if (visible) {
@@ -53,7 +73,11 @@ export default function AsistenteChatModal({ visible, onClose }: { visible: bool
 
   const send = async (texto: string) => {
     const t = texto.trim();
-    if (!t || loading || !eeId) return;
+    if (!t || loading) return;
+    if (!eeId) {
+      setMsgs((prev) => [...prev, { role: 'bot', text: 'Aún estoy cargando tu información. Intenta en unos segundos.' }]);
+      return;
+    }
     setInput('');
     const newMsgs: Msg[] = [...msgs, { role: 'user', text: t }];
     setMsgs(newMsgs);
@@ -62,10 +86,11 @@ export default function AsistenteChatModal({ visible, onClose }: { visible: bool
       const res = await fetch(`${API_URL}/empresa/asistente`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eeId, mensaje: t }),
+        body: JSON.stringify({ eeId, euId: userStore.get()?.empresaUsuarioId ?? undefined, mensaje: t, contexto }),
       });
       const data = await res.json();
-      setMsgs((prev) => [...prev, { role: 'bot', text: data.respuesta, imageUrl: data.imageUrl }]);
+      setContexto(data.contexto ?? null);
+      setMsgs((prev) => [...prev, { role: 'bot', text: data.respuesta, imageUrl: data.imageUrl, opciones: data.opciones }]);
     } catch {
       setMsgs((prev) => [...prev, { role: 'bot', text: 'Lo siento, no pude conectarme. Intenta de nuevo.' }]);
     } finally {
@@ -102,19 +127,31 @@ export default function AsistenteChatModal({ visible, onClose }: { visible: bool
               keyExtractor={(_, i) => String(i)}
               contentContainerStyle={s.msgList}
               onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
-              renderItem={({ item }) => (
-                <View style={[s.row, item.role === 'user' ? s.rowUser : s.rowBot]}>
-                  {item.role === 'bot' && (
-                    <View style={s.avatar}><Bot size={14} color={GREEN} /></View>
-                  )}
-                  <View style={[s.bubble, item.role === 'user' ? s.bubbleUser : s.bubbleBot]}>
-                    <Text style={item.role === 'user' ? s.textUser : s.textBot}>{item.text}</Text>
-                    {item.imageUrl && (
-                      <ImagenLightbox uri={item.imageUrl} style={s.msgImg} imgStyle={{ borderRadius: 10 }} />
+              renderItem={({ item, index }) => (
+                <View>
+                  <View style={[s.row, item.role === 'user' ? s.rowUser : s.rowBot]}>
+                    {item.role === 'bot' && (
+                      <View style={s.avatar}><Bot size={14} color={GREEN} /></View>
+                    )}
+                    <View style={[s.bubble, item.role === 'user' ? s.bubbleUser : s.bubbleBot]}>
+                      <Text style={item.role === 'user' ? s.textUser : s.textBot}>{item.text}</Text>
+                      {item.imageUrl && (
+                        <ImagenLightbox uri={item.imageUrl} style={s.msgImg} imgStyle={{ borderRadius: 10 }} />
+                      )}
+                    </View>
+                    {item.role === 'user' && (
+                      <View style={s.avatar}><User size={14} color={GREEN} /></View>
                     )}
                   </View>
-                  {item.role === 'user' && (
-                    <View style={s.avatar}><User size={14} color={GREEN} /></View>
+                  {/* Quick replies: solo en el último mensaje del bot */}
+                  {item.role === 'bot' && !!item.opciones?.length && index === msgs.length - 1 && !loading && (
+                    <View style={s.quickWrap}>
+                      {item.opciones.map((op: string) => (
+                        <TouchableOpacity key={op} style={s.quick} onPress={() => send(op)} activeOpacity={0.7}>
+                          <Text style={s.quickText}>{op}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
                   )}
                 </View>
               )}
@@ -217,6 +254,15 @@ const s = StyleSheet.create({
     paddingHorizontal: 10, paddingVertical: 6,
   },
   sugText: { fontSize: 11, color: GREEN, fontWeight: '600' },
+  quickWrap: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 6,
+    marginLeft: 36, marginTop: 2, marginBottom: 8,
+  },
+  quick: {
+    backgroundColor: '#fff', borderRadius: 8, borderWidth: 1, borderColor: '#86efac',
+    paddingHorizontal: 10, paddingVertical: 7,
+  },
+  quickText: { fontSize: 12, color: GREEN, fontWeight: '700' },
   inputRow: {
     flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingVertical: 12,
     borderTopWidth: 1, borderTopColor: '#f1f5f9',

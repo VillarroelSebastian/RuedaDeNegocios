@@ -103,13 +103,13 @@ function ReunionRow({ r, onChange }: { r: any; onChange: (id: number, estado: st
         {/* Companies */}
         <div className="flex items-center gap-2 flex-1 min-w-0">
           {ea?.urlFotoPerfil
-            ? <img src={ea.urlFotoPerfil} className="w-8 h-8 rounded-full object-cover shrink-0" />
+            ? <img src={ea.urlFotoPerfil} className="w-8 h-8 rounded-full object-contain shrink-0" />
             : <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center shrink-0"><Building2 className="w-3 h-3 text-green-700" /></div>
           }
           <span className="text-sm font-semibold text-gray-900 truncate max-w-[120px]">{ea?.nombre ?? '—'}</span>
           <span className="text-gray-400 text-xs shrink-0">↔</span>
           {eb?.urlFotoPerfil
-            ? <img src={eb.urlFotoPerfil} className="w-8 h-8 rounded-full object-cover shrink-0" />
+            ? <img src={eb.urlFotoPerfil} className="w-8 h-8 rounded-full object-contain shrink-0" />
             : <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0"><Building2 className="w-3 h-3 text-blue-700" /></div>
           }
           <span className="text-sm font-semibold text-gray-900 truncate max-w-[120px]">{eb?.nombre ?? '—'}</span>

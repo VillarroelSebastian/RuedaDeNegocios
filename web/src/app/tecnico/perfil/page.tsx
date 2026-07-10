@@ -297,7 +297,7 @@ export default function TecnicoPerfilPage() {
             <div className="relative">
               <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden border-2 border-white shadow-md">
                 {form.urlFotoPerfil
-                  ? <img src={form.urlFotoPerfil} alt="Foto de perfil" className="w-full h-full object-cover" />
+                  ? <img src={form.urlFotoPerfil} alt="Foto de perfil" className="w-full h-full object-contain" />
                   : <User className="w-10 h-10 text-gray-400" />}
               </div>
               <label className="absolute -bottom-1 -right-1 w-7 h-7 bg-[#449D3A] rounded-full flex items-center justify-center cursor-pointer shadow-sm hover:bg-[#367d2e] transition-colors">

@@ -10,8 +10,11 @@ const EVENTO_LABELS: Record<string, string> = {
   'pago:rechazado':           'Pago rechazado',
   'pago-adicional:aprobado':  'Pago adicional aprobado',
   'pago-adicional:rechazado': 'Pago adicional rechazado',
+  'solicitud:nueva':          'Nueva solicitud de reunión',
   'solicitud:aceptada':       'Solicitud aceptada',
   'solicitud:rechazada':      'Solicitud rechazada',
+  'reunion:reprogramada':     'Reunión reprogramada',
+  'reunion:recordatorio':     'Reunión próxima',
   'comunicado:nuevo':         'Nuevo comunicado',
 };
 
@@ -57,7 +60,8 @@ export function useNotificacionesMobile(eeId: number | null) {
     const EVENTOS = [
       'pago:aprobado', 'pago:rechazado',
       'pago-adicional:aprobado', 'pago-adicional:rechazado',
-      'solicitud:aceptada', 'solicitud:rechazada',
+      'solicitud:nueva', 'solicitud:aceptada', 'solicitud:rechazada',
+      'reunion:reprogramada', 'reunion:recordatorio',
       'comunicado:nuevo',
     ];
 

@@ -38,7 +38,7 @@ function CompanyChip({ empresa, colorClass }: { empresa: any; colorClass: string
   return (
     <div className="flex items-center gap-2 min-w-0">
       {empresa?.urlFotoPerfil
-        ? <img src={empresa.urlFotoPerfil} className="w-8 h-8 rounded-full object-cover shrink-0 border border-gray-100" alt={empresa.nombre} />
+        ? <img src={empresa.urlFotoPerfil} className="w-8 h-8 rounded-full object-contain shrink-0 border border-gray-100" alt={empresa.nombre} />
         : (
           <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${colorClass}`}>
             <Building2 className="w-3.5 h-3.5" />
