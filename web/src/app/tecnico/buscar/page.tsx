@@ -2,7 +2,7 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { Search, Building2, Armchair, CalendarCheck, Video, MapPin, X } from 'lucide-react';
 
-const API = 'http://localhost:3334';
+const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
 const ESTADO_CFG: Record<string, { badge: string; dot: string; label: string }> = {
   PROGRAMADA: { badge:'bg-blue-100 text-blue-700',    dot:'bg-blue-400',   label:'Programada' },

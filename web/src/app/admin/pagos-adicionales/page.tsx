@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Check, X, Eye, AlertCircle, CheckCircle2, RefreshCw } from "lucide-react";
 
-const API = "http://localhost:3334";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
 function estadoBadge(estado: string) {
   const map: Record<string, { cls: string; label: string }> = {

@@ -21,9 +21,16 @@ export class ImagenesController {
     const filename = `${Date.now()}-${randomBytes(8).toString('hex')}${ext}`;
     writeFileSync(join(uploadsDir, filename), file.buffer);
 
-    // Usar el host del request para que funcione tanto desde localhost como desde móvil en red local
-    const host = req.headers['host'] ?? `localhost:${process.env.PORT ?? 3334}`;
-    const url = `http://${host}/uploads/${filename}`;
+    // En producción PUBLIC_URL define la base (ej: https://api.midominio.com).
+    // Sin PUBLIC_URL se respetan los headers del proxy (x-forwarded-*) y,
+    // en último caso, el host del request (localhost / red local en desarrollo).
+    let base = process.env.PUBLIC_URL;
+    if (!base) {
+      const proto = req.headers['x-forwarded-proto'] ?? 'http';
+      const host = req.headers['x-forwarded-host'] ?? req.headers['host'] ?? `localhost:${process.env.PORT ?? 3334}`;
+      base = `${proto}://${host}`;
+    }
+    const url = `${base.replace(/\/$/, '')}/uploads/${filename}`;
 
     return { url };
   }

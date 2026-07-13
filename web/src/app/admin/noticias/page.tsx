@@ -4,7 +4,7 @@ import { Plus, Pencil, Trash2, X, Upload, Image as ImageIcon } from 'lucide-reac
 import ImagenLightbox from '@/components/ui/ImagenLightbox';
 import { useModal } from '@/components/ui/Modal';
 
-const API = 'http://localhost:3334';
+const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
 const TIPOS = ['COMUNICADO', 'NOTICIA', 'ANUNCIO', 'ALERTA'];
 

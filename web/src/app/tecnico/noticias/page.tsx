@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Newspaper, Calendar, ChevronDown, ChevronUp } from 'lucide-react';
 
-const API = 'http://localhost:3334';
+const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 const PAGE_SIZE = 5;
 
 const TIPO_CFG: Record<string, { badge: string; label: string }> = {

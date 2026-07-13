@@ -9,7 +9,7 @@ import {
   ChevronRight, AlertTriangle, ExternalLink,
 } from "lucide-react";
 
-const API = "http://localhost:3334";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
 function fmtDate(dt: string) {
   return new Date(dt).toLocaleDateString("es-BO", { weekday: "long", day: "2-digit", month: "long" });

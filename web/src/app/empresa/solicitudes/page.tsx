@@ -7,7 +7,7 @@ import {
   Monitor, Users, Calendar, X, Table2, Ban,
 } from "lucide-react";
 
-const API = "http://localhost:3334";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 const POLL_MS = 5000; // tabla polling cada 5 s
 
 function estadoBadge(estado: string) {

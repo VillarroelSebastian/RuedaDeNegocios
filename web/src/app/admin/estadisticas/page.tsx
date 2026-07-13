@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Building2, Users, CalendarCheck, Handshake, Shield, Clock, Armchair, CalendarDays, RefreshCw } from 'lucide-react';
 
-const API = 'http://localhost:3334';
+const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
 export default function EstadisticasPage() {
   const [stats, setStats] = useState<any>(null);

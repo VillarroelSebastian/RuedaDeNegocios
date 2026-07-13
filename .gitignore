@@ -9,3 +9,11 @@ coverage/
 *.log
 *.sqlite
 .DS_Store
+
+# Dump local de BD (transferir por scp, no commitear)
+deploy/rueda_dump.sql
+
+# Binarios locales
+node.zip
+node_portable/
+deploy/secrets.env

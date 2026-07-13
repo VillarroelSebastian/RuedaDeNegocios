@@ -10,7 +10,7 @@ import {
   Megaphone, Activity, VideoIcon,
 } from "lucide-react";
 
-const API = "http://localhost:3334";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
 type EstadoPago = "PENDIENTE" | "COMPLETADO" | "OBSERVADO" | "RECHAZADO";
 

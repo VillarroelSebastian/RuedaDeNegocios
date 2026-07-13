@@ -7,7 +7,7 @@ import {
   ExternalLink, Copy, CheckCircle, AlertCircle, X, Wifi,
 } from 'lucide-react';
 
-const API = 'http://localhost:3334';
+const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
 const ESTADO_CFG: Record<string, { badge: string; dot: string; label: string; animated?: boolean }> = {
   PROGRAMADA: { badge: 'bg-blue-100 text-blue-700',    dot: 'bg-blue-400',   label: 'Programada' },

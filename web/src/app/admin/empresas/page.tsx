@@ -4,7 +4,7 @@ import { Search, Building2, Users, Eye, Trash2, ChevronLeft, ChevronRight, Filte
 import ImagenLightbox from '@/components/ui/ImagenLightbox';
 import { useModal } from '@/components/ui/Modal';
 
-const API = 'http://localhost:3334';
+const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
 const ESTADOS_PAGO = [
   { value: '', label: 'Todos los estados' },

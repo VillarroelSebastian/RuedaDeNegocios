@@ -4,7 +4,7 @@ import { Search, Bell, ChevronDown, User, LogOut, Settings, X } from 'lucide-rea
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
-const API = 'http://localhost:3334';
+const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
 interface Notificacion {
   id: string;

@@ -4,7 +4,7 @@ import React, { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Star, CheckCircle2, AlertCircle, Calendar, Building2 } from "lucide-react";
 
-const API = "http://localhost:3334";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
 const RANGOS = [
   "Sin acuerdo",

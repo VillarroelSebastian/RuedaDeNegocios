@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Pencil, Trash2, User, X, Upload, Eye, EyeOff } from 'lucide-react';
 import { useModal } from '@/components/ui/Modal';
 
-const API = 'http://localhost:3334';
+const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
 const defaultForm = {
   nombres: '',

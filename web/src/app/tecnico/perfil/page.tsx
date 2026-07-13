@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { User, Lock, Camera, Save, LogOut, Mail, KeyRound, CheckCircle2, X, Eye, EyeOff, Send, CheckCircle, AlertCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
-const API = 'http://localhost:3334';
+const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
 type ResetStep = 'idle' | 'sending' | 'code' | 'success';
 

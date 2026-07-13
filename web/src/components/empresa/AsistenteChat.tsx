@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { MessageCircle, X, Send, Bot, User } from "lucide-react";
 import ImagenLightbox from "@/components/ui/ImagenLightbox";
 
-const API = "http://localhost:3334";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
 interface Msg {
   role: "user" | "bot";

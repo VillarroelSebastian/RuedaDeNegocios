@@ -4,7 +4,7 @@ import { User, Lock, Camera, Save, LogOut, Mail, KeyRound, CheckCircle2, X, Eye,
 import { useRouter } from 'next/navigation';
 import { useModal } from '@/components/ui/Modal';
 
-const API = 'http://localhost:3334';
+const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
 type ResetStep = 'idle' | 'sending' | 'code' | 'success';
 

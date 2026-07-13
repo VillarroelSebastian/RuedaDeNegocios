@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Building2, MapPin, Send, Search, AlertCircle, Globe, Star } from "lucide-react";
 import ImagenLightbox from "@/components/ui/ImagenLightbox";
 
-const API = "http://localhost:3334";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
 export default function EmpresasPage() {
   const router = useRouter();

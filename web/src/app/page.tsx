@@ -8,6 +8,7 @@ import {
   Users, LayoutGrid, Layers, ChevronRight,
   Clock, Building2, ArrowRight
 } from "lucide-react";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
 const IconFacebook = () => (
   <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
@@ -85,8 +86,8 @@ export default function HomePage() {
     const load = async () => {
       try {
         const [evRes, actsRes] = await Promise.all([
-          fetch("http://localhost:3334/public/evento"),
-          fetch("http://localhost:3334/public/actividades"),
+          fetch(`${API}/public/evento`),
+          fetch(`${API}/public/actividades`),
         ]);
         const ev = evRes.ok ? await evRes.json() : null;
         const acts = actsRes.ok ? await actsRes.json() : [];

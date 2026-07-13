@@ -4,7 +4,7 @@ import { CreditCard, Eye, ChevronLeft, ChevronRight, AlertCircle, CheckCircle, X
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 
-const API = 'http://localhost:3334';
+const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
 const TABS = [
   { value: '', label: 'Todos', icon: CreditCard },

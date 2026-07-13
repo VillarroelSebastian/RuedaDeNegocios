@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { Newspaper, Clock, Tag, AlertCircle, User } from "lucide-react";
 
-const API = "http://localhost:3334";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
 function formatFecha(f: string) {
   return new Date(f).toLocaleDateString("es-BO", {

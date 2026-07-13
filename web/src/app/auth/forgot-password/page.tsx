@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Mail, ArrowLeft, KeyRound, Lock, Eye, EyeOff, CheckCircle2 } from "lucide-react";
 
-const API = "http://localhost:3334";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 const GREEN = "#449D3A";
 
 type Step = "correo" | "codigo" | "nueva" | "exito";

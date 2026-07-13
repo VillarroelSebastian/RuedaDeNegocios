@@ -7,7 +7,7 @@ import {
   Activity, Newspaper,
 } from 'lucide-react';
 
-const API = 'http://localhost:3334';
+const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
 const ESTADO_CFG: Record<string, { color: string; bg: string; dot: string; badge: string; label: string }> = {
   PROGRAMADA: { color:'text-blue-700',   bg:'bg-blue-50',    dot:'bg-blue-400',   badge:'bg-blue-100 text-blue-700',    label:'Programada' },

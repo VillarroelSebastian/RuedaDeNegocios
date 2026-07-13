@@ -11,7 +11,7 @@ const ICONS_MAP: Record<string, any> = {
   '📅': CalendarCheck,
 };
 
-const API = 'http://localhost:3334';
+const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
 export default function Dashboard() {
   const [stats, setStats] = useState<any[]>([]);

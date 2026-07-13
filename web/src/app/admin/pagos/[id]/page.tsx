@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useModal } from '@/components/ui/Modal';
 import Link from 'next/link';
 
-const API = 'http://localhost:3334';
+const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
 export default function PagoDetailPage() {
   const { id } = useParams();

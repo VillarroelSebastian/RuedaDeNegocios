@@ -5,6 +5,7 @@ import { Info, LayoutGrid, CreditCard, QrCode, Plus, Trash2, Save, Image as Imag
 import { useRouter, useParams } from 'next/navigation';
 import styles from './ConfiguracionEvento.module.css';
 import Modal, { useModal } from '@/components/ui/Modal';
+const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
 const SOUTH_AMERICA: Record<string, string[]> = {
   "Bolivia":   ["Trinidad","Beni","La Paz","Santa Cruz de la Sierra","Cochabamba","Sucre","Oruro","Potosí","Tarija","Cobija","Riberalta","Guayaramerín"],
@@ -64,7 +65,7 @@ export default function ConfiguracionDeEventoPage() {
   useEffect(() => {
     if (isNew) return;
     
-    fetch(`http://localhost:3334/admin/eventos/${params.id}`)
+    fetch(`${API}/admin/eventos/${params.id}`)
       .then(res => res.text())
       .then(text => text ? JSON.parse(text) : {})
       .then(data => {
@@ -148,7 +149,7 @@ export default function ConfiguracionDeEventoPage() {
     fd.append('file', file);
 
     try {
-      const res = await fetch('http://localhost:3334/admin/imagenes/upload', {
+      const res = await fetch(`${API}/admin/imagenes/upload`, {
         method: 'POST',
         body: fd,
       });
@@ -222,7 +223,7 @@ export default function ConfiguracionDeEventoPage() {
     };
 
     try {
-      const url = isNew ? 'http://localhost:3334/admin/eventos' : `http://localhost:3334/admin/eventos/${formData.id}`;
+      const url = isNew ? `${API}/admin/eventos` : `${API}/admin/eventos/${formData.id}`;
       const method = isNew ? 'POST' : 'PUT';
       
       const res = await fetch(url, {

@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { useModal } from '@/components/ui/Modal';
 
-const API = 'http://localhost:3334';
+const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
 const ESTADO_MESA: Record<string, { badge: string; dot: string; label: string }> = {
   LIBRE:    { badge: 'bg-green-100 text-green-700',   dot: 'bg-green-400',  label: 'Libre' },

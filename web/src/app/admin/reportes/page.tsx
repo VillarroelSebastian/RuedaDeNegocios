@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { FileText, Download, Printer, Building2, CalendarDays, Star, RefreshCw } from "lucide-react";
 
-const API = "http://localhost:3334";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
 const TIPOS = [
   { key: "empresas",   label: "Empresas participantes", Icon: Building2 },

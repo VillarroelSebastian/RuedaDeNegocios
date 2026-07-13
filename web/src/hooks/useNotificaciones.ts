@@ -3,7 +3,7 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { io, Socket } from "socket.io-client";
 
-const SOCKET_URL = "http://localhost:3334";
+const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
 export interface Notif {
   id: string;

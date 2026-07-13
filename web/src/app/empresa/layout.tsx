@@ -7,7 +7,7 @@ import EmpresaHeader from '@/components/empresa/EmpresaHeader';
 import AsistenteChat from '@/components/empresa/AsistenteChat';
 import NotificacionToast from '@/components/empresa/NotificacionToast';
 
-const API = 'http://localhost:3334';
+const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
 export default function EmpresaLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
