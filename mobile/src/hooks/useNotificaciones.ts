@@ -3,7 +3,9 @@ import { io, Socket } from 'socket.io-client';
 import { Alert } from 'react-native';
 import { API_URL } from '../utils/userStore';
 
-const SOCKET_URL = API_URL;
+// Socket.IO se conecta al ORIGEN del backend (sin el prefijo /api que usa el
+// proxy en producción): la ruta /socket.io/ la enruta Nginx directamente.
+const SOCKET_URL = API_URL.replace(/\/api\/?$/, '');
 
 const EVENTO_LABELS: Record<string, string> = {
   'pago:aprobado':            'Pago aprobado',

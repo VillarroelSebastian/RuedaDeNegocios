@@ -3,7 +3,9 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { io, Socket } from "socket.io-client";
 
-const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
+// Socket.IO se conecta al ORIGEN del backend (sin el prefijo /api que usa el
+// proxy en producción): la ruta /socket.io/ la enruta Nginx directamente.
+const SOCKET_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334").replace(/\/api\/?$/, "");
 
 export interface Notif {
   id: string;
