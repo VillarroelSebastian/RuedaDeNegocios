@@ -14,8 +14,9 @@ REPO_URL="https://github.com/VillarroelSebastian/RuedaDeNegocios.git"
 APP_DIR="/var/www/rueda"
 DB_NAME="ruedanegocios"
 DB_USER="rueda"
-# Si más adelante tienen dominio, cambiar por https://api.dominio
+# Si más adelante tienen dominio, cambiar por https://api.dominio / https://dominio
 API_PUBLIC_URL="http://${IP_PUBLICA}:3334"
+WEB_PUBLIC_URL="http://${IP_PUBLICA}"
 
 # ── Secretos (NUNCA en el repositorio) ──────────────────────────────────────
 # Subir antes con:  scp deploy/secrets.env root@IP:/root/rueda_secrets.env
@@ -76,6 +77,7 @@ MAIL_USER="${MAIL_USER}"
 MAIL_PASS="${MAIL_PASS}"
 MAIL_FROM="${MAIL_FROM}"
 PUBLIC_URL="${API_PUBLIC_URL}"
+WEB_URL="${WEB_PUBLIC_URL}"
 EOF
 npm ci
 npx prisma generate

@@ -191,7 +191,11 @@ export default function RegistroPage() {
   const [empresa, setEmpresa] = useState({
     nombre: "", rubro: "", pais: "", ciudad: "", sitioWeb: "",
     correoCorporativo: "", telefonoWhatsapp: "", descripcion: "",
+    oferta: "", demanda: "",
   });
+  const [interesesBusqueda, setInteresesBusqueda] = useState<string[]>([]);
+  const toggleInteres = (rubro: string) =>
+    setInteresesBusqueda((prev) => prev.includes(rubro) ? prev.filter((r) => r !== rubro) : [...prev, rubro]);
   const [participacion, setParticipacion] = useState({
     numeroParticipantes: 1, tipoParticipacion: "PRESENCIAL",
   });
@@ -348,6 +352,9 @@ export default function RegistroPage() {
           correoCorporativo: empresa.correoCorporativo,
           telefonoWhatsapp: empresa.telefonoWhatsapp,
           descripcion: empresa.descripcion || null,
+          oferta: empresa.oferta || null,
+          demanda: empresa.demanda || null,
+          interesesBusqueda: interesesBusqueda.length ? interesesBusqueda.join(", ") : null,
         },
         participacion,
         comprobante: { urlComprobante },
@@ -493,6 +500,34 @@ export default function RegistroPage() {
                   <Field label="Descripción de la Empresa">
                     <textarea value={empresa.descripcion} onChange={(e) => setEmpresa((f) => ({ ...f, descripcion: e.target.value }))}
                       className={`${inputCls} resize-none h-24`} placeholder="Describe brevemente los productos o servicios que ofrece tu empresa..." />
+                  </Field>
+                </div>
+                <Field label="¿Qué ofrece tu empresa?">
+                  <textarea value={empresa.oferta} onChange={(e) => setEmpresa((f) => ({ ...f, oferta: e.target.value }))}
+                    className={`${inputCls} resize-none h-20`} placeholder="Ej: exportación de café orgánico, servicios de logística..." />
+                </Field>
+                <Field label="¿Qué busca tu empresa?">
+                  <textarea value={empresa.demanda} onChange={(e) => setEmpresa((f) => ({ ...f, demanda: e.target.value }))}
+                    className={`${inputCls} resize-none h-20`} placeholder="Ej: proveedores de insumos, socios de distribución..." />
+                </Field>
+                <div className="sm:col-span-2">
+                  <Field label="¿Con qué sectores te interesa reunirte? (opcional)">
+                    <div className="flex flex-wrap gap-2">
+                      {RUBROS.filter((r) => r !== "Otro").map((r) => (
+                        <button
+                          key={r} type="button"
+                          onClick={() => toggleInteres(r)}
+                          className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-all ${
+                            interesesBusqueda.includes(r)
+                              ? "bg-[#449D3A] text-white border-[#449D3A]"
+                              : "bg-white text-gray-600 border-gray-200 hover:border-[#449D3A]"
+                          }`}
+                        >
+                          {r}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-400 mt-2">Usaremos esto para sugerirte empresas afines en el apartado de Oportunidades.</p>
                   </Field>
                 </div>
               </div>

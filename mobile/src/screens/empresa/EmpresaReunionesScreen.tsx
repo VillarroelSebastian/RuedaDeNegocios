@@ -316,11 +316,19 @@ function DetalleReunionModal({ reunion, eeId, esEncargado, navigation, onClose, 
                   : <MapPin size={11} color={GREEN} style={{ marginRight: 3 }} />}
                 <Text style={[dm.badgeText, { color: isVirtual ? '#2563eb' : GREEN }]}>{reunion.tipo}</Text>
               </View>
+              <View style={[dm.badge, { backgroundColor: reunion.yoSolicite ? '#eef2ff' : '#fffbeb' }]}>
+                <Text style={[dm.badgeText, { color: reunion.yoSolicite ? '#4f46e5' : '#d97706' }]}>
+                  {reunion.yoSolicite ? 'Tú la solicitaste' : 'Te la solicitaron'}
+                </Text>
+              </View>
             </View>
 
             {/* Info card */}
             <View style={dm.infoCard}>
-              <Text style={dm.companyName}>{reunion.contraparte?.nombre ?? '—'}</Text>
+              <Text style={dm.companyName}>
+                {reunion.contraparte?.nombre ?? '—'}
+                {reunion.contraparte?.codigo ? ` · ${reunion.contraparte.codigo}` : ''}
+              </Text>
               {reunion.contraparte?.rubro && <Text style={dm.rubro}>{reunion.contraparte.rubro}</Text>}
 
               <View style={dm.divider} />
@@ -601,11 +609,18 @@ export default function EmpresaReunionesScreen({ navigation }: any) {
                     : <MapPin size={11} color={GREEN} style={{ marginRight: 3 }} />}
                   <Text style={[s.badgeText, { color: isVirtual ? '#2563eb' : GREEN }]}>{item.tipo}</Text>
                 </View>
+                <View style={[s.badge, { backgroundColor: item.yoSolicite ? '#eef2ff' : '#fffbeb' }]}>
+                  <Text style={[s.badgeText, { color: item.yoSolicite ? '#4f46e5' : '#d97706' }]}>
+                    {item.yoSolicite ? 'Tú la solicitaste' : 'Te la solicitaron'}
+                  </Text>
+                </View>
               </View>
 
               <View style={s.cardBody}>
                 <View style={{ flex: 1 }}>
-                  <Text style={s.counterpart} numberOfLines={1}>{item.contraparte?.nombre ?? '—'}</Text>
+                  <Text style={s.counterpart} numberOfLines={1}>
+                    {item.contraparte?.nombre ?? '—'}{item.contraparte?.codigo ? ` · ${item.contraparte.codigo}` : ''}
+                  </Text>
                   <View style={s.timeRow}>
                     <CalendarDays size={12} color="#94a3b8" style={{ marginRight: 4 }} />
                     <Text style={s.metaText}>{fmtDateShort(item.inicio)}</Text>

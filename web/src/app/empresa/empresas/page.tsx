@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Building2, MapPin, Send, Search, AlertCircle, Globe, Star } from "lucide-react";
 import ImagenLightbox from "@/components/ui/ImagenLightbox";
+import { paisConBandera } from "@/lib/pais";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
@@ -109,6 +110,7 @@ export default function EmpresasPage() {
                   )}
                   <div className="min-w-0 flex-1">
                     <h3 className="font-bold text-gray-900 text-sm leading-snug truncate">{em.nombre}</h3>
+                    {em.codigo && <p className="text-[10px] text-gray-400 font-semibold">{em.codigo}</p>}
                     {em.rubro && <p className="text-xs text-gray-500 mt-0.5 truncate">{em.rubro}</p>}
                   </div>
                 </div>
@@ -121,7 +123,7 @@ export default function EmpresasPage() {
                   {(em.ciudad || em.pais) && (
                     <span className="flex items-center gap-1">
                       <MapPin className="w-3 h-3" />
-                      {[em.ciudad, em.pais].filter(Boolean).join(", ")}
+                      {[em.ciudad, paisConBandera(em.pais)].filter(Boolean).join(", ")}
                     </span>
                   )}
                   {em.sitioWeb && (

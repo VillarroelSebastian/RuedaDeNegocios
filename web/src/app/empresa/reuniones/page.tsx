@@ -256,10 +256,16 @@ function DetalleReunionModal({ reunion, eeId, esEncargado, onClose, onCambiarHor
             }`}>
               {reunion.tipo === "PRESENCIAL" ? <><MapPin className="w-3 h-3 inline mr-1" />Presencial</> : <><Monitor className="w-3 h-3 inline mr-1" />Virtual</>}
             </span>
+            <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+              reunion.yoSolicite ? "bg-indigo-50 text-indigo-600" : "bg-amber-50 text-amber-600"
+            }`}>
+              {reunion.yoSolicite ? "Tú la solicitaste" : "Te la solicitaron"}
+            </span>
           </div>
 
           <div className="bg-gray-50 rounded-2xl px-4 py-1 mb-4">
             <Row label="Empresa" value={reunion.contraparte?.nombre ?? "—"} />
+            {reunion.contraparte?.codigo && <Row label="Código" value={reunion.contraparte.codigo} />}
             {reunion.contraparte?.rubro && <Row label="Rubro" value={reunion.contraparte.rubro} />}
             <Row label="Fecha" value={fmtDate(reunion.inicio)} />
             <Row label="Horario" value={`${fmtTime(reunion.inicio)} – ${fmtTime(reunion.fin)}`} />
@@ -484,9 +490,17 @@ export default function ReunionesPage() {
                               <Table2 className="w-3 h-3" />Mesa {r.mesa.numeroMesa}
                             </span>
                           )}
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            r.yoSolicite ? "bg-indigo-50 text-indigo-600" : "bg-amber-50 text-amber-600"
+                          }`}>
+                            {r.yoSolicite ? "Tú la solicitaste" : "Te la solicitaron"}
+                          </span>
                         </div>
 
-                        <p className="font-bold text-gray-900 text-sm truncate">{r.contraparte?.nombre ?? "Empresa"}</p>
+                        <p className="font-bold text-gray-900 text-sm truncate">
+                          {r.contraparte?.nombre ?? "Empresa"}
+                          {r.contraparte?.codigo && <span className="text-gray-400 font-semibold text-xs ml-1.5">· {r.contraparte.codigo}</span>}
+                        </p>
                         {r.contraparte?.rubro && (
                           <p className="text-xs text-gray-400 truncate">{r.contraparte.rubro}</p>
                         )}

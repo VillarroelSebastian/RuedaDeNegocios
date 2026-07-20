@@ -34,6 +34,8 @@ export default function ConfiguracionDeEventoPage() {
     descripcion: '',
     fechaInicioEvento: '',
     fechaFinEvento: '',
+    fechaInicioSolicitudes: '',
+    fechaFinSolicitudes: '',
     duracionReunion: 20,
     tiempoEntreReuniones: 5,
     cantidadTotalMesasEvento: 50,
@@ -77,6 +79,8 @@ export default function ConfiguracionDeEventoPage() {
             descripcion: data.descripcion || '',
             fechaInicioEvento: data.fechaInicioEvento ? data.fechaInicioEvento.substring(0, 10) : '',
             fechaFinEvento: data.fechaFinEvento ? data.fechaFinEvento.substring(0, 10) : '',
+            fechaInicioSolicitudes: data.fechaInicioSolicitudes ? data.fechaInicioSolicitudes.substring(0, 16) : '',
+            fechaFinSolicitudes: data.fechaFinSolicitudes ? data.fechaFinSolicitudes.substring(0, 16) : '',
             duracionReunion: data.duracionReunion || 20,
             tiempoEntreReuniones: data.tiempoEntreReuniones || 5,
             cantidadTotalMesasEvento: data.cantidadTotalMesasEvento || 50,
@@ -196,6 +200,8 @@ export default function ConfiguracionDeEventoPage() {
       descripcion: orNull(formData.descripcion),
       fechaInicioEvento: formData.fechaInicioEvento ? `${formData.fechaInicioEvento}T00:00:00` : new Date().toISOString(),
       fechaFinEvento: formData.fechaFinEvento ? `${formData.fechaFinEvento}T00:00:00` : new Date().toISOString(),
+      fechaInicioSolicitudes: formData.fechaInicioSolicitudes || null,
+      fechaFinSolicitudes: formData.fechaFinSolicitudes || null,
       duracionReunion: Number(formData.duracionReunion),
       tiempoEntreReuniones: Number(formData.tiempoEntreReuniones),
       cantidadTotalMesasEvento: Number(formData.cantidadTotalMesasEvento),
@@ -290,6 +296,16 @@ export default function ConfiguracionDeEventoPage() {
             <div>
               <label className={styles.label}>Fecha Fin *</label>
               <input required type="date" name="fechaFinEvento" value={formData.fechaFinEvento} onChange={handleChange} className={styles.input} />
+            </div>
+            <div>
+              <label className={styles.label}>Apertura de solicitudes de reunión</label>
+              <input type="datetime-local" name="fechaInicioSolicitudes" value={formData.fechaInicioSolicitudes} onChange={handleChange} className={styles.input} />
+              <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>Opcional. Antes de esta fecha las empresas no podrán solicitar reuniones.</p>
+            </div>
+            <div>
+              <label className={styles.label}>Cierre de solicitudes de reunión</label>
+              <input type="datetime-local" name="fechaFinSolicitudes" value={formData.fechaFinSolicitudes} onChange={handleChange} className={styles.input} />
+              <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>Opcional. Después de esta fecha ya no se aceptarán nuevas solicitudes.</p>
             </div>
             <div>
               <label className={styles.label}>País del evento</label>

@@ -121,6 +121,7 @@ function NuevaSolicitudModal({ ctx, receptoraId, receptoraNombre, onClose, onCre
   const [horarios, setHorarios] = useState<any[]>([]);
   const [duracionMin, setDuracionMin] = useState<number>(0);
   const [horario, setHorario] = useState<any>(null);
+  const [fechaSelec, setFechaSelec] = useState<string>("");
   const [horaSelec, setHoraSelec] = useState<string>("");
   const [minutosStr, setMinutosStr] = useState<string>("00");
   const [mesa, setMesa] = useState<number | null>(null);
@@ -131,25 +132,39 @@ function NuevaSolicitudModal({ ctx, receptoraId, receptoraNombre, onClose, onCre
   const [enviando, setEnviando] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const horasDisponibles = useMemo(() =>
-    [...new Set(horarios.map((h: any) => new Date(h.inicio).getHours()))].sort((a, b) => a - b),
+  // Fecha ISO (YYYY-MM-DD, en horario local) del slot — usada para agrupar horarios por día.
+  const fechaISO = (iso: string) => {
+    const d = new Date(iso);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+
+  const fechasDisponibles = useMemo(() =>
+    [...new Set(horarios.map((h: any) => fechaISO(h.inicio)))].sort(),
     [horarios]
+  );
+  const horariosDelDia = useMemo(() =>
+    fechaSelec ? horarios.filter((h: any) => fechaISO(h.inicio) === fechaSelec) : [],
+    [horarios, fechaSelec]
+  );
+  const horasDisponibles = useMemo(() =>
+    [...new Set(horariosDelDia.map((h: any) => new Date(h.inicio).getHours()))].sort((a, b) => a - b),
+    [horariosDelDia]
   );
   const minutosParaHora = useMemo(() => {
     if (horaSelec === "") return [];
-    return horarios
+    return horariosDelDia
       .filter((h: any) => new Date(h.inicio).getHours() === parseInt(horaSelec))
       .map((h: any) => new Date(h.inicio).getMinutes())
       .sort((a, b) => a - b);
-  }, [horarios, horaSelec]);
+  }, [horariosDelDia, horaSelec]);
   const horarioMatch = useMemo(() => {
     if (horaSelec === "") return null;
     const mins = parseInt(minutosStr) || 0;
-    return horarios.find((h: any) => {
+    return horariosDelDia.find((h: any) => {
       const d = new Date(h.inicio);
       return d.getHours() === parseInt(horaSelec) && d.getMinutes() === mins;
     }) ?? null;
-  }, [horarios, horaSelec, minutosStr]);
+  }, [horariosDelDia, horaSelec, minutosStr]);
   const minutosInvalidos = horaSelec !== "" && minutosStr !== "" && !horarioMatch;
 
   useEffect(() => {
@@ -157,20 +172,30 @@ function NuevaSolicitudModal({ ctx, receptoraId, receptoraNombre, onClose, onCre
     if (!horarioMatch) { setMesa(null); setMesaInvalida(false); }
   }, [horarioMatch]);
 
+  // Al cambiar de fecha, reiniciar hora/minutos y auto-seleccionar la primera hora disponible.
+  useEffect(() => {
+    setHoraSelec(""); setMinutosStr("00");
+    if (horasDisponibles.length > 0) {
+      const cur = fechaSelec === fechaISO(new Date().toISOString()) ? new Date().getHours() : 0;
+      const auto = horasDisponibles.find((h) => h >= cur) ?? horasDisponibles[0];
+      setHoraSelec(String(auto));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fechaSelec]);
+
   useEffect(() => {
     if (!ctx) return;
     setCargando(true);
-    setHorario(null); setHoraSelec(""); setMinutosStr("00"); setMesa(null); setMesaInvalida(false);
+    setHorario(null); setFechaSelec(""); setHoraSelec(""); setMinutosStr("00"); setMesa(null); setMesaInvalida(false);
     fetch(`${API}/empresa/horarios?eeId=${ctx.empresaeventoId}&eeReceptoraId=${receptoraId}`)
       .then((r) => r.json())
       .then((data) => {
         const hrs: any[] = Array.isArray(data?.horarios) ? data.horarios : [];
         setHorarios(hrs);
         setDuracionMin(data?.duracionMinutos ?? 0);
-        const available = [...new Set(hrs.map((h: any) => new Date(h.inicio).getHours()))].sort((a, b) => a - b) as number[];
-        const cur = new Date().getHours();
-        const auto = available.find((h) => h >= cur) ?? available[0];
-        if (auto !== undefined) { setHoraSelec(String(auto)); setMinutosStr("00"); }
+        const fechas = [...new Set(hrs.map((h: any) => fechaISO(h.inicio)))].sort();
+        const hoy = fechaISO(new Date().toISOString());
+        setFechaSelec(fechas.find((f) => f >= hoy) ?? fechas[0] ?? "");
       })
       .catch(() => setHorarios([]))
       .finally(() => setCargando(false));
@@ -250,6 +275,22 @@ function NuevaSolicitudModal({ ctx, receptoraId, receptoraNombre, onClose, onCre
               </p>
             ) : (
               <>
+                {/* Fecha */}
+                <div>
+                  <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1 block">Fecha</label>
+                  <select
+                    value={fechaSelec}
+                    onChange={(e) => setFechaSelec(e.target.value)}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A] bg-white"
+                  >
+                    {fechasDisponibles.map((f) => (
+                      <option key={f} value={f}>
+                        {new Date(f + "T00:00:00").toLocaleDateString("es-BO", { weekday: "long", day: "2-digit", month: "long" })}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 {/* Hour + Minutes pickers */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>

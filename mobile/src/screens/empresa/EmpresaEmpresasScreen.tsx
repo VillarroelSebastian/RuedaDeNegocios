@@ -12,6 +12,7 @@ import {
   AlertCircle, ChevronLeft, Globe, Clock, RefreshCw, AlertTriangle, CheckCircle2, Star,
 } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
+import { paisConBandera } from '../../utils/pais';
 
 const GREEN = '#449D3A';
 const POLL_MS = 3000;
@@ -27,6 +28,14 @@ function fmtDate(iso: string) {
 function fmtTime(iso: string) {
   if (!iso) return '';
   return new Date(iso).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' });
+}
+// Fecha ISO (YYYY-MM-DD, hora local) de un slot — usada para agrupar horarios por día.
+function fechaISO(iso: string) {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function fmtSoloFecha(iso: string) {
+  return new Date(iso + 'T00:00:00').toLocaleDateString('es-BO', { weekday: 'long', day: '2-digit', month: 'long' });
 }
 function fmtUpdateTime(d: Date) {
   return d.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -58,6 +67,7 @@ export default function EmpresaEmpresasScreen() {
   const [horarios,   setHorarios]   = useState<any[]>([]);
   const [duracionMin,setDuracionMin] = useState(0);
   const [horarioSel, setHorarioSel] = useState<any>(null);
+  const [fechaSel,   setFechaSel]   = useState<string | null>(null);
   const [horaSel,    setHoraSel]    = useState<number | null>(null);
   const [minutosStr, setMinutosStr] = useState('00');
   const [loadingH,   setLoadingH]   = useState(false);
@@ -166,10 +176,15 @@ export default function EmpresaEmpresasScreen() {
       const hrs: any[] = Array.isArray(data?.horarios) ? data.horarios : [];
       setHorarios(hrs);
       setDuracionMin(data?.duracionMinutos ?? 0);
-      const available = [...new Set(hrs.map((h: any) => new Date(h.inicio).getHours()))].sort((a: any, b: any) => a - b) as number[];
+      const fechas = [...new Set(hrs.map((h: any) => fechaISO(h.inicio)))].sort() as string[];
+      const hoy = fechaISO(new Date().toISOString());
+      const fechaAuto = fechas.find((f) => f >= hoy) ?? fechas[0] ?? null;
+      setFechaSel(fechaAuto);
+      const delDia = fechaAuto ? hrs.filter((h: any) => fechaISO(h.inicio) === fechaAuto) : [];
+      const available = [...new Set(delDia.map((h: any) => new Date(h.inicio).getHours()))].sort((a: any, b: any) => a - b) as number[];
       const cur = new Date().getHours();
       const auto = available.find((h) => h >= cur) ?? available[0];
-      if (auto !== undefined) { setHoraSel(auto); setMinutosStr('00'); }
+      if (auto !== undefined) { setHoraSel(auto); setMinutosStr('00'); } else { setHoraSel(null); }
     } catch {}
     finally { setLoadingH(false); }
   };
@@ -378,6 +393,7 @@ export default function EmpresaEmpresasScreen() {
               )}
               <View style={{ flex: 1 }}>
                 <Text style={s.cardName} numberOfLines={2}>{item.nombre}</Text>
+                {!!item.codigo && <Text style={s.codigoText}>{item.codigo}</Text>}
                 {!!item.rubro && (
                   <View style={s.rubroBadge}>
                     <Text style={s.rubroText}>{item.rubro}</Text>
@@ -391,7 +407,7 @@ export default function EmpresaEmpresasScreen() {
               <View style={s.metaRow}>
                 <MapPin size={12} color="#94a3b8" style={{ marginRight: 4 }} />
                 <Text style={s.metaText} numberOfLines={1}>
-                  {[item.ciudad, item.pais].filter(Boolean).join(', ')}
+                  {[item.ciudad, paisConBandera(item.pais)].filter(Boolean).join(', ')}
                 </Text>
               </View>
             )}
@@ -599,9 +615,19 @@ export default function EmpresaEmpresasScreen() {
                       horarios={horarios}
                       duracionMin={duracionMin}
                       loadingH={loadingH}
+                      fechaSel={fechaSel}
                       horaSel={horaSel}
                       minutosStr={minutosStr}
                       horarioSel={horarioSel}
+                      onFechaChange={(f) => {
+                        setFechaSel(f);
+                        const delDia = horarios.filter((h: any) => fechaISO(h.inicio) === f);
+                        const available = [...new Set(delDia.map((h: any) => new Date(h.inicio).getHours()))].sort((a: any, b: any) => a - b) as number[];
+                        setHoraSel(available[0] ?? null);
+                        setMinutosStr('00');
+                        setHorarioSel(null);
+                        horarioSelRef.current = null;
+                      }}
                       onHoraChange={(h) => {
                         setHoraSel(h);
                         setMinutosStr('00');
@@ -613,7 +639,8 @@ export default function EmpresaEmpresasScreen() {
                         const mins = parseInt(m) || 0;
                         const match = horarios.find((h: any) => {
                           const d = new Date(h.inicio);
-                          return horaSel !== null && d.getHours() === horaSel && d.getMinutes() === mins;
+                          return horaSel !== null && fechaSel !== null && fechaISO(h.inicio) === fechaSel
+                            && d.getHours() === horaSel && d.getMinutes() === mins;
                         }) ?? null;
                         setHorarioSel(match);
                         horarioSelRef.current = match;
@@ -786,21 +813,23 @@ export default function EmpresaEmpresasScreen() {
 
 // ── HorarioPicker ─────────────────────────────────────────────────────────────
 
-function HorarioPicker({ horarios, duracionMin, loadingH, horaSel, minutosStr, horarioSel,
-  onHoraChange, onMinutosChange, onSelectMatch, onBack, totalSteps }: {
+function HorarioPicker({ horarios, duracionMin, loadingH, fechaSel, horaSel, minutosStr, horarioSel,
+  onFechaChange, onHoraChange, onMinutosChange, onSelectMatch, onBack, totalSteps }: {
   horarios: any[]; duracionMin: number; loadingH: boolean;
-  horaSel: number | null; minutosStr: string; horarioSel: any;
-  onHoraChange: (h: number) => void; onMinutosChange: (m: string) => void;
+  fechaSel: string | null; horaSel: number | null; minutosStr: string; horarioSel: any;
+  onFechaChange: (f: string) => void; onHoraChange: (h: number) => void; onMinutosChange: (m: string) => void;
   onSelectMatch: (h: any) => void; onBack: () => void; totalSteps: number;
 }) {
   const GREEN = '#449D3A';
-  const horasDisponibles = [...new Set(horarios.map((h: any) => new Date(h.inicio).getHours()))].sort((a: any, b: any) => a - b) as number[];
+  const fechasDisponibles = [...new Set(horarios.map((h: any) => fechaISO(h.inicio)))].sort() as string[];
+  const horariosDelDia = fechaSel ? horarios.filter((h: any) => fechaISO(h.inicio) === fechaSel) : [];
+  const horasDisponibles = [...new Set(horariosDelDia.map((h: any) => new Date(h.inicio).getHours()))].sort((a: any, b: any) => a - b) as number[];
   const minutosParaHora = horaSel !== null
-    ? horarios.filter((h: any) => new Date(h.inicio).getHours() === horaSel).map((h: any) => new Date(h.inicio).getMinutes()).sort((a: any, b: any) => a - b)
+    ? horariosDelDia.filter((h: any) => new Date(h.inicio).getHours() === horaSel).map((h: any) => new Date(h.inicio).getMinutes()).sort((a: any, b: any) => a - b)
     : [];
   const mins = parseInt(minutosStr) || 0;
   const horarioMatch = horaSel !== null
-    ? horarios.find((h: any) => {
+    ? horariosDelDia.find((h: any) => {
         const d = new Date(h.inicio);
         return d.getHours() === horaSel && d.getMinutes() === mins;
       }) ?? null
@@ -831,6 +860,25 @@ function HorarioPicker({ horarios, duracionMin, loadingH, horaSel, minutosStr, h
               <Text style={hp.durText}>Las reuniones durarán {duracionMin} minutos</Text>
             </View>
           )}
+
+          {/* Date buttons */}
+          <Text style={hp.label}>Fecha</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {fechasDisponibles.map((f: string) => (
+                <TouchableOpacity
+                  key={f}
+                  onPress={() => onFechaChange(f)}
+                  style={[hp.horaBtn, fechaSel === f && hp.horaBtnActive]}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[hp.horaBtnText, fechaSel === f && hp.horaBtnTextActive]}>
+                    {fmtSoloFecha(f)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
 
           {/* Hour buttons */}
           <Text style={hp.label}>Hora</Text>
@@ -1066,6 +1114,7 @@ const s = StyleSheet.create({
   },
   cardAvatarText: { fontSize: 22, fontWeight: '800', color: GREEN },
   cardName:  { fontSize: 15, fontWeight: '800', color: '#0f172a', lineHeight: 22 },
+  codigoText: { fontSize: 10, fontWeight: '700', color: '#94a3b8', marginTop: 1 },
   rubroBadge: {
     backgroundColor: '#f0fdf4', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3,
     alignSelf: 'flex-start', marginTop: 5, borderWidth: 1, borderColor: '#bbf7d0',

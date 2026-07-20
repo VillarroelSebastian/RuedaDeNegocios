@@ -56,6 +56,10 @@ model empresa {
   correoCorporativo       String            @db.VarChar(105)
   urlFotoPerfil           String?           @db.VarChar(500)
   urlPdf                  String?           @db.VarChar(500)
+  codigo                  String?           @unique @db.VarChar(20)
+  oferta                  String?           @db.VarChar(300)
+  demanda                 String?           @db.VarChar(300)
+  interesesBusqueda       String?           @db.VarChar(300)
   estaActivo              Int               @default(1)
   fechaCreacion           DateTime          @default(now()) @db.Timestamp(6)
   creado_modificado_fecha DateTime?         @db.Timestamp(6)
@@ -73,6 +77,7 @@ model empresa_usuario {
   empresaevento_id Int
   cargo            String             @db.VarChar(55)
   esResponsable    Int                @db.SmallInt
+  urlCredencialQR  String?            @db.VarChar(500)
   estaActivo       Int                @default(1) @db.SmallInt
   empresa          empresa            @relation(fields: [empresa_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_empresa_usuario_empresa")
   empresaevento    empresaevento      @relation(fields: [empresaevento_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_empresa_usuario_empresaevento1")
@@ -161,6 +166,8 @@ model evento {
   descripcion                    String?             @db.VarChar(505)
   fechaInicioEvento              DateTime            @db.Timestamp(6)
   fechaFinEvento                 DateTime            @db.Timestamp(6)
+  fechaInicioSolicitudes         DateTime?           @db.Timestamp(6)
+  fechaFinSolicitudes            DateTime?           @db.Timestamp(6)
   duracionReunion                Int                 @db.SmallInt
   tiempoEntreReuniones           Int                 @db.SmallInt
   cantidadTotalMesasEvento       Int                 @db.SmallInt

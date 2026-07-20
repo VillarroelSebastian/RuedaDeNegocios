@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  ActivityIndicator, RefreshControl, StyleSheet, Modal, Alert, Image,
+  ActivityIndicator, RefreshControl, StyleSheet, Modal, Alert, Image, Linking,
 } from 'react-native';
 import ImagenLightbox from '../../components/ImagenLightbox';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,6 +10,7 @@ import * as ImagePicker from 'expo-image-picker';
 import {
   User, Building2, LogOut, Edit3, UserPlus, UserX,
   ShieldCheck, Users, CreditCard, AlertCircle, Check, X, Upload,
+  Hash, QrCode, ExternalLink, CheckCircle2,
 } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
 
@@ -62,6 +63,15 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
   const [pagoUploading, setPagoUploading] = useState(false);
   const [pagoError,     setPagoError]     = useState('');
   const [pagoOk,        setPagoOk]        = useState(false);
+
+  // Ficha comercial (oferta / demanda / intereses) — solo encargado edita
+  const [comercialModal,  setComercialModal]  = useState(false);
+  const [comOferta,       setComOferta]       = useState('');
+  const [comDemanda,      setComDemanda]      = useState('');
+  const [comIntereses,    setComIntereses]    = useState('');
+  const [comercialSaving, setComercialSaving] = useState(false);
+  const [comercialError,  setComercialError]  = useState('');
+  const [comercialOk,     setComercialOk]     = useState(false);
 
   const user = userStore.get();
 
@@ -120,6 +130,38 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
       setSaveError(e.message || 'Error de red');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const openComercial = () => {
+    setComOferta(empresa?.empresa?.oferta ?? '');
+    setComDemanda(empresa?.empresa?.demanda ?? '');
+    setComIntereses(empresa?.empresa?.interesesBusqueda ?? '');
+    setComercialError(''); setComercialOk(false);
+    setComercialModal(true);
+  };
+
+  const handleSaveComercial = async () => {
+    setComercialError(''); setComercialSaving(true);
+    try {
+      const res = await fetch(`${API_URL}/empresa/perfil-comercial`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          euId: perfil?.empresaUsuarioId,
+          oferta: comOferta.trim(),
+          demanda: comDemanda.trim(),
+          interesesBusqueda: comIntereses.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || 'Error al guardar');
+      setComercialOk(true);
+      fetchAll();
+    } catch (e: any) {
+      setComercialError(e.message || 'Error de red');
+    } finally {
+      setComercialSaving(false);
     }
   };
 
@@ -353,9 +395,61 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
               <Building2 size={16} color={GREEN} style={{ marginRight: 6 }} />
               <Text style={s.sectionTitle}>Empresa</Text>
             </View>
+            <InfoRow label="Código"  value={empresa?.empresa?.codigo ?? '—'} />
             <InfoRow label="Nombre"  value={empresa?.empresa?.nombre ?? '—'} />
             <InfoRow label="Rubro"   value={empresa?.empresa?.rubro ?? '—'} />
             <InfoRow label="Estado"  value={empresa?.estadoAcceso ?? empresa?.estadoPago ?? '—'} />
+          </View>
+        )}
+
+        {/* Ficha comercial: oferta / demanda / intereses */}
+        {empresa && (
+          <View style={s.section}>
+            <View style={[s.sectionHeader, { justifyContent: 'space-between' }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Hash size={16} color={GREEN} style={{ marginRight: 6 }} />
+                <Text style={s.sectionTitle}>Ficha comercial</Text>
+              </View>
+              {esEncargado && (
+                <TouchableOpacity onPress={openComercial} style={s.editBtnSmall} activeOpacity={0.7}>
+                  <Edit3 size={13} color={GREEN} />
+                </TouchableOpacity>
+              )}
+            </View>
+            <View style={s.comercialBox}>
+              <Text style={s.comercialLabel}>Ofrece</Text>
+              <Text style={s.comercialValue}>{empresa?.empresa?.oferta || 'Sin definir'}</Text>
+            </View>
+            <View style={[s.comercialBox, { backgroundColor: '#eff6ff' }]}>
+              <Text style={[s.comercialLabel, { color: '#1e40af' }]}>Busca</Text>
+              <Text style={[s.comercialValue, { color: '#1e3a8a' }]}>{empresa?.empresa?.demanda || 'Sin definir'}</Text>
+            </View>
+            <InfoRow label="Sectores de interés" value={empresa?.empresa?.interesesBusqueda || 'Sin definir'} />
+            {!esEncargado && (
+              <Text style={s.hintText}>Solo el encargado puede editar la ficha comercial.</Text>
+            )}
+          </View>
+        )}
+
+        {/* Credencial digital (QR) */}
+        {!!perfil?.urlCredencialQR && (
+          <View style={s.section}>
+            <View style={s.sectionHeader}>
+              <QrCode size={16} color={GREEN} style={{ marginRight: 6 }} />
+              <Text style={s.sectionTitle}>Tu credencial digital</Text>
+            </View>
+            <View style={{ alignItems: 'center' }}>
+              <ImagenLightbox uri={perfil.urlCredencialQR} style={s.qrImage} />
+              <Text style={s.qrHint}>Toca la imagen para verla en grande. Mantén presionada para guardarla, o ábrela en el navegador:</Text>
+              <TouchableOpacity
+                style={s.qrOpenBtn}
+                onPress={() => Linking.openURL(perfil.urlCredencialQR)}
+                activeOpacity={0.75}
+              >
+                <ExternalLink size={15} color={GREEN} />
+                <Text style={s.qrOpenBtnText}>Abrir / descargar credencial</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         )}
 
@@ -546,6 +640,46 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
                 <TouchableOpacity style={[s.btnPrimary, saving && { opacity: 0.7 }]} onPress={handleSavePerfil} disabled={saving}>
                   {saving ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Guardar</Text>}
                 </TouchableOpacity>
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Ficha comercial modal */}
+      <Modal visible={comercialModal} animationType="slide" transparent statusBarTranslucent>
+        <View style={s.overlay}>
+          <View style={s.modalCard}>
+            <View style={s.modalHeader}>
+              <Text style={s.modalTitle}>Ficha comercial</Text>
+              <TouchableOpacity onPress={() => setComercialModal(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <X size={22} color="#6b7280" />
+              </TouchableOpacity>
+            </View>
+            {comercialOk ? (
+              <View style={s.successBox}>
+                <Check size={40} color={GREEN} />
+                <Text style={s.successText}>Ficha comercial actualizada</Text>
+                <TouchableOpacity style={s.btnPrimary} onPress={() => setComercialModal(false)}>
+                  <Text style={s.btnText}>Cerrar</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <ScrollView>
+                {!!comercialError && <View style={s.errorBox}><Text style={s.errorText}>{comercialError}</Text></View>}
+                <Text style={s.label}>¿Qué ofrece tu empresa?</Text>
+                <TextInput style={[s.input, s.textArea]} value={comOferta} onChangeText={setComOferta}
+                  placeholder="Ej: exportación de café orgánico..." placeholderTextColor="#9ca3af" multiline numberOfLines={3} />
+                <Text style={s.label}>¿Qué busca tu empresa?</Text>
+                <TextInput style={[s.input, s.textArea]} value={comDemanda} onChangeText={setComDemanda}
+                  placeholder="Ej: proveedores de insumos..." placeholderTextColor="#9ca3af" multiline numberOfLines={3} />
+                <Text style={s.label}>Sectores de interés (separados por coma)</Text>
+                <TextInput style={s.input} value={comIntereses} onChangeText={setComIntereses}
+                  placeholder="Ej: Tecnología e Innovación, Agropecuario y Ganadería" placeholderTextColor="#9ca3af" />
+                <TouchableOpacity style={[s.btnPrimary, comercialSaving && { opacity: 0.7 }]} onPress={handleSaveComercial} disabled={comercialSaving}>
+                  {comercialSaving ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Guardar</Text>}
+                </TouchableOpacity>
+                <View style={{ height: 20 }} />
               </ScrollView>
             )}
           </View>
@@ -783,6 +917,23 @@ const s = StyleSheet.create({
     backgroundColor: '#f0fdf4', alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, borderColor: '#bbf7d0',
   },
+  editBtnSmall: {
+    width: 28, height: 28, borderRadius: 8,
+    backgroundColor: '#f0fdf4', alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: '#bbf7d0',
+  },
+  comercialBox: { backgroundColor: '#f0fdf4', borderRadius: 12, padding: 12, marginBottom: 8 },
+  comercialLabel: { fontSize: 10, fontWeight: '800', color: '#166534', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 3 },
+  comercialValue: { fontSize: 13, color: '#166534', lineHeight: 18 },
+  hintText: { fontSize: 11, color: '#9ca3af', marginTop: 4, fontStyle: 'italic' },
+  qrImage: { width: 180, height: 180, borderRadius: 14, borderWidth: 1, borderColor: '#e2e8f0', marginBottom: 12 },
+  qrHint: { fontSize: 12, color: '#64748b', textAlign: 'center', marginBottom: 12, paddingHorizontal: 8, lineHeight: 17 },
+  qrOpenBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#f0fdf4', borderRadius: 12, borderWidth: 1, borderColor: '#bbf7d0',
+    paddingHorizontal: 16, paddingVertical: 10,
+  },
+  qrOpenBtnText: { fontSize: 13, fontWeight: '700', color: GREEN },
   errorBox: {
     padding: 12, borderRadius: 12, marginBottom: 12,
     backgroundColor: '#fef2f2', borderWidth: 1, borderColor: '#fca5a5',
@@ -891,6 +1042,7 @@ const s = StyleSheet.create({
     backgroundColor: '#f8fafc', borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0',
     padding: 12, fontSize: 14, color: '#0f172a',
   },
+  textArea: { minHeight: 80, textAlignVertical: 'top' },
   btnPrimary: {
     backgroundColor: GREEN, borderRadius: 14, height: 52,
     alignItems: 'center', justifyContent: 'center', marginTop: 16,

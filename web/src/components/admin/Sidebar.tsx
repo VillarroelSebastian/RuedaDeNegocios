@@ -103,7 +103,7 @@ export default function Sidebar() {
       {/* Footer */}
       <div className="px-5 py-4 border-t border-gray-100 shrink-0">
         <p className="text-[10px] text-gray-400 text-center">
-          © 2024 Rueda de Negocios del Beni
+          © 2026 Rueda de Negocios del Beni
         </p>
       </div>
       </aside>

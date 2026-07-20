@@ -17,6 +17,8 @@ import EmpresaComunicadosScreen from '../screens/empresa/EmpresaComunicadosScree
 import EmpresaEventosScreen     from '../screens/empresa/EmpresaEventosScreen';
 import EmpresaResultadosScreen  from '../screens/empresa/EmpresaResultadosScreen';
 import EmpresaHorariosScreen    from '../screens/empresa/EmpresaHorariosScreen';
+import EmpresaDirectorioScreen    from '../screens/empresa/EmpresaDirectorioScreen';
+import EmpresaOportunidadesScreen from '../screens/empresa/EmpresaOportunidadesScreen';
 import { userStore, API_URL }   from '../utils/userStore';
 
 const Tab   = createBottomTabNavigator();
@@ -206,8 +208,10 @@ export default function EmpresaNavigator() {
             ),
           }}
         />
-      <Stack.Screen name="Comunicados" component={EmpresaComunicadosScreen} options={{ title: 'Comunicados' }} />
-      <Stack.Screen name="Eventos"     component={EmpresaEventosScreen}     options={{ title: 'Actividades' }} />
+      <Stack.Screen name="Comunicados"   component={EmpresaComunicadosScreen}   options={{ title: 'Comunicados' }} />
+      <Stack.Screen name="Eventos"       component={EmpresaEventosScreen}       options={{ title: 'Actividades' }} />
+      <Stack.Screen name="Directorio"    component={EmpresaDirectorioScreen}    options={{ title: 'Directorio' }} />
+      <Stack.Screen name="Oportunidades" component={EmpresaOportunidadesScreen} options={{ title: 'Oportunidades' }} />
       {esEncargado && (
         <Stack.Screen name="Resultados"  component={EmpresaResultadosScreen}  options={{ title: 'Resultados' }} />
       )}

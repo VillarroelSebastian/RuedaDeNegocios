@@ -199,11 +199,13 @@ export default function EmpresaDashboardScreen({ navigation }: any) {
           <Text style={s.sectionTitle}>Acceso rápido</Text>
           <View style={s.quickGrid}>
             {[
-              { label: 'Comunicados', screen: 'Comunicados', color: '#f0fdf4', soloEncargado: false },
-              { label: 'Actividades', screen: 'Eventos',     color: '#eff6ff', soloEncargado: false },
-              { label: 'Resultados',  screen: 'Resultados',  color: '#f5f3ff', soloEncargado: true  },
-              { label: 'Solicitudes', screen: 'Solicitudes', color: '#fff7ed', soloEncargado: true  },
-              { label: 'Horarios',    screen: 'Horarios',    color: '#ecfdf5', soloEncargado: true  },
+              { label: 'Comunicados',    screen: 'Comunicados',    color: '#f0fdf4', soloEncargado: false },
+              { label: 'Actividades',    screen: 'Eventos',        color: '#eff6ff', soloEncargado: false },
+              { label: 'Directorio',     screen: 'Directorio',     color: '#fdf4ff', soloEncargado: false },
+              { label: 'Oportunidades',  screen: 'Oportunidades',  color: '#fefce8', soloEncargado: false },
+              { label: 'Resultados',     screen: 'Resultados',     color: '#f5f3ff', soloEncargado: true  },
+              { label: 'Solicitudes',    screen: 'Solicitudes',    color: '#fff7ed', soloEncargado: true  },
+              { label: 'Horarios',       screen: 'Horarios',       color: '#ecfdf5', soloEncargado: true  },
             ].filter(q => esEncargado || !q.soloEncargado).map((q) => (
               <TouchableOpacity
                 key={q.screen}

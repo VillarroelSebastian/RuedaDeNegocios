@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import {
   User, Building2, Save, AlertCircle, CheckCircle2, Edit3,
   Users, UserPlus, UserX, CreditCard, AlertTriangle,
-  KeyRound, Shield, X, Upload, FileText,
+  KeyRound, Shield, X, Upload, FileText, Download,
 } from "lucide-react";
+import ImagenLightbox from "@/components/ui/ImagenLightbox";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
@@ -244,6 +245,36 @@ export default function EmpresaPerfilPage() {
   const [mensajeP, setMensajeP] = useState<string | null>(null);
   const [mensajeErrP, setMensajeErrP] = useState<string | null>(null);
 
+  // Ficha comercial (oferta/demanda/intereses) — solo encargado edita
+  const [editandoComercial, setEditandoComercial] = useState(false);
+  const [formComercial, setFormComercial] = useState({ oferta: "", demanda: "", interesesBusqueda: "" });
+  const [guardandoComercial, setGuardandoComercial] = useState(false);
+  const [errComercial, setErrComercial] = useState<string | null>(null);
+  const [exitoComercial, setExitoComercial] = useState<string | null>(null);
+
+  const handleGuardarComercial = async () => {
+    if (!ctx) return;
+    setErrComercial(null);
+    setGuardandoComercial(true);
+    try {
+      const res = await fetch(`${API}/empresa/perfil-comercial`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ euId: ctx.empresaUsuarioId, ...formComercial }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.message || "No se pudo guardar");
+      setCtx((c: any) => ({ ...c, empresa: { ...c.empresa, ...d } }));
+      setEditandoComercial(false);
+      setExitoComercial("Ficha comercial actualizada.");
+      setTimeout(() => setExitoComercial(null), 4000);
+    } catch (e: any) {
+      setErrComercial(e.message);
+    } finally {
+      setGuardandoComercial(false);
+    }
+  };
+
   // Password reset via email (code flow)
   const [resetStep,    setResetStep]    = useState<"idle"|"sending"|"code"|"success">("idle");
   const [resetModal,   setResetModal]   = useState(false);
@@ -324,6 +355,11 @@ export default function EmpresaPerfilPage() {
           apellidoPaterno: data.usuario?.apellidoPaterno ?? "",
           apellidoMaterno: data.usuario?.apellidoMaterno ?? "",
           telefono:        data.usuario?.telefono ?? "",
+        });
+        setFormComercial({
+          oferta:            data.empresa?.oferta ?? "",
+          demanda:           data.empresa?.demanda ?? "",
+          interesesBusqueda: data.empresa?.interesesBusqueda ?? "",
         });
         if (data.esResponsable && data.empresaeventoId) {
           cargarParticipantes(data.empresaeventoId);
@@ -615,6 +651,7 @@ export default function EmpresaPerfilPage() {
             </div>
             <dl className="space-y-3 text-sm">
               {[
+                { k: "Código",       v: empresa?.codigo || "—" },
                 { k: "Nombre",       v: empresa?.nombre },
                 { k: "Rubro",        v: empresa?.rubro },
                 { k: "Correo corp.", v: empresa?.correoCorporativo || "—" },
@@ -632,6 +669,111 @@ export default function EmpresaPerfilPage() {
             </p>
           </div>
         </div>
+
+        {/* Ficha comercial: oferta / demanda / intereses — visible a todos, editable solo por el encargado */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-2">
+              <Building2 className="w-5 h-5 text-[#449D3A]" />
+              <h2 className="font-bold text-gray-900">Ficha comercial</h2>
+            </div>
+            {esResponsable && !editandoComercial && (
+              <button
+                onClick={() => setEditandoComercial(true)}
+                className="flex items-center gap-2 text-xs font-bold text-[#449D3A] hover:bg-green-50 px-3 py-1.5 rounded-lg transition-colors border border-[#449D3A]/30"
+              >
+                <Edit3 className="w-3.5 h-3.5" />Editar
+              </button>
+            )}
+          </div>
+
+          {exitoComercial && (
+            <div className="flex items-center gap-2 bg-green-50 text-green-700 rounded-xl p-3 text-sm mb-4">
+              <CheckCircle2 className="w-4 h-4 shrink-0" />{exitoComercial}
+            </div>
+          )}
+
+          {editandoComercial ? (
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">¿Qué ofrece tu empresa?</label>
+                <textarea value={formComercial.oferta} onChange={(e) => setFormComercial((f) => ({ ...f, oferta: e.target.value }))}
+                  rows={2} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A] resize-none" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">¿Qué busca tu empresa?</label>
+                <textarea value={formComercial.demanda} onChange={(e) => setFormComercial((f) => ({ ...f, demanda: e.target.value }))}
+                  rows={2} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A] resize-none" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">Sectores de interés (separados por coma)</label>
+                <input value={formComercial.interesesBusqueda} onChange={(e) => setFormComercial((f) => ({ ...f, interesesBusqueda: e.target.value }))}
+                  placeholder="Ej: Tecnología e Innovación, Agropecuario y Ganadería"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A]" />
+              </div>
+              {errComercial && (
+                <div className="flex items-center gap-2 bg-red-50 text-red-700 rounded-xl p-3 text-sm">
+                  <AlertCircle className="w-4 h-4 shrink-0" />{errComercial}
+                </div>
+              )}
+              <div className="flex gap-3">
+                <button onClick={() => { setEditandoComercial(false); setErrComercial(null); }}
+                  className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50">
+                  Cancelar
+                </button>
+                <button onClick={handleGuardarComercial} disabled={guardandoComercial}
+                  className="flex-1 py-2.5 rounded-xl bg-[#449D3A] hover:bg-[#3a8531] text-white text-sm font-bold disabled:opacity-50">
+                  {guardandoComercial ? "Guardando..." : "Guardar"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="bg-green-50 rounded-xl p-3">
+                <p className="text-[10px] font-bold text-green-700 uppercase tracking-wide mb-1">Ofrece</p>
+                <p className="text-sm text-green-800">{empresa?.oferta || "Sin definir"}</p>
+              </div>
+              <div className="bg-blue-50 rounded-xl p-3">
+                <p className="text-[10px] font-bold text-blue-700 uppercase tracking-wide mb-1">Busca</p>
+                <p className="text-sm text-blue-800">{empresa?.demanda || "Sin definir"}</p>
+              </div>
+              <div className="sm:col-span-2">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Sectores de interés</p>
+                <p className="text-sm text-gray-700">{empresa?.interesesBusqueda || "Sin definir"}</p>
+              </div>
+            </div>
+          )}
+          {!esResponsable && (
+            <p className="mt-4 text-xs text-gray-400 bg-gray-50 rounded-xl px-3 py-2">
+              Solo el encargado de la empresa puede editar la ficha comercial.
+            </p>
+          )}
+        </div>
+
+        {/* Credencial digital (QR) */}
+        {ctx.urlCredencialQR && (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+            <div className="flex items-center gap-2 mb-5">
+              <User className="w-5 h-5 text-[#449D3A]" />
+              <h2 className="font-bold text-gray-900">Tu credencial digital</h2>
+            </div>
+            <div className="flex flex-col sm:flex-row items-center gap-5">
+              <ImagenLightbox src={ctx.urlCredencialQR} className="w-40 h-40 rounded-xl border border-gray-100 overflow-hidden shrink-0" />
+              <div className="text-center sm:text-left">
+                <p className="text-sm text-gray-600 mb-3">Presenta este código QR en el evento como tu credencial de acceso.</p>
+                <a
+                  href={ctx.urlCredencialQR}
+                  download={`credencial-${empresa?.codigo ?? "rueda"}.png`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 bg-[#449D3A] hover:bg-[#3a8531] text-white text-sm font-bold px-4 py-2.5 rounded-xl transition-colors"
+                >
+                  <Download className="w-4 h-4" />Descargar credencial
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ═══ SECTION: Gestión de Participantes (Encargado only) ═══════════════ */}
         {esResponsable && (

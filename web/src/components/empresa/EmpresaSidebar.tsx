@@ -5,19 +5,21 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, CalendarDays, Newspaper, Building2,
-  Send, Users, Star, User, Briefcase, Clock, X,
+  Send, Users, Star, User, Briefcase, Clock, X, BookUser, Sparkles,
 } from 'lucide-react';
 
 const allMenuItems = [
-  { name: 'Dashboard',     icon: LayoutDashboard, href: '/empresa/dashboard',    soloEncargado: false },
-  { name: 'Eventos',       icon: CalendarDays,    href: '/empresa/eventos',      soloEncargado: false },
-  { name: 'Comunicados',   icon: Newspaper,       href: '/empresa/comunicados',  soloEncargado: false },
-  { name: 'Mis Reuniones', icon: Users,           href: '/empresa/reuniones',    soloEncargado: false },
-  { name: 'Empresas',      icon: Building2,       href: '/empresa/empresas',     soloEncargado: true  },
-  { name: 'Solicitudes',   icon: Send,            href: '/empresa/solicitudes',  soloEncargado: true  },
-  { name: 'Mis Horarios',  icon: Clock,           href: '/empresa/horarios',     soloEncargado: true  },
-  { name: 'Resultados',    icon: Star,            href: '/empresa/resultados',   soloEncargado: true  },
-  { name: 'Mi Perfil',     icon: User,            href: '/empresa/perfil',       soloEncargado: false },
+  { name: 'Dashboard',      icon: LayoutDashboard, href: '/empresa/dashboard',     soloEncargado: false },
+  { name: 'Eventos',        icon: CalendarDays,    href: '/empresa/eventos',       soloEncargado: false },
+  { name: 'Comunicados',    icon: Newspaper,       href: '/empresa/comunicados',   soloEncargado: false },
+  { name: 'Mis Reuniones',  icon: Users,           href: '/empresa/reuniones',     soloEncargado: false },
+  { name: 'Directorio',     icon: BookUser,        href: '/empresa/directorio',    soloEncargado: false },
+  { name: 'Oportunidades',  icon: Sparkles,        href: '/empresa/oportunidades', soloEncargado: false },
+  { name: 'Empresas',       icon: Building2,       href: '/empresa/empresas',      soloEncargado: true  },
+  { name: 'Solicitudes',    icon: Send,            href: '/empresa/solicitudes',   soloEncargado: true  },
+  { name: 'Mis Horarios',   icon: Clock,           href: '/empresa/horarios',      soloEncargado: true  },
+  { name: 'Resultados',     icon: Star,            href: '/empresa/resultados',    soloEncargado: true  },
+  { name: 'Mi Perfil',      icon: User,            href: '/empresa/perfil',        soloEncargado: false },
 ];
 
 interface EmpresaSidebarProps {

@@ -4,6 +4,10 @@ import { PrismaService } from './prisma/prisma.service.js';
 import { NotificacionesGateway } from './notificaciones/notificaciones.gateway.js';
 import * as bcrypt from 'bcrypt';
 import * as nodemailer from 'nodemailer';
+import * as QRCode from 'qrcode';
+import { writeFileSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { randomBytes } from 'node:crypto';
 
 function createMailTransporter() {
   return nodemailer.createTransport({
@@ -56,6 +60,34 @@ export class AppController implements OnModuleInit {
       });
     } catch (_) { /* la notificación en vivo sigue aunque falle la persistencia */ }
     this.notifGateway.emitirParaEe(eeId, tipo, { titulo, mensaje });
+  }
+
+  // Base pública para construir URLs de archivos guardados en /uploads (mismo
+  // criterio que ImagenesController: PUBLIC_URL en producción, localhost en dev).
+  private uploadsBaseUrl(): string {
+    return (process.env.PUBLIC_URL || `http://localhost:${process.env.PORT ?? 3334}`).replace(/\/$/, '');
+  }
+
+  private async asegurarCodigoEmpresa(empresaId: number, codigoActual: string | null): Promise<string> {
+    if (codigoActual) return codigoActual;
+    const codigo = `RB-${String(empresaId).padStart(4, '0')}`;
+    await this.prisma.empresa.update({ where: { id: empresaId }, data: { codigo } });
+    return codigo;
+  }
+
+  // Genera la credencial digital (QR) de un participante: un PNG guardado en
+  // /uploads que codifica su código de acceso. Se usa tanto en el correo de
+  // bienvenida como en "Mi Perfil" (con botón de descarga).
+  private async generarCredencialQR(euId: number, empresaCodigo: string, nombreCompleto: string): Promise<string> {
+    const contenido = `RUEDA-BENI|${empresaCodigo}|EU-${euId}|${nombreCompleto}`;
+    const uploadsDir = join(process.cwd(), 'uploads');
+    mkdirSync(uploadsDir, { recursive: true });
+    const filename = `credencial-${euId}-${randomBytes(4).toString('hex')}.png`;
+    const buffer = await QRCode.toBuffer(contenido, { width: 400, margin: 2, color: { dark: '#0f172a', light: '#ffffff' } });
+    writeFileSync(join(uploadsDir, filename), buffer);
+    const url = `${this.uploadsBaseUrl()}/uploads/${filename}`;
+    await this.prisma.empresa_usuario.update({ where: { id: euId }, data: { urlCredencialQR: url } });
+    return url;
   }
 
   async onModuleInit() {
@@ -348,9 +380,13 @@ export class AppController implements OnModuleInit {
         telefonoWhatsapp: body.empresa.telefonoWhatsapp,
         correoCorporativo: body.empresa.correoCorporativo,
         urlFotoPerfil: '',
+        oferta: body.empresa.oferta || null,
+        demanda: body.empresa.demanda || null,
+        interesesBusqueda: body.empresa.interesesBusqueda || null,
         estaActivo: 1,
       },
     });
+    if (!empresaExistente) await this.asegurarCodigoEmpresa(empresa.id, null);
 
     // Crear empresaevento
     const ee = await this.prisma.empresaevento.create({
@@ -694,6 +730,8 @@ export class AppController implements OnModuleInit {
       descripcion: orNull(body.descripcion),
       fechaInicioEvento: body.fechaInicioEvento ? new Date(body.fechaInicioEvento) : new Date(),
       fechaFinEvento: body.fechaFinEvento ? new Date(body.fechaFinEvento) : new Date(),
+      fechaInicioSolicitudes: body.fechaInicioSolicitudes ? new Date(body.fechaInicioSolicitudes) : null,
+      fechaFinSolicitudes: body.fechaFinSolicitudes ? new Date(body.fechaFinSolicitudes) : null,
       duracionReunion: Number(body.duracionReunion) || 20,
       tiempoEntreReuniones: Number(body.tiempoEntreReuniones) || 5,
       cantidadTotalMesasEvento: Number(body.cantidadTotalMesasEvento) || 50,
@@ -1026,6 +1064,8 @@ export class AppController implements OnModuleInit {
       data: { estadoPago: 'COMPLETADO' },
     });
 
+    const codigoEmpresa = await this.asegurarCodigoEmpresa((ee as any).empresa.id, (ee as any).empresa.codigo);
+
     for (const eu of (ee as any).empresa_usuario.filter((e: any) => e.estaActivo !== 0)) {
       const u = eu.usuario;
       const pwd = generarPasswordTemporal();
@@ -1034,6 +1074,13 @@ export class AppController implements OnModuleInit {
         where: { id: u.id },
         data: { contrasenia: hashed, creadoModificadoFecha: new Date() },
       });
+
+      let qrUrl = '';
+      try {
+        qrUrl = await this.generarCredencialQR(eu.id, codigoEmpresa, `${u.nombres} ${u.apellidoPaterno}`);
+      } catch (qrErr) {
+        console.warn(`[WARN] No se pudo generar credencial QR para euId=${eu.id}:`, qrErr instanceof Error ? qrErr.message : qrErr);
+      }
 
       const esEncargado = eu.esResponsable === 1;
       const encargadoBanner = esEncargado
@@ -1075,10 +1122,17 @@ export class AppController implements OnModuleInit {
               <div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:20px;margin-bottom:20px">
                 <p style="color:#6b7280;font-size:13px;margin:0 0 12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Tus credenciales de acceso</p>
                 <table style="width:100%;border-collapse:collapse">
-                  <tr><td style="padding:6px 0;color:#6b7280;font-size:13px;width:110px">Correo</td><td style="padding:6px 0;font-weight:700;color:#111827">${u.correo}</td></tr>
+                  <tr><td style="padding:6px 0;color:#6b7280;font-size:13px;width:110px">Código empresa</td><td style="padding:6px 0;font-weight:700;color:#111827">${codigoEmpresa}</td></tr>
+                  <tr><td style="padding:6px 0;color:#6b7280;font-size:13px">Correo</td><td style="padding:6px 0;font-weight:700;color:#111827">${u.correo}</td></tr>
                   <tr><td style="padding:6px 0;color:#6b7280;font-size:13px">Contraseña</td><td style="padding:6px 0;font-weight:700;color:#111827;font-size:18px;letter-spacing:2px">${pwd}</td></tr>
                 </table>
               </div>
+              ${qrUrl ? `
+              <div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:20px;margin-bottom:20px;text-align:center">
+                <p style="color:#6b7280;font-size:13px;margin:0 0 12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Tu credencial digital</p>
+                <img src="${qrUrl}" alt="Código QR de acceso" width="180" height="180" style="border-radius:8px" />
+                <p style="color:#9ca3af;font-size:11px;margin:10px 0 0">Preséntala en el evento. También la encontrarás en tu perfil.</p>
+              </div>` : ''}
               <p style="color:#9ca3af;font-size:12px;margin:0">Por seguridad, te recomendamos cambiar tu contraseña después del primer inicio de sesión.</p>
             </div>
           `,
@@ -2619,8 +2673,11 @@ export class AppController implements OnModuleInit {
         id: eu.empresa.id, nombre: eu.empresa.nombre, rubro: eu.empresa.rubro,
         correoCorporativo: eu.empresa.correoCorporativo, telefonoWhatsapp: eu.empresa.telefonoWhatsapp,
         sitioWeb: eu.empresa.sitioWeb, descripcion: eu.empresa.descripcion, urlFotoPerfil: eu.empresa.urlFotoPerfil,
+        codigo: eu.empresa.codigo, oferta: eu.empresa.oferta, demanda: eu.empresa.demanda,
+        interesesBusqueda: eu.empresa.interesesBusqueda,
       },
       esResponsable: eu.esResponsable === 1,
+      urlCredencialQR: (eu as any).urlCredencialQR ?? null,
       evento: eu.empresaevento?.evento ?? null,
       estadoPago: eu.empresaevento?.estadoVerificacionPago ?? 'PENDIENTE',
       estadoAcceso: eu.empresaevento?.estadoHabilitacionAcceso ?? 'PENDIENTE',
@@ -2739,6 +2796,7 @@ export class AppController implements OnModuleInit {
       return {
         empresaeventoId: ee.id,
         empresaId: ee.empresa_id,
+        codigo: ee.empresa.codigo,
         nombre: ee.empresa.nombre,
         rubro: ee.empresa.rubro,
         descripcion: ee.empresa.descripcion,
@@ -2759,6 +2817,132 @@ export class AppController implements OnModuleInit {
       if (pa !== pb) return pb - pa;
       return (a.nombre ?? '').localeCompare(b.nombre ?? '', 'es');
     });
+  }
+
+  // Directorio de participantes: pensado para VER el perfil de cada empresa
+  // (oferta, demanda, contacto, código) — distinto de "Empresas" que sirve
+  // para solicitar reunión directamente. Admite filtros de oferta/demanda/lugar.
+  @Get('empresa/directorio')
+  async getDirectorioParticipantes(
+    @Query('eeId') eeId: string,
+    @Query('oferta') oferta?: string,
+    @Query('demanda') demanda?: string,
+    @Query('lugar') lugar?: string,
+  ) {
+    if (!eeId) throw new BadRequestException('eeId requerido');
+    const eventoId = await this.getPrincipalEventoId();
+    if (!eventoId) return [];
+
+    const [miEe, ees] = await Promise.all([
+      this.prisma.empresaevento.findUnique({ where: { id: Number(eeId) }, include: { empresa: true } }),
+      this.prisma.empresaevento.findMany({
+        where: {
+          evento_id: eventoId,
+          estaActivo: 1,
+          estadoVerificacionPago: 'COMPLETADO',
+          estadoHabilitacionAcceso: 'HABILITADO',
+          id: { not: Number(eeId) },
+          empresa: {
+            ...(oferta ? { oferta: { contains: oferta, mode: 'insensitive' } } : {}),
+            ...(demanda ? { demanda: { contains: demanda, mode: 'insensitive' } } : {}),
+            ...(lugar
+              ? { ciudad: { OR: [{ nombre: { contains: lugar, mode: 'insensitive' } }, { pais: { nombre: { contains: lugar, mode: 'insensitive' } } }] } }
+              : {}),
+          },
+        },
+        include: { empresa: { include: { ciudad: { include: { pais: true } } } } },
+      }),
+    ]);
+
+    const miRubro = miEe?.empresa?.rubro ?? null;
+    const mapped = ees.map((ee) => ({
+      empresaeventoId: ee.id,
+      empresaId: ee.empresa_id,
+      codigo: ee.empresa.codigo,
+      nombre: ee.empresa.nombre,
+      rubro: ee.empresa.rubro,
+      descripcion: ee.empresa.descripcion,
+      oferta: ee.empresa.oferta,
+      demanda: ee.empresa.demanda,
+      urlFotoPerfil: ee.empresa.urlFotoPerfil,
+      sitioWeb: ee.empresa.sitioWeb,
+      urlPdf: ee.empresa.urlPdf,
+      correoCorporativo: ee.empresa.correoCorporativo,
+      telefonoWhatsapp: ee.empresa.telefonoWhatsapp,
+      ciudad: ee.empresa.ciudad?.nombre ?? null,
+      pais: ee.empresa.ciudad?.pais?.nombre ?? null,
+      tipoParticipacion: ee.tipoParticipacion,
+      afinidad: this.calcularAfinidad(miRubro, ee.empresa.rubro),
+    }));
+    return mapped.sort((a, b) => (a.nombre ?? '').localeCompare(b.nombre ?? '', 'es'));
+  }
+
+  // Coincidencia simple por palabras clave (>=4 letras, sin tildes) entre dos textos.
+  private hayCoincidenciaTexto(a: string | null | undefined, b: string | null | undefined): boolean {
+    if (!a || !b) return false;
+    const normalizar = (s: string) =>
+      s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').split(/[^a-z0-9]+/).filter((w) => w.length >= 4);
+    const setA = new Set(normalizar(a));
+    const palabrasB = normalizar(b);
+    return palabrasB.some((w) => setA.has(w));
+  }
+
+  // Oportunidades: empresas cuyo interés declarado coincide con mi rubro, o cuya
+  // oferta/demanda tiene palabras en común con mi demanda/oferta. Reglas simples
+  // (sin IA), pensado como apoyo para decidir con quién conviene reunirse.
+  @Get('empresa/oportunidades')
+  async getOportunidades(@Query('eeId') eeId: string) {
+    if (!eeId) throw new BadRequestException('eeId requerido');
+    const eventoId = await this.getPrincipalEventoId();
+    if (!eventoId) return [];
+
+    const miEe = await this.prisma.empresaevento.findUnique({ where: { id: Number(eeId) }, include: { empresa: true } });
+    if (!miEe) return [];
+    const mi = miEe.empresa;
+
+    const ees = await this.prisma.empresaevento.findMany({
+      where: {
+        evento_id: eventoId, estaActivo: 1,
+        estadoVerificacionPago: 'COMPLETADO', estadoHabilitacionAcceso: 'HABILITADO',
+        id: { not: Number(eeId) },
+      },
+      include: { empresa: { include: { ciudad: { include: { pais: true } } } } },
+    });
+
+    const resultados = ees
+      .map((ee) => {
+        const otra = ee.empresa;
+        const motivos: string[] = [];
+        if (otra.interesesBusqueda && this.hayCoincidenciaTexto(otra.interesesBusqueda, mi.rubro)) {
+          motivos.push(`Busca empresas del rubro "${mi.rubro}"`);
+        }
+        if (mi.interesesBusqueda && this.hayCoincidenciaTexto(mi.interesesBusqueda, otra.rubro)) {
+          motivos.push(`Coincide con tu interés declarado`);
+        }
+        if (this.hayCoincidenciaTexto(otra.oferta, mi.demanda)) motivos.push('Su oferta coincide con lo que buscas');
+        if (this.hayCoincidenciaTexto(otra.demanda, mi.oferta)) motivos.push('Busca lo que tu empresa ofrece');
+        if (motivos.length === 0 && this.calcularAfinidad(mi.rubro, otra.rubro) === 'alta') {
+          motivos.push('Mismo rubro que tu empresa');
+        }
+        return { ee, motivos };
+      })
+      .filter((r) => r.motivos.length > 0)
+      .map(({ ee, motivos }) => ({
+        empresaeventoId: ee.id,
+        empresaId: ee.empresa_id,
+        codigo: ee.empresa.codigo,
+        nombre: ee.empresa.nombre,
+        rubro: ee.empresa.rubro,
+        oferta: ee.empresa.oferta,
+        demanda: ee.empresa.demanda,
+        urlFotoPerfil: ee.empresa.urlFotoPerfil,
+        ciudad: ee.empresa.ciudad?.nombre ?? null,
+        pais: ee.empresa.ciudad?.pais?.nombre ?? null,
+        motivos,
+      }))
+      .sort((a, b) => b.motivos.length - a.motivos.length);
+
+    return resultados;
   }
 
   // ── Asistente virtual rule-based ─────────────────────────────────────────────
@@ -3351,6 +3535,42 @@ export class AppController implements OnModuleInit {
   }
 
   @Post('empresa/solicitudes')
+  // Elige una mesa libre en el horario dado, priorizando la que menos reuniones
+  // tenga asignadas en todo el evento (en vez de siempre la de número más bajo).
+  // Entre empatadas, se sortea para no favorecer siempre a la misma.
+  private async elegirMesaBalanceada(eventoId: number, iniDate: Date, finDate: Date): Promise<number | null> {
+    const [mesasLibres, conteos] = await Promise.all([
+      this.prisma.mesa.findMany({
+        where: {
+          evento_id: eventoId,
+          estaActivo: 1,
+          estaHabilitada: 1,
+          reunion: {
+            none: {
+              estaActivo: 1,
+              estadoReunion: { not: 'CANCELADA' },
+              fechaHoraInicioReunion: { lt: finDate },
+              fechaHoraFinReunion: { gt: iniDate },
+            },
+          },
+        },
+        select: { id: true },
+      }),
+      this.prisma.reunion.groupBy({
+        by: ['mesa_id'],
+        where: { evento_id: eventoId, estaActivo: 1, estadoReunion: { not: 'CANCELADA' } },
+        _count: { id: true },
+      }),
+    ]);
+    if (mesasLibres.length === 0) return null;
+
+    const usoPorMesa = new Map<number, number>(conteos.map((c) => [c.mesa_id, c._count.id]));
+    const ranked = mesasLibres
+      .map((m) => ({ id: m.id, uso: usoPorMesa.get(m.id) ?? 0, rnd: Math.random() }))
+      .sort((a, b) => a.uso - b.uso || a.rnd - b.rnd);
+    return ranked[0].id;
+  }
+
   async crearSolicitud(@Body() body: any) {
     const { eeId, eeReceptoraId, euId, tipo, inicio, fin, mesaId, enlace, mensaje } = body;
     if (!eeId || !eeReceptoraId || !euId || !tipo || !inicio || !fin)
@@ -3369,6 +3589,26 @@ export class AppController implements OnModuleInit {
 
     const iniDate = new Date(inicio);
     const finDate = new Date(fin);
+    const eventoId = await this.getPrincipalEventoId();
+
+    // Ventana de solicitudes: si el evento define fechaInicio/FinSolicitudes, se respeta.
+    const eventoCfg = eventoId
+      ? await this.prisma.evento.findUnique({
+          where: { id: eventoId },
+          select: { fechaInicioSolicitudes: true, fechaFinSolicitudes: true },
+        })
+      : null;
+    const ahora = new Date();
+    if (eventoCfg?.fechaInicioSolicitudes && ahora < new Date(eventoCfg.fechaInicioSolicitudes)) {
+      throw new BadRequestException(
+        `Las solicitudes de reunión abren el ${new Date(eventoCfg.fechaInicioSolicitudes).toLocaleString('es-BO')}`,
+      );
+    }
+    if (eventoCfg?.fechaFinSolicitudes && ahora > new Date(eventoCfg.fechaFinSolicitudes)) {
+      throw new BadRequestException(
+        `El plazo para solicitar reuniones cerró el ${new Date(eventoCfg.fechaFinSolicitudes).toLocaleString('es-BO')}`,
+      );
+    }
 
     // Evitar duplicado exacto: mismo emisor → mismo receptor, mismo horario, estado activo
     const duplicado = await this.prisma.solicitudreunion.findFirst({
@@ -3382,29 +3622,13 @@ export class AppController implements OnModuleInit {
     });
     if (duplicado) throw new BadRequestException('Ya enviaste una solicitud para ese horario a esta empresa');
 
-    // Para reuniones virtuales: asignar mesa automáticamente
+    // Para reuniones virtuales: asignar mesa automáticamente, balanceando el uso
+    // entre todas las mesas libres en vez de tomar siempre la de número más bajo.
     let mesaAsignada: number | null = mesaId ? Number(mesaId) : null;
-    const eventoId = await this.getPrincipalEventoId();
 
     if (!mesaAsignada) {
-      const mesaLibre = await this.prisma.mesa.findFirst({
-        where: {
-          evento_id: eventoId!,
-          estaActivo: 1,
-          estaHabilitada: 1,
-          reunion: {
-            none: {
-              estaActivo: 1,
-              estadoReunion: { not: 'CANCELADA' },
-              fechaHoraInicioReunion: { lt: finDate },
-              fechaHoraFinReunion: { gt: iniDate },
-            },
-          },
-        },
-        orderBy: { numeroMesa: 'asc' },
-      });
-      if (!mesaLibre) throw new BadRequestException('No hay mesas disponibles para ese horario');
-      mesaAsignada = mesaLibre.id;
+      mesaAsignada = await this.elegirMesaBalanceada(eventoId!, iniDate, finDate);
+      if (!mesaAsignada) throw new BadRequestException('No hay mesas disponibles para ese horario');
     } else {
       // Validar que la mesa esté libre
       const ocupada = await this.prisma.reunion.findFirst({
@@ -3654,10 +3878,10 @@ export class AppController implements OnModuleInit {
         solicitudreunion: {
           include: {
             empresaevento_solicitudreunion_empresaEvento_idToempresaevento: {
-              include: { empresa: { select: { id: true, nombre: true, rubro: true, urlFotoPerfil: true } } },
+              include: { empresa: { select: { id: true, codigo: true, nombre: true, rubro: true, urlFotoPerfil: true } } },
             },
             empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento: {
-              include: { empresa: { select: { id: true, nombre: true, rubro: true, urlFotoPerfil: true } } },
+              include: { empresa: { select: { id: true, codigo: true, nombre: true, rubro: true, urlFotoPerfil: true } } },
             },
           },
         },
@@ -3669,12 +3893,12 @@ export class AppController implements OnModuleInit {
       orderBy: { fechaHoraInicioReunion: 'asc' },
     });
 
-    return reuniones.map((r) => {
+    const mapeadas = reuniones.map((r) => {
       const sol = (r as any).solicitudreunion;
       const solicitanteEe = sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento;
       const receptoraEe = sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento;
-      const soyA = solicitanteEe?.id === Number(eeId);
-      const contraparte = soyA ? receptoraEe?.empresa : solicitanteEe?.empresa;
+      const yoSolicite = solicitanteEe?.id === Number(eeId);
+      const contraparte = yoSolicite ? receptoraEe?.empresa : solicitanteEe?.empresa;
       return {
         id: r.id,
         tipo: r.tipoReunion,
@@ -3687,7 +3911,16 @@ export class AppController implements OnModuleInit {
         miResultado: (r as any).resultadoreunion?.[0] ?? null,
         solicitanteEeId: solicitanteEe?.id,
         receptoraEeId: receptoraEe?.id,
+        // true = la solicité yo; false = me la solicitaron a mí
+        yoSolicite,
       };
+    });
+
+    // Prioridad: primero las que yo solicité, luego las que me solicitaron;
+    // dentro de cada grupo, orden cronológico.
+    return mapeadas.sort((a, b) => {
+      if (a.yoSolicite !== b.yoSolicite) return a.yoSolicite ? -1 : 1;
+      return new Date(a.inicio).getTime() - new Date(b.inicio).getTime();
     });
   }
 
@@ -4371,7 +4604,32 @@ export class AppController implements OnModuleInit {
       empresa: eu.empresa,
       cargo: eu.cargo,
       esResponsable: eu.esResponsable === 1,
+      urlCredencialQR: (eu as any).urlCredencialQR ?? null,
     };
+  }
+
+  // Encargado edita la ficha comercial de la empresa: oferta, demanda e
+  // intereses de búsqueda (usados por Directorio y Oportunidades).
+  @Put('empresa/perfil-comercial')
+  async updateEmpresaPerfilComercial(@Body() body: { euId: number; oferta?: string; demanda?: string; interesesBusqueda?: string }) {
+    const { euId } = body;
+    if (!euId) throw new BadRequestException('euId requerido');
+    const eu = await this.prisma.empresa_usuario.findUnique({
+      where: { id: Number(euId) },
+      select: { empresa_id: true, esResponsable: true },
+    });
+    if (!eu) throw new BadRequestException('Registro no encontrado');
+    if (eu.esResponsable !== 1) throw new BadRequestException('Solo el encargado puede editar la ficha comercial de la empresa');
+    return this.prisma.empresa.update({
+      where: { id: eu.empresa_id },
+      data: {
+        oferta: body.oferta?.trim() || null,
+        demanda: body.demanda?.trim() || null,
+        interesesBusqueda: body.interesesBusqueda?.trim() || null,
+        creado_modificado_fecha: new Date(),
+      },
+      select: { id: true, codigo: true, oferta: true, demanda: true, interesesBusqueda: true },
+    });
   }
 
   @Put('empresa/perfil')
