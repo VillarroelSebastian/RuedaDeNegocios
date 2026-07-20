@@ -1,13 +1,23 @@
 # Despliegue en VPS Hostinger (Ubuntu 24.04)
 
+**Producción: https://app.ruedadenegocios.univalle.edu** (HTTPS activo vía Let's Encrypt/Certbot,
+renovación automática, certificado emitido 2026-07 / vence 2026-10-18).
+
 Arquitectura final:
 
 ```
-Internet ──:80──▶ Nginx ──▶ Next.js (:3000)          [web]
-Internet ──:3334─────────▶ NestJS + Socket.IO        [backend + /uploads]
-                              └──▶ PostgreSQL local
+Internet ──:443/HTTPS──▶ Nginx ──▶ Next.js (:3000)                  [web, /]
+                              └──▶ NestJS + Socket.IO (:3334)        [/api, /socket.io, /uploads]
+                                       └──▶ PostgreSQL local
+Internet ──:3334 (IP directa, sin proxy) ──▶ NestJS                 [acceso directo, ej. app móvil en dev]
 PM2 mantiene ambos procesos vivos y los reinicia al reboot.
+Certbot renueva el certificado solo (systemd timer).
 ```
+
+La IP directa `212.85.0.138` en el puerto 80 devuelve 404 a propósito (Certbot
+redirige todo host desconocido) — el dominio es la única entrada web válida.
+El puerto 3334 sigue respondiendo por IP sin pasar por Nginx (útil para
+depurar la API o para apps móviles en desarrollo).
 
 ## Pasos (una sola vez)
 
@@ -29,10 +39,12 @@ bash setup-vps.sh
 ```
 
 El script instala todo, restaura el dump si está en `/root/rueda_dump.sql`,
-construye ambas apps y deja corriendo:
+construye ambas apps, emite el certificado HTTPS (si el DNS del dominio ya
+apunta al servidor) y deja corriendo:
 
-- **Web**: http://212.85.0.138
-- **API**: http://212.85.0.138:3334
+- **Web**: https://app.ruedadenegocios.univalle.edu
+- **API**: https://app.ruedadenegocios.univalle.edu/api
+- (fallback sin dominio: http://212.85.0.138 / http://212.85.0.138:3334)
 
 ## Actualizar a una nueva versión
 
@@ -47,10 +59,12 @@ ssh root@212.85.0.138 "bash /var/www/rueda/deploy/setup-vps.sh"
 Crear `mobile/.env` con:
 
 ```
-EXPO_PUBLIC_API_URL=http://212.85.0.138:3334
+EXPO_PUBLIC_API_URL=https://app.ruedadenegocios.univalle.edu/api
 ```
 
 y volver a compilar/abrir con Expo. (`userStore.ts` ya prioriza esa variable.)
+Nota: el Socket.IO del cliente ya recorta el sufijo `/api` automáticamente
+para conectarse al origen correcto — no hace falta configurarlo aparte.
 
 ## Comandos útiles en el VPS
 
@@ -61,14 +75,15 @@ pm2 restart rueda-web
 sudo -u postgres psql -d ruedanegocios   # consola de la BD
 ```
 
-## Cuando tengan dominio (opcional, recomendado)
+## Dominio y HTTPS (ya activo)
 
-1. Apuntar el dominio A → 212.85.0.138 (y `api.dominio.com` A → la misma IP).
-2. En Nginx: agregar un `server` para `api.dominio.com` → `proxy_pass http://127.0.0.1:3334;`
-   **con los headers `Upgrade`/`Connection "upgrade"`** (Socket.IO los necesita).
-3. `apt install certbot python3-certbot-nginx && certbot --nginx` → HTTPS gratis.
-4. Cambiar `API_PUBLIC_URL` en `setup-vps.sh` a `https://api.dominio.com`, re-ejecutar el script.
-   HTTPS es requisito para que la app móvil funcione en builds de producción.
+`app.ruedadenegocios.univalle.edu` → `212.85.0.138` (registro A gestionado por TI de Univalle).
+`setup-vps.sh` detecta si el certificado ya existe: si sí, **no toca** la configuración de
+Nginx que Certbot dejó (evita romper el bloque HTTPS en un redeploy); si no existe aún,
+la crea con Certbot automáticamente (requiere que el DNS ya resuelva a este servidor).
+
+Renovación: automática vía systemd timer de Certbot. Verificar manualmente con
+`certbot renew --dry-run` si hace falta.
 
 ## Notas de seguridad
 

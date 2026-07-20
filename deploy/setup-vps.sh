@@ -10,13 +10,21 @@ set -e
 
 # ── Configuración ───────────────────────────────────────────────────────────
 IP_PUBLICA="212.85.0.138"
+DOMINIO="app.ruedadenegocios.univalle.edu"   # dominio en producción, con HTTPS vía Certbot
 REPO_URL="https://github.com/VillarroelSebastian/RuedaDeNegocios.git"
 APP_DIR="/var/www/rueda"
 DB_NAME="ruedanegocios"
 DB_USER="rueda"
-# Si más adelante tienen dominio, cambiar por https://api.dominio / https://dominio
-API_PUBLIC_URL="http://${IP_PUBLICA}:3334"
-WEB_PUBLIC_URL="http://${IP_PUBLICA}"
+# API y web quedan detrás de Nginx bajo el mismo origen HTTPS del dominio:
+#   https://dominio/api/*      → backend (proxy quita el prefijo /api)
+#   https://dominio/socket.io/ → backend (websockets)
+#   https://dominio/uploads/*  → backend (imágenes subidas)
+#   https://dominio/*          → web
+WEB_PUBLIC_URL="https://${DOMINIO}"
+API_PUBLIC_URL="https://${DOMINIO}/api"
+# Base para las URLs de archivos subidos (/uploads) — sin sufijo /api, es una
+# location aparte en Nginx que también apunta directo al backend.
+UPLOADS_BASE_URL="https://${DOMINIO}"
 
 # ── Secretos (NUNCA en el repositorio) ──────────────────────────────────────
 # Subir antes con:  scp deploy/secrets.env root@IP:/root/rueda_secrets.env
@@ -76,7 +84,7 @@ PORT=3334
 MAIL_USER="${MAIL_USER}"
 MAIL_PASS="${MAIL_PASS}"
 MAIL_FROM="${MAIL_FROM}"
-PUBLIC_URL="${API_PUBLIC_URL}"
+PUBLIC_URL="${UPLOADS_BASE_URL}"
 WEB_URL="${WEB_PUBLIC_URL}"
 EOF
 npm ci
@@ -95,15 +103,30 @@ npm run build
 pm2 delete rueda-web 2>/dev/null || true
 pm2 start npm --name rueda-web -- start
 
-echo "════════ 7/8 Nginx (:80 → web) ════════"
-cp "${APP_DIR}/deploy/nginx-rueda.conf" /etc/nginx/sites-available/rueda
-ln -sf /etc/nginx/sites-available/rueda /etc/nginx/sites-enabled/rueda
-rm -f /etc/nginx/sites-enabled/default
-nginx -t && systemctl reload nginx
+echo "════════ 7/8 Nginx (:80/:443 → web + /api,/socket.io,/uploads → backend) ════════"
+CERT_PATH="/etc/letsencrypt/live/${DOMINIO}/fullchain.pem"
+if [ -f "$CERT_PATH" ]; then
+  # El certificado ya existe: Certbot ya reescribió sites-available/rueda con
+  # el bloque 443 + redirect. NO lo pisamos con la plantilla base (la
+  # destruiría). Solo verificamos y recargamos.
+  echo "Certificado HTTPS existente detectado — se conserva la config actual de Nginx."
+  nginx -t && systemctl reload nginx
+else
+  cp "${APP_DIR}/deploy/nginx-rueda.conf" /etc/nginx/sites-available/rueda
+  ln -sf /etc/nginx/sites-available/rueda /etc/nginx/sites-enabled/rueda
+  rm -f /etc/nginx/sites-enabled/default
+  nginx -t && systemctl reload nginx
+
+  echo "════════ Emitiendo certificado HTTPS con Certbot ════════"
+  apt-get install -y certbot python3-certbot-nginx -q
+  certbot --nginx -d "${DOMINIO}" --non-interactive --agree-tos -m "admin@${DOMINIO#*.}" --redirect || \
+    echo "⚠️  Certbot falló (¿el DNS del dominio aún no apunta a este servidor?). La web sigue funcionando por HTTP."
+fi
 
 echo "════════ 8/8 Firewall + arranque automático ════════"
 ufw allow 22/tcp
 ufw allow 80/tcp
+ufw allow 443/tcp
 ufw allow 3334/tcp
 ufw --force enable
 pm2 save
@@ -112,7 +135,7 @@ pm2 startup systemd -u root --hp /root | tail -1 | bash || true
 echo ""
 echo "══════════════════════════════════════════════════"
 echo "  ✅ LISTO"
-echo "  Web:     http://${IP_PUBLICA}"
+echo "  Web:     ${WEB_PUBLIC_URL}  (IP directa: http://${IP_PUBLICA})"
 echo "  Backend: ${API_PUBLIC_URL}"
 echo "  Logs:    pm2 logs | pm2 status"
 echo "══════════════════════════════════════════════════"
