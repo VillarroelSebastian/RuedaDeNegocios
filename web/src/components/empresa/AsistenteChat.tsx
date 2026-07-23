@@ -58,27 +58,36 @@ export default function AsistenteChat({ eeId, euId }: { eeId: number | null; euI
 
   return (
     <>
-      {/* Floating button */}
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-[#449D3A] hover:bg-[#3a8531] text-white shadow-xl flex items-center justify-center transition-all hover:scale-105 active:scale-95"
-        aria-label="Asistente virtual"
-      >
-        {open ? <X className="w-6 h-6" /> : <MessageCircle className="w-6 h-6" />}
-      </button>
+      {/* Floating button — solo visible con el chat cerrado; el cierre vive en el header del chat */}
+      {!open && (
+        <button
+          onClick={() => setOpen(true)}
+          className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-[#449D3A] hover:bg-[#3a8531] text-white shadow-xl flex items-center justify-center transition-all hover:scale-105 active:scale-95"
+          aria-label="Abrir asistente virtual"
+        >
+          <MessageCircle className="w-6 h-6" />
+        </button>
+      )}
 
       {/* Chat window */}
       {open && (
-        <div className="fixed bottom-24 right-6 z-50 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden" style={{ height: "480px" }}>
+        <div className="fixed bottom-6 right-6 z-50 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden" style={{ height: "480px" }}>
           {/* Header */}
           <div className="bg-[#449D3A] px-4 py-3 flex items-center gap-3 shrink-0">
             <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
               <Bot className="w-4 h-4 text-white" />
             </div>
-            <div>
+            <div className="flex-1 min-w-0">
               <p className="text-sm font-bold text-white">Asistente Virtual</p>
               <p className="text-[10px] text-white/70">Pregúntame sobre el evento</p>
             </div>
+            <button
+              onClick={() => setOpen(false)}
+              className="w-8 h-8 rounded-full bg-white/15 hover:bg-white/30 flex items-center justify-center shrink-0 transition-colors"
+              aria-label="Cerrar asistente virtual"
+            >
+              <X className="w-4 h-4 text-white" />
+            </button>
           </div>
 
           {/* Messages */}

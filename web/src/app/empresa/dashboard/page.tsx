@@ -341,7 +341,7 @@ export default function EmpresaDashboardPage() {
           <h2 className="font-bold text-gray-900 mb-4">Acceso rápido</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {[
-              { href: "/empresa/empresas",   Icon: Building2,   label: "Ver empresas",  desc: "Directorio de participantes", soloEncargado: true },
+              { href: "/empresa/empresas",   Icon: Building2,   label: "Ver empresas",  desc: "Perfiles de participantes",   soloEncargado: false },
               { href: "/empresa/solicitudes",Icon: Send,        label: "Solicitudes",   desc: "Gestión de reuniones",        soloEncargado: true },
               { href: "/empresa/reuniones",  Icon: Users,       label: "Mis reuniones", desc: "Citas confirmadas",           soloEncargado: false },
               { href: "/empresa/resultados", Icon: Star,        label: "Resultados",    desc: "Registra acuerdos",           soloEncargado: true },

@@ -580,6 +580,18 @@ export class AppController implements OnModuleInit {
     return evento?.id ?? null;
   }
 
+  // Info pública del evento principal — usada por la web para el favicon y el título.
+  @Get('evento-principal')
+  async getEventoPrincipalPublico() {
+    const eventoId = await this.getPrincipalEventoId();
+    if (!eventoId) return { nombre: null, urlLogoEvento: null };
+    const ev = await this.prisma.evento.findUnique({
+      where: { id: eventoId },
+      select: { nombre: true, urlLogoEvento: true },
+    });
+    return { nombre: ev?.nombre ?? null, urlLogoEvento: ev?.urlLogoEvento ?? null };
+  }
+
   // ─── DASHBOARD ───────────────────────────────────────────────────────────────
 
   @Get('admin/dashboard/stats')
@@ -2643,11 +2655,41 @@ export class AppController implements OnModuleInit {
     const durMs = evento.duracionReunion * 60000;
     const bufMs = evento.tiempoEntreReuniones * 60000;
     const intervalMs = durMs + bufMs;
-    let current = new Date(evento.fechaInicioEvento);
+    const start = new Date(evento.fechaInicioEvento);
     const end = new Date(evento.fechaFinEvento);
+    // Anclar la grilla a la medianoche local del día de inicio, no al timestamp
+    // exacto de fechaInicioEvento: así los slots caen en minutos "redondos"
+    // (ej. :00/:30 para reuniones de 30 min) en vez de heredar un minuto
+    // arbitrario del evento (ej. :42/:12), que confundía al elegir horario.
+    const midnight = new Date(start);
+    midnight.setHours(0, 0, 0, 0);
+    const offsetMs = start.getTime() - midnight.getTime();
+    let current = new Date(midnight.getTime() + Math.ceil(offsetMs / intervalMs) * intervalMs);
     while (current.getTime() + durMs <= end.getTime()) {
       slots.push({ inicio: new Date(current), fin: new Date(current.getTime() + durMs) });
       current = new Date(current.getTime() + intervalMs);
+    }
+    return slots;
+  }
+
+  // Candidatos de inicio de reunión cada 5 minutos dentro de la ventana del evento.
+  // A diferencia de generarFranjas (grilla fija duración+descanso, usada por la
+  // pantalla "Mis horarios"), esto ofrece TODA la disponibilidad al solicitar una
+  // reunión: cualquier inicio en minuto múltiplo de 5 cuya reunión completa quepa
+  // en el evento. Los choques con reuniones/bloqueos se filtran por solapamiento.
+  private generarCandidatosInicio(evento: any): { inicio: Date; fin: Date }[] {
+    const PASO_MS = 5 * 60000;
+    const durMs = evento.duracionReunion * 60000;
+    const start = new Date(evento.fechaInicioEvento);
+    const end = new Date(evento.fechaFinEvento);
+    const midnight = new Date(start);
+    midnight.setHours(0, 0, 0, 0);
+    const offsetMs = start.getTime() - midnight.getTime();
+    let current = new Date(midnight.getTime() + Math.ceil(offsetMs / PASO_MS) * PASO_MS);
+    const slots: { inicio: Date; fin: Date }[] = [];
+    while (current.getTime() + durMs <= end.getTime()) {
+      slots.push({ inicio: new Date(current), fin: new Date(current.getTime() + durMs) });
+      current = new Date(current.getTime() + PASO_MS);
     }
     return slots;
   }
@@ -2764,64 +2806,11 @@ export class AppController implements OnModuleInit {
     return directa || inversa ? 'media' : null;
   }
 
-  @Get('empresa/empresas')
-  async getEmpresasParticipantes(@Query('eeId') eeId: string) {
-    if (!eeId) throw new BadRequestException('eeId requerido');
-    const eventoId = await this.getPrincipalEventoId();
-    if (!eventoId) return [];
-
-    const [miEe, ees] = await Promise.all([
-      this.prisma.empresaevento.findUnique({
-        where: { id: Number(eeId) },
-        include: { empresa: true },
-      }),
-      this.prisma.empresaevento.findMany({
-        where: {
-          evento_id: eventoId,
-          estaActivo: 1,
-          estadoVerificacionPago: 'COMPLETADO',
-          estadoHabilitacionAcceso: 'HABILITADO',
-          id: { not: Number(eeId) },
-        },
-        include: {
-          empresa: { include: { ciudad: { include: { pais: true } } } },
-        },
-      }),
-    ]);
-
-    const miRubro = miEe?.empresa?.rubro ?? null;
-
-    const mapped = ees.map((ee) => {
-      const afinidad = this.calcularAfinidad(miRubro, ee.empresa.rubro);
-      return {
-        empresaeventoId: ee.id,
-        empresaId: ee.empresa_id,
-        codigo: ee.empresa.codigo,
-        nombre: ee.empresa.nombre,
-        rubro: ee.empresa.rubro,
-        descripcion: ee.empresa.descripcion,
-        urlFotoPerfil: ee.empresa.urlFotoPerfil,
-        sitioWeb: ee.empresa.sitioWeb,
-        ciudad: ee.empresa.ciudad?.nombre ?? null,
-        pais: ee.empresa.ciudad?.pais?.nombre ?? null,
-        tipoParticipacion: ee.tipoParticipacion,
-        afinidad,
-        esRecomendada: afinidad !== null,
-      };
-    });
-
-    const peso = { alta: 2, media: 1 } as Record<string, number>;
-    return mapped.sort((a, b) => {
-      const pa = a.afinidad ? peso[a.afinidad] : 0;
-      const pb = b.afinidad ? peso[b.afinidad] : 0;
-      if (pa !== pb) return pb - pa;
-      return (a.nombre ?? '').localeCompare(b.nombre ?? '', 'es');
-    });
-  }
-
-  // Directorio de participantes: pensado para VER el perfil de cada empresa
-  // (oferta, demanda, contacto, código) — distinto de "Empresas" que sirve
-  // para solicitar reunión directamente. Admite filtros de oferta/demanda/lugar.
+  // Directorio único de empresas participantes: ver perfil (oferta, demanda,
+  // contacto, código) y, si el usuario es encargado, solicitar reunión.
+  // Admite filtros de oferta/demanda/lugar. Ordenado por afinidad (alta > media
+  // > sin afinidad) y luego nombre, para que los encargados vean primero a las
+  // empresas más relevantes al decidir con quién reunirse.
   @Get('empresa/directorio')
   async getDirectorioParticipantes(
     @Query('eeId') eeId: string,
@@ -2874,7 +2863,13 @@ export class AppController implements OnModuleInit {
       tipoParticipacion: ee.tipoParticipacion,
       afinidad: this.calcularAfinidad(miRubro, ee.empresa.rubro),
     }));
-    return mapped.sort((a, b) => (a.nombre ?? '').localeCompare(b.nombre ?? '', 'es'));
+    const peso = { alta: 2, media: 1 } as Record<string, number>;
+    return mapped.sort((a, b) => {
+      const pa = a.afinidad ? peso[a.afinidad] : 0;
+      const pb = b.afinidad ? peso[b.afinidad] : 0;
+      if (pa !== pb) return pb - pa;
+      return (a.nombre ?? '').localeCompare(b.nombre ?? '', 'es');
+    });
   }
 
   // Coincidencia simple por palabras clave (>=4 letras, sin tildes) entre dos textos.
@@ -3147,18 +3142,32 @@ export class AppController implements OnModuleInit {
 
     const presentarHorarios = async (receptoraEeId: number, receptoraNombre: string) => {
       const disp: any = await this.getHorariosDisponibles(String(eeId), String(receptoraEeId));
-      const slots: string[] = (disp.horarios ?? []).slice(0, 6).map((h: any) => h.inicio);
+      const todos: any[] = disp.horarios ?? [];
+      // Sugerencias variadas: máximo una por hora (la disponibilidad ahora es cada
+      // 5 min, y ofrecer 08:00/08:05/08:10... no ayuda a elegir). Prefiere minutos
+      // redondos; el usuario igual puede escribir cualquier hora exacta disponible.
+      const porHora = new Map<string, any>();
+      for (const h of todos) {
+        const d = new Date(h.inicio);
+        const clave = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}-${d.getHours()}`;
+        const previa = porHora.get(clave);
+        if (!previa || (new Date(previa.inicio).getMinutes() !== 0 && d.getMinutes() === 0)) {
+          porHora.set(clave, h);
+        }
+      }
+      const slots: string[] = [...porHora.values()].slice(0, 6).map((h: any) => h.inicio);
       if (slots.length === 0) {
         return {
           respuesta: `${receptoraNombre} no tiene horarios disponibles por ahora. Intenta más tarde o escribe el nombre de otra empresa.`,
           contexto: { flujo: 'agendar', paso: 'empresa' },
         };
       }
-      const lista = slots.map((s, i) => `${i + 1}. ${this.fmtSlotAsistente(s)}`).join('\n');
+      const horarioOpciones = slots.map((s) => this.fmtSlotAsistente(s));
+      const lista = horarioOpciones.map((o, i) => `${i + 1}. ${o}`).join('\n');
       return {
-        respuesta: `Estos son los horarios disponibles con ${receptoraNombre}:\n${lista}\n\nResponde con el número o la hora (ej: 09:30).`,
-        contexto: { flujo: 'agendar', paso: 'horario', receptoraEeId, receptoraNombre, slots, duracionMin: disp.duracionMinutos },
-        opciones: slots.map((s) => this.fmtSlotAsistente(s)),
+        respuesta: `Estos son los horarios disponibles con ${receptoraNombre}:\n${lista}\n\nResponde con el número o toca una opción.`,
+        contexto: { flujo: 'agendar', paso: 'horario', receptoraEeId, receptoraNombre, slots, horarioOpciones, duracionMin: disp.duracionMinutos },
+        opciones: horarioOpciones,
       };
     };
 
@@ -3219,24 +3228,43 @@ export class AppController implements OnModuleInit {
 
     if (paso === 'horario') {
       const slots: string[] = contexto.slots ?? [];
+      const horarioOpciones: string[] = contexto.horarioOpciones ?? [];
       let iso: string | undefined;
-      const idx = parseInt(msg, 10);
-      if (!isNaN(idx) && slots[idx - 1]) iso = slots[idx - 1];
+
+      // 1) Coincidencia exacta contra la opción mostrada/tocada por el usuario
+      //    (evita el mismatch 12h/24h: comparamos texto contra texto, no contra Date.getHours()).
+      const msgNorm = msg.trim().toLowerCase();
+      const exactIdx = horarioOpciones.findIndex((o) => o.toLowerCase() === msgNorm);
+      if (exactIdx !== -1) iso = slots[exactIdx];
+
+      // 2) Índice numérico de la lista
       if (!iso) {
-        const m = msg.match(/(\d{1,2})[:.](\d{2})/);
+        const idx = parseInt(msg, 10);
+        if (!isNaN(idx) && slots[idx - 1]) iso = slots[idx - 1];
+      }
+
+      // 3) Último recurso: regex hh:mm, consciente de am/pm
+      if (!iso) {
+        const m = msg.match(/(\d{1,2})[:.](\d{2})\s*(a\.?\s*m\.?|p\.?\s*m\.?)?/i);
         if (m) {
-          const hhmm = `${m[1].padStart(2, '0')}:${m[2]}`;
+          let hh = parseInt(m[1], 10);
+          const mm = m[2];
+          const ampm = m[3]?.toLowerCase().replace(/[.\s]/g, '');
+          if (ampm === 'pm' && hh < 12) hh += 12;
+          if (ampm === 'am' && hh === 12) hh = 0;
+          const hhmm = `${String(hh).padStart(2, '0')}:${mm}`;
           iso = slots.find((s) => {
             const d = new Date(s);
             return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` === hhmm;
           });
         }
       }
+
       if (!iso) {
         return {
-          respuesta: 'No reconocí ese horario. Responde con el número de la lista (ej: 1) o la hora exacta (ej: 09:30).',
+          respuesta: 'No reconocí ese horario. Responde con el número de la lista (ej: 1) o toca una opción.',
           contexto,
-          opciones: slots.map((s) => this.fmtSlotAsistente(s)),
+          opciones: horarioOpciones,
         };
       }
       return {
@@ -3251,9 +3279,74 @@ export class AppController implements OnModuleInit {
       if (!tipo) {
         return { respuesta: '¿La reunión será presencial o virtual?', contexto, opciones: ['Presencial', 'Virtual'] };
       }
+      if (tipo === 'VIRTUAL') {
+        return {
+          respuesta: `Resumen de tu solicitud:\n• Empresa: ${contexto.receptoraNombre}\n• Horario: ${this.fmtSlotAsistente(contexto.inicio)}\n• Tipo: Virtual\n\n¿Envío la solicitud?`,
+          contexto: { ...contexto, paso: 'confirmar', tipo, mesaId: null },
+          opciones: ['Sí, enviar', 'No, cancelar'],
+        };
+      }
+
+      // PRESENCIAL: ofrecer selección de mesa
+      const finDate = new Date(new Date(contexto.inicio).getTime() + (Number(contexto.duracionMin) || 20) * 60000);
+      const mesasDisp: any[] = await this.getMesasDisponiblesEmpresa(contexto.inicio, finDate.toISOString());
+      const mesas = mesasDisp.slice(0, 8).map((m: any) => ({ id: m.id, numeroMesa: m.numeroMesa }));
+      const AUTOMATICA = 'Cualquiera / Automática';
+      const mesaOpciones = [...mesas.map((m) => `Mesa ${m.numeroMesa}`), AUTOMATICA];
+
+      if (mesas.length === 0) {
+        return {
+          respuesta: `No encontré mesas libres para ese horario en este momento, pero puedo intentar asignarte una automáticamente al confirmar.\n\nResumen de tu solicitud:\n• Empresa: ${contexto.receptoraNombre}\n• Horario: ${this.fmtSlotAsistente(contexto.inicio)}\n• Tipo: Presencial\n• Mesa: se asignará automáticamente\n\n¿Envío la solicitud?`,
+          contexto: { ...contexto, paso: 'confirmar', tipo, mesaId: null },
+          opciones: ['Sí, enviar', 'No, cancelar'],
+        };
+      }
       return {
-        respuesta: `Resumen de tu solicitud:\n• Empresa: ${contexto.receptoraNombre}\n• Horario: ${this.fmtSlotAsistente(contexto.inicio)}\n• Tipo: ${tipo === 'PRESENCIAL' ? 'Presencial' : 'Virtual'}\n\n¿Envío la solicitud?`,
-        contexto: { ...contexto, paso: 'confirmar', tipo },
+        respuesta: `¿En qué mesa prefieres la reunión presencial?\n${mesaOpciones.map((o, i) => `${i + 1}. ${o}`).join('\n')}`,
+        contexto: { ...contexto, paso: 'mesa', tipo, mesas, mesaOpciones },
+        opciones: mesaOpciones,
+      };
+    }
+
+    if (paso === 'mesa') {
+      const mesas: { id: number; numeroMesa: number }[] = contexto.mesas ?? [];
+      const mesaOpciones: string[] = contexto.mesaOpciones ?? [];
+      const AUTOMATICA = 'Cualquiera / Automática';
+      let elegidoIdx: number | undefined;
+
+      // 1) Coincidencia exacta contra la opción mostrada/tocada
+      const msgNorm = msg.trim().toLowerCase();
+      const exactIdx = mesaOpciones.findIndex((o) => o.toLowerCase() === msgNorm);
+      if (exactIdx !== -1) elegidoIdx = exactIdx;
+
+      // 2) Índice numérico de la lista
+      if (elegidoIdx === undefined) {
+        const idx = parseInt(msg, 10);
+        if (!isNaN(idx) && mesaOpciones[idx - 1]) elegidoIdx = idx - 1;
+      }
+
+      // 3) Último recurso: "mesa N" o "automática/cualquiera" en texto libre
+      let mesaId: number | null | undefined;
+      if (elegidoIdx !== undefined) {
+        mesaId = mesaOpciones[elegidoIdx] === AUTOMATICA ? null : mesas.find((m) => `Mesa ${m.numeroMesa}` === mesaOpciones[elegidoIdx])?.id;
+      } else if (/automat|cualquiera/i.test(msg)) {
+        mesaId = null;
+      } else {
+        const m = msg.match(/mesa\s*(\d+)/i);
+        if (m) mesaId = mesas.find((x) => x.numeroMesa === parseInt(m[1], 10))?.id;
+      }
+
+      if (mesaId === undefined) {
+        return {
+          respuesta: 'No reconocí esa mesa. Responde con el número de la lista o toca una opción.',
+          contexto,
+          opciones: mesaOpciones,
+        };
+      }
+      const mesaTexto = mesaId === null ? 'se asignará automáticamente' : `Mesa ${mesas.find((m) => m.id === mesaId)?.numeroMesa}`;
+      return {
+        respuesta: `Resumen de tu solicitud:\n• Empresa: ${contexto.receptoraNombre}\n• Horario: ${this.fmtSlotAsistente(contexto.inicio)}\n• Tipo: Presencial\n• Mesa: ${mesaTexto}\n\n¿Envío la solicitud?`,
+        contexto: { ...contexto, paso: 'confirmar', mesaId },
         opciones: ['Sí, enviar', 'No, cancelar'],
       };
     }
@@ -3275,6 +3368,7 @@ export class AppController implements OnModuleInit {
           tipo: contexto.tipo,
           inicio: contexto.inicio,
           fin: finDate.toISOString(),
+          mesaId: contexto.mesaId ?? undefined,
           mensaje: 'Solicitud enviada desde el asistente virtual',
         });
         return {
@@ -3343,7 +3437,10 @@ export class AppController implements OnModuleInit {
     const evento = await this.prisma.evento.findUnique({ where: { id: eventoId } });
     if (!evento) return { duracionMinutos: 0, horarios: [] };
 
-    const franjas = this.generarFranjas(evento);
+    // Toda la disponibilidad real: candidatos de inicio cada 5 minutos dentro de la
+    // ventana del evento (no la grilla fija duración+descanso, que solo daba 2 opciones
+    // de minutos por hora). Lo ocupado se descarta por solapamiento más abajo.
+    const franjas = this.generarCandidatosInicio(evento);
     if (franjas.length === 0) return { duracionMinutos: evento.duracionReunion, horarios: [] };
 
     const excludeId = excludeReunionId ? Number(excludeReunionId) : undefined;
@@ -3373,24 +3470,35 @@ export class AppController implements OnModuleInit {
       select: { fechaHoraInicioReunion: true, fechaHoraFinReunion: true },
     });
 
+    // Solapamiento contra reuniones existentes, respetando el descanso configurado
+    // entre reuniones: una reunión existente "ocupa" su horario ± tiempoEntreReuniones.
+    const bufMs = (evento.tiempoEntreReuniones ?? 0) * 60000;
     const solapaCon = (r: { fechaHoraInicioReunion: Date; fechaHoraFinReunion: Date }, ini: Date, fin: Date) =>
-      r.fechaHoraInicioReunion < fin && r.fechaHoraFinReunion > ini;
+      r.fechaHoraInicioReunion.getTime() - bufMs < fin.getTime() &&
+      r.fechaHoraFinReunion.getTime() + bufMs > ini.getTime();
 
-    const dentroDeRangoReceptora = (ini: Date) => {
+    const hhmmDe = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    const dentroDeRangoReceptora = (ini: Date, fin: Date) => {
       if (rangosReceptora.length === 0) return true;
-      const hh = String(ini.getHours()).padStart(2, '0');
-      const mm = String(ini.getMinutes()).padStart(2, '0');
-      const hhmm = `${hh}:${mm}`;
-      return rangosReceptora.some((r) => hhmm >= r.desde_hora && hhmm < r.hasta_hora);
+      const iniHHMM = hhmmDe(ini);
+      const finHHMM = hhmmDe(fin);
+      // La reunión completa debe caber dentro de algún rango declarado por la receptora.
+      return rangosReceptora.some((r) => iniHHMM >= r.desde_hora && finHHMM <= r.hasta_hora && iniHHMM < finHHMM);
     };
+
+    // Bloqueos por solapamiento (no por timestamp exacto): un bloqueo guarda su
+    // ventana inicio–fin, así que cualquier candidato que la toque queda descartado.
+    // Esto además sobrevive a cambios posteriores en la config del evento.
+    const chocaConBloqueo = (bloqueos: { inicio: Date; fin: Date }[], ini: Date, fin: Date) =>
+      bloqueos.some((b) => new Date(b.inicio) < fin && new Date(b.fin) > ini);
 
     const disponibles = franjas.filter(
       (f) =>
         !reunionesA.some((r) => solapaCon(r, f.inicio, f.fin)) &&
         !reunionesB.some((r) => solapaCon(r, f.inicio, f.fin)) &&
-        !bloqueosA.some((b) => new Date(b.inicio).getTime() === f.inicio.getTime()) &&
-        !bloqueosB.some((b) => new Date(b.inicio).getTime() === f.inicio.getTime()) &&
-        dentroDeRangoReceptora(f.inicio),
+        !chocaConBloqueo(bloqueosA as any, f.inicio, f.fin) &&
+        !chocaConBloqueo(bloqueosB as any, f.inicio, f.fin) &&
+        dentroDeRangoReceptora(f.inicio, f.fin),
     );
 
     return {
@@ -3499,7 +3607,7 @@ export class AppController implements OnModuleInit {
       const inicio = f.inicio.toISOString();
       const fin = f.fin.toISOString();
       const bloqueado = bloqueos.some(
-        (b) => new Date(b.inicio).getTime() === f.inicio.getTime(),
+        (b) => new Date(b.inicio) < f.fin && new Date(b.fin) > f.inicio,
       );
       return { inicio, fin, disponible: !bloqueado };
     });
@@ -3534,7 +3642,6 @@ export class AppController implements OnModuleInit {
     }
   }
 
-  @Post('empresa/solicitudes')
   // Elige una mesa libre en el horario dado, priorizando la que menos reuniones
   // tenga asignadas en todo el evento (en vez de siempre la de número más bajo).
   // Entre empatadas, se sortea para no favorecer siempre a la misma.
@@ -3571,6 +3678,7 @@ export class AppController implements OnModuleInit {
     return ranked[0].id;
   }
 
+  @Post('empresa/solicitudes')
   async crearSolicitud(@Body() body: any) {
     const { eeId, eeReceptoraId, euId, tipo, inicio, fin, mesaId, enlace, mensaje } = body;
     if (!eeId || !eeReceptoraId || !euId || !tipo || !inicio || !fin)
@@ -3969,8 +4077,8 @@ export class AppController implements OnModuleInit {
     if (
       reunionesA.some((r) => solapaCon(r, iniDate, finDate)) ||
       reunionesB.some((r) => solapaCon(r, iniDate, finDate)) ||
-      bloqueosA.some((b) => new Date(b.inicio).getTime() === iniDate.getTime()) ||
-      bloqueosB.some((b) => new Date(b.inicio).getTime() === iniDate.getTime())
+      bloqueosA.some((b) => new Date(b.inicio) < finDate && new Date(b.fin) > iniDate) ||
+      bloqueosB.some((b) => new Date(b.inicio) < finDate && new Date(b.fin) > iniDate)
     ) {
       throw new BadRequestException('Ese horario ya no está disponible para una de las empresas');
     }

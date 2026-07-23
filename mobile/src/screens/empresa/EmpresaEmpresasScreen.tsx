@@ -6,10 +6,11 @@ import {
 } from 'react-native';
 import ImagenLightbox from '../../components/ImagenLightbox';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   Search, Building2, Send, X, MapPin, Video, Check,
-  AlertCircle, ChevronLeft, Globe, Clock, RefreshCw, AlertTriangle, CheckCircle2, Star,
+  AlertCircle, ChevronLeft, Globe, Clock, RefreshCw, CheckCircle2, Star,
+  Filter, Mail, Phone, FileText, Hash,
 } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
 import { paisConBandera } from '../../utils/pais';
@@ -40,6 +41,15 @@ function fmtSoloFecha(iso: string) {
 function fmtUpdateTime(d: Date) {
   return d.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
+// Minutos realmente disponibles para una fecha+hora dadas — nunca permitir elegir
+// uno que no exista en la lista de horarios devuelta por el backend.
+function minutosDeHora(horarios: any[], fecha: string | null, hora: number | null): number[] {
+  if (fecha === null || hora === null) return [];
+  return horarios
+    .filter((h: any) => fechaISO(h.inicio) === fecha && new Date(h.inicio).getHours() === hora)
+    .map((h: any) => new Date(h.inicio).getMinutes())
+    .sort((a: number, b: number) => a - b);
+}
 
 type Step = 'modalidad' | 'horario' | 'mesa' | 'mensaje';
 
@@ -52,6 +62,10 @@ export default function EmpresaEmpresasScreen() {
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error,      setError]      = useState('');
+  const [mostrarFiltros, setMostrarFiltros] = useState(false);
+  const [filtroOferta,   setFiltroOferta]   = useState('');
+  const [filtroDemanda,  setFiltroDemanda]  = useState('');
+  const [filtroLugar,    setFiltroLugar]    = useState('');
 
   // Profile modal
   const [profileModal,    setProfileModal]    = useState(false);
@@ -92,12 +106,7 @@ export default function EmpresaEmpresasScreen() {
   const mesaSelRef      = useRef<any>(null);
 
   const user = userStore.get();
-  const navigation = useNavigation();
-
-  // Guard: solo encargados
-  useFocusEffect(useCallback(() => {
-    if (!user?.esResponsable) { (navigation as any).navigate('Inicio'); }
-  }, [user, navigation]));
+  const esEncargado = !!user?.esResponsable;
 
   // Keep refs in sync with state
   useEffect(() => { horarioSelRef.current = horarioSel; }, [horarioSel]);
@@ -152,8 +161,12 @@ export default function EmpresaEmpresasScreen() {
     if (!eeId) { setLoading(false); return; }
     setError('');
     try {
-      const res = await fetch(`${API_URL}/empresa/empresas?eeId=${eeId}`);
-      if (!res.ok) throw new Error('Error cargando directorio');
+      const params = new URLSearchParams({ eeId: String(eeId) });
+      if (filtroOferta.trim())  params.set('oferta',  filtroOferta.trim());
+      if (filtroDemanda.trim()) params.set('demanda', filtroDemanda.trim());
+      if (filtroLugar.trim())   params.set('lugar',   filtroLugar.trim());
+      const res = await fetch(`${API_URL}/empresa/directorio?${params}`);
+      if (!res.ok) throw new Error('Error cargando empresas');
       const data = await res.json();
       setEmpresas(Array.isArray(data) ? data : []);
     } catch (e: any) {
@@ -162,7 +175,7 @@ export default function EmpresaEmpresasScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [user?.empresaeventoId]);
+  }, [user?.empresaeventoId, filtroOferta, filtroDemanda, filtroLugar]);
 
   useFocusEffect(useCallback(() => { fetchEmpresas(); }, [fetchEmpresas]));
 
@@ -184,7 +197,14 @@ export default function EmpresaEmpresasScreen() {
       const available = [...new Set(delDia.map((h: any) => new Date(h.inicio).getHours()))].sort((a: any, b: any) => a - b) as number[];
       const cur = new Date().getHours();
       const auto = available.find((h) => h >= cur) ?? available[0];
-      if (auto !== undefined) { setHoraSel(auto); setMinutosStr('00'); } else { setHoraSel(null); }
+      if (auto !== undefined) {
+        setHoraSel(auto);
+        const minutos = minutosDeHora(hrs, fechaAuto, auto);
+        setMinutosStr(minutos.length > 0 ? String(minutos[0]).padStart(2, '0') : '');
+      } else {
+        setHoraSel(null);
+        setMinutosStr('');
+      }
     } catch {}
     finally { setLoadingH(false); }
   };
@@ -328,22 +348,39 @@ export default function EmpresaEmpresasScreen() {
   return (
     <SafeAreaView style={s.root} edges={['top']}>
 
-      {/* Search */}
-      <View style={s.searchBar}>
-        <Search size={16} color="#9ca3af" style={{ marginRight: 8 }} />
-        <TextInput
-          style={s.searchInput}
-          placeholder="Buscar empresa, rubro o ciudad..."
-          placeholderTextColor="#9ca3af"
-          value={busqueda}
-          onChangeText={setBusqueda}
-        />
-        {!!busqueda && (
-          <TouchableOpacity onPress={() => setBusqueda('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <X size={16} color="#9ca3af" />
-          </TouchableOpacity>
-        )}
+      {/* Search + filtros */}
+      <View style={{ flexDirection: 'row', gap: 10, marginHorizontal: 16, marginTop: 16, marginBottom: 4 }}>
+        <View style={[s.searchBar, { flex: 1, margin: 0 }]}>
+          <Search size={16} color="#9ca3af" style={{ marginRight: 8 }} />
+          <TextInput
+            style={s.searchInput}
+            placeholder="Buscar empresa, rubro o ciudad..."
+            placeholderTextColor="#9ca3af"
+            value={busqueda}
+            onChangeText={setBusqueda}
+          />
+          {!!busqueda && (
+            <TouchableOpacity onPress={() => setBusqueda('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <X size={16} color="#9ca3af" />
+            </TouchableOpacity>
+          )}
+        </View>
+        <TouchableOpacity
+          onPress={() => setMostrarFiltros((v) => !v)}
+          style={[s.filterBtn, (mostrarFiltros || filtroOferta || filtroDemanda || filtroLugar) && s.filterBtnActive]}
+          activeOpacity={0.8}
+        >
+          <Filter size={16} color={(mostrarFiltros || filtroOferta || filtroDemanda || filtroLugar) ? '#fff' : GREEN} />
+        </TouchableOpacity>
       </View>
+
+      {mostrarFiltros && (
+        <View style={s.filtrosBox}>
+          <TextInput value={filtroOferta} onChangeText={setFiltroOferta} placeholder="Ofrece..." placeholderTextColor="#9ca3af" style={s.filtroInput} />
+          <TextInput value={filtroDemanda} onChangeText={setFiltroDemanda} placeholder="Busca..." placeholderTextColor="#9ca3af" style={s.filtroInput} />
+          <TextInput value={filtroLugar} onChangeText={setFiltroLugar} placeholder="Lugar (ciudad o país)..." placeholderTextColor="#9ca3af" style={s.filtroInput} />
+        </View>
+      )}
 
       {!!error && (
         <View style={s.errorBox}>
@@ -369,7 +406,7 @@ export default function EmpresaEmpresasScreen() {
           </View>
         }
         renderItem={({ item }) => (
-          <View style={[s.card, item.esRecomendada && s.cardRecomendada]}>
+          <View style={[s.card, item.afinidad === 'alta' && s.cardRecomendada]}>
             {item.afinidad === 'alta' && (
               <View style={s.recoBadge}>
                 <Star size={10} color={GREEN} fill={GREEN} />
@@ -412,6 +449,11 @@ export default function EmpresaEmpresasScreen() {
               </View>
             )}
 
+            {/* Ofrece */}
+            {!!item.oferta && (
+              <Text style={s.cardDesc} numberOfLines={2}><Text style={{ fontWeight: '800', color: '#374151' }}>Ofrece: </Text>{item.oferta}</Text>
+            )}
+
             {/* Description (2 lines) */}
             {!!item.descripcion && (
               <Text style={s.cardDesc} numberOfLines={2}>{item.descripcion}</Text>
@@ -427,13 +469,15 @@ export default function EmpresaEmpresasScreen() {
 
             {/* Actions */}
             <View style={s.cardActions}>
-              <TouchableOpacity style={s.profileBtn} onPress={() => openProfile(item)} activeOpacity={0.8}>
+              <TouchableOpacity style={[s.profileBtn, !esEncargado && { flex: 1 }]} onPress={() => openProfile(item)} activeOpacity={0.8}>
                 <Text style={s.profileBtnText}>Ver perfil</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={s.solicBtn} onPress={() => openModal(item)} activeOpacity={0.8}>
-                <Send size={13} color="#fff" style={{ marginRight: 5 }} />
-                <Text style={s.solicBtnText}>Solicitar reunión</Text>
-              </TouchableOpacity>
+              {esEncargado && (
+                <TouchableOpacity style={s.solicBtn} onPress={() => openModal(item)} activeOpacity={0.8}>
+                  <Send size={13} color="#fff" style={{ marginRight: 5 }} />
+                  <Text style={s.solicBtnText}>Solicitar reunión</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         )}
@@ -462,6 +506,12 @@ export default function EmpresaEmpresasScreen() {
                     {(profileSelected?.nombre ?? 'E')[0].toUpperCase()}
                   </Text>
                 </View>
+                {!!profileSelected?.codigo && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
+                    <Hash size={11} color="#9ca3af" />
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: '#9ca3af', marginLeft: 3 }}>{profileSelected.codigo}</Text>
+                  </View>
+                )}
                 {!!profileSelected?.rubro && (
                   <View style={[s.rubroBadge, { marginTop: 10 }]}>
                     <Text style={s.rubroText}>{profileSelected.rubro}</Text>
@@ -474,7 +524,7 @@ export default function EmpresaEmpresasScreen() {
                 <ProfileInfoRow
                   icon={<MapPin size={15} color={GREEN} />}
                   label="Ubicación"
-                  value={[profileSelected.ciudad, profileSelected.pais].filter(Boolean).join(', ')}
+                  value={[profileSelected.ciudad, paisConBandera(profileSelected.pais)].filter(Boolean).join(', ')}
                 />
               )}
               {!!profileSelected?.sitioWeb && (
@@ -484,11 +534,32 @@ export default function EmpresaEmpresasScreen() {
                   value={profileSelected.sitioWeb}
                 />
               )}
+              {!!profileSelected?.correoCorporativo && (
+                <ProfileInfoRow
+                  icon={<Mail size={15} color={GREEN} />}
+                  label="Correo"
+                  value={profileSelected.correoCorporativo}
+                />
+              )}
+              {!!profileSelected?.telefonoWhatsapp && (
+                <ProfileInfoRow
+                  icon={<Phone size={15} color={GREEN} />}
+                  label="WhatsApp"
+                  value={profileSelected.telefonoWhatsapp}
+                />
+              )}
               {!!profileSelected?.tipoParticipacion && (
                 <ProfileInfoRow
                   icon={<Building2 size={15} color={GREEN} />}
                   label="Tipo de participación"
                   value={profileSelected.tipoParticipacion}
+                />
+              )}
+              {!!profileSelected?.urlPdf && (
+                <ProfileInfoRow
+                  icon={<FileText size={15} color={GREEN} />}
+                  label="Catálogo"
+                  value="Ver catálogo / brochure"
                 />
               )}
 
@@ -500,15 +571,30 @@ export default function EmpresaEmpresasScreen() {
                 </Text>
               </View>
 
+              {!!profileSelected?.oferta && (
+                <View style={[s.profileInfoBox, { backgroundColor: '#f0fdf4' }]}>
+                  <Text style={[s.profileInfoLabel, { color: '#166534' }]}>Ofrece</Text>
+                  <Text style={[s.profileInfoText, { color: '#166534' }]}>{profileSelected.oferta}</Text>
+                </View>
+              )}
+              {!!profileSelected?.demanda && (
+                <View style={[s.profileInfoBox, { backgroundColor: '#eff6ff' }]}>
+                  <Text style={[s.profileInfoLabel, { color: '#1e40af' }]}>Busca</Text>
+                  <Text style={[s.profileInfoText, { color: '#1e40af' }]}>{profileSelected.demanda}</Text>
+                </View>
+              )}
+
               {/* Buttons */}
-              <TouchableOpacity
-                style={[s.btnPrimary, { marginTop: 20 }]}
-                onPress={() => { setProfileModal(false); openModal(profileSelected); }}
-                activeOpacity={0.8}
-              >
-                <Send size={16} color="#fff" style={{ marginRight: 8 }} />
-                <Text style={s.btnText}>Solicitar reunión</Text>
-              </TouchableOpacity>
+              {esEncargado && (
+                <TouchableOpacity
+                  style={[s.btnPrimary, { marginTop: 20 }]}
+                  onPress={() => { setProfileModal(false); openModal(profileSelected); }}
+                  activeOpacity={0.8}
+                >
+                  <Send size={16} color="#fff" style={{ marginRight: 8 }} />
+                  <Text style={s.btnText}>Solicitar reunión</Text>
+                </TouchableOpacity>
+              )}
               <TouchableOpacity
                 style={[s.btnSecondary, { marginTop: 10, marginBottom: 20 }]}
                 onPress={() => setProfileModal(false)}
@@ -623,16 +709,28 @@ export default function EmpresaEmpresasScreen() {
                         setFechaSel(f);
                         const delDia = horarios.filter((h: any) => fechaISO(h.inicio) === f);
                         const available = [...new Set(delDia.map((h: any) => new Date(h.inicio).getHours()))].sort((a: any, b: any) => a - b) as number[];
-                        setHoraSel(available[0] ?? null);
-                        setMinutosStr('00');
-                        setHorarioSel(null);
-                        horarioSelRef.current = null;
+                        const auto = available[0] ?? null;
+                        const minutos = minutosDeHora(horarios, f, auto);
+                        const primerMinuto = minutos[0];
+                        setHoraSel(auto);
+                        setMinutosStr(primerMinuto !== undefined ? String(primerMinuto).padStart(2, '0') : '');
+                        const match = (auto !== null && primerMinuto !== undefined)
+                          ? delDia.find((h: any) => new Date(h.inicio).getHours() === auto && new Date(h.inicio).getMinutes() === primerMinuto) ?? null
+                          : null;
+                        setHorarioSel(match);
+                        horarioSelRef.current = match;
                       }}
                       onHoraChange={(h) => {
                         setHoraSel(h);
-                        setMinutosStr('00');
-                        setHorarioSel(null);
-                        horarioSelRef.current = null;
+                        const minutos = minutosDeHora(horarios, fechaSel, h);
+                        const primerMinuto = minutos[0];
+                        setMinutosStr(primerMinuto !== undefined ? String(primerMinuto).padStart(2, '0') : '');
+                        const delDia = fechaSel ? horarios.filter((hr: any) => fechaISO(hr.inicio) === fechaSel) : [];
+                        const match = primerMinuto !== undefined
+                          ? delDia.find((hr: any) => new Date(hr.inicio).getHours() === h && new Date(hr.inicio).getMinutes() === primerMinuto) ?? null
+                          : null;
+                        setHorarioSel(match);
+                        horarioSelRef.current = match;
                       }}
                       onMinutosChange={(m) => {
                         setMinutosStr(m);
@@ -828,13 +926,12 @@ function HorarioPicker({ horarios, duracionMin, loadingH, fechaSel, horaSel, min
     ? horariosDelDia.filter((h: any) => new Date(h.inicio).getHours() === horaSel).map((h: any) => new Date(h.inicio).getMinutes()).sort((a: any, b: any) => a - b)
     : [];
   const mins = parseInt(minutosStr) || 0;
-  const horarioMatch = horaSel !== null
+  const horarioMatch = horaSel !== null && minutosStr !== ''
     ? horariosDelDia.find((h: any) => {
         const d = new Date(h.inicio);
         return d.getHours() === horaSel && d.getMinutes() === mins;
       }) ?? null
     : null;
-  const minutosInvalidos = horaSel !== null && minutosStr !== '' && !horarioMatch;
 
   return (
     <>
@@ -899,27 +996,28 @@ function HorarioPicker({ horarios, duracionMin, loadingH, fechaSel, horaSel, min
             </View>
           </ScrollView>
 
-          {/* Minutes input */}
+          {/* Minute buttons — restringidos a los minutos realmente disponibles para la hora elegida */}
           {horaSel !== null && (
             <>
               <Text style={hp.label}>Minutos</Text>
-              <TextInput
-                value={minutosStr}
-                onChangeText={onMinutosChange}
-                keyboardType="number-pad"
-                maxLength={2}
-                placeholder="00"
-                style={[hp.minsInput, minutosInvalidos && hp.minsInputErr]}
-              />
-
-              {minutosInvalidos && (
-                <View style={hp.warnBox}>
-                  <AlertTriangle size={13} color="#d97706" style={{ marginRight: 6, flexShrink: 0 }} />
-                  <Text style={hp.warnText}>
-                    La empresa no tiene disponibilidad a las {String(horaSel).padStart(2,'0')}:{minutosStr.padStart(2,'0')}. Prueba con otro horario.
-                  </Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  {minutosParaHora.map((m: number) => {
+                    const mStr = String(m).padStart(2, '0');
+                    const active = minutosStr === mStr;
+                    return (
+                      <TouchableOpacity
+                        key={m}
+                        onPress={() => onMinutosChange(mStr)}
+                        style={[hp.horaBtn, active && hp.horaBtnActive]}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[hp.horaBtnText, active && hp.horaBtnTextActive]}>:{mStr}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
-              )}
+              </ScrollView>
 
               {horarioMatch && (
                 <View style={hp.okBox}>
@@ -975,18 +1073,6 @@ const hp = StyleSheet.create({
   horaBtnActive: { borderColor: '#449D3A', backgroundColor: '#f0fdf4' },
   horaBtnText: { fontSize: 15, fontWeight: '700', color: '#475569' },
   horaBtnTextActive: { color: '#166534' },
-  minsInput: {
-    borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 12,
-    paddingHorizontal: 14, paddingVertical: 10, fontSize: 18, fontWeight: '700',
-    color: '#0f172a', marginBottom: 10, textAlign: 'center', backgroundColor: '#f8fafc',
-  },
-  minsInputErr: { borderColor: '#fca5a5', backgroundColor: '#fef2f2' },
-  warnBox: {
-    flexDirection: 'row', alignItems: 'flex-start',
-    backgroundColor: '#fffbeb', borderRadius: 10, padding: 10, marginBottom: 10,
-    borderWidth: 1, borderColor: '#fde68a',
-  },
-  warnText: { fontSize: 12, color: '#d97706', flex: 1, lineHeight: 18 },
   okBox: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: '#f0fdf4', borderRadius: 10, padding: 10, marginBottom: 10,
@@ -1077,6 +1163,16 @@ const s = StyleSheet.create({
     shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1,
   },
   searchInput: { flex: 1, fontSize: 14, color: '#0f172a' },
+  filterBtn: {
+    width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: GREEN, backgroundColor: '#fff',
+  },
+  filterBtnActive: { backgroundColor: GREEN },
+  filtrosBox: { marginHorizontal: 16, marginTop: 10, gap: 8 },
+  filtroInput: {
+    backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0',
+    paddingHorizontal: 12, height: 42, fontSize: 13, color: '#0f172a',
+  },
 
   errorBox: {
     marginHorizontal: 16, flexDirection: 'row', alignItems: 'flex-start',
@@ -1156,6 +1252,9 @@ const s = StyleSheet.create({
   profileDescBox:    { paddingVertical: 14 },
   profileDescLabel:  { fontSize: 11, color: '#94a3b8', fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 },
   profileDescText:   { fontSize: 14, color: '#374151', lineHeight: 22 },
+  profileInfoBox:    { borderRadius: 12, padding: 12, marginBottom: 10 },
+  profileInfoLabel:  { fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 3 },
+  profileInfoText:   { fontSize: 13 },
 
   // ── Meeting request steps ──
   stepQuestion: { fontSize: 16, fontWeight: '700', color: '#0f172a', marginBottom: 14 },

@@ -17,7 +17,6 @@ import EmpresaComunicadosScreen from '../screens/empresa/EmpresaComunicadosScree
 import EmpresaEventosScreen     from '../screens/empresa/EmpresaEventosScreen';
 import EmpresaResultadosScreen  from '../screens/empresa/EmpresaResultadosScreen';
 import EmpresaHorariosScreen    from '../screens/empresa/EmpresaHorariosScreen';
-import EmpresaDirectorioScreen    from '../screens/empresa/EmpresaDirectorioScreen';
 import EmpresaOportunidadesScreen from '../screens/empresa/EmpresaOportunidadesScreen';
 import { userStore, API_URL }   from '../utils/userStore';
 
@@ -210,13 +209,18 @@ export default function EmpresaNavigator() {
         />
       <Stack.Screen name="Comunicados"   component={EmpresaComunicadosScreen}   options={{ title: 'Comunicados' }} />
       <Stack.Screen name="Eventos"       component={EmpresaEventosScreen}       options={{ title: 'Actividades' }} />
-      <Stack.Screen name="Directorio"    component={EmpresaDirectorioScreen}    options={{ title: 'Directorio' }} />
       <Stack.Screen name="Oportunidades" component={EmpresaOportunidadesScreen} options={{ title: 'Oportunidades' }} />
       {esEncargado && (
         <Stack.Screen name="Resultados"  component={EmpresaResultadosScreen}  options={{ title: 'Resultados' }} />
       )}
       {esEncargado && (
         <Stack.Screen name="Horarios"    component={EmpresaHorariosScreen}    options={{ title: 'Mis horarios disponibles' }} />
+      )}
+      {/* "Empresas" ya existe como Tab.Screen anidado dentro de EncargadoTabs — registrar
+          este Stack.Screen de nivel superior solo para participantes evita tener dos rutas
+          con el mismo nombre alcanzables simultáneamente desde el mismo árbol de navegación. */}
+      {!esEncargado && (
+        <Stack.Screen name="Empresas"    component={EmpresaEmpresasScreen}    options={{ title: 'Empresas' }} />
       )}
       </Stack.Navigator>
     </>
