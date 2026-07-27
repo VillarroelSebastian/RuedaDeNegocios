@@ -231,15 +231,17 @@ export default function HomePage() {
               )}
             </div>
             <div className="relative">
-              <div className="relative h-96 rounded-2xl overflow-hidden shadow-2xl">
+              <div className="relative h-96 rounded-2xl overflow-hidden shadow-2xl bg-gray-100">
                 <Image
                   src={evento.urlImagenMapaRecinto ?? "https://images.unsplash.com/photo-1552664730-d307ca884978?w=800&q=80"}
                   alt="Recinto del evento"
                   fill
-                  className="object-cover"
+                  className={evento.urlImagenMapaRecinto ? "object-contain" : "object-cover"}
                   unoptimized
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-green-900/40 to-transparent" />
+                {!evento.urlImagenMapaRecinto && (
+                  <div className="absolute inset-0 bg-gradient-to-t from-green-900/40 to-transparent" />
+                )}
                 {evento.urlImagenMapaRecinto && (
                   <div className="absolute bottom-3 left-3 bg-white/90 backdrop-blur-sm text-xs text-gray-600 font-semibold px-3 py-1 rounded-full flex items-center gap-1.5">
                     <MapPin size={11} className="text-green-700" /> Mapa del recinto
@@ -311,13 +313,13 @@ export default function HomePage() {
           <div className="max-w-4xl mx-auto px-6 text-center">
             <span className="text-green-600 font-semibold text-sm uppercase tracking-wider">Programa</span>
             <h2 className="text-3xl font-extrabold text-gray-900 mt-3 mb-8">Cronograma de Charlas</h2>
-            <div className="relative rounded-2xl overflow-hidden shadow-2xl">
+            <div className="relative w-full h-[420px] sm:h-[560px] rounded-2xl overflow-hidden shadow-2xl bg-gray-100">
               <Image
                 src={evento.urlImagenCronogramaCharlas}
                 alt="Cronograma de charlas"
-                width={900}
-                height={600}
-                className="w-full h-auto object-contain"
+                fill
+                sizes="(max-width: 640px) 100vw, 900px"
+                className="object-contain"
                 unoptimized
               />
             </div>
