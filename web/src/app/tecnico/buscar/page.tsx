@@ -1,6 +1,7 @@
 "use client";
-import React, { useState, useCallback, useRef } from 'react';
-import { Search, Building2, Armchair, CalendarCheck, Video, MapPin, X } from 'lucide-react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { Search, Building2, Armchair, CalendarCheck, Video, MapPin, X, MessageSquare } from 'lucide-react';
+import { EnviarMensajeEmpresaModal } from '@/components/EnviarMensajeEmpresaModal';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
@@ -46,7 +47,16 @@ export default function TecnicoBuscarPage() {
   const [query,   setQuery]   = useState('');
   const [results, setResults] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [mensajeEmpresa, setMensajeEmpresa] = useState<{ eeId: number; nombre: string } | null>(null);
+  const [tecUserId, setTecUserId] = useState<number | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('tecnicoUser');
+      if (raw) setTecUserId(JSON.parse(raw).id ?? null);
+    } catch {}
+  }, []);
 
   const buscar = useCallback(async (q: string) => {
     const trimmed = q.trim();
@@ -74,6 +84,14 @@ export default function TecnicoBuscarPage() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
+      {mensajeEmpresa && tecUserId && (
+        <EnviarMensajeEmpresaModal
+          usuarioId={tecUserId}
+          receptorEeId={mensajeEmpresa.eeId}
+          empresaNombre={mensajeEmpresa.nombre}
+          onClose={() => setMensajeEmpresa(null)}
+        />
+      )}
       <h1 className="text-2xl font-extrabold text-gray-900 mb-1">Buscador</h1>
       <p className="text-sm text-gray-500 mb-6">Empresas, reuniones y mesas del evento</p>
 
@@ -139,6 +157,14 @@ export default function TecnicoBuscarPage() {
                       {e.rubro && <p className="text-xs text-gray-500 mt-0.5">{e.rubro}</p>}
                       {e.correoEmpresa && <p className="text-xs text-gray-400">{e.correoEmpresa}</p>}
                     </div>
+                    {e.empresaeventoId && e.estadoHabilitacionAcceso === 'HABILITADO' && tecUserId && (
+                      <button
+                        onClick={() => setMensajeEmpresa({ eeId: e.empresaeventoId, nombre: e.nombre })}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border-[1.5px] border-[#449D3A] text-[#449D3A] hover:bg-green-50 text-xs font-bold shrink-0 transition-colors"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" /> Mensaje
+                      </button>
+                    )}
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${e.estaActivo === 1 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                       {e.estaActivo === 1 ? 'Activa' : 'Inactiva'}
                     </span>

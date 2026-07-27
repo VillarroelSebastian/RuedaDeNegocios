@@ -289,12 +289,17 @@ model notificacion {
 // Mensajería directa entre empresas de un mismo evento.
 // emisorEe/receptorEe son empresaevento (la conversación es empresa↔empresa);
 // empresa_usuario_id registra qué usuario concreto escribió el mensaje.
+// Mensajes del equipo del evento (admin/técnico) usan emisorEe_id = 0 (centinela,
+// no hay empresaevento del staff), empresa_usuario_id nulo y remitenteRol/Nombre
+// con quién escribió. Estos mensajes son de una sola vía (la empresa no responde).
 model mensajeempresa {
   id                    Int       @id @default(autoincrement())
   evento_id             Int
-  emisorEe_id           Int
+  emisorEe_id           Int       // 0 = equipo del evento (admin/técnico)
   receptorEe_id         Int
-  empresa_usuario_id    Int
+  empresa_usuario_id    Int?      // nulo para mensajes del staff
+  remitenteRol          String?   @db.VarChar(20)  // 'ADMIN' | 'TECNICO' | null (empresa)
+  remitenteNombre       String?   @db.VarChar(150)
   contenido             String    @db.VarChar(1000)
   haSidoLeido           Int       @default(0) @db.SmallInt
   estaActivo            Int       @default(1) @db.SmallInt

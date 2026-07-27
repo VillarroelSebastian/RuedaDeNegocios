@@ -111,8 +111,8 @@ function PerfilModal({ empresa, esEncargado, onClose, onSolicitar }: {
             )}
           </div>
 
-          <div className="space-y-2">
-            {esEncargado && (
+          {esEncargado && (
+            <div className="space-y-2">
               <button
                 onClick={() => onSolicitar(empresa)}
                 className="w-full flex items-center justify-center gap-2 bg-[#449D3A] hover:bg-[#3a8531] text-white text-sm font-bold py-2.5 rounded-xl transition-colors"
@@ -120,15 +120,15 @@ function PerfilModal({ empresa, esEncargado, onClose, onSolicitar }: {
                 <Send className="w-3.5 h-3.5" />
                 Solicitar reunión
               </button>
-            )}
-            <Link
-              href={`/empresa/mensajes?con=${empresa.empresaeventoId}&nombre=${encodeURIComponent(empresa.nombre)}`}
-              className="w-full flex items-center justify-center gap-2 border-[1.5px] border-[#449D3A] text-[#449D3A] hover:bg-green-50 text-sm font-bold py-2.5 rounded-xl transition-colors"
-            >
-              <MessageSquare className="w-3.5 h-3.5" />
-              Enviar mensaje
-            </Link>
-          </div>
+              <Link
+                href={`/empresa/mensajes?con=${empresa.empresaeventoId}&nombre=${encodeURIComponent(empresa.nombre)}`}
+                className="w-full flex items-center justify-center gap-2 border-[1.5px] border-[#449D3A] text-[#449D3A] hover:bg-green-50 text-sm font-bold py-2.5 rounded-xl transition-colors"
+              >
+                <MessageSquare className="w-3.5 h-3.5" />
+                Enviar mensaje
+              </Link>
+            </div>
+          )}
         </div>
       </div>
     </div>

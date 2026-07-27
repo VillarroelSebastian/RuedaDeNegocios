@@ -1,8 +1,9 @@
 "use client";
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, Building2, Users, Eye, Trash2, ChevronLeft, ChevronRight, Filter, X } from 'lucide-react';
+import { Search, Building2, Users, Eye, Trash2, ChevronLeft, ChevronRight, Filter, X, MessageSquare } from 'lucide-react';
 import ImagenLightbox from '@/components/ui/ImagenLightbox';
 import { useModal } from '@/components/ui/Modal';
+import { EnviarMensajeEmpresaModal } from '@/components/EnviarMensajeEmpresaModal';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
@@ -94,7 +95,16 @@ export default function EmpresasPage() {
   const [estadoPago, setEstadoPago] = useState('');
   const [rubro, setRubro] = useState('');
   const [participantesEmpresa, setParticipantesEmpresa] = useState<{ id: number; nombre: string } | null>(null);
+  const [mensajeEmpresa, setMensajeEmpresa] = useState<{ eeId: number; nombre: string } | null>(null);
+  const [adminUserId, setAdminUserId] = useState<number | null>(null);
   const limit = 10;
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('adminUser');
+      if (raw) setAdminUserId(JSON.parse(raw).id ?? null);
+    } catch {}
+  }, []);
 
   const fetchEmpresas = useCallback(async () => {
     setLoading(true);
@@ -168,6 +178,14 @@ export default function EmpresasPage() {
     <div className="p-8 max-w-7xl mx-auto">
       <ModalComponent />
       <ParticipantesModal empresa={participantesEmpresa} onClose={() => setParticipantesEmpresa(null)} />
+      {mensajeEmpresa && adminUserId && (
+        <EnviarMensajeEmpresaModal
+          usuarioId={adminUserId}
+          receptorEeId={mensajeEmpresa.eeId}
+          empresaNombre={mensajeEmpresa.nombre}
+          onClose={() => setMensajeEmpresa(null)}
+        />
+      )}
 
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Empresas registradas</h1>
@@ -282,6 +300,15 @@ export default function EmpresasPage() {
                               <Eye className="w-4 h-4" />
                             </button>
                           </a>
+                        )}
+                        {emp.empresaEventoId && emp.estadoHabilitacionAcceso === 'HABILITADO' && adminUserId && (
+                          <button
+                            onClick={() => setMensajeEmpresa({ eeId: emp.empresaEventoId, nombre: emp.nombre })}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 transition-colors"
+                            title="Enviar mensaje"
+                          >
+                            <MessageSquare className="w-4 h-4" />
+                          </button>
                         )}
                         <button
                           onClick={() => handleDelete(emp.id, emp.nombre)}

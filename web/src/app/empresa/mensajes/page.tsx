@@ -205,6 +205,9 @@ function MensajesContent() {
     </div>
   );
 
+  const esEncargado = !!ctx?.esResponsable;
+  const activaEsStaff = activa?.eeId === 0; // conversación con el equipo del evento (solo lectura)
+
   return (
     <div className="p-4 sm:p-6 h-[calc(100vh-4rem)] flex flex-col">
       {modalNueva && ctx && (
@@ -218,15 +221,19 @@ function MensajesContent() {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-2xl font-extrabold text-gray-900">Mensajes</h1>
-          <p className="text-sm text-gray-400 mt-0.5">Conversa directamente con otras empresas del evento</p>
+          <p className="text-sm text-gray-400 mt-0.5">
+            {esEncargado ? "Conversa directamente con otras empresas del evento" : "Conversaciones de tu empresa (solo el encargado puede escribir)"}
+          </p>
         </div>
-        <button
-          onClick={() => setModalNueva(true)}
-          className="flex items-center gap-2 bg-[#449D3A] hover:bg-[#3a8531] text-white text-sm font-bold px-4 py-2.5 rounded-xl transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">Nueva conversación</span>
-        </button>
+        {esEncargado && (
+          <button
+            onClick={() => setModalNueva(true)}
+            className="flex items-center gap-2 bg-[#449D3A] hover:bg-[#3a8531] text-white text-sm font-bold px-4 py-2.5 rounded-xl transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline">Nueva conversación</span>
+          </button>
+        )}
       </div>
 
       {error && (
@@ -291,10 +298,11 @@ function MensajesContent() {
                 <button onClick={() => setActiva(null)} className="md:hidden w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center">
                   <ChevronLeft className="w-4 h-4 text-gray-500" />
                 </button>
-                <div className="w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center font-bold text-[#449D3A]">
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold ${activaEsStaff ? "bg-indigo-50 text-indigo-600" : "bg-green-50 text-[#449D3A]"}`}>
                   <Building2 className="w-4 h-4" />
                 </div>
                 <p className="font-bold text-gray-900 text-sm truncate">{activa.nombre}</p>
+                {activaEsStaff && <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">Organización</span>}
               </div>
 
               {/* Mensajes */}
@@ -320,25 +328,35 @@ function MensajesContent() {
                 <div ref={bottomRef} />
               </div>
 
-              {/* Input */}
-              <div className="px-3 py-3 border-t border-gray-100 shrink-0 flex gap-2">
-                <input
-                  type="text"
-                  value={texto}
-                  onChange={(e) => setTexto(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && enviar()}
-                  placeholder="Escribe un mensaje..."
-                  maxLength={1000}
-                  className="flex-1 text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A]"
-                />
-                <button
-                  onClick={enviar}
-                  disabled={!texto.trim() || enviando}
-                  className="w-11 h-11 rounded-xl bg-[#449D3A] hover:bg-[#3a8531] text-white flex items-center justify-center disabled:opacity-40 transition-colors shrink-0"
-                >
-                  <Send className="w-4 h-4" />
-                </button>
-              </div>
+              {/* Input — solo el encargado puede escribir; la conversación con la organización es de solo lectura */}
+              {activaEsStaff ? (
+                <div className="px-4 py-3 border-t border-gray-100 shrink-0 text-center text-xs text-gray-400 bg-gray-50/50">
+                  Mensajes del equipo del evento — no puedes responder por aquí.
+                </div>
+              ) : !esEncargado ? (
+                <div className="px-4 py-3 border-t border-gray-100 shrink-0 text-center text-xs text-gray-400 bg-gray-50/50">
+                  Solo el encargado de la empresa puede enviar mensajes.
+                </div>
+              ) : (
+                <div className="px-3 py-3 border-t border-gray-100 shrink-0 flex gap-2">
+                  <input
+                    type="text"
+                    value={texto}
+                    onChange={(e) => setTexto(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && enviar()}
+                    placeholder="Escribe un mensaje..."
+                    maxLength={1000}
+                    className="flex-1 text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A]"
+                  />
+                  <button
+                    onClick={enviar}
+                    disabled={!texto.trim() || enviando}
+                    className="w-11 h-11 rounded-xl bg-[#449D3A] hover:bg-[#3a8531] text-white flex items-center justify-center disabled:opacity-40 transition-colors shrink-0"
+                  >
+                    <Send className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
             </>
           )}
         </div>

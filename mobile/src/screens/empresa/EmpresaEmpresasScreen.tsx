@@ -596,17 +596,19 @@ export default function EmpresaEmpresasScreen() {
                   <Text style={s.btnText}>Solicitar reunión</Text>
                 </TouchableOpacity>
               )}
-              <TouchableOpacity
-                style={[s.btnSecondary, { marginTop: esEncargado ? 10 : 20, borderColor: GREEN }]}
-                onPress={() => {
-                  const sel = profileSelected;
-                  setProfileModal(false);
-                  if (sel) navigation.navigate('Mensajes', { con: sel.empresaeventoId, nombre: sel.nombre });
-                }}
-                activeOpacity={0.8}
-              >
-                <Text style={[s.btnSecText, { color: GREEN }]}>Enviar mensaje</Text>
-              </TouchableOpacity>
+              {esEncargado && (
+                <TouchableOpacity
+                  style={[s.btnSecondary, { marginTop: 10, borderColor: GREEN }]}
+                  onPress={() => {
+                    const sel = profileSelected;
+                    setProfileModal(false);
+                    if (sel) navigation.navigate('Mensajes', { con: sel.empresaeventoId, nombre: sel.nombre });
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[s.btnSecText, { color: GREEN }]}>Enviar mensaje</Text>
+                </TouchableOpacity>
+              )}
               <TouchableOpacity
                 style={[s.btnSecondary, { marginTop: 10, marginBottom: 20 }]}
                 onPress={() => setProfileModal(false)}

@@ -3,8 +3,9 @@ import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   ActivityIndicator, RefreshControl, Modal as RNModal
 } from 'react-native';
-import { Search, Building2, Users, Eye, X } from 'lucide-react-native';
+import { Search, Building2, Users, Eye, X, MessageSquare } from 'lucide-react-native';
 import { API_URL } from '../../utils/userStore';
+import EnviarMensajeEmpresaModal from '../../components/EnviarMensajeEmpresaModal';
 
 const GREEN = '#449D3A';
 
@@ -129,6 +130,7 @@ export default function EmpresasScreen({ navigation }: any) {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [participantesEmpresa, setParticipantesEmpresa] = useState<{ id: number; nombre: string } | null>(null);
+  const [mensajeEmpresa, setMensajeEmpresa] = useState<{ eeId: number; nombre: string } | null>(null);
   const [appModal, setAppModal] = useState<{ visible: boolean; type: string; title: string; message: string; onConfirm?: () => void }>({
     visible: false, type: 'confirm', title: '', message: '',
   });
@@ -167,6 +169,13 @@ export default function EmpresasScreen({ navigation }: any) {
     <View className="flex-1 bg-[#F9FAFB]">
       <AppModal {...appModal} onClose={closeModal} onConfirm={appModal.onConfirm} />
       <ParticipantesModal empresa={participantesEmpresa} onClose={() => setParticipantesEmpresa(null)} />
+      {mensajeEmpresa && (
+        <EnviarMensajeEmpresaModal
+          receptorEeId={mensajeEmpresa.eeId}
+          empresaNombre={mensajeEmpresa.nombre}
+          onClose={() => setMensajeEmpresa(null)}
+        />
+      )}
 
       {/* Header */}
       <View className="bg-white px-4 pt-12 pb-4 border-b border-gray-100">
@@ -239,6 +248,15 @@ export default function EmpresasScreen({ navigation }: any) {
                   <Text style={{ fontSize: 12, fontWeight: '600', color: '#ef4444' }}>Eliminar</Text>
                 </TouchableOpacity>
               </View>
+              {emp.empresaEventoId && emp.estadoHabilitacionAcceso === 'HABILITADO' && (
+                <TouchableOpacity
+                  onPress={() => setMensajeEmpresa({ eeId: emp.empresaEventoId, nombre: emp.nombre })}
+                  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 9, marginTop: 8, borderWidth: 1.5, borderColor: GREEN, borderRadius: 12 }}
+                >
+                  <MessageSquare color={GREEN} size={14} />
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: GREEN }}>Enviar mensaje</Text>
+                </TouchableOpacity>
+              )}
             </View>
           ))}
 

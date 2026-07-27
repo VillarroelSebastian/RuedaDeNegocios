@@ -2396,7 +2396,12 @@ export class AppController implements OnModuleInit {
 
     const empresas = empresasRaw
       .filter((ee) => ee.empresa.nombre.toLowerCase().includes(lower) || ee.empresa.rubro.toLowerCase().includes(lower))
-      .map((ee) => ({ ...ee.empresa, estadoPago: ee.estadoVerificacionPago }));
+      .map((ee) => ({
+        ...ee.empresa,
+        estadoPago: ee.estadoVerificacionPago,
+        empresaeventoId: ee.id,
+        estadoHabilitacionAcceso: ee.estadoHabilitacionAcceso,
+      }));
 
     const reuniones = reunionesRaw.filter((r) => {
       const sol = r.solicitudreunion as any;
@@ -3580,12 +3585,14 @@ export class AppController implements OnModuleInit {
     return ids
       .map((otro) => {
         const { ultimo, noLeidos } = porContraparte.get(otro)!;
+        const esStaff = otro === 0; // emisorEe_id 0 = equipo del evento (admin/técnico)
         const emp = empresaPorEe.get(otro);
         return {
           eeId: otro,
-          nombre: emp?.nombre ?? 'Empresa',
-          codigo: emp?.codigo ?? null,
-          urlFotoPerfil: emp?.urlFotoPerfil ?? null,
+          nombre: esStaff ? 'Equipo del evento' : (emp?.nombre ?? 'Empresa'),
+          codigo: esStaff ? null : (emp?.codigo ?? null),
+          urlFotoPerfil: esStaff ? null : (emp?.urlFotoPerfil ?? null),
+          esStaff,
           ultimoMensaje: ultimo.contenido,
           esMio: ultimo.emisorEe_id === id,
           fecha: ultimo.fechaCreacion,
@@ -3616,7 +3623,7 @@ export class AppController implements OnModuleInit {
       orderBy: { fechaCreacion: 'asc' },
       take: 200,
     });
-    const euIds = [...new Set(msgs.map((m) => m.empresa_usuario_id))];
+    const euIds = [...new Set(msgs.map((m) => m.empresa_usuario_id).filter((x): x is number => !!x))];
     const eus = euIds.length
       ? await this.prisma.empresa_usuario.findMany({
           where: { id: { in: euIds } },
@@ -3624,13 +3631,20 @@ export class AppController implements OnModuleInit {
         })
       : [];
     const autorPorEu = new Map(eus.map((e) => [e.id, `${e.usuario.nombres} ${e.usuario.apellidoPaterno}`]));
-    return msgs.map((m) => ({
-      id: m.id,
-      esMio: m.emisorEe_id === a,
-      contenido: m.contenido,
-      autor: autorPorEu.get(m.empresa_usuario_id) ?? null,
-      fecha: m.fechaCreacion,
-    }));
+    return msgs.map((m) => {
+      // Mensajes del equipo del evento: mostrar el nombre/rol del staff que escribió.
+      const autorStaff = m.remitenteRol
+        ? `${m.remitenteNombre ?? 'Equipo del evento'} · ${m.remitenteRol === 'ADMIN' ? 'Organización' : 'Técnico'}`
+        : null;
+      return {
+        id: m.id,
+        esMio: m.emisorEe_id === a,
+        esStaff: m.emisorEe_id === 0,
+        contenido: m.contenido,
+        autor: autorStaff ?? (m.empresa_usuario_id ? autorPorEu.get(m.empresa_usuario_id) ?? null : null),
+        fecha: m.fechaCreacion,
+      };
+    });
   }
 
   @Post('empresa/mensajes')
@@ -3640,12 +3654,17 @@ export class AppController implements OnModuleInit {
       throw new BadRequestException('eeId, euId, receptorEeId y contenido son requeridos');
     if (Number(eeId) === Number(receptorEeId))
       throw new BadRequestException('No puedes enviarte mensajes a tu propia empresa');
+    if (Number(receptorEeId) === 0)
+      throw new BadRequestException('No puedes responder a los mensajes del equipo del evento');
     const eventoId = await this.getPrincipalEventoId();
     if (!eventoId) throw new BadRequestException('No hay un evento activo');
     const eu = await this.prisma.empresa_usuario.findFirst({
       where: { id: Number(euId), empresaevento_id: Number(eeId), estaActivo: 1 },
     });
     if (!eu) throw new BadRequestException('No tienes permiso para esta empresa');
+    // Solo el encargado puede enviar mensajes en nombre de la empresa.
+    if (eu.esResponsable !== 1)
+      throw new BadRequestException('Solo el encargado de la empresa puede enviar mensajes');
     await this.verificarEE(Number(receptorEeId));
     const msg = await this.prisma.mensajeempresa.create({
       data: {
@@ -3662,6 +3681,54 @@ export class AppController implements OnModuleInit {
     try {
       this.notifGateway.emitirParaEe(Number(receptorEeId), 'mensaje:nuevo', { deEeId: Number(eeId) });
     } catch {}
+    return { ok: true, id: msg.id, fecha: msg.fechaCreacion };
+  }
+
+  // Admin/técnico envía un mensaje a una empresa (una sola vía). Aparece en la
+  // sección Mensajes de la empresa como conversación "Equipo del evento".
+  @Post('staff/mensajes')
+  async enviarMensajeStaff(@Body() body: { usuarioId: number; receptorEeId: number; contenido: string }) {
+    const { usuarioId, receptorEeId, contenido } = body;
+    if (!usuarioId || !receptorEeId || !contenido?.trim())
+      throw new BadRequestException('usuarioId, receptorEeId y contenido son requeridos');
+    const usuario = await this.prisma.usuario.findUnique({
+      where: { id: Number(usuarioId) },
+      select: { nombres: true, apellidoPaterno: true, rolEvento: true },
+    });
+    if (!usuario) throw new BadRequestException('Usuario no encontrado');
+    if (usuario.rolEvento !== 'ADMINISTRADOR' && usuario.rolEvento !== 'TECNICO')
+      throw new BadRequestException('Solo administradores o técnicos pueden usar esta función');
+    const eventoId = await this.getPrincipalEventoId();
+    if (!eventoId) throw new BadRequestException('No hay un evento activo');
+    await this.verificarEE(Number(receptorEeId));
+
+    const rol = usuario.rolEvento === 'ADMINISTRADOR' ? 'ADMIN' : 'TECNICO';
+    const nombre = `${usuario.nombres} ${usuario.apellidoPaterno}`.trim();
+    const msg = await this.prisma.mensajeempresa.create({
+      data: {
+        evento_id: eventoId,
+        emisorEe_id: 0, // centinela: equipo del evento
+        receptorEe_id: Number(receptorEeId),
+        empresa_usuario_id: null,
+        remitenteRol: rol,
+        remitenteNombre: nombre,
+        contenido: contenido.trim().slice(0, 1000),
+        haSidoLeido: 0,
+        estaActivo: 1,
+      },
+    });
+    // Aviso en tiempo real + campanita a la empresa
+    try {
+      this.notifGateway.emitirParaEe(Number(receptorEeId), 'mensaje:nuevo', { deEeId: 0 });
+    } catch {}
+    await this.notificar(
+      Number(receptorEeId),
+      'mensaje:staff',
+      'Mensaje del equipo del evento',
+      contenido.trim().slice(0, 200),
+      msg.id,
+      'mensajeempresa',
+    );
     return { ok: true, id: msg.id, fecha: msg.fechaCreacion };
   }
 

@@ -25,6 +25,7 @@ export default function EmpresaMensajesScreen() {
   const user = userStore.get();
   const eeId = user?.empresaeventoId;
   const euId = user?.empresaUsuarioId;
+  const esEncargado = !!user?.esResponsable;
 
   const [convs, setConvs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -167,25 +168,36 @@ export default function EmpresaMensajesScreen() {
 
           {!!error && <Text style={s.chatError}>{error}</Text>}
 
-          <View style={s.inputRow}>
-            <TextInput
-              style={s.inputChat}
-              placeholder="Escribe un mensaje..."
-              placeholderTextColor="#9ca3af"
-              value={texto}
-              onChangeText={setTexto}
-              maxLength={1000}
-              multiline
-            />
-            <TouchableOpacity
-              style={[s.sendBtn, (!texto.trim() || enviando) && { opacity: 0.4 }]}
-              onPress={enviar}
-              disabled={!texto.trim() || enviando}
-              activeOpacity={0.8}
-            >
-              {enviando ? <ActivityIndicator color="#fff" size="small" /> : <Send size={17} color="#fff" />}
-            </TouchableOpacity>
-          </View>
+          {/* Input — solo el encargado escribe; la conversación con la organización es de solo lectura */}
+          {activa.eeId === 0 ? (
+            <View style={s.readonlyNote}>
+              <Text style={s.readonlyNoteText}>Mensajes del equipo del evento — no puedes responder por aquí.</Text>
+            </View>
+          ) : !esEncargado ? (
+            <View style={s.readonlyNote}>
+              <Text style={s.readonlyNoteText}>Solo el encargado de la empresa puede enviar mensajes.</Text>
+            </View>
+          ) : (
+            <View style={s.inputRow}>
+              <TextInput
+                style={s.inputChat}
+                placeholder="Escribe un mensaje..."
+                placeholderTextColor="#9ca3af"
+                value={texto}
+                onChangeText={setTexto}
+                maxLength={1000}
+                multiline
+              />
+              <TouchableOpacity
+                style={[s.sendBtn, (!texto.trim() || enviando) && { opacity: 0.4 }]}
+                onPress={enviar}
+                disabled={!texto.trim() || enviando}
+                activeOpacity={0.8}
+              >
+                {enviando ? <ActivityIndicator color="#fff" size="small" /> : <Send size={17} color="#fff" />}
+              </TouchableOpacity>
+            </View>
+          )}
         </KeyboardAvoidingView>
       </SafeAreaView>
     );
@@ -196,12 +208,16 @@ export default function EmpresaMensajesScreen() {
     <SafeAreaView style={s.root} edges={['top']}>
       <View style={s.header}>
         <Text style={s.headerTitle}>Mensajes</Text>
-        <TouchableOpacity style={s.nuevaBtn} onPress={abrirNueva} activeOpacity={0.8}>
-          <Plus size={15} color="#fff" />
-          <Text style={s.nuevaBtnText}>Nueva</Text>
-        </TouchableOpacity>
+        {esEncargado && (
+          <TouchableOpacity style={s.nuevaBtn} onPress={abrirNueva} activeOpacity={0.8}>
+            <Plus size={15} color="#fff" />
+            <Text style={s.nuevaBtnText}>Nueva</Text>
+          </TouchableOpacity>
+        )}
       </View>
-      <Text style={s.headerSub}>Conversa directamente con otras empresas del evento</Text>
+      <Text style={s.headerSub}>
+        {esEncargado ? 'Conversa directamente con otras empresas del evento' : 'Conversaciones de tu empresa (solo el encargado puede escribir)'}
+      </Text>
 
       <FlatList
         data={convs}
@@ -365,6 +381,11 @@ const s = StyleSheet.create({
     width: 42, height: 42, borderRadius: 14,
     backgroundColor: GREEN, alignItems: 'center', justifyContent: 'center',
   },
+  readonlyNote: {
+    paddingHorizontal: 16, paddingVertical: 14,
+    backgroundColor: '#f8fafc', borderTopWidth: 1, borderTopColor: '#f1f5f9',
+  },
+  readonlyNoteText: { fontSize: 12, color: '#94a3b8', textAlign: 'center' },
 
   // Modal nueva conversación
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },

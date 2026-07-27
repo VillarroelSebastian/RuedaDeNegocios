@@ -4,9 +4,10 @@ import {
   TextInput, Image, Linking,
 } from 'react-native';
 import {
-  Search, Building2, Armchair, CalendarCheck, Video, MapPin, X,
+  Search, Building2, Armchair, CalendarCheck, Video, MapPin, X, MessageSquare,
 } from 'lucide-react-native';
 import { API_URL } from '../../utils/userStore';
+import EnviarMensajeEmpresaModal from '../../components/EnviarMensajeEmpresaModal';
 
 const GREEN = '#449D3A';
 
@@ -29,30 +30,44 @@ function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString('es-BO', { day: 'numeric', month: 'short' });
 }
 
-function EmpresaCard({ e }: { e: any }) {
+function EmpresaCard({ e, onMensaje }: { e: any; onMensaje: (e: any) => void }) {
+  const puedeMensaje = e.empresaeventoId && e.estadoHabilitacionAcceso === 'HABILITADO';
   return (
     <View style={{ backgroundColor:'#fff', borderRadius:14, borderWidth:1, borderColor:'#f1f5f9',
-      padding:14, marginBottom:8, flexDirection:'row', alignItems:'center', gap:12,
+      padding:14, marginBottom:8, gap:12,
       shadowColor:'#000', shadowOpacity:0.03, shadowRadius:4, elevation:1 }}>
-      {e.urlFotoPerfil
-        ? <Image source={{ uri: e.urlFotoPerfil }} style={{ width:44, height:44, borderRadius:22 }} resizeMode="contain" />
-        : <View style={{ width:44, height:44, borderRadius:22, backgroundColor:'#dcfce7',
-            alignItems:'center', justifyContent:'center' }}>
-            <Building2 color={GREEN} size={18} />
-          </View>
-      }
-      <View style={{ flex:1 }}>
-        <Text style={{ fontSize:14, fontWeight:'700', color:'#111827' }} numberOfLines={1}>{e.nombre}</Text>
-        {e.rubro ? <Text style={{ fontSize:11, color:'#6b7280', marginTop:2 }}>{e.rubro}</Text> : null}
-        {e.correoEmpresa ? <Text style={{ fontSize:10, color:'#9ca3af', marginTop:1 }}>{e.correoEmpresa}</Text> : null}
+      <View style={{ flexDirection:'row', alignItems:'center', gap:12 }}>
+        {e.urlFotoPerfil
+          ? <Image source={{ uri: e.urlFotoPerfil }} style={{ width:44, height:44, borderRadius:22 }} resizeMode="contain" />
+          : <View style={{ width:44, height:44, borderRadius:22, backgroundColor:'#dcfce7',
+              alignItems:'center', justifyContent:'center' }}>
+              <Building2 color={GREEN} size={18} />
+            </View>
+        }
+        <View style={{ flex:1 }}>
+          <Text style={{ fontSize:14, fontWeight:'700', color:'#111827' }} numberOfLines={1}>{e.nombre}</Text>
+          {e.rubro ? <Text style={{ fontSize:11, color:'#6b7280', marginTop:2 }}>{e.rubro}</Text> : null}
+          {e.correoEmpresa ? <Text style={{ fontSize:10, color:'#9ca3af', marginTop:1 }}>{e.correoEmpresa}</Text> : null}
+        </View>
+        <View style={{ paddingHorizontal:8, paddingVertical:3, borderRadius:999,
+          backgroundColor: e.estaActivo === 1 ? '#dcfce7' : '#f3f4f6' }}>
+          <Text style={{ fontSize:9, fontWeight:'700',
+            color: e.estaActivo === 1 ? '#15803d' : '#9ca3af' }}>
+            {e.estaActivo === 1 ? 'Activa' : 'Inactiva'}
+          </Text>
+        </View>
       </View>
-      <View style={{ paddingHorizontal:8, paddingVertical:3, borderRadius:999,
-        backgroundColor: e.estaActivo === 1 ? '#dcfce7' : '#f3f4f6' }}>
-        <Text style={{ fontSize:9, fontWeight:'700',
-          color: e.estaActivo === 1 ? '#15803d' : '#9ca3af' }}>
-          {e.estaActivo === 1 ? 'Activa' : 'Inactiva'}
-        </Text>
-      </View>
+      {puedeMensaje && (
+        <TouchableOpacity
+          onPress={() => onMensaje(e)}
+          style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6,
+            borderWidth:1.5, borderColor:GREEN, borderRadius:10, paddingVertical:9 }}
+          activeOpacity={0.85}
+        >
+          <MessageSquare color={GREEN} size={14} />
+          <Text style={{ fontSize:12, fontWeight:'700', color:GREEN }}>Enviar mensaje</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -161,6 +176,7 @@ export default function TecnicoBuscadorScreen() {
   const [query,     setQuery]     = useState('');
   const [results,   setResults]   = useState<any>(null);
   const [loading,   setLoading]   = useState(false);
+  const [mensajeEmpresa, setMensajeEmpresa] = useState<{ eeId: number; nombre: string } | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const buscar = useCallback(async (q: string) => {
@@ -243,7 +259,9 @@ export default function TecnicoBuscadorScreen() {
         {!loading && empresas.length > 0 && (
           <View style={{ marginBottom:16 }}>
             <SectionHeader icon={<Building2 color={GREEN} size={16} />} label="Empresas" count={empresas.length} />
-            {empresas.map((e: any) => <EmpresaCard key={e.id} e={e} />)}
+            {empresas.map((e: any) => (
+              <EmpresaCard key={e.id} e={e} onMensaje={(emp) => setMensajeEmpresa({ eeId: emp.empresaeventoId, nombre: emp.nombre })} />
+            ))}
           </View>
         )}
 
@@ -263,6 +281,14 @@ export default function TecnicoBuscadorScreen() {
 
         <View style={{ height:20 }} />
       </ScrollView>
+
+      {mensajeEmpresa && (
+        <EnviarMensajeEmpresaModal
+          receptorEeId={mensajeEmpresa.eeId}
+          empresaNombre={mensajeEmpresa.nombre}
+          onClose={() => setMensajeEmpresa(null)}
+        />
+      )}
     </View>
   );
 }
