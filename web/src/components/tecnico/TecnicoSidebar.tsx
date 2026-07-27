@@ -5,16 +5,17 @@ import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Armchair, Video, Search, Newspaper,
-  UserCircle, LogOut, Shield, Menu, X,
+  UserCircle, LogOut, Shield, Menu, X, CalendarPlus,
 } from 'lucide-react';
 
 const menuItems = [
-  { name: 'Dashboard',  icon: LayoutDashboard, href: '/tecnico/dashboard' },
-  { name: 'Mesas',      icon: Armchair,        href: '/tecnico/mesas' },
-  { name: 'Virtuales',  icon: Video,           href: '/tecnico/virtuales' },
-  { name: 'Buscador',   icon: Search,          href: '/tecnico/buscar' },
-  { name: 'Noticias',   icon: Newspaper,       href: '/tecnico/noticias' },
-  { name: 'Mi Perfil',  icon: UserCircle,      href: '/tecnico/perfil' },
+  { name: 'Dashboard',        icon: LayoutDashboard, href: '/tecnico/dashboard' },
+  { name: 'Agendar reunión',  icon: CalendarPlus,    href: '/tecnico/agendar' },
+  { name: 'Mesas',            icon: Armchair,        href: '/tecnico/mesas' },
+  { name: 'Virtuales',        icon: Video,           href: '/tecnico/virtuales' },
+  { name: 'Buscador',         icon: Search,          href: '/tecnico/buscar' },
+  { name: 'Noticias',         icon: Newspaper,       href: '/tecnico/noticias' },
+  { name: 'Mi Perfil',        icon: UserCircle,      href: '/tecnico/perfil' },
 ];
 
 export default function TecnicoSidebar() {

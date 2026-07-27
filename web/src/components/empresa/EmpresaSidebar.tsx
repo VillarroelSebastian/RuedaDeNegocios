@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, CalendarDays, Newspaper, Building2,
-  Send, Users, Star, User, Briefcase, Clock, X, Sparkles,
+  Send, Users, Star, User, Briefcase, Clock, X, Sparkles, MessageSquare,
 } from 'lucide-react';
 
 const allMenuItems = [
@@ -14,6 +14,7 @@ const allMenuItems = [
   { name: 'Comunicados',    icon: Newspaper,       href: '/empresa/comunicados',   soloEncargado: false },
   { name: 'Mis Reuniones',  icon: Users,           href: '/empresa/reuniones',     soloEncargado: false },
   { name: 'Empresas',       icon: Building2,       href: '/empresa/empresas',      soloEncargado: false },
+  { name: 'Mensajes',       icon: MessageSquare,   href: '/empresa/mensajes',      soloEncargado: false },
   { name: 'Oportunidades',  icon: Sparkles,        href: '/empresa/oportunidades', soloEncargado: false },
   { name: 'Solicitudes',    icon: Send,            href: '/empresa/solicitudes',   soloEncargado: true  },
   { name: 'Mis Horarios',   icon: Clock,           href: '/empresa/horarios',      soloEncargado: true  },

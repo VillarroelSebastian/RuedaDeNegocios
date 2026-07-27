@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   Building2, MapPin, Search, AlertCircle, Globe, Star, X,
-  Mail, Phone, FileText, Send, Filter, Hash,
+  Mail, Phone, FileText, Send, Filter, Hash, MessageSquare,
 } from "lucide-react";
 import ImagenLightbox from "@/components/ui/ImagenLightbox";
 import { paisConBandera } from "@/lib/pais";
@@ -110,15 +111,24 @@ function PerfilModal({ empresa, esEncargado, onClose, onSolicitar }: {
             )}
           </div>
 
-          {esEncargado && (
-            <button
-              onClick={() => onSolicitar(empresa)}
-              className="w-full flex items-center justify-center gap-2 bg-[#449D3A] hover:bg-[#3a8531] text-white text-sm font-bold py-2.5 rounded-xl transition-colors"
+          <div className="space-y-2">
+            {esEncargado && (
+              <button
+                onClick={() => onSolicitar(empresa)}
+                className="w-full flex items-center justify-center gap-2 bg-[#449D3A] hover:bg-[#3a8531] text-white text-sm font-bold py-2.5 rounded-xl transition-colors"
+              >
+                <Send className="w-3.5 h-3.5" />
+                Solicitar reunión
+              </button>
+            )}
+            <Link
+              href={`/empresa/mensajes?con=${empresa.empresaeventoId}&nombre=${encodeURIComponent(empresa.nombre)}`}
+              className="w-full flex items-center justify-center gap-2 border-[1.5px] border-[#449D3A] text-[#449D3A] hover:bg-green-50 text-sm font-bold py-2.5 rounded-xl transition-colors"
             >
-              <Send className="w-3.5 h-3.5" />
-              Solicitar reunión
-            </button>
-          )}
+              <MessageSquare className="w-3.5 h-3.5" />
+              Enviar mensaje
+            </Link>
+          </div>
         </div>
       </div>
     </div>

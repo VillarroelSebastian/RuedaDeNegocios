@@ -202,6 +202,7 @@ export default function EmpresaDashboardScreen({ navigation }: any) {
               { label: 'Comunicados',    screen: 'Comunicados',    color: '#f0fdf4', soloEncargado: false },
               { label: 'Actividades',    screen: 'Eventos',        color: '#eff6ff', soloEncargado: false },
               { label: 'Empresas',       screen: 'Empresas',       color: '#fdf4ff', soloEncargado: false },
+              { label: 'Mensajes',       screen: 'Mensajes',       color: '#f0f9ff', soloEncargado: false },
               { label: 'Oportunidades',  screen: 'Oportunidades',  color: '#fefce8', soloEncargado: false },
               { label: 'Resultados',     screen: 'Resultados',     color: '#f5f3ff', soloEncargado: true  },
               { label: 'Solicitudes',    screen: 'Solicitudes',    color: '#fff7ed', soloEncargado: true  },

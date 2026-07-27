@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import ImagenLightbox from '../../components/ImagenLightbox';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import {
   Search, Building2, Send, X, MapPin, Video, Check,
   AlertCircle, ChevronLeft, Globe, Clock, RefreshCw, CheckCircle2, Star,
@@ -107,6 +107,7 @@ export default function EmpresaEmpresasScreen() {
 
   const user = userStore.get();
   const esEncargado = !!user?.esResponsable;
+  const navigation = useNavigation<any>();
 
   // Keep refs in sync with state
   useEffect(() => { horarioSelRef.current = horarioSel; }, [horarioSel]);
@@ -595,6 +596,17 @@ export default function EmpresaEmpresasScreen() {
                   <Text style={s.btnText}>Solicitar reunión</Text>
                 </TouchableOpacity>
               )}
+              <TouchableOpacity
+                style={[s.btnSecondary, { marginTop: esEncargado ? 10 : 20, borderColor: GREEN }]}
+                onPress={() => {
+                  const sel = profileSelected;
+                  setProfileModal(false);
+                  if (sel) navigation.navigate('Mensajes', { con: sel.empresaeventoId, nombre: sel.nombre });
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={[s.btnSecText, { color: GREEN }]}>Enviar mensaje</Text>
+              </TouchableOpacity>
               <TouchableOpacity
                 style={[s.btnSecondary, { marginTop: 10, marginBottom: 20 }]}
                 onPress={() => setProfileModal(false)}

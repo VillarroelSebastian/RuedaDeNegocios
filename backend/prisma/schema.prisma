@@ -286,6 +286,26 @@ model notificacion {
   @@index([empresaevento_id], map: "fk_notificacion_empresaevento2_idx")
 }
 
+// Mensajería directa entre empresas de un mismo evento.
+// emisorEe/receptorEe son empresaevento (la conversación es empresa↔empresa);
+// empresa_usuario_id registra qué usuario concreto escribió el mensaje.
+model mensajeempresa {
+  id                    Int       @id @default(autoincrement())
+  evento_id             Int
+  emisorEe_id           Int
+  receptorEe_id         Int
+  empresa_usuario_id    Int
+  contenido             String    @db.VarChar(1000)
+  haSidoLeido           Int       @default(0) @db.SmallInt
+  estaActivo            Int       @default(1) @db.SmallInt
+  fechaCreacion         DateTime  @default(now()) @db.Timestamp(6)
+  creadoModificadoFecha DateTime? @db.Timestamp(6)
+
+  @@index([emisorEe_id, receptorEe_id])
+  @@index([receptorEe_id, haSidoLeido])
+  @@index([evento_id])
+}
+
 model pais {
   id     Int      @id @default(autoincrement())
   nombre String   @db.VarChar(45)

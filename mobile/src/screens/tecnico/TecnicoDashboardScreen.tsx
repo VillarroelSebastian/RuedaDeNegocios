@@ -4,9 +4,10 @@ import {
   RefreshControl, Image, Modal as RNModal, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import {
   LayoutDashboard, Video, Armchair, CalendarCheck, Building2,
-  Clock, Calendar, ChevronRight, X, CheckCircle, AlertCircle, MapPin,
+  Clock, Calendar, ChevronRight, X, CheckCircle, AlertCircle, MapPin, CalendarPlus,
 } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
 
@@ -166,6 +167,7 @@ function ReunionCard({ r, onEstadoChange }: { r: any; onEstadoChange: (id: numbe
 
 export default function TecnicoDashboardScreen() {
   const user = userStore.get();
+  const navigation = useNavigation<any>();
   const [data,       setData]       = useState<any>(null);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -258,6 +260,26 @@ export default function TecnicoDashboardScreen() {
               </View>
             ))}
           </View>
+
+          {/* Agendar reunión entre empresas */}
+          <TouchableOpacity
+            onPress={() => navigation.navigate('TecnicoAgendar')}
+            activeOpacity={0.85}
+            style={{ flexDirection:'row', alignItems:'center', gap:12, backgroundColor:GREEN,
+              borderRadius:16, padding:16, marginBottom:20,
+              shadowColor:'#000', shadowOpacity:0.08, shadowRadius:6, elevation:2 }}
+          >
+            <View style={{ width:40, height:40, borderRadius:12, backgroundColor:'rgba(255,255,255,0.2)', alignItems:'center', justifyContent:'center' }}>
+              <CalendarPlus color="#fff" size={20} />
+            </View>
+            <View style={{ flex:1 }}>
+              <Text style={{ fontSize:15, fontWeight:'800', color:'#fff' }}>Agendar reunión</Text>
+              <Text style={{ fontSize:11, color:'rgba(255,255,255,0.8)', marginTop:1 }}>
+                Crea una reunión confirmada entre dos empresas en 4 pasos
+              </Text>
+            </View>
+            <ChevronRight color="#fff" size={20} />
+          </TouchableOpacity>
 
           {/* Próximas reuniones */}
           <View style={{ marginBottom:8 }}>
