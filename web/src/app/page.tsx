@@ -8,6 +8,7 @@ import {
   Users, LayoutGrid, Layers, ChevronRight,
   Clock, Building2, ArrowRight
 } from "lucide-react";
+import InstalarAppButton from "@/components/InstalarAppButton";
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
 const IconFacebook = () => (
@@ -144,10 +145,11 @@ export default function HomePage() {
             />
           </div>
         </div>
-        <nav className="hidden md:flex items-center space-x-8">
+        <nav className="hidden md:flex items-center space-x-6">
           <a href="#sobre" className="text-sm font-semibold text-gray-500 hover:text-gray-900 transition-colors">Sobre el Evento</a>
           <a href="#actividades" className="text-sm font-semibold text-gray-500 hover:text-gray-900 transition-colors">Actividades</a>
           <a href="#contacto" className="text-sm font-semibold text-gray-500 hover:text-gray-900 transition-colors">Contacto</a>
+          <InstalarAppButton className="flex items-center gap-1.5 rounded-md border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 hover:border-[#449D3A] hover:text-[#449D3A] transition-colors" />
           <Link href="/registro" className="rounded-md border border-[#449D3A] px-5 py-2 text-sm font-semibold text-[#449D3A] hover:bg-green-50 transition-colors">
             Registrarse
           </Link>
@@ -191,6 +193,12 @@ export default function HomePage() {
             <Link href="/auth/login" className="border-2 border-white/20 text-white/70 font-semibold px-8 py-3.5 rounded-xl hover:bg-white/10 transition-all backdrop-blur-sm">
               Iniciar Sesión
             </Link>
+          </div>
+          <div className="mt-5 flex justify-center">
+            <InstalarAppButton
+              label="Instalar app en tu teléfono"
+              className="inline-flex items-center gap-2 text-white/80 hover:text-white text-sm font-semibold underline underline-offset-4 decoration-white/40 transition-colors"
+            />
           </div>
         </div>
       </section>

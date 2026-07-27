@@ -1,6 +1,11 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+
+// Color de la barra del navegador / status bar cuando se instala como app.
+export const viewport: Viewport = {
+  themeColor: "#449D3A",
+};
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -18,6 +23,15 @@ export async function generateMetadata(): Promise<Metadata> {
   const base: Metadata = {
     title: "Rueda de Negocios",
     description: "Plataforma de la Rueda de Negocios del Beni — agenda reuniones, conoce empresas y gestiona tu participación en el evento.",
+    // Necesario para que iPhone use el ícono correcto y se abra como app.
+    appleWebApp: {
+      capable: true,
+      title: "Rueda de Negocios",
+      statusBarStyle: "black-translucent",
+    },
+    icons: {
+      apple: "/icons/apple-touch-icon.png",
+    },
   };
   try {
     const api = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
@@ -25,7 +39,8 @@ export async function generateMetadata(): Promise<Metadata> {
     if (res.ok) {
       const ev = await res.json();
       if (ev?.urlLogoEvento) {
-        return { ...base, icons: { icon: ev.urlLogoEvento } };
+        // Favicon dinámico (logo del evento) conservando el apple-touch-icon fijo.
+        return { ...base, icons: { icon: ev.urlLogoEvento, apple: "/icons/apple-touch-icon.png" } };
       }
     }
   } catch {}
