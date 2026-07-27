@@ -2769,7 +2769,7 @@ export class AppController implements OnModuleInit {
       include: {
         empresa: true,
         empresaevento: { include: { evento: true } },
-        usuario: { select: { id: true, nombres: true, apellidoPaterno: true, apellidoMaterno: true, correo: true, telefono: true, rolEvento: true } },
+        usuario: { select: { id: true, nombres: true, apellidoPaterno: true, apellidoMaterno: true, correo: true, telefono: true, rolEvento: true, urlFotoPerfil: true } },
       },
     });
     if (!eu) throw new BadRequestException('No se encontró empresa para este usuario');
@@ -4982,7 +4982,7 @@ export class AppController implements OnModuleInit {
 
   @Put('empresa/perfil')
   async updateEmpresaPerfil(@Body() body: any) {
-    const { euId, nombres, apellidoPaterno, apellidoMaterno, telefono } = body;
+    const { euId, nombres, apellidoPaterno, apellidoMaterno, telefono, urlFotoPerfil } = body;
     if (!euId) throw new BadRequestException('euId requerido');
     const eu = await this.prisma.empresa_usuario.findUnique({
       where: { id: Number(euId) },
@@ -4996,9 +4996,11 @@ export class AppController implements OnModuleInit {
         apellidoPaterno: apellidoPaterno || undefined,
         apellidoMaterno: apellidoMaterno || null,
         telefono: telefono || undefined,
+        // urlFotoPerfil puede llegar como '' para quitar la foto; solo se ignora si es undefined
+        ...(urlFotoPerfil !== undefined ? { urlFotoPerfil } : {}),
         creadoModificadoFecha: new Date(),
       },
-      select: { id: true, nombres: true, apellidoPaterno: true, apellidoMaterno: true, correo: true, telefono: true },
+      select: { id: true, nombres: true, apellidoPaterno: true, apellidoMaterno: true, correo: true, telefono: true, urlFotoPerfil: true },
     });
   }
 

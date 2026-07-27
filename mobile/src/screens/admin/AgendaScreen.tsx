@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, ActivityIndicator, RefreshControl, Image,
+  TouchableOpacity, Modal, TextInput,
 } from 'react-native';
 import {
-  Calendar, Building2, Video, MapPin, Link2,
+  Calendar, Building2, Video, MapPin, Link2, X, CheckCircle2,
 } from 'lucide-react-native';
 import { API_URL } from '../../utils/userStore';
 
@@ -35,6 +36,7 @@ export default function AgendaScreen() {
   const [reservaciones, setReservaciones] = useState<any[]>([]);
   const [loading, setLoading]   = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [linkModal, setLinkModal] = useState<any>(null);
 
   const fetchAgenda = useCallback(async () => {
     try {
@@ -183,6 +185,19 @@ export default function AgendaScreen() {
                           </View>
                           {/* Tipo */}
                           <TipoBadge tipo={r.tipoReunion} />
+                          {/* Enlace (virtual/mixta) */}
+                          {(r.tipoReunion === 'VIRTUAL' || r.tipoReunion === 'MIXTA') && (
+                            <TouchableOpacity
+                              onPress={() => setLinkModal(r)}
+                              className="flex-row items-center gap-1 px-2 py-1 rounded-full border"
+                              style={{ borderColor: GREEN }}
+                            >
+                              <Link2 color={GREEN} size={10} />
+                              <Text style={{ color: GREEN, fontSize: 9, fontWeight: '700' }}>
+                                {sol?.enlaceReunionVirtual ? 'Cambiar enlace' : 'Agregar enlace'}
+                              </Text>
+                            </TouchableOpacity>
+                          )}
                         </View>
                       </View>
                     );
@@ -195,7 +210,86 @@ export default function AgendaScreen() {
 
         <View className="h-8" />
       </View>
+
+      {linkModal && (
+        <LinkModal
+          reunion={linkModal}
+          onClose={() => setLinkModal(null)}
+          onGuardado={() => { setLinkModal(null); fetchAgenda(); }}
+        />
+      )}
     </ScrollView>
+  );
+}
+
+// Modal para agregar/cambiar el enlace virtual de una reunión (admin)
+function LinkModal({ reunion, onClose, onGuardado }: Readonly<{ reunion: any; onClose: () => void; onGuardado: () => void }>) {
+  const [enlace, setEnlace] = useState(reunion?.solicitudreunion?.enlaceReunionVirtual ?? '');
+  const [guardando, setGuardando] = useState(false);
+  const [err, setErr] = useState('');
+
+  const guardar = async () => {
+    setGuardando(true);
+    setErr('');
+    try {
+      const res = await fetch(`${API_URL}/tecnico/reuniones/${reunion.id}/link`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enlace: enlace.trim() }),
+      });
+      if (!res.ok) throw new Error('fallo');
+      onGuardado();
+    } catch {
+      setErr('No se pudo guardar el enlace.');
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <View style={{ backgroundColor: '#fff', borderRadius: 20, padding: 22, width: '100%', maxWidth: 380 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Link2 color={GREEN} size={18} />
+              <Text style={{ fontSize: 16, fontWeight: '800', color: '#0f172a' }}>Enlace de la reunión</Text>
+            </View>
+            <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <X color="#6b7280" size={20} />
+            </TouchableOpacity>
+          </View>
+          <Text style={{ fontSize: 12, color: '#94a3b8', marginBottom: 14 }}>
+            Reunión #{reunion.id} · las empresas verán este enlace en su sección de Reuniones.
+          </Text>
+          <TextInput
+            value={enlace}
+            onChangeText={setEnlace}
+            placeholder="https://meet.google.com/..."
+            placeholderTextColor="#9ca3af"
+            autoCapitalize="none"
+            keyboardType="url"
+            autoFocus
+            style={{
+              borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 12,
+              paddingHorizontal: 12, paddingVertical: 11, fontSize: 14, color: '#0f172a',
+            }}
+          />
+          {!!err && <Text style={{ color: '#dc2626', fontSize: 12, marginTop: 8 }}>{err}</Text>}
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+            <TouchableOpacity onPress={onClose}
+              style={{ flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1.5, borderColor: '#e2e8f0', alignItems: 'center' }}>
+              <Text style={{ fontWeight: '700', color: '#64748b' }}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={guardar} disabled={guardando}
+              style={{ flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: GREEN, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6, opacity: guardando ? 0.6 : 1 }}>
+              {guardando ? <ActivityIndicator color="#fff" size="small" /> : <CheckCircle2 color="#fff" size={16} />}
+              <Text style={{ fontWeight: '700', color: '#fff' }}>Guardar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
   );
 }
 

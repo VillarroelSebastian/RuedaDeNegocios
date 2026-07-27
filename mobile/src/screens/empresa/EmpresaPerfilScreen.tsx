@@ -10,7 +10,7 @@ import * as ImagePicker from 'expo-image-picker';
 import {
   User, Building2, LogOut, Edit3, UserPlus, UserX,
   ShieldCheck, Users, CreditCard, AlertCircle, Check, X, Upload,
-  Hash, QrCode, ExternalLink, CheckCircle2,
+  Hash, QrCode, ExternalLink, CheckCircle2, Camera,
 } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
 
@@ -74,6 +74,43 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
   const [comercialOk,     setComercialOk]     = useState(false);
 
   const user = userStore.get();
+  const [subiendoFoto, setSubiendoFoto] = useState(false);
+
+  // Selecciona una foto de la galería, la sube y la guarda como foto de perfil.
+  const cambiarFoto = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) { setError('Se necesita permiso para acceder a la galería.'); return; }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.85,
+    });
+    if (result.canceled || !result.assets?.length) return;
+    const asset = result.assets[0];
+    setSubiendoFoto(true);
+    setError('');
+    try {
+      const fd = new FormData();
+      fd.append('file', { uri: asset.uri, name: 'perfil.jpg', type: 'image/jpeg' } as any);
+      const up = await fetch(`${API_URL}/admin/imagenes/upload`, { method: 'POST', body: fd });
+      const upData = await up.json();
+      if (!upData.url) throw new Error('No se pudo subir la imagen');
+
+      const res = await fetch(`${API_URL}/empresa/perfil`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ euId: perfil?.empresaUsuarioId, urlFotoPerfil: upData.url }),
+      });
+      if (!res.ok) throw new Error('No se pudo guardar la foto');
+      await userStore.set({ ...userStore.get(), urlFotoPerfil: upData.url });
+      fetchAll();
+    } catch (e: any) {
+      setError(e.message || 'Error al cambiar la foto');
+    } finally {
+      setSubiendoFoto(false);
+    }
+  };
 
   const fetchAll = useCallback(async () => {
     if (!user?.id) { setLoading(false); return; }
@@ -364,9 +401,20 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
       >
         {/* Header */}
         <View style={s.profileHeader}>
-          <View style={s.avatar}>
-            <Text style={s.avatarText}>{(user?.nombres ?? 'U')[0].toUpperCase()}</Text>
-          </View>
+          <TouchableOpacity onPress={cambiarFoto} activeOpacity={0.8} style={{ position: 'relative' }}>
+            <View style={s.avatar}>
+              {perfil?.usuario?.urlFotoPerfil ? (
+                <Image source={{ uri: perfil.usuario.urlFotoPerfil }} style={{ width: 56, height: 56, borderRadius: 28 }} />
+              ) : (
+                <Text style={s.avatarText}>{(user?.nombres ?? 'U')[0].toUpperCase()}</Text>
+              )}
+            </View>
+            <View style={s.avatarCamBadge}>
+              {subiendoFoto
+                ? <ActivityIndicator size="small" color="#fff" />
+                : <Camera size={12} color="#fff" />}
+            </View>
+          </TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={s.profileName}>{perfil?.usuario?.nombres ?? user?.nombres ?? '—'}</Text>
             <Text style={s.profileEmail}>{perfil?.usuario?.correo ?? user?.correo}</Text>
@@ -900,10 +948,16 @@ const s = StyleSheet.create({
     shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2,
   },
   avatar: {
-    width: 56, height: 56, borderRadius: 28,
+    width: 56, height: 56, borderRadius: 28, overflow: 'hidden',
     backgroundColor: GREEN, alignItems: 'center', justifyContent: 'center', marginRight: 14,
   },
   avatarText:   { color: '#fff', fontSize: 22, fontWeight: '800' },
+  avatarCamBadge: {
+    position: 'absolute', bottom: 0, right: 10,
+    width: 22, height: 22, borderRadius: 11, backgroundColor: GREEN,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: '#fff',
+  },
   profileName:  { fontSize: 16, fontWeight: '800', color: '#0f172a', marginBottom: 2 },
   profileEmail: { fontSize: 12, color: '#64748b', marginBottom: 6 },
   badge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, alignSelf: 'flex-start' },

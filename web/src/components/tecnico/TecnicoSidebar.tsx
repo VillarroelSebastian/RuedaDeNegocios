@@ -76,7 +76,9 @@ export default function TecnicoSidebar() {
       {/* Role badge */}
       <div className="px-4 py-3 border-b border-gray-100 shrink-0">
         <div className="flex items-center gap-2 bg-green-50 rounded-lg px-3 py-2">
-          <Shield className="w-4 h-4 text-green-700 shrink-0" />
+          {user?.urlFotoPerfil
+            ? <img src={user.urlFotoPerfil} alt="Tu foto de perfil" className="w-7 h-7 rounded-full object-cover border border-green-200 shrink-0" />
+            : <Shield className="w-4 h-4 text-green-700 shrink-0" />}
           <div className="min-w-0">
             <p className="text-xs font-bold text-green-700">Panel Técnico</p>
             {user && <p className="text-[10px] text-green-600 truncate">{user.nombres} {user.apellidoPaterno}</p>}

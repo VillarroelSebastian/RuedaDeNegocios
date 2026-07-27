@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -30,6 +30,24 @@ interface EmpresaSidebarProps {
 
 export default function EmpresaSidebar({ esEncargado = false, mobileOpen = false, onClose }: EmpresaSidebarProps) {
   const pathname = usePathname();
+  const [foto, setFoto] = useState<string>('');
+  const [nombre, setNombre] = useState<string>('');
+
+  useEffect(() => {
+    const leer = () => {
+      try {
+        const raw = localStorage.getItem('empresaUser');
+        if (raw) {
+          const u = JSON.parse(raw);
+          setFoto(u.urlFotoPerfil || '');
+          setNombre(`${u.nombres ?? ''} ${u.apellidoPaterno ?? ''}`.trim());
+        }
+      } catch {}
+    };
+    leer();
+    window.addEventListener('profileUpdated', leer);
+    return () => window.removeEventListener('profileUpdated', leer);
+  }, []);
 
   return (
     <>
@@ -50,11 +68,15 @@ export default function EmpresaSidebar({ esEncargado = false, mobileOpen = false
           <X className="w-4 h-4 text-gray-500" />
         </button>
       <div className="flex items-center gap-2.5 px-5 h-16 border-b border-gray-100 shrink-0">
-        <div className="w-8 h-8 bg-[#449D3A] rounded-lg flex items-center justify-center">
-          <Briefcase className="w-4 h-4 text-white" />
-        </div>
-        <div>
-          <p className="text-xs font-bold text-gray-900 leading-tight">Panel Empresa</p>
+        {foto ? (
+          <img src={foto} alt="Tu foto de perfil" className="w-9 h-9 rounded-full object-cover border border-gray-200 shrink-0" />
+        ) : (
+          <div className="w-8 h-8 bg-[#449D3A] rounded-lg flex items-center justify-center shrink-0">
+            <Briefcase className="w-4 h-4 text-white" />
+          </div>
+        )}
+        <div className="min-w-0">
+          <p className="text-xs font-bold text-gray-900 leading-tight truncate">{nombre || 'Panel Empresa'}</p>
           <p className="text-[10px] text-gray-400">{esEncargado ? 'Encargado' : 'Participante'}</p>
         </div>
       </div>

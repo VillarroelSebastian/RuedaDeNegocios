@@ -1,8 +1,73 @@
 "use client";
 import React, { useState, useEffect, useCallback } from 'react';
-import { Armchair, Calendar, Building2, Video, MapPin, RefreshCw } from 'lucide-react';
+import { Armchair, Calendar, Building2, Video, MapPin, RefreshCw, X, Link2, CheckCircle2, AlertCircle } from 'lucide-react';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
+
+// Modal para agregar/cambiar el enlace virtual de una reunión (admin)
+function LinkModal({ reunion, onClose, onGuardado }: { reunion: any; onClose: () => void; onGuardado: () => void }) {
+  const [enlace, setEnlace] = useState(reunion?.solicitudreunion?.enlaceReunionVirtual ?? '');
+  const [guardando, setGuardando] = useState(false);
+  const [err, setErr] = useState('');
+
+  const guardar = async () => {
+    setGuardando(true);
+    setErr('');
+    try {
+      const res = await fetch(`${API}/tecnico/reuniones/${reunion.id}/link`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enlace: enlace.trim() }),
+      });
+      if (!res.ok) throw new Error();
+      onGuardado();
+    } catch {
+      setErr('No se pudo guardar el enlace.');
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-extrabold text-gray-900 flex items-center gap-2">
+            <Link2 className="w-4 h-4 text-[#449D3A]" />
+            Enlace de la reunión
+          </h3>
+          <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center">
+            <X className="w-4 h-4 text-gray-500" />
+          </button>
+        </div>
+        <p className="text-xs text-gray-400 mb-3">
+          Reunión #{reunion.id} · las empresas verán este enlace en su sección de Reuniones.
+        </p>
+        <input
+          type="url"
+          value={enlace}
+          onChange={(e) => setEnlace(e.target.value)}
+          placeholder="https://meet.google.com/..."
+          autoFocus
+          className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A] mb-3"
+        />
+        {err && (
+          <p className="flex items-center gap-1.5 text-xs text-red-600 mb-3"><AlertCircle className="w-3.5 h-3.5" />{err}</p>
+        )}
+        <div className="flex gap-2">
+          <button onClick={onClose}
+            className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50">
+            Cancelar
+          </button>
+          <button onClick={guardar} disabled={guardando}
+            className="flex-1 py-2.5 rounded-xl bg-[#449D3A] hover:bg-[#3a8531] text-white text-sm font-bold disabled:opacity-60 flex items-center justify-center gap-1.5">
+            {guardando ? 'Guardando...' : <><CheckCircle2 className="w-4 h-4" />Guardar</>}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const ESTADO_CONFIG: Record<string, { badge: string; dot: string; label: string }> = {
   PROGRAMADA: { badge: 'bg-blue-100 text-blue-700',    dot: 'bg-blue-400',   label: 'Programada' },
@@ -22,6 +87,7 @@ function dayKey(iso: string) {
 export default function AgendaMesasPage() {
   const [reservaciones, setReservaciones] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [linkModal, setLinkModal] = useState<any>(null);
 
   const fetchAgenda = useCallback(async () => {
     setLoading(true);
@@ -57,6 +123,13 @@ export default function AgendaMesasPage() {
 
   return (
     <div className="p-4 sm:p-6 max-w-5xl mx-auto">
+      {linkModal && (
+        <LinkModal
+          reunion={linkModal}
+          onClose={() => setLinkModal(null)}
+          onGuardado={() => { setLinkModal(null); fetchAgenda(); }}
+        />
+      )}
       <div className="flex items-start justify-between mb-6 flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Agenda de Mesas</h1>
@@ -162,6 +235,16 @@ export default function AgendaMesasPage() {
                         <span className="text-[10px] text-gray-400 hidden sm:block">
                           <Armchair className="w-3 h-3 inline mr-0.5" />Mesa {mesa?.numeroMesa}
                         </span>
+                        {(r.tipoReunion === 'VIRTUAL' || r.tipoReunion === 'MIXTA') && (
+                          <button
+                            onClick={() => setLinkModal(r)}
+                            className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg border-[1.5px] border-[#449D3A] text-[#449D3A] hover:bg-green-50 transition-colors"
+                            title={sol?.enlaceReunionVirtual ? 'Cambiar enlace' : 'Agregar enlace'}
+                          >
+                            <Link2 className="w-3 h-3" />
+                            {sol?.enlaceReunionVirtual ? 'Cambiar enlace' : 'Agregar enlace'}
+                          </button>
+                        )}
                       </div>
                     </div>
                   );

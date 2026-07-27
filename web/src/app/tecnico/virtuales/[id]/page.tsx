@@ -86,6 +86,28 @@ export default function VirtualDetailPage() {
   const [modal, setModal] = useState<{ visible: boolean; type: 'success' | 'error'; title: string; message: string }>({
     visible: false, type: 'success', title: '', message: '',
   });
+  const [editandoLink, setEditandoLink] = useState(false);
+  const [nuevoLink, setNuevoLink] = useState('');
+  const [guardandoLink, setGuardandoLink] = useState(false);
+
+  const guardarLink = async () => {
+    setGuardandoLink(true);
+    try {
+      const res = await fetch(`${API}/tecnico/reuniones/${id}/link`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enlace: nuevoLink.trim() }),
+      });
+      if (!res.ok) throw new Error();
+      setEditandoLink(false);
+      setModal({ visible: true, type: 'success', title: 'Enlace guardado', message: 'El enlace de la reunión fue actualizado correctamente.' });
+      fetchReunion();
+    } catch {
+      setModal({ visible: true, type: 'error', title: 'Error', message: 'No se pudo guardar el enlace.' });
+    } finally {
+      setGuardandoLink(false);
+    }
+  };
 
   const fetchReunion = useCallback(async () => {
     if (!id) return;
@@ -240,7 +262,33 @@ export default function VirtualDetailPage() {
               Plataformas compatibles: Zoom / Google Meet / Teams
             </p>
 
-            {link ? (
+            {editandoLink ? (
+              <div className="space-y-2">
+                <input
+                  type="url"
+                  value={nuevoLink}
+                  onChange={(e) => setNuevoLink(e.target.value)}
+                  placeholder="https://meet.google.com/..."
+                  autoFocus
+                  className="w-full px-3 py-2.5 rounded-xl text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-white/60"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setEditandoLink(false)}
+                    className="flex-1 py-2.5 font-bold text-sm rounded-xl border-2 border-white/40 text-white hover:bg-white/10 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={guardarLink}
+                    disabled={guardandoLink}
+                    className="flex-1 py-2.5 bg-white text-[#449D3A] font-bold text-sm rounded-xl hover:bg-green-50 transition-colors disabled:opacity-60"
+                  >
+                    {guardandoLink ? 'Guardando...' : 'Guardar'}
+                  </button>
+                </div>
+              </div>
+            ) : link ? (
               <div className="space-y-2">
                 <a
                   href={link}
@@ -260,11 +308,25 @@ export default function VirtualDetailPage() {
                   {copied ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                   {copied ? '¡Enlace copiado!' : 'Copiar enlace'}
                 </button>
+                <button
+                  onClick={() => { setNuevoLink(link); setEditandoLink(true); }}
+                  className="w-full py-2.5 font-bold text-sm rounded-xl border-2 border-white/40 text-white hover:bg-white/10 transition-colors"
+                >
+                  Cambiar enlace
+                </button>
               </div>
             ) : (
-              <p className="text-green-100 text-sm italic text-center py-3">
-                No hay enlace virtual registrado aún.
-              </p>
+              <div className="space-y-2">
+                <p className="text-green-100 text-sm italic text-center py-1">
+                  No hay enlace virtual registrado aún.
+                </p>
+                <button
+                  onClick={() => { setNuevoLink(''); setEditandoLink(true); }}
+                  className="w-full py-2.5 bg-white text-[#449D3A] font-bold text-sm rounded-xl hover:bg-green-50 transition-colors"
+                >
+                  Agregar enlace
+                </button>
+              </div>
             )}
 
             <div className="mt-4 pt-4 border-t border-white/20">

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   User, Building2, Save, AlertCircle, CheckCircle2, Edit3,
   Users, UserPlus, UserX, CreditCard, AlertTriangle,
-  KeyRound, Shield, X, Upload, FileText, Download,
+  KeyRound, Shield, X, Upload, FileText, Download, Camera,
 } from "lucide-react";
 import ImagenLightbox from "@/components/ui/ImagenLightbox";
 
@@ -234,6 +234,46 @@ export default function EmpresaPerfilPage() {
   const [guardando, setGuardando] = useState(false);
   const [exito, setExito] = useState<string | null>(null);
   const [errForm, setErrForm] = useState<string | null>(null);
+  const [subiendoFoto, setSubiendoFoto] = useState(false);
+
+  // Sube la foto y la guarda de inmediato en el perfil del usuario.
+  const handleFotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !ctx) return;
+    if (file.size > 10 * 1024 * 1024) { setErrForm("La imagen no debe superar 10 MB."); return; }
+    setSubiendoFoto(true);
+    setErrForm(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const up = await fetch(`${API}/admin/imagenes/upload`, { method: "POST", body: fd });
+      const upData = await up.json();
+      if (!upData.url) throw new Error("No se pudo subir la imagen");
+
+      const res = await fetch(`${API}/empresa/perfil`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ euId: ctx.empresaUsuarioId, urlFotoPerfil: upData.url }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message ?? "No se pudo guardar la foto");
+
+      setCtx((prev: any) => ({ ...prev, usuario: { ...prev.usuario, urlFotoPerfil: upData.url } }));
+      const raw = localStorage.getItem("empresaUser");
+      if (raw) {
+        const u = JSON.parse(raw);
+        localStorage.setItem("empresaUser", JSON.stringify({ ...u, urlFotoPerfil: upData.url }));
+        window.dispatchEvent(new CustomEvent("profileUpdated"));
+      }
+      setExito("Foto de perfil actualizada.");
+      setTimeout(() => setExito(null), 4000);
+    } catch (err: any) {
+      setErrForm(err.message ?? "Error al subir la foto");
+    } finally {
+      setSubiendoFoto(false);
+      e.target.value = "";
+    }
+  };
 
   // Participant management state (encargado only)
   const [dataParticipantes, setDataParticipantes] = useState<any>(null);
@@ -524,8 +564,18 @@ export default function EmpresaPerfilPage() {
 
         {/* Avatar banner */}
         <div className="bg-gradient-to-r from-[#449D3A] to-emerald-500 rounded-2xl p-6 text-white flex items-center gap-5">
-          <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-2xl font-extrabold border-2 border-white/30 shrink-0">
-            {initials}
+          <div className="relative shrink-0">
+            <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center text-2xl font-extrabold border-2 border-white/40 overflow-hidden">
+              {usuario.urlFotoPerfil
+                ? <img src={usuario.urlFotoPerfil} alt="Tu foto de perfil" className="w-full h-full object-cover" />
+                : initials}
+            </div>
+            <label className="absolute -bottom-1 -right-1 w-8 h-8 bg-white rounded-full flex items-center justify-center cursor-pointer shadow-md hover:bg-green-50 transition-colors" title="Cambiar foto de perfil">
+              {subiendoFoto
+                ? <div className="w-4 h-4 border-2 border-[#449D3A] border-t-transparent rounded-full animate-spin" />
+                : <Camera className="w-4 h-4 text-[#449D3A]" />}
+              <input type="file" accept="image/*" className="hidden" onChange={handleFotoUpload} disabled={subiendoFoto} />
+            </label>
           </div>
           <div className="min-w-0">
             <h2 className="text-xl font-extrabold">{usuario.nombres} {usuario.apellidoPaterno}</h2>

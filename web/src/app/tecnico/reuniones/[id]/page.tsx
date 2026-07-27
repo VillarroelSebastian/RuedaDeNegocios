@@ -84,6 +84,30 @@ export default function ReunionDetailPage() {
 
   const [reunion, setReunion] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [editandoLink, setEditandoLink] = useState(false);
+  const [nuevoLink, setNuevoLink] = useState('');
+  const [guardandoLink, setGuardandoLink] = useState(false);
+  const [linkMsg, setLinkMsg] = useState<{ ok: boolean; texto: string } | null>(null);
+
+  const guardarLink = async () => {
+    setGuardandoLink(true);
+    setLinkMsg(null);
+    try {
+      const res = await fetch(`${API}/tecnico/reuniones/${id}/link`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enlace: nuevoLink.trim() }),
+      });
+      if (!res.ok) throw new Error();
+      setEditandoLink(false);
+      setLinkMsg({ ok: true, texto: 'Enlace actualizado correctamente.' });
+      fetchReunion();
+    } catch {
+      setLinkMsg({ ok: false, texto: 'No se pudo guardar el enlace.' });
+    } finally {
+      setGuardandoLink(false);
+    }
+  };
 
   const fetchReunion = useCallback(async () => {
     if (!id) return;
@@ -257,18 +281,52 @@ export default function ReunionDetailPage() {
             {esVirtual && (
               <div className="mb-4">
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">Enlace virtual</p>
-                {link ? (
-                  <a
-                    href={link}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 transition-colors"
-                  >
-                    <Wifi className="w-3.5 h-3.5" />
-                    Entrar a reunión
-                  </a>
+                {editandoLink ? (
+                  <div className="space-y-2">
+                    <input
+                      type="url"
+                      value={nuevoLink}
+                      onChange={(e) => setNuevoLink(e.target.value)}
+                      placeholder="https://meet.google.com/..."
+                      autoFocus
+                      className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A]"
+                    />
+                    <div className="flex gap-2">
+                      <button onClick={() => setEditandoLink(false)}
+                        className="flex-1 py-2 rounded-xl border border-gray-200 text-xs font-bold text-gray-600 hover:bg-gray-50">
+                        Cancelar
+                      </button>
+                      <button onClick={guardarLink} disabled={guardandoLink}
+                        className="flex-1 py-2 rounded-xl bg-[#449D3A] hover:bg-[#3a8531] text-white text-xs font-bold disabled:opacity-60">
+                        {guardandoLink ? 'Guardando...' : 'Guardar'}
+                      </button>
+                    </div>
+                  </div>
                 ) : (
-                  <p className="text-sm text-gray-400 italic">Sin enlace registrado</p>
+                  <div className="space-y-2">
+                    {link ? (
+                      <a
+                        href={link}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 transition-colors"
+                      >
+                        <Wifi className="w-3.5 h-3.5" />
+                        Entrar a reunión
+                      </a>
+                    ) : (
+                      <p className="text-sm text-gray-400 italic">Sin enlace registrado</p>
+                    )}
+                    <button
+                      onClick={() => { setNuevoLink(link ?? ''); setEditandoLink(true); }}
+                      className="w-full py-2 rounded-xl border-[1.5px] border-[#449D3A] text-[#449D3A] hover:bg-green-50 text-xs font-bold transition-colors"
+                    >
+                      {link ? 'Cambiar enlace' : 'Agregar enlace'}
+                    </button>
+                  </div>
+                )}
+                {linkMsg && (
+                  <p className={`text-xs mt-2 font-semibold ${linkMsg.ok ? 'text-green-600' : 'text-red-600'}`}>{linkMsg.texto}</p>
                 )}
               </div>
             )}
