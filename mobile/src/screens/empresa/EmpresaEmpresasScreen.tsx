@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import ImagenLightbox from '../../components/ImagenLightbox';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import {
   Search, Building2, Send, X, MapPin, Video, Check,
   AlertCircle, ChevronLeft, Globe, Clock, RefreshCw, CheckCircle2, Star,
@@ -108,6 +108,7 @@ export default function EmpresaEmpresasScreen() {
   const user = userStore.get();
   const esEncargado = !!user?.esResponsable;
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
 
   // Keep refs in sync with state
   useEffect(() => { horarioSelRef.current = horarioSel; }, [horarioSel]);
@@ -257,6 +258,16 @@ export default function EmpresaEmpresasScreen() {
     stopPolling();
     setModalVisible(false);
   };
+
+  // Abrir el wizard de solicitud cuando se llega desde la pantalla de perfil.
+  useEffect(() => {
+    const sid = route.params?.solicitarEeId;
+    if (sid && esEncargado) {
+      openModal({ empresaeventoId: sid, nombre: route.params?.solicitarNombre ?? 'Empresa' });
+      navigation.setParams({ solicitarEeId: undefined, solicitarNombre: undefined });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route.params?.solicitarEeId]);
 
   // ── Step navigation ───────────────────────────────────────────────────────────
 
@@ -470,7 +481,7 @@ export default function EmpresaEmpresasScreen() {
 
             {/* Actions */}
             <View style={s.cardActions}>
-              <TouchableOpacity style={[s.profileBtn, !esEncargado && { flex: 1 }]} onPress={() => openProfile(item)} activeOpacity={0.8}>
+              <TouchableOpacity style={[s.profileBtn, !esEncargado && { flex: 1 }]} onPress={() => navigation.navigate('PerfilEmpresa', { eeId: item.empresaeventoId })} activeOpacity={0.8}>
                 <Text style={s.profileBtnText}>Ver perfil</Text>
               </TouchableOpacity>
               {esEncargado && (

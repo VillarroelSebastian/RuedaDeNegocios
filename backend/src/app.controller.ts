@@ -3087,6 +3087,56 @@ export class AppController implements OnModuleInit {
     });
   }
 
+  // Perfil completo de UNA empresa participante, para la vista dedicada de perfil
+  // (separada de la solicitud de reunión). Incluye afinidad respecto al que mira.
+  @Get('empresa/perfil-empresa/:eeId')
+  async getPerfilEmpresaDetalle(@Param('eeId') eeId: string, @Query('miEeId') miEeId?: string) {
+    const id = Number(eeId);
+    if (!id) throw new BadRequestException('eeId requerido');
+    const ee: any = await this.prisma.empresaevento.findUnique({
+      where: { id },
+      include: {
+        empresa: { include: { ciudad: { include: { pais: true } } } },
+        empresa_usuario: {
+          where: { estaActivo: 1 },
+          include: { usuario: { select: { nombres: true, apellidoPaterno: true } } },
+        },
+      },
+    });
+    if (!ee) throw new BadRequestException('Empresa no encontrada');
+
+    let miRubro: string | null = null;
+    if (miEeId) {
+      const miEe = await this.prisma.empresaevento.findUnique({
+        where: { id: Number(miEeId) }, include: { empresa: { select: { rubro: true } } },
+      });
+      miRubro = miEe?.empresa?.rubro ?? null;
+    }
+    const encargado = ee.empresa_usuario?.find((eu: any) => eu.esResponsable === 1)?.usuario ?? null;
+
+    return {
+      empresaeventoId: ee.id,
+      codigo: ee.empresa.codigo,
+      nombre: ee.empresa.nombre,
+      rubro: ee.empresa.rubro,
+      descripcion: ee.empresa.descripcion,
+      oferta: ee.empresa.oferta,
+      demanda: ee.empresa.demanda,
+      interesesBusqueda: ee.empresa.interesesBusqueda,
+      urlFotoPerfil: ee.empresa.urlFotoPerfil,
+      sitioWeb: ee.empresa.sitioWeb,
+      urlPdf: ee.empresa.urlPdf,
+      correoCorporativo: ee.empresa.correoCorporativo,
+      telefonoWhatsapp: ee.empresa.telefonoWhatsapp,
+      ciudad: ee.empresa.ciudad?.nombre ?? null,
+      pais: ee.empresa.ciudad?.pais?.nombre ?? null,
+      tipoParticipacion: ee.tipoParticipacion,
+      numeroParticipantes: ee.numeroParticipantes,
+      encargado: encargado ? `${encargado.nombres} ${encargado.apellidoPaterno}` : null,
+      afinidad: this.calcularAfinidad(miRubro, ee.empresa.rubro),
+    };
+  }
+
   // Coincidencia simple por palabras clave (>=4 letras, sin tildes) entre dos textos.
   private hayCoincidenciaTexto(a: string | null | undefined, b: string | null | undefined): boolean {
     if (!a || !b) return false;
