@@ -7,7 +7,7 @@ import * as nodemailer from 'nodemailer';
 import * as QRCode from 'qrcode';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, createHmac } from 'node:crypto';
 
 function createMailTransporter() {
   return nodemailer.createTransport({
@@ -75,15 +75,24 @@ export class AppController implements OnModuleInit {
     return codigo;
   }
 
+  // Token estable y no adivinable para la página pública de credencial.
+  // Deriva de euId + JWT_SECRET, así el enlace del QR no se puede enumerar.
+  private credencialToken(euId: number): string {
+    const secret = process.env.JWT_SECRET || 'rueda-cred-secret';
+    return createHmac('sha256', secret).update(`credencial-${euId}`).digest('hex').slice(0, 12);
+  }
+
   // Genera la credencial digital (QR) de un participante: un PNG guardado en
-  // /uploads que codifica su código de acceso. Se usa tanto en el correo de
-  // bienvenida como en "Mi Perfil" (con botón de descarga).
-  private async generarCredencialQR(euId: number, empresaCodigo: string, nombreCompleto: string): Promise<string> {
-    const contenido = `RUEDA-BENI|${empresaCodigo}|EU-${euId}|${nombreCompleto}`;
+  // /uploads que codifica la URL de su credencial pública. Al escanearlo con la
+  // cámara abre una página completa que verifica que la empresa está registrada.
+  // Se usa en el correo de bienvenida y en "Mi Perfil" (con botón de descarga).
+  private async generarCredencialQR(euId: number, _empresaCodigo: string, _nombreCompleto: string): Promise<string> {
+    const webUrl = (process.env.WEB_URL || 'http://localhost:3000').replace(/\/$/, '');
+    const contenido = `${webUrl}/credencial/${euId}?t=${this.credencialToken(euId)}`;
     const uploadsDir = join(process.cwd(), 'uploads');
     mkdirSync(uploadsDir, { recursive: true });
     const filename = `credencial-${euId}-${randomBytes(4).toString('hex')}.png`;
-    const buffer = await QRCode.toBuffer(contenido, { width: 400, margin: 2, color: { dark: '#0f172a', light: '#ffffff' } });
+    const buffer = await QRCode.toBuffer(contenido, { width: 500, margin: 2, color: { dark: '#0f172a', light: '#ffffff' } });
     writeFileSync(join(uploadsDir, filename), buffer);
     const url = `${this.uploadsBaseUrl()}/uploads/${filename}`;
     await this.prisma.empresa_usuario.update({ where: { id: euId }, data: { urlCredencialQR: url } });
@@ -253,6 +262,80 @@ export class AppController implements OnModuleInit {
       where: { empresa_id: empresa.id, evento_id: eventoId, estaActivo: 1 },
     });
     return { existe: !!ee, nombreEmpresa: ee ? empresa.nombre : undefined };
+  }
+
+  // Credencial digital pública — la abre quien escanea el QR (técnico/admin/empresa).
+  // Muestra que el participante y su empresa están registrados y habilitados.
+  @Get('public/credencial/:euId')
+  async getCredencialPublica(@Param('euId') euId: string, @Query('t') token: string) {
+    const id = Number(euId);
+    if (!id) throw new BadRequestException('Credencial inválida');
+    if (!token || token !== this.credencialToken(id))
+      throw new BadRequestException('Credencial inválida o alterada');
+
+    const eu: any = await this.prisma.empresa_usuario.findUnique({
+      where: { id },
+      include: {
+        usuario: { select: { nombres: true, apellidoPaterno: true, apellidoMaterno: true, urlFotoPerfil: true } },
+        empresa: { include: { ciudad: { include: { pais: true } } } },
+        empresaevento: { include: { evento: { select: { nombre: true, edicion: true, fechaInicioEvento: true, fechaFinEvento: true, urlLogoEvento: true, ciudadEvento: true, paisEvento: true } } } },
+      },
+    });
+    if (!eu) throw new BadRequestException('Credencial no encontrada');
+
+    const ee = eu.empresaevento;
+    const habilitado = ee?.estadoHabilitacionAcceso === 'HABILITADO' && ee?.estadoVerificacionPago === 'COMPLETADO';
+    return {
+      valida: true,
+      habilitado,
+      participante: {
+        nombre: `${eu.usuario.nombres} ${eu.usuario.apellidoPaterno}${eu.usuario.apellidoMaterno ? ' ' + eu.usuario.apellidoMaterno : ''}`.trim(),
+        urlFotoPerfil: eu.usuario.urlFotoPerfil || null,
+        cargo: eu.cargo || null,
+        esResponsable: eu.esResponsable === 1,
+      },
+      empresa: {
+        nombre: eu.empresa.nombre,
+        codigo: eu.empresa.codigo || null,
+        rubro: eu.empresa.rubro || null,
+        urlFotoPerfil: eu.empresa.urlFotoPerfil || null,
+        ciudad: eu.empresa.ciudad?.nombre ?? null,
+        pais: eu.empresa.ciudad?.pais?.nombre ?? null,
+      },
+      evento: {
+        nombre: ee?.evento?.nombre ?? null,
+        edicion: ee?.evento?.edicion ?? null,
+        fechaInicio: ee?.evento?.fechaInicioEvento ?? null,
+        fechaFin: ee?.evento?.fechaFinEvento ?? null,
+        urlLogoEvento: ee?.evento?.urlLogoEvento ?? null,
+        ciudad: ee?.evento?.ciudadEvento ?? null,
+        pais: ee?.evento?.paisEvento ?? null,
+      },
+      tipoParticipacion: ee?.tipoParticipacion ?? null,
+    };
+  }
+
+  // Regenera las credenciales QR de todos los participantes habilitados con el
+  // nuevo formato (URL escaneable). Idempotente; se llama una vez tras el deploy.
+  @Post('admin/regenerar-credenciales')
+  async regenerarCredenciales() {
+    const eventoId = await this.getPrincipalEventoId();
+    if (!eventoId) return { ok: false, regeneradas: 0 };
+    const eus = await this.prisma.empresa_usuario.findMany({
+      where: {
+        estaActivo: 1,
+        empresaevento: { evento_id: eventoId, estaActivo: 1, estadoHabilitacionAcceso: 'HABILITADO', estadoVerificacionPago: 'COMPLETADO' },
+      },
+      include: { empresa: { select: { codigo: true } }, usuario: { select: { nombres: true, apellidoPaterno: true } } },
+    });
+    let n = 0;
+    for (const eu of eus) {
+      try {
+        await this.generarCredencialQR(eu.id, (eu as any).empresa?.codigo ?? '', `${(eu as any).usuario?.nombres} ${(eu as any).usuario?.apellidoPaterno}`);
+        n++;
+      } catch {}
+    }
+    return { ok: true, regeneradas: n };
   }
 
   @Get('public/seguimiento')

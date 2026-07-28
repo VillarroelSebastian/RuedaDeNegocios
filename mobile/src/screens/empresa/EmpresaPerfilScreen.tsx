@@ -488,7 +488,9 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
             </View>
             <View style={{ alignItems: 'center' }}>
               <ImagenLightbox uri={perfil.urlCredencialQR} style={s.qrImage} />
-              <Text style={s.qrHint}>Toca la imagen para verla en grande. Mantén presionada para guardarla, o ábrela en el navegador:</Text>
+              <Text style={s.qrHint}>
+                Muestra este código en el evento. El técnico o administrador puede escanearlo para verificar que tu empresa está registrada correctamente.
+              </Text>
               <TouchableOpacity
                 style={s.qrOpenBtn}
                 onPress={() => Linking.openURL(perfil.urlCredencialQR)}
