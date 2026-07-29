@@ -17,6 +17,12 @@ const EVENTO_LABELS: Record<string, string> = {
   'solicitud:rechazada':      'Solicitud rechazada',
   'reunion:reprogramada':     'Reunión reprogramada',
   'reunion:recordatorio':     'Reunión próxima',
+  'reunion:cambio-solicitado':'Solicitud de cambio en la reunión',
+  'reunion:cambio-aceptado':  'Cambio de reunión acordado',
+  'reunion:cambio-rechazado': 'Cambio rechazado',
+  'reunion:calificar':        'Califica tu reunión',
+  'solicitud:editada':        'Solicitud actualizada',
+  'mensaje:staff':            'Mensaje del equipo del evento',
   'comunicado:nuevo':         'Nuevo comunicado',
 };
 
@@ -62,8 +68,10 @@ export function useNotificacionesMobile(eeId: number | null) {
     const EVENTOS = [
       'pago:aprobado', 'pago:rechazado',
       'pago-adicional:aprobado', 'pago-adicional:rechazado',
-      'solicitud:nueva', 'solicitud:aceptada', 'solicitud:rechazada',
+      'solicitud:nueva', 'solicitud:aceptada', 'solicitud:rechazada', 'solicitud:editada',
       'reunion:reprogramada', 'reunion:recordatorio',
+      'reunion:cambio-solicitado', 'reunion:cambio-aceptado', 'reunion:cambio-rechazado',
+      'reunion:calificar', 'mensaje:staff',
       'comunicado:nuevo',
     ];
 

@@ -55,7 +55,7 @@ type Step = 'modalidad' | 'horario' | 'mesa' | 'mensaje';
 
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
-export default function EmpresaEmpresasScreen() {
+export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?: boolean }) {
   // List state
   const [empresas,   setEmpresas]   = useState<any[]>([]);
   const [busqueda,   setBusqueda]   = useState('');
@@ -269,6 +269,22 @@ export default function EmpresaEmpresasScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route.params?.solicitarEeId]);
 
+  useEffect(() => {
+    const sol = route.params?.editarSolicitud;
+    if (sol && esEncargado) {
+      openModal({
+        empresaeventoId: sol.receptoraEeId,
+        nombre: sol.receptora?.nombre ?? 'Empresa',
+        solicitudEdicion: sol,
+      });
+      setModalidad(sol.tipo ?? 'PRESENCIAL');
+      setEnlace(sol.enlace ?? '');
+      setMensaje(sol.mensaje ?? '');
+      navigation.setParams({ editarSolicitud: undefined });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route.params?.editarSolicitud]);
+
   // ── Step navigation ───────────────────────────────────────────────────────────
 
   const goToHorario = async () => {
@@ -316,8 +332,9 @@ export default function EmpresaEmpresasScreen() {
       if (modalidad === 'PRESENCIAL') body.mesaId = mesaSel.id;
       if (modalidad === 'VIRTUAL' && enlace.trim()) body.enlace = enlace.trim();
 
-      const res = await fetch(`${API_URL}/empresa/solicitudes`, {
-        method: 'POST',
+      const editando = selected?.solicitudEdicion;
+      const res = await fetch(editando ? `${API_URL}/empresa/solicitudes/${editando.id}/editar` : `${API_URL}/empresa/solicitudes`, {
+        method: editando ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
@@ -358,7 +375,7 @@ export default function EmpresaEmpresasScreen() {
   );
 
   return (
-    <SafeAreaView style={s.root} edges={['top']}>
+    <SafeAreaView style={s.root} edges={embedded ? [] : ['top']}>
 
       {/* Search + filtros */}
       <View style={{ flexDirection: 'row', gap: 10, marginHorizontal: 16, marginTop: 16, marginBottom: 4 }}>

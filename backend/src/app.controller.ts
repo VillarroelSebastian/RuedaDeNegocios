@@ -2441,7 +2441,7 @@ export class AppController implements OnModuleInit {
 
   @Put('tecnico/reuniones/:id/estado')
   async updateTecnicoReunionEstado(@Param('id') id: string, @Body() body: { estadoReunion: string; observaciones?: string }) {
-    return await this.prisma.reunion.update({
+    const actualizada = await this.prisma.reunion.update({
       where: { id: Number(id) },
       data: {
         estadoReunion: body.estadoReunion,
@@ -2450,6 +2450,12 @@ export class AppController implements OnModuleInit {
       },
       include: this.reunionInclude(),
     });
+    // El técnico/admin puede terminar la reunión en cualquier momento: al hacerlo
+    // se avisa a ambas empresas para que registren el resultado.
+    if (body.estadoReunion === 'FINALIZADA') {
+      await this.notificarParaCalificar(Number(id));
+    }
+    return actualizada;
   }
 
   @Get('tecnico/buscar')
@@ -3958,6 +3964,14 @@ export class AppController implements OnModuleInit {
     const iniDate = new Date(inicio);
     const finDate = new Date(fin);
 
+    // Tiempo de limpieza entre reuniones en la misma mesa (lo configura el admin
+    // en tiempoEntreReuniones). Una mesa solo aparece libre si no tiene otra
+    // reunión que se solape con [inicio - limpieza, fin + limpieza].
+    const evento = await this.prisma.evento.findUnique({ where: { id: eventoId }, select: { tiempoEntreReuniones: true } });
+    const bufMs = (evento?.tiempoEntreReuniones ?? 0) * 60000;
+    const iniConBuffer = new Date(iniDate.getTime() - bufMs);
+    const finConBuffer = new Date(finDate.getTime() + bufMs);
+
     const todasMesas = await this.prisma.mesa.findMany({
       where: { evento_id: eventoId, estaActivo: 1, estaHabilitada: 1 },
       orderBy: { numeroMesa: 'asc' },
@@ -3972,8 +3986,8 @@ export class AppController implements OnModuleInit {
       where: {
         evento_id: eventoId, estaActivo: 1,
         estadoReunion: { not: 'CANCELADA' },
-        fechaHoraInicioReunion: { lt: finDate },
-        fechaHoraFinReunion: { gt: iniDate },
+        fechaHoraInicioReunion: { lt: finConBuffer },
+        fechaHoraFinReunion: { gt: iniConBuffer },
       },
       select: { mesa_id: true },
     });
@@ -4086,6 +4100,11 @@ export class AppController implements OnModuleInit {
   // tenga asignadas en todo el evento (en vez de siempre la de número más bajo).
   // Entre empatadas, se sortea para no favorecer siempre a la misma.
   private async elegirMesaBalanceada(eventoId: number, iniDate: Date, finDate: Date): Promise<number | null> {
+    // Respetar el tiempo de limpieza entre reuniones de la misma mesa.
+    const evento = await this.prisma.evento.findUnique({ where: { id: eventoId }, select: { tiempoEntreReuniones: true } });
+    const bufMs = (evento?.tiempoEntreReuniones ?? 0) * 60000;
+    const iniConBuffer = new Date(iniDate.getTime() - bufMs);
+    const finConBuffer = new Date(finDate.getTime() + bufMs);
     const [mesasLibres, conteos] = await Promise.all([
       this.prisma.mesa.findMany({
         where: {
@@ -4096,8 +4115,8 @@ export class AppController implements OnModuleInit {
             none: {
               estaActivo: 1,
               estadoReunion: { not: 'CANCELADA' },
-              fechaHoraInicioReunion: { lt: finDate },
-              fechaHoraFinReunion: { gt: iniDate },
+              fechaHoraInicioReunion: { lt: finConBuffer },
+              fechaHoraFinReunion: { gt: iniConBuffer },
             },
           },
         },
@@ -4272,12 +4291,54 @@ export class AppController implements OnModuleInit {
         mesa: (s as any).mesa ?? null,
         fechaCreacion: s.fechaCreacion,
         esMiSolicitud: s.empresaEvento_id === Number(eeId),
+        solicitanteEeId: s.empresaEvento_id,
+        receptoraEeId: s.empresaEventorReceptora_id,
         tieneConflicto,
         solicitante: (s as any).empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa,
         receptora: (s as any).empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento?.empresa,
         reunion: (s as any).reunion?.[0] ?? null,
       };
     }));
+  }
+
+  @Put('empresa/solicitudes/:id/editar')
+  async editarSolicitudPendiente(@Param('id') id: string, @Body() body: any) {
+    const { eeId, tipo, inicio, fin, mesaId, enlace, mensaje } = body;
+    if (!eeId || !tipo || !inicio || !fin)
+      throw new BadRequestException('eeId, tipo, inicio y fin son requeridos');
+    const sol = await this.prisma.solicitudreunion.findFirst({
+      where: { id: Number(id), estaActivo: 1, estadoSolicitud: 'PENDIENTE' },
+    });
+    if (!sol) throw new BadRequestException('Solicitud no encontrada o ya procesada');
+    if (sol.empresaEvento_id !== Number(eeId))
+      throw new BadRequestException('Solo la empresa que envió la solicitud puede editarla');
+
+    const iniDate = new Date(inicio);
+    const finDate = new Date(fin);
+    const eventoId = await this.getPrincipalEventoId();
+    let mesaAsignada = mesaId ? Number(mesaId) : null;
+    if (!mesaAsignada) mesaAsignada = await this.elegirMesaBalanceada(eventoId!, iniDate, finDate);
+    if (!mesaAsignada) throw new BadRequestException('No hay mesas disponibles para ese horario');
+    const ocupada = await this.prisma.reunion.findFirst({
+      where: {
+        mesa_id: mesaAsignada, estaActivo: 1, estadoReunion: { not: 'CANCELADA' },
+        fechaHoraInicioReunion: { lt: finDate }, fechaHoraFinReunion: { gt: iniDate },
+      },
+    });
+    if (ocupada) throw new BadRequestException('La mesa seleccionada ya está ocupada');
+
+    const actualizada = await this.prisma.solicitudreunion.update({
+      where: { id: Number(id) },
+      data: {
+        tipoReunion: tipo, fechaHoraInicioPropuesta: iniDate, fechaHoraFinPropuesta: finDate,
+        mesa_id: mesaAsignada, enlaceReunionVirtual: tipo === 'VIRTUAL' ? enlace || null : null,
+        mensajeParaEmpresaReceptora: mensaje || null, creadoModificadoFecha: new Date(),
+      },
+    });
+    await this.notificar(sol.empresaEventorReceptora_id, 'solicitud:editada', 'Solicitud actualizada',
+      'La otra empresa modificó la hora o los detalles de su solicitud. Revísala nuevamente antes de aceptarla.',
+      sol.id, 'solicitudreunion');
+    return { ok: true, solicitud: actualizada };
   }
 
   @Put('empresa/solicitudes/:id/aceptar')
@@ -4437,6 +4498,11 @@ export class AppController implements OnModuleInit {
           where: { estaActivo: 1, empresaeventoCalificadora_id: Number(eeId) },
           select: { id: true, calificacionReunion: true, rangoAcuerdoComercial: true },
         },
+        cambioreunion: {
+          where: { estaActivo: 1, estado: 'PENDIENTE' },
+          orderBy: { fechaCreacion: 'desc' },
+          take: 1,
+        },
       },
       orderBy: { fechaHoraInicioReunion: 'asc' },
     });
@@ -4461,6 +4527,7 @@ export class AppController implements OnModuleInit {
         receptoraEeId: receptoraEe?.id,
         // true = la solicité yo; false = me la solicitaron a mí
         yoSolicite,
+        cambioPendiente: (r as any).cambioreunion?.[0] ?? null,
       };
     });
 
@@ -4542,44 +4609,107 @@ export class AppController implements OnModuleInit {
       }
     }
 
-    // Soft-delete old mesabloque, create new
-    for (const mb of (reunion as any).mesabloque) {
-      await this.prisma.mesabloque.update({ where: { id: mb.id }, data: { estaOcupado: 0, estaActivo: 0 } });
-    }
-    if (reunion.tipoReunion === 'PRESENCIAL' && mesaId) {
-      await this.prisma.mesabloque.create({
-        data: { mesa_id: mesaId, reunion_id: Number(id), fechaHoraInicio: iniDate, fechaHoraFin: finDate, estaOcupado: 1, estaActivo: 1 },
-      });
-    }
-
-    const mesaCambio = mesaId !== reunion.mesa_id;
-    await this.prisma.reunion.update({
-      where: { id: Number(id) },
+    // Una reunión aceptada solo cambia después del acuerdo de la contraparte.
+    const pendiente = await this.prisma.cambioreunion.findFirst({
+      where: { reunion_id: Number(id), estado: 'PENDIENTE', estaActivo: 1 },
+    });
+    if (pendiente) throw new BadRequestException('Ya existe una propuesta de cambio pendiente para esta reunión');
+    const propuesta = await this.prisma.cambioreunion.create({
       data: {
-        fechaHoraInicioReunion: iniDate,
-        fechaHoraFinReunion: finDate,
-        mesa_id: mesaId,
-        estadoReunion: 'REPROGRAMADA',
-        seEnvioNotificacionDeRetraso: 0, // reactivar el recordatorio para el nuevo horario
-        creadoModificadoFecha: new Date(),
+        reunion_id: Number(id), solicitadoPorEe_id: Number(eeId),
+        tipoReunion: reunion.tipoReunion, fechaHoraInicio: iniDate, fechaHoraFin: finDate,
+        mesa_id: mesaId, enlaceReunionVirtual: sol.enlaceReunionVirtual,
+        mensaje: sol.mensajeParaEmpresaReceptora, estado: 'PENDIENTE',
       },
     });
+    const contraparte = Number(eeId) === eeA ? eeB : eeA;
+    const nuevaHoraPropuesta = this.fmtSlotAsistente(iniDate.toISOString());
+    await this.notificar(contraparte, 'reunion:cambio-solicitado', 'Solicitud de cambio en la reunión',
+      `La otra empresa solicitó cambiar la reunión al ${nuevaHoraPropuesta}. Debes aceptar el cambio para que se aplique.`,
+      propuesta.id, 'cambioreunion');
+    return { ok: true, pendienteAprobacion: true, propuesta };
+  }
 
-    // Notificar a ambas empresas del cambio de horario (y de mesa si aplica)
-    const nuevaHora = this.fmtSlotAsistente(iniDate.toISOString());
-    const mesaInfo = mesaCambio && mesaId
-      ? await this.prisma.mesa.findUnique({ where: { id: mesaId }, select: { numeroMesa: true } })
-      : null;
-    const detalleMesa = mesaInfo ? ` Nueva mesa: ${mesaInfo.numeroMesa}.` : '';
-    const quienCambio = Number(eeId);
-    for (const ee of [eeA, eeB]) {
-      const mensaje = ee === quienCambio
-        ? `Reprogramaste tu reunión para el ${nuevaHora}.${detalleMesa}`
-        : `Tu reunión fue reprogramada para el ${nuevaHora}.${detalleMesa} Revisa los detalles en Reuniones.`;
-      await this.notificar(ee, 'reunion:reprogramada', 'Reunión reprogramada', mensaje, Number(id), 'reunion');
+  @Put('empresa/reuniones/cambios/:cambioId/responder')
+  async responderCambioReunion(
+    @Param('cambioId') cambioId: string,
+    @Body() body: { eeId: number; aceptar: boolean; motivo?: string },
+  ) {
+    const cambio = await this.prisma.cambioreunion.findFirst({
+      where: { id: Number(cambioId), estado: 'PENDIENTE', estaActivo: 1 },
+      include: { reunion: { include: { solicitudreunion: true } } },
+    });
+    if (!cambio) throw new BadRequestException('La propuesta ya no está pendiente');
+    const sol = cambio.reunion.solicitudreunion;
+    const participantes = [sol.empresaEvento_id, sol.empresaEventorReceptora_id];
+    if (!participantes.includes(Number(body.eeId)) || cambio.solicitadoPorEe_id === Number(body.eeId))
+      throw new BadRequestException('Solo la contraparte puede responder esta propuesta');
+
+    if (!body.aceptar) {
+      await this.prisma.cambioreunion.update({
+        where: { id: cambio.id },
+        data: { estado: 'RECHAZADA', motivoRechazo: body.motivo || null, creadoModificadoFecha: new Date() },
+      });
+      await this.notificar(cambio.solicitadoPorEe_id, 'reunion:cambio-rechazado', 'Cambio rechazado',
+        `La otra empresa rechazó el cambio propuesto.${body.motivo ? ` Motivo: ${body.motivo}` : ''}`,
+        cambio.reunion_id, 'reunion');
+      return { ok: true, estado: 'RECHAZADA' };
     }
 
-    return { ok: true, inicio: iniDate.toISOString(), fin: finDate.toISOString() };
+    const mesaId = cambio.mesa_id ?? cambio.reunion.mesa_id;
+    const conflicto = await this.prisma.reunion.findFirst({
+      where: {
+        id: { not: cambio.reunion_id }, mesa_id: mesaId, estaActivo: 1,
+        estadoReunion: { not: 'CANCELADA' },
+        fechaHoraInicioReunion: { lt: cambio.fechaHoraFin },
+        fechaHoraFinReunion: { gt: cambio.fechaHoraInicio },
+      },
+    });
+    if (conflicto) throw new BadRequestException('La mesa u horario propuesto ya no está disponible');
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.mesabloque.updateMany({
+        where: { reunion_id: cambio.reunion_id, estaActivo: 1 },
+        data: { estaOcupado: 0, estaActivo: 0, creadoModificadoFecha: new Date() },
+      });
+      if (cambio.tipoReunion === 'PRESENCIAL') {
+        await tx.mesabloque.create({
+          data: {
+            mesa_id: mesaId, reunion_id: cambio.reunion_id,
+            fechaHoraInicio: cambio.fechaHoraInicio, fechaHoraFin: cambio.fechaHoraFin,
+            estaOcupado: 1, estaActivo: 1,
+          },
+        });
+      }
+      await tx.reunion.update({
+        where: { id: cambio.reunion_id },
+        data: {
+          tipoReunion: cambio.tipoReunion, mesa_id: mesaId,
+          fechaHoraInicioReunion: cambio.fechaHoraInicio, fechaHoraFinReunion: cambio.fechaHoraFin,
+          estadoReunion: 'REPROGRAMADA', seEnvioNotificacionDeRetraso: 0,
+          creadoModificadoFecha: new Date(),
+        },
+      });
+      await tx.solicitudreunion.update({
+        where: { id: sol.id },
+        data: {
+          tipoReunion: cambio.tipoReunion, mesa_id: mesaId,
+          fechaHoraInicioPropuesta: cambio.fechaHoraInicio, fechaHoraFinPropuesta: cambio.fechaHoraFin,
+          enlaceReunionVirtual: cambio.enlaceReunionVirtual,
+          mensajeParaEmpresaReceptora: cambio.mensaje, creadoModificadoFecha: new Date(),
+        },
+      });
+      await tx.cambioreunion.update({
+        where: { id: cambio.id },
+        data: { estado: 'ACEPTADA', creadoModificadoFecha: new Date() },
+      });
+    });
+    for (const ee of participantes) {
+      await this.notificar(ee, 'reunion:cambio-aceptado', 'Cambio de reunión acordado',
+        'Ambas empresas aceptaron el cambio. La agenda y la mesa ya fueron actualizadas.',
+        cambio.reunion_id, 'reunion');
+    }
+    return { ok: true, estado: 'ACEPTADA' };
   }
 
   @Put('empresa/reuniones/:id/finalizar')
@@ -4597,10 +4727,38 @@ export class AppController implements OnModuleInit {
       },
     });
     if (!reunion) throw new BadRequestException('Reunión no encontrada o no se puede finalizar');
-    return await this.prisma.reunion.update({
+    const actualizada = await this.prisma.reunion.update({
       where: { id: Number(id) },
       data: { estadoReunion: 'FINALIZADA', creadoModificadoFecha: new Date() },
     });
+    await this.notificarParaCalificar(Number(id));
+    return actualizada;
+  }
+
+  // Al terminar una reunión, avisa a ambos encargados para que registren el
+  // resultado (calificación, rango de acuerdo, observaciones). Aparece como
+  // notificación/campanita apenas entren a la app si no estaban dentro.
+  private async notificarParaCalificar(reunionId: number) {
+    try {
+      const r = await this.prisma.reunion.findUnique({
+        where: { id: reunionId },
+        include: { solicitudreunion: { select: { empresaEvento_id: true, empresaEventorReceptora_id: true } } },
+      });
+      const sol = (r as any)?.solicitudreunion;
+      if (!sol) return;
+      for (const ee of [sol.empresaEvento_id, sol.empresaEventorReceptora_id]) {
+        // Evitar duplicar si ya se envió antes para esta reunión.
+        const ya = await this.prisma.notificacion.findFirst({
+          where: { empresaevento_id: ee, tipoNotificacion: 'reunion:calificar', referenciaId: reunionId, estaActivo: 1 },
+        });
+        if (ya) continue;
+        await this.notificar(
+          ee, 'reunion:calificar', 'Califica tu reunión',
+          'Tu reunión terminó. Registra el resultado: calificación, rango de acuerdo y observaciones en la sección Resultados.',
+          reunionId, 'reunion',
+        );
+      }
+    } catch {}
   }
 
   // Iniciar la reunión: si ya es la hora basta un encargado; antes de la hora

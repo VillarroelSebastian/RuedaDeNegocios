@@ -4,12 +4,14 @@ import {
   ActivityIndicator, RefreshControl, StyleSheet, Modal, ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import {
   Send, Inbox, X, Check, Ban, AlertTriangle, AlertCircle,
-  Calendar, Users, Monitor, Table2, ChevronRight, CheckCircle2, XCircle, Clock,
+  Calendar, Users, Monitor, Table2, ChevronRight, CheckCircle2, XCircle, Clock, Building2,
+  Edit2,
 } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
+import EmpresaEmpresasScreen from './EmpresaEmpresasScreen';
 
 const GREEN = '#449D3A';
 
@@ -367,9 +369,10 @@ const STATUS_BORDER: Record<string, string> = {
 };
 
 export default function EmpresaSolicitudesScreen() {
+  const navigation = useNavigation<any>();
   const [enviadas,   setEnviadas]   = useState<any[]>([]);
   const [recibidas,  setRecibidas]  = useState<any[]>([]);
-  const [tab,        setTab]        = useState<'enviadas' | 'recibidas'>('recibidas');
+  const [tab,        setTab]        = useState<'empresas' | 'enviadas' | 'recibidas'>('empresas');
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error,      setError]      = useState('');
@@ -414,13 +417,17 @@ export default function EmpresaSolicitudesScreen() {
     <SafeAreaView style={s.root} edges={['top']}>
       {/* Tabs */}
       <View style={s.tabs}>
-        <TouchableOpacity style={[s.tab, tab === 'recibidas' && s.tabActive]} onPress={() => setTab('recibidas')}>
+        <TouchableOpacity style={[s.tab, tab === 'empresas' && s.tabActive]} onPress={() => setTab('empresas')}>
+          <Building2 size={15} color={tab === 'empresas' ? GREEN : '#9ca3af'} />
+          <Text style={[s.tabText, tab === 'empresas' && s.tabTextActive]}>Empresas</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[s.tab, tab === 'recibidas' && s.tabActive]} onPress={() => { setTab('recibidas'); fetchData(); }}>
           <Inbox size={15} color={tab === 'recibidas' ? GREEN : '#9ca3af'} />
           <Text style={[s.tabText, tab === 'recibidas' && s.tabTextActive]}>
             Recibidas{recibidas.length > 0 ? ` (${recibidas.length})` : ''}
           </Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[s.tab, tab === 'enviadas' && s.tabActive]} onPress={() => setTab('enviadas')}>
+        <TouchableOpacity style={[s.tab, tab === 'enviadas' && s.tabActive]} onPress={() => { setTab('enviadas'); fetchData(); }}>
           <Send size={15} color={tab === 'enviadas' ? GREEN : '#9ca3af'} />
           <Text style={[s.tabText, tab === 'enviadas' && s.tabTextActive]}>
             Enviadas{enviadas.length > 0 ? ` (${enviadas.length})` : ''}
@@ -428,14 +435,18 @@ export default function EmpresaSolicitudesScreen() {
         </TouchableOpacity>
       </View>
 
-      {!!error && (
+      {tab !== 'empresas' && !!error && (
         <View style={s.errorBox}>
           <AlertCircle size={14} color="#dc2626" />
           <Text style={s.errorText}>{error}</Text>
         </View>
       )}
 
-      <FlatList
+      {tab === 'empresas' ? (
+        <View style={s.companySection}>
+          <EmpresaEmpresasScreen embedded />
+        </View>
+      ) : <FlatList
         data={currentList}
         keyExtractor={(item) => String(item.id)}
         contentContainerStyle={s.list}
@@ -526,13 +537,22 @@ export default function EmpresaSolicitudesScreen() {
                     </>
                   )}
                   {tab === 'enviadas' && item.estado === 'PENDIENTE' && (
-                    <Pressable
-                      style={s.quickBtnGray}
-                      onPress={() => setActionModal({ sol: item, type: 'cancelar' })}
-                      hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-                    >
-                      <Ban size={14} color="#6b7280" />
-                    </Pressable>
+                    <>
+                      <Pressable
+                        style={s.quickBtnEdit}
+                        onPress={() => navigation.navigate('Empresas', { editarSolicitud: item })}
+                        hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                      >
+                        <Edit2 size={14} color={GREEN} />
+                      </Pressable>
+                      <Pressable
+                        style={s.quickBtnGray}
+                        onPress={() => setActionModal({ sol: item, type: 'cancelar' })}
+                        hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                      >
+                        <Ban size={14} color="#6b7280" />
+                      </Pressable>
+                    </>
                   )}
                   <ChevronRight size={16} color="#d1d5db" />
                 </View>
@@ -540,13 +560,13 @@ export default function EmpresaSolicitudesScreen() {
             </TouchableOpacity>
           );
         }}
-      />
+      />}
 
       {/* Detail modal */}
       {detalleModal && (
         <DetalleModal
           sol={detalleModal}
-          tab={tab}
+          tab={tab === 'recibidas' ? 'recibidas' : 'enviadas'}
           onClose={() => setDetalleModal(null)}
           onAceptar={() => { setDetalleModal(null); setActionModal({ sol: detalleModal, type: 'aceptar' }); }}
           onRechazar={() => { setDetalleModal(null); setActionModal({ sol: detalleModal, type: 'rechazar' }); }}
@@ -570,6 +590,7 @@ export default function EmpresaSolicitudesScreen() {
 const s = StyleSheet.create({
   root:   { flex: 1, backgroundColor: '#f8fafc' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  companySection: { flex: 1 },
 
   tabs: { flexDirection: 'row', backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
   tab:  { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderBottomWidth: 2, borderBottomColor: 'transparent' },
@@ -620,4 +641,5 @@ const s = StyleSheet.create({
   quickBtnGreen: { width: 30, height: 30, borderRadius: 9, backgroundColor: GREEN, alignItems: 'center', justifyContent: 'center' },
   quickBtnRed:   { width: 30, height: 30, borderRadius: 9, backgroundColor: '#fee2e2', alignItems: 'center', justifyContent: 'center' },
   quickBtnGray:  { width: 30, height: 30, borderRadius: 9, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' },
+  quickBtnEdit:  { width: 30, height: 30, borderRadius: 9, backgroundColor: '#f0fdf4', alignItems: 'center', justifyContent: 'center' },
 });

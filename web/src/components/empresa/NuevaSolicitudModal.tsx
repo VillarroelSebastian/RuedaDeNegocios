@@ -91,10 +91,10 @@ function fmtOnlyDate(iso: string) {
   return new Date(iso).toLocaleDateString("es-BO", { weekday: "short", day: "2-digit", month: "short" });
 }
 
-export function NuevaSolicitudModal({ ctx, receptoraId, receptoraNombre, onClose, onCreada }: {
-  ctx: any; receptoraId: number; receptoraNombre: string; onClose: () => void; onCreada: () => void;
+export function NuevaSolicitudModal({ ctx, receptoraId, receptoraNombre, onClose, onCreada, solicitud }: {
+  ctx: any; receptoraId: number; receptoraNombre: string; onClose: () => void; onCreada: () => void; solicitud?: any;
 }) {
-  const [tipo, setTipo] = useState<"PRESENCIAL" | "VIRTUAL">("PRESENCIAL");
+  const [tipo, setTipo] = useState<"PRESENCIAL" | "VIRTUAL">(solicitud?.tipo ?? "PRESENCIAL");
   const [horarios, setHorarios] = useState<any[]>([]);
   const [duracionMin, setDuracionMin] = useState<number>(0);
   const [horario, setHorario] = useState<any>(null);
@@ -103,8 +103,8 @@ export function NuevaSolicitudModal({ ctx, receptoraId, receptoraNombre, onClose
   const [minutosStr, setMinutosStr] = useState<string>("");
   const [mesa, setMesa] = useState<number | null>(null);
   const [mesaInvalida, setMesaInvalida] = useState(false);
-  const [enlace, setEnlace] = useState("");
-  const [mensaje, setMensaje] = useState("");
+  const [enlace, setEnlace] = useState(solicitud?.enlace ?? "");
+  const [mensaje, setMensaje] = useState(solicitud?.mensaje ?? "");
   const [cargando, setCargando] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -177,7 +177,8 @@ export function NuevaSolicitudModal({ ctx, receptoraId, receptoraNombre, onClose
         setDuracionMin(data?.duracionMinutos ?? 0);
         const fechas = [...new Set(hrs.map((h: any) => fechaISO(h.inicio)))].sort();
         const hoy = fechaISO(new Date().toISOString());
-        setFechaSelec(fechas.find((f) => f >= hoy) ?? fechas[0] ?? "");
+        const fechaActual = solicitud?.inicio ? fechaISO(solicitud.inicio) : "";
+        setFechaSelec(fechas.includes(fechaActual) ? fechaActual : (fechas.find((f) => f >= hoy) ?? fechas[0] ?? ""));
       })
       .catch(() => setHorarios([]))
       .finally(() => setCargando(false));
@@ -189,8 +190,8 @@ export function NuevaSolicitudModal({ ctx, receptoraId, receptoraNombre, onClose
     if (tipo === "PRESENCIAL" && !mesa) { setErr("Selecciona una mesa."); return; }
     setEnviando(true);
     try {
-      const res = await fetch(`${API}/empresa/solicitudes`, {
-        method: "POST",
+      const res = await fetch(solicitud ? `${API}/empresa/solicitudes/${solicitud.id}/editar` : `${API}/empresa/solicitudes`, {
+        method: solicitud ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           eeId: ctx.empresaeventoId, eeReceptoraId: receptoraId, euId: ctx.empresaUsuarioId,
@@ -211,7 +212,7 @@ export function NuevaSolicitudModal({ ctx, receptoraId, receptoraNombre, onClose
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-y-auto max-h-[90vh]">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div>
-            <h2 className="font-extrabold text-gray-900">Nueva solicitud de reunión</h2>
+            <h2 className="font-extrabold text-gray-900">{solicitud ? "Editar solicitud pendiente" : "Nueva solicitud de reunión"}</h2>
             <p className="text-xs text-gray-400 mt-0.5">Con: <span className="font-bold text-gray-700">{receptoraNombre}</span></p>
           </div>
           <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center">

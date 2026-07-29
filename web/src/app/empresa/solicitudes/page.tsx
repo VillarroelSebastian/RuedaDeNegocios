@@ -4,8 +4,9 @@ import React, { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Send, Clock, CheckCircle2, XCircle, AlertCircle, AlertTriangle,
-  Monitor, Users, Calendar, X, Table2, Ban,
+  Monitor, Users, Calendar, X, Table2, Ban, Building2, MapPin, Search, ArrowRight, Edit2,
 } from "lucide-react";
+import { paisConBandera } from "@/lib/pais";
 import { NuevaSolicitudModal } from "@/components/empresa/NuevaSolicitudModal";
 import { ModalExito } from "@/components/empresa/ModalExito";
 
@@ -313,10 +314,12 @@ function SolicitudesContent() {
 
   const [ctx, setCtx] = useState<any>(null);
   const [solicitudes, setSolicitudes] = useState<any[]>([]);
+  const [empresas, setEmpresas] = useState<any[]>([]);
+  const [busquedaEmpresa, setBusquedaEmpresa] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"enviadas" | "recibidas">("enviadas");
-  const [modalNueva, setModalNueva] = useState<{ id: number; nombre: string } | null>(null);
+  const [tab, setTab] = useState<"empresas" | "enviadas" | "recibidas">("empresas");
+  const [modalNueva, setModalNueva] = useState<{ id: number; nombre: string; solicitud?: any } | null>(null);
   const [modalDetalle, setModalDetalle] = useState<any | null>(null);
   const [modalRechazar, setModalRechazar] = useState<any | null>(null);
   const [modalAceptar, setModalAceptar] = useState<any | null>(null);
@@ -328,6 +331,11 @@ function SolicitudesContent() {
     fetch(`${API}/empresa/solicitudes?eeId=${eeId}`)
       .then((r) => r.json())
       .then((d) => setSolicitudes(Array.isArray(d) ? d : []));
+
+  const cargarEmpresas = (eeId: number) =>
+    fetch(`${API}/empresa/directorio?eeId=${eeId}`)
+      .then((r) => r.json())
+      .then((d) => setEmpresas(Array.isArray(d) ? d : []));
 
   const toast = (tipo: "ok" | "err", msg: string) => {
     setToastMsg({ tipo, msg });
@@ -342,7 +350,13 @@ function SolicitudesContent() {
 
     fetch(`${API}/empresa/mi-empresa?usuarioId=${user.id}`)
       .then((r) => r.json())
-      .then((c) => { setCtx(c); return cargarSolicitudes(c.empresaeventoId); })
+      .then((c) => {
+        setCtx(c);
+        return Promise.all([
+          cargarSolicitudes(c.empresaeventoId),
+          cargarEmpresas(c.empresaeventoId),
+        ]);
+      })
       .catch(() => setError("No se pudo cargar las solicitudes."))
       .finally(() => setLoading(false));
   }, [router]);
@@ -392,14 +406,20 @@ function SolicitudesContent() {
   const enviadas  = solicitudes.filter((s) => s.esMiSolicitud);
   const recibidas = solicitudes.filter((s) => !s.esMiSolicitud);
   const lista     = tab === "enviadas" ? enviadas : recibidas;
+  const empresasFiltradas = empresas.filter((empresa) =>
+    [empresa.nombre, empresa.rubro, empresa.ciudad, empresa.pais].some((valor) =>
+      valor && String(valor).toLowerCase().includes(busquedaEmpresa.toLowerCase())
+    )
+  );
 
   return (
     <>
       {modalNueva && ctx && (
-        <NuevaSolicitudModal ctx={ctx} receptoraId={modalNueva.id} receptoraNombre={modalNueva.nombre}
+        <NuevaSolicitudModal ctx={ctx} receptoraId={modalNueva.id} receptoraNombre={modalNueva.nombre} solicitud={modalNueva.solicitud}
           onClose={() => setModalNueva(null)}
           onCreada={() => {
             setModalNueva(null);
+            setTab("enviadas");
             setExitoMsg("Tu solicitud de reunión fue enviada correctamente. Te avisaremos cuando la empresa responda.");
             recargar();
           }} />
@@ -419,7 +439,7 @@ function SolicitudesContent() {
       )}
       {modalDetalle && ctx && (
         <DetalleSolicitudModal
-          sol={modalDetalle} tab={tab} eeId={ctx.empresaeventoId}
+          sol={modalDetalle} tab={tab === "recibidas" ? "recibidas" : "enviadas"} eeId={ctx.empresaeventoId}
           onClose={() => setModalDetalle(null)}
           onAceptar={() => { setModalAceptar(modalDetalle); }}
           onRechazar={() => { setModalRechazar(modalDetalle); }}
@@ -434,11 +454,6 @@ function SolicitudesContent() {
             <h1 className="text-2xl font-extrabold text-gray-900">Solicitudes de reunión</h1>
             <p className="text-sm text-gray-400 mt-0.5">{solicitudes.length} solicitudes en total</p>
           </div>
-          <button onClick={() => router.push("/empresa/empresas")}
-            className="flex items-center gap-2 bg-[#449D3A] hover:bg-[#3a8531] text-white text-sm font-bold px-4 py-2.5 rounded-xl transition-colors">
-            <Send className="w-4 h-4" />
-            Nueva solicitud
-          </button>
         </div>
 
         {/* Toast */}
@@ -453,18 +468,68 @@ function SolicitudesContent() {
 
         {/* Tabs */}
         <div className="flex bg-gray-100 rounded-xl p-1 w-fit">
-          {(["enviadas", "recibidas"] as const).map((t) => (
+          {(["empresas", "enviadas", "recibidas"] as const).map((t) => (
             <button key={t} onClick={() => setTab(t)}
               className={`px-5 py-2 rounded-lg text-sm font-bold transition-all ${
                 tab === t ? "bg-white shadow text-gray-900" : "text-gray-500 hover:text-gray-700"
               }`}>
-              {t === "enviadas" ? `Enviadas (${enviadas.length})` : `Recibidas (${recibidas.length})`}
+              {t === "empresas"
+                ? `Empresas (${empresas.length})`
+                : t === "enviadas"
+                  ? `Enviadas (${enviadas.length})`
+                  : `Recibidas (${recibidas.length})`}
             </button>
           ))}
         </div>
 
-        {/* List */}
-        {lista.length === 0 ? (
+        {/* Empresas desde las que se inicia una nueva solicitud */}
+        {tab === "empresas" ? (
+          <div className="space-y-4">
+            <div className="relative max-w-md">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <input
+                value={busquedaEmpresa}
+                onChange={(e) => setBusquedaEmpresa(e.target.value)}
+                placeholder="Buscar empresa, rubro o ciudad..."
+                className="w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-9 pr-4 text-sm outline-none focus:border-[#449D3A] focus:ring-2 focus:ring-[#449D3A]/20"
+              />
+            </div>
+            {empresasFiltradas.length === 0 ? (
+              <div className="rounded-2xl border border-gray-100 bg-white p-12 text-center text-sm text-gray-400">
+                No se encontraron empresas disponibles.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {empresasFiltradas.map((empresa) => (
+                  <div key={empresa.empresaeventoId} className="flex flex-col rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-green-50">
+                        <Building2 className="h-5 w-5 text-[#449D3A]" />
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="truncate text-sm font-extrabold text-gray-900">{empresa.nombre}</h3>
+                        {empresa.rubro && <p className="mt-0.5 truncate text-xs text-gray-500">{empresa.rubro}</p>}
+                        {(empresa.ciudad || empresa.pais) && (
+                          <p className="mt-1 flex items-center gap-1 text-xs text-gray-400">
+                            <MapPin className="h-3 w-3" />
+                            {[empresa.ciudad, paisConBandera(empresa.pais)].filter(Boolean).join(", ")}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setModalNueva({ id: empresa.empresaeventoId, nombre: empresa.nombre })}
+                      className="mt-4 flex w-full items-center justify-between rounded-xl bg-[#449D3A] px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#3a8531]"
+                    >
+                      Solicitar reunión
+                      <ArrowRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : lista.length === 0 ? (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
             <div className="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center mx-auto mb-4">
               <Send className="w-7 h-7 text-gray-300" />
@@ -547,11 +612,20 @@ function SolicitudesContent() {
                         </>
                       )}
                       {tab === "enviadas" && sol.estado === "PENDIENTE" && (
-                        <button onClick={(e) => { e.stopPropagation(); handleCancelar(sol.id); }}
-                          disabled={cancelando === sol.id}
-                          className="p-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-500 transition-colors disabled:opacity-50" title="Cancelar">
-                          <Ban className="w-4 h-4" />
-                        </button>
+                        <>
+                          <button onClick={(e) => {
+                            e.stopPropagation();
+                            setModalNueva({ id: sol.receptoraEeId, nombre: sol.receptora?.nombre ?? "Empresa", solicitud: sol });
+                          }}
+                            className="p-2 rounded-xl bg-green-50 hover:bg-green-100 text-[#449D3A] transition-colors" title="Editar solicitud">
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button onClick={(e) => { e.stopPropagation(); handleCancelar(sol.id); }}
+                            disabled={cancelando === sol.id}
+                            className="p-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-500 transition-colors disabled:opacity-50" title="Cancelar">
+                            <Ban className="w-4 h-4" />
+                          </button>
+                        </>
                       )}
                     </div>
 

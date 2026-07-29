@@ -70,39 +70,41 @@ export default function EmpresaPerfilEmpresaScreen() {
           <Text style={s.backText}>Empresas</Text>
         </TouchableOpacity>
 
-        {/* Hero */}
+        {/* Hero — compacto, con avatar + nombre dentro */}
         <View style={s.hero}>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-            {!!emp.rubro && <View style={s.heroChip}><Text style={s.heroChipText}>{emp.rubro}</Text></View>}
-            {!!emp.tipoParticipacion && <View style={[s.heroChip, { backgroundColor: 'rgba(255,255,255,0.15)' }]}><Text style={s.heroChipText}>{emp.tipoParticipacion}</Text></View>}
-          </View>
-        </View>
-
-        {/* Avatar + nombre */}
-        <View style={{ paddingHorizontal: 16, marginTop: -34 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 14 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
             {emp.urlFotoPerfil ? (
               <Image source={{ uri: emp.urlFotoPerfil }} style={s.avatar} />
             ) : (
-              <View style={[s.avatar, { alignItems: 'center', justifyContent: 'center', backgroundColor: '#f0fdf4' }]}>
-                <Building2 size={38} color={GREEN} />
+              <View style={[s.avatar, { alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.15)' }]}>
+                <Building2 size={34} color="#fff" />
               </View>
             )}
-            <View style={{ flex: 1, paddingBottom: 4 }}>
+            <View style={{ flex: 1 }}>
               <Text style={s.nombre} numberOfLines={3}>{emp.nombre}</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginTop: 3 }}>
-                {!!emp.codigo && (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-                    <Hash size={12} color="#94a3b8" /><Text style={s.metaText}>{emp.codigo}</Text>
-                  </View>
-                )}
-                {(!!emp.ciudad || !!emp.pais) && (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-                    <MapPin size={12} color="#94a3b8" /><Text style={s.metaText}>{[emp.ciudad, paisConBandera(emp.pais)].filter(Boolean).join(', ')}</Text>
-                  </View>
-                )}
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>
+                {!!emp.rubro && <View style={s.heroChip}><Text style={s.heroChipText}>{emp.rubro}</Text></View>}
+                {!!emp.tipoParticipacion && <View style={[s.heroChip, { backgroundColor: 'rgba(255,255,255,0.15)' }]}><Text style={s.heroChipText}>{emp.tipoParticipacion}</Text></View>}
               </View>
             </View>
+          </View>
+          {/* Meta */}
+          <View style={s.heroMeta}>
+            {!!emp.codigo && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                <Hash size={12} color="rgba(255,255,255,0.85)" /><Text style={s.metaText}>{emp.codigo}</Text>
+              </View>
+            )}
+            {(!!emp.ciudad || !!emp.pais) && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                <MapPin size={12} color="rgba(255,255,255,0.85)" /><Text style={s.metaText}>{[emp.ciudad, paisConBandera(emp.pais)].filter(Boolean).join(', ')}</Text>
+              </View>
+            )}
+            {!!emp.numeroParticipantes && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                <Users size={12} color="rgba(255,255,255,0.85)" /><Text style={s.metaText}>{emp.numeroParticipantes} participante(s)</Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -227,13 +229,17 @@ const s = StyleSheet.create({
   backText: { fontSize: 15, fontWeight: '600', color: '#374151', marginLeft: 2 },
   hero: {
     marginHorizontal: 16, marginTop: 6, borderRadius: 24,
-    backgroundColor: GREEN, paddingHorizontal: 18, paddingTop: 18, paddingBottom: 46,
+    backgroundColor: GREEN, paddingHorizontal: 18, paddingVertical: 18,
   },
   heroChip: { backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5 },
   heroChipText: { color: '#fff', fontSize: 11, fontWeight: '700' },
-  avatar: { width: 78, height: 78, borderRadius: 18, borderWidth: 3, borderColor: '#fff', backgroundColor: '#fff' },
-  nombre: { fontSize: 20, fontWeight: '800', color: '#0f172a', lineHeight: 25 },
-  metaText: { fontSize: 12, color: '#94a3b8', fontWeight: '600' },
+  avatar: { width: 72, height: 72, borderRadius: 18, borderWidth: 2, borderColor: 'rgba(255,255,255,0.6)', backgroundColor: '#fff' },
+  nombre: { fontSize: 20, fontWeight: '800', color: '#fff', lineHeight: 25 },
+  heroMeta: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginTop: 14, paddingTop: 14,
+    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.2)',
+  },
+  metaText: { fontSize: 12, color: 'rgba(255,255,255,0.85)', fontWeight: '600' },
 
   card: {
     marginHorizontal: 16, borderRadius: 16, padding: 16,

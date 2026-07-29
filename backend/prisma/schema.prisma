@@ -361,10 +361,33 @@ model reunion {
   evento                        evento             @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_reunion_evento1")
   mesa                          mesa               @relation(fields: [mesa_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_reunion_mesa1")
   solicitudreunion              solicitudreunion   @relation(fields: [solicitudReunion_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_reunion_solicitudreunion1")
+  cambioreunion                 cambioreunion[]
 
   @@index([evento_id], map: "fk_reunion_evento1_idx")
   @@index([mesa_id], map: "fk_reunion_mesa1_idx")
   @@index([solicitudReunion_id], map: "fk_reunion_solicitudreunion1_idx")
+}
+
+// Una reunión aceptada no se modifica hasta que la contraparte apruebe esta propuesta.
+model cambioreunion {
+  id                    Int       @id @default(autoincrement())
+  reunion_id            Int
+  solicitadoPorEe_id    Int
+  tipoReunion           String    @db.VarChar(45)
+  fechaHoraInicio       DateTime  @db.Timestamp(6)
+  fechaHoraFin          DateTime  @db.Timestamp(6)
+  mesa_id               Int?
+  enlaceReunionVirtual  String?   @db.VarChar(500)
+  mensaje               String?   @db.VarChar(505)
+  estado                String    @default("PENDIENTE") @db.VarChar(45)
+  motivoRechazo         String?   @db.VarChar(505)
+  estaActivo            Int       @default(1) @db.SmallInt
+  fechaCreacion         DateTime  @default(now()) @db.Timestamp(6)
+  creadoModificadoFecha DateTime? @db.Timestamp(6)
+  reunion               reunion   @relation(fields: [reunion_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([reunion_id, estado])
+  @@index([solicitadoPorEe_id])
 }
 
 model solicitudreunion {

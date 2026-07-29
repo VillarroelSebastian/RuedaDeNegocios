@@ -121,7 +121,7 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
         <View style={cm.sheet}>
           <View style={cm.header}>
             <View style={{ flex: 1 }}>
-              <Text style={cm.title}>Cambiar horario</Text>
+              <Text style={cm.title}>Proponer nuevo horario</Text>
               <Text style={cm.sub} numberOfLines={1}>Con {reunion?.contraparte?.nombre}</Text>
             </View>
             <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -205,7 +205,7 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
                   ? <ActivityIndicator size="small" color="#fff" />
                   : <CheckCircle2 size={14} color="#fff" style={{ marginRight: 6 }} />
                 }
-                <Text style={cm.confirmText}>Confirmar cambio</Text>
+                <Text style={cm.confirmText}>Enviar propuesta</Text>
               </TouchableOpacity>
             </View>
             <View style={{ height: 24 }} />
@@ -518,6 +518,23 @@ export default function EmpresaReunionesScreen({ navigation }: any) {
 
   useFocusEffect(useCallback(() => { fetchData(); }, [fetchData]));
 
+  const responderCambio = async (cambioId: number, aceptar: boolean) => {
+    if (!eeId) return;
+    try {
+      const res = await fetch(`${API_URL}/empresa/reuniones/cambios/${cambioId}/responder`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eeId, aceptar }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message ?? 'No se pudo responder la propuesta');
+      setAppModal({ tipo: 'ok', msg: aceptar ? 'Cambio aceptado y agenda actualizada.' : 'Cambio rechazado.' });
+      fetchData();
+    } catch (e: any) {
+      setAppModal({ tipo: 'err', msg: e.message || 'No se pudo responder la propuesta' });
+    }
+  };
+
   if (loading) return (
     <View style={s.center}><ActivityIndicator size="large" color={GREEN} /></View>
   );
@@ -583,6 +600,26 @@ export default function EmpresaReunionesScreen({ navigation }: any) {
         keyExtractor={(item) => String(item.id)}
         contentContainerStyle={s.list}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(); }} tintColor={GREEN} />}
+        ListHeaderComponent={
+          <View>
+            {items.filter((r) => r.cambioPendiente && r.cambioPendiente.solicitadoPorEe_id !== eeId).map((r) => (
+              <View key={`cambio-${r.cambioPendiente.id}`} style={s.changeCard}>
+                <Text style={s.changeTitle}>Cambio solicitado por {r.contraparte?.nombre}</Text>
+                <Text style={s.changeText}>
+                  Nueva propuesta: {fmtDate(r.cambioPendiente.fechaHoraInicio)} · {fmtTime(r.cambioPendiente.fechaHoraInicio)}
+                </Text>
+                <View style={s.changeActions}>
+                  <TouchableOpacity style={s.changeReject} onPress={() => responderCambio(r.cambioPendiente.id, false)}>
+                    <Text style={s.changeRejectText}>Rechazar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={s.changeAccept} onPress={() => responderCambio(r.cambioPendiente.id, true)}>
+                    <Text style={s.changeAcceptText}>Aceptar cambio</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
+          </View>
+        }
         ListEmptyComponent={
           <View style={s.empty}>
             <CalendarDays size={48} color="#d1d5db" />
@@ -653,6 +690,14 @@ export default function EmpresaReunionesScreen({ navigation }: any) {
 const s = StyleSheet.create({
   root:   { flex: 1, backgroundColor: '#f8fafc' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  changeCard: { backgroundColor: '#fffbeb', borderColor: '#fde68a', borderWidth: 1, borderRadius: 16, padding: 14, marginBottom: 12 },
+  changeTitle: { color: '#78350f', fontSize: 14, fontWeight: '800' },
+  changeText: { color: '#a16207', fontSize: 12, marginTop: 4 },
+  changeActions: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  changeReject: { flex: 1, borderColor: '#fcd34d', borderWidth: 1, backgroundColor: '#fff', borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
+  changeRejectText: { color: '#92400e', fontSize: 12, fontWeight: '700' },
+  changeAccept: { flex: 1, backgroundColor: GREEN, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
+  changeAcceptText: { color: '#fff', fontSize: 12, fontWeight: '700' },
   header: { backgroundColor: '#fff', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
   headerTitle: { fontSize: 20, fontWeight: '800', color: '#0f172a' },
   headerSub:   { fontSize: 12, color: '#94a3b8', marginTop: 2 },

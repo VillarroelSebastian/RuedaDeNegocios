@@ -92,39 +92,37 @@ export default function PerfilEmpresaPage() {
         </Link>
       </div>
 
-      {/* Hero */}
+      {/* Hero — compacto, con avatar + nombre dentro */}
       <div className="px-6 mt-4">
-        <div className="relative bg-gradient-to-br from-[#449D3A] to-emerald-600 rounded-3xl px-6 pt-6 pb-16 overflow-hidden">
-          <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
-          <div className="relative flex flex-wrap items-center gap-2">
-            {emp.rubro && <span className="text-[11px] font-bold text-white bg-white/20 border border-white/30 px-3 py-1 rounded-full">{emp.rubro}</span>}
-            {emp.tipoParticipacion && <span className="text-[11px] font-bold text-white/90 bg-white/15 px-3 py-1 rounded-full">{emp.tipoParticipacion}</span>}
-          </div>
-        </div>
-        {/* Avatar + nombre superpuestos */}
-        <div className="px-2 -mt-12">
-          <div className="flex items-end gap-4">
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#449D3A] to-emerald-600 p-5 sm:p-6">
+          <div className="absolute -top-8 -right-8 w-48 h-48 bg-white/10 rounded-full blur-2xl" />
+          <div className="relative flex items-center gap-4">
             {emp.urlFotoPerfil ? (
-              <img src={emp.urlFotoPerfil} alt={emp.nombre} className="w-24 h-24 rounded-2xl border-4 border-white shadow-xl object-cover bg-white shrink-0" />
+              <img src={emp.urlFotoPerfil} alt={emp.nombre} className="h-16 w-16 shrink-0 rounded-2xl border-2 border-white/60 bg-white object-cover shadow-lg sm:h-20 sm:w-20" />
             ) : (
-              <div className="w-24 h-24 rounded-2xl border-4 border-white shadow-xl bg-green-50 flex items-center justify-center shrink-0">
-                <Building2 className="w-11 h-11 text-[#449D3A]" />
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border-2 border-white/60 bg-white/15 shadow-lg sm:h-20 sm:w-20">
+                <Building2 className="h-8 w-8 text-white sm:h-10 sm:w-10" />
               </div>
             )}
-            <div className="pb-1 min-w-0">
-              <h1 className="text-2xl font-extrabold text-gray-900 leading-tight">{emp.nombre}</h1>
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
-                {emp.codigo && <span className="inline-flex items-center gap-1 text-xs font-bold text-gray-400"><Hash className="w-3.5 h-3.5" />{emp.codigo}</span>}
-                {(emp.ciudad || emp.pais) && (
-                  <span className="text-xs text-gray-500 flex items-center gap-1">
-                    <MapPin className="w-3.5 h-3.5" />{[emp.ciudad, paisConBandera(emp.pais)].filter(Boolean).join(", ")}
-                  </span>
-                )}
-                {emp.numeroParticipantes ? (
-                  <span className="text-xs text-gray-500 flex items-center gap-1"><Users className="w-3.5 h-3.5" />{emp.numeroParticipantes} participante(s)</span>
-                ) : null}
+            <div className="min-w-0 flex-1">
+              <h1 className="break-words text-xl font-extrabold leading-tight text-white sm:text-2xl">{emp.nombre}</h1>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {emp.rubro && <span className="text-[11px] font-bold text-white bg-white/20 border border-white/30 px-2.5 py-1 rounded-full">{emp.rubro}</span>}
+                {emp.tipoParticipacion && <span className="text-[11px] font-bold text-white/90 bg-white/15 px-2.5 py-1 rounded-full">{emp.tipoParticipacion}</span>}
               </div>
             </div>
+          </div>
+          {/* Meta */}
+          <div className="relative flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-4 pt-4 border-t border-white/20">
+            {emp.codigo && <span className="inline-flex items-center gap-1 text-xs font-bold text-white/90"><Hash className="w-3.5 h-3.5" />{emp.codigo}</span>}
+            {(emp.ciudad || emp.pais) && (
+              <span className="text-xs text-white/80 flex items-center gap-1">
+                <MapPin className="w-3.5 h-3.5" />{[emp.ciudad, paisConBandera(emp.pais)].filter(Boolean).join(", ")}
+              </span>
+            )}
+            {emp.numeroParticipantes ? (
+              <span className="text-xs text-white/80 flex items-center gap-1"><Users className="w-3.5 h-3.5" />{emp.numeroParticipantes} participante(s)</span>
+            ) : null}
           </div>
         </div>
       </div>

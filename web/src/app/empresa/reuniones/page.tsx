@@ -109,7 +109,7 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-y-auto max-h-[90vh]">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div>
-            <h3 className="font-extrabold text-gray-900">Cambiar horario</h3>
+            <h3 className="font-extrabold text-gray-900">Proponer nuevo horario</h3>
             <p className="text-xs text-gray-400 mt-0.5">Reunión con {reunion?.contraparte?.nombre}</p>
           </div>
           <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center">
@@ -192,7 +192,7 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
             <button onClick={handleGuardar} disabled={guardando || !seleccionado}
               className="flex-1 py-2.5 rounded-xl bg-[#449D3A] text-white text-sm font-bold disabled:opacity-50 flex items-center justify-center gap-2">
               {guardando ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-              Confirmar cambio
+              Enviar propuesta
             </button>
           </div>
         </div>
@@ -398,6 +398,22 @@ export default function ReunionesPage() {
     return true;
   });
 
+  const responderCambio = async (cambioId: number, aceptar: boolean) => {
+    if (!eeId) return;
+    try {
+      const res = await fetch(`${API}/empresa/reuniones/cambios/${cambioId}/responder`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eeId, aceptar }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message ?? "No se pudo responder la propuesta");
+      setLoading(true);
+      cargarReuniones(eeId);
+    } catch (e: any) {
+      setError(e.message);
+    }
+  };
+
   if (loading) return (
     <div className="flex items-center justify-center h-64">
       <div className="w-8 h-8 border-4 border-[#449D3A] border-t-transparent rounded-full animate-spin" />
@@ -449,6 +465,29 @@ export default function ReunionesPage() {
             ))}
           </div>
         </div>
+
+        {filtradas.filter((r) => r.cambioPendiente && r.cambioPendiente.solicitadoPorEe_id !== eeId).map((r) => (
+          <div key={`cambio-${r.cambioPendiente.id}`} className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-extrabold text-amber-900">Cambio solicitado por {r.contraparte?.nombre}</p>
+                <p className="mt-1 text-xs text-amber-700">
+                  Nueva propuesta: {fmtDate(r.cambioPendiente.fechaHoraInicio)} · {fmtTime(r.cambioPendiente.fechaHoraInicio)}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => responderCambio(r.cambioPendiente.id, false)}
+                  className="rounded-xl border border-amber-300 bg-white px-4 py-2 text-xs font-bold text-amber-800">
+                  Rechazar
+                </button>
+                <button onClick={() => responderCambio(r.cambioPendiente.id, true)}
+                  className="rounded-xl bg-[#449D3A] px-4 py-2 text-xs font-bold text-white">
+                  Aceptar cambio
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
 
         {filtradas.length === 0 ? (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center text-gray-400">

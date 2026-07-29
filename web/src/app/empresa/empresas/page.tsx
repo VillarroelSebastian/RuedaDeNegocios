@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Building2, MapPin, Search, AlertCircle, Star, Filter } from "lucide-react";
+import { ArrowRight, Building2, MapPin, Search, AlertCircle, Star, Filter } from "lucide-react";
 import ImagenLightbox from "@/components/ui/ImagenLightbox";
 import { paisConBandera } from "@/lib/pais";
 
@@ -192,9 +192,12 @@ export default function EmpresasPage() {
                   )}
                 </div>
 
-                <span className="mt-3 w-full flex items-center justify-center gap-1.5 border-[1.5px] border-[#449D3A] text-[#449D3A] hover:bg-green-50 text-xs font-bold py-2 rounded-xl transition-colors">
-                  Ver perfil completo →
-                </span>
+                <div className="mt-4 border-t border-gray-100 pt-3">
+                  <span className="group/cta flex w-full items-center justify-between rounded-lg bg-green-50 px-3 py-2 text-xs font-bold text-[#449D3A] transition-colors hover:bg-green-100">
+                    Ver empresa
+                    <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover/cta:translate-x-0.5" />
+                  </span>
+                </div>
               </div>
             </Link>
           ))}
