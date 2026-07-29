@@ -167,16 +167,20 @@ export function NuevaSolicitudModal({ ctx, receptoraId, receptoraNombre, onClose
 
   useEffect(() => {
     if (!ctx) return;
-    // Guarda: si por algún motivo no llegó la empresa receptora, no consultar
-    // (evita el error "no hay horarios" por un id inválido — recarga la página).
-    if (!receptoraId || !ctx.empresaeventoId) {
+    // La receptora puede venir por id directo o, al editar, deducirse del id de la
+    // solicitud (evita depender de que la lista traiga receptoraEeId).
+    const tieneReceptora = !!receptoraId && !Number.isNaN(Number(receptoraId));
+    if (!ctx.empresaeventoId || (!tieneReceptora && !solicitud?.id)) {
       setHorarios([]); setCargando(false);
       setErr("No se pudo identificar la empresa. Recarga la página e intenta de nuevo.");
       return;
     }
     setCargando(true); setErr(null);
     setHorario(null); setFechaSelec(""); setHoraSelec(""); setMinutosStr(""); setMesa(null); setMesaInvalida(false);
-    fetch(`${API}/empresa/horarios?eeId=${ctx.empresaeventoId}&eeReceptoraId=${receptoraId}`)
+    const params = new URLSearchParams({ eeId: String(ctx.empresaeventoId) });
+    if (tieneReceptora) params.set("eeReceptoraId", String(receptoraId));
+    if (solicitud?.id) params.set("solicitudId", String(solicitud.id));
+    fetch(`${API}/empresa/horarios?${params}`)
       .then((r) => r.json())
       .then((data) => {
         const hrs: any[] = Array.isArray(data?.horarios) ? data.horarios : [];
@@ -189,7 +193,8 @@ export function NuevaSolicitudModal({ ctx, receptoraId, receptoraNombre, onClose
       })
       .catch(() => setHorarios([]))
       .finally(() => setCargando(false));
-  }, [ctx, receptoraId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ctx, receptoraId, solicitud?.id]);
 
   const handleSubmit = async () => {
     setErr(null);

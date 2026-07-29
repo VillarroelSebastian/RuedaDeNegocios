@@ -3874,13 +3874,25 @@ export class AppController implements OnModuleInit {
   @Get('empresa/horarios')
   async getHorariosDisponibles(
     @Query('eeId') eeId: string,
-    @Query('eeReceptoraId') eeReceptoraId: string,
+    @Query('eeReceptoraId') eeReceptoraIdRaw: string,
     @Query('excludeReunionId') excludeReunionId?: string,
+    @Query('solicitudId') solicitudId?: string,
   ) {
-    if (!eeId || !eeReceptoraId) throw new BadRequestException('eeId y eeReceptoraId requeridos');
-    // Tolerar ids inválidos (ej. "undefined") sin reventar: se devuelve vacío.
-    if (Number.isNaN(Number(eeId)) || Number.isNaN(Number(eeReceptoraId)))
-      throw new BadRequestException('eeId y eeReceptoraId deben ser numéricos');
+    if (!eeId || Number.isNaN(Number(eeId))) throw new BadRequestException('eeId requerido');
+    let eeReceptoraId = eeReceptoraIdRaw;
+    // Al editar una solicitud, el frontend puede mandar solo el id de la solicitud;
+    // aquí se deduce la empresa receptora (evita depender de que la lista traiga el id).
+    if ((!eeReceptoraId || Number.isNaN(Number(eeReceptoraId))) && solicitudId) {
+      const sol = await this.prisma.solicitudreunion.findUnique({
+        where: { id: Number(solicitudId) },
+        select: { empresaEvento_id: true, empresaEventorReceptora_id: true },
+      });
+      if (sol) {
+        eeReceptoraId = String(sol.empresaEvento_id === Number(eeId) ? sol.empresaEventorReceptora_id : sol.empresaEvento_id);
+      }
+    }
+    if (!eeReceptoraId || Number.isNaN(Number(eeReceptoraId)))
+      throw new BadRequestException('No se pudo determinar la empresa receptora');
     const eventoId = await this.getPrincipalEventoId();
     if (!eventoId) return { duracionMinutos: 0, horarios: [] };
     const evento = await this.prisma.evento.findUnique({ where: { id: eventoId } });

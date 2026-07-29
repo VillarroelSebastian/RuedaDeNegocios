@@ -181,12 +181,16 @@ export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?:
 
   useFocusEffect(useCallback(() => { fetchEmpresas(); }, [fetchEmpresas]));
 
-  const fetchHorarios = async (eeReceptoraId: number) => {
+  const fetchHorarios = async (eeReceptoraId: number, solicitudId?: number) => {
     const eeId = user?.empresaeventoId;
     if (!eeId) return;
     setLoadingH(true);
     try {
-      const res = await fetch(`${API_URL}/empresa/horarios?eeId=${eeId}&eeReceptoraId=${eeReceptoraId}`);
+      // La receptora puede venir directa o deducirse del id de la solicitud (al editar).
+      const params = new URLSearchParams({ eeId: String(eeId) });
+      if (eeReceptoraId) params.set('eeReceptoraId', String(eeReceptoraId));
+      if (solicitudId) params.set('solicitudId', String(solicitudId));
+      const res = await fetch(`${API_URL}/empresa/horarios?${params}`);
       const data = res.ok ? await res.json() : {};
       const hrs: any[] = Array.isArray(data?.horarios) ? data.horarios : [];
       setHorarios(hrs);
@@ -289,7 +293,7 @@ export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?:
 
   const goToHorario = async () => {
     setStep('horario');
-    if (selected) await fetchHorarios(selected.empresaeventoId);
+    if (selected) await fetchHorarios(selected.empresaeventoId, selected.solicitudEdicion?.id);
   };
 
   const selectHorario = async (h: any) => {
