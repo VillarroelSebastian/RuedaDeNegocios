@@ -167,7 +167,14 @@ export function NuevaSolicitudModal({ ctx, receptoraId, receptoraNombre, onClose
 
   useEffect(() => {
     if (!ctx) return;
-    setCargando(true);
+    // Guarda: si por algún motivo no llegó la empresa receptora, no consultar
+    // (evita el error "no hay horarios" por un id inválido — recarga la página).
+    if (!receptoraId || !ctx.empresaeventoId) {
+      setHorarios([]); setCargando(false);
+      setErr("No se pudo identificar la empresa. Recarga la página e intenta de nuevo.");
+      return;
+    }
+    setCargando(true); setErr(null);
     setHorario(null); setFechaSelec(""); setHoraSelec(""); setMinutosStr(""); setMesa(null); setMesaInvalida(false);
     fetch(`${API}/empresa/horarios?eeId=${ctx.empresaeventoId}&eeReceptoraId=${receptoraId}`)
       .then((r) => r.json())

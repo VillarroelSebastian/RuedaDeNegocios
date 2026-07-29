@@ -3878,6 +3878,9 @@ export class AppController implements OnModuleInit {
     @Query('excludeReunionId') excludeReunionId?: string,
   ) {
     if (!eeId || !eeReceptoraId) throw new BadRequestException('eeId y eeReceptoraId requeridos');
+    // Tolerar ids inválidos (ej. "undefined") sin reventar: se devuelve vacío.
+    if (Number.isNaN(Number(eeId)) || Number.isNaN(Number(eeReceptoraId)))
+      throw new BadRequestException('eeId y eeReceptoraId deben ser numéricos');
     const eventoId = await this.getPrincipalEventoId();
     if (!eventoId) return { duracionMinutos: 0, horarios: [] };
     const evento = await this.prisma.evento.findUnique({ where: { id: eventoId } });
