@@ -84,13 +84,15 @@ export default function HorariosPage() {
         if (!eeId) return;
         setReseteando(true);
         try {
-          await fetch(`${API}/empresa/horarios-empresa/rangos`, {
+          const res = await fetch(`${API}/empresa/horarios-empresa/rangos`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ eeId, rangos: [] }),
           });
-          setRangos([{ desde: "", hasta: "" }]);
-          setModal({ tipo: "ok", msg: "Todos los horarios restablecidos a disponible." });
+          if (!res.ok) throw new Error();
+          // Recargar el estado real del backend para reflejar que quedó todo disponible.
+          cargarRangos(eeId);
+          setModal({ tipo: "ok", msg: "Listo: ahora estás disponible todo el día (sin restricciones de horario)." });
         } catch {
           setModal({ tipo: "err", msg: "Error al restablecer." });
         } finally {

@@ -211,9 +211,28 @@ function DetalleReunionModal({ reunion, eeId, esEncargado, onClose, onCambiarHor
   const esProgramada = (reunion.estado === "PROGRAMADA" || reunion.estado === "REPROGRAMADA") && new Date(reunion.fin) > ahora;
   const esFinalizada = reunion.estado === "FINALIZADA" || new Date(reunion.fin) <= ahora;
   const puedeFinalizarEncargado = esEncargado && ["PROGRAMADA", "REPROGRAMADA", "EN_CURSO"].includes(reunion.estado);
+  const puedeIniciar = esEncargado && ["PROGRAMADA", "REPROGRAMADA"].includes(reunion.estado);
+  const otraPidioIniciar = reunion.inicioAnticipadoPor && reunion.inicioAnticipadoPor !== eeId;
+  const yoPediIniciar = reunion.inicioAnticipadoPor && reunion.inicioAnticipadoPor === eeId;
   const [finalizando, setFinalizando] = useState(false);
   const [errFin, setErrFin] = useState<string | null>(null);
   const [confirmandoFin, setConfirmandoFin] = useState(false);
+  const [iniciando, setIniciando] = useState(false);
+  const [msgIni, setMsgIni] = useState<string | null>(null);
+
+  const handleIniciar = async () => {
+    setIniciando(true); setMsgIni(null);
+    try {
+      const res = await fetch(`${API}/empresa/reuniones/${reunion.id}/iniciar`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eeId }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.message);
+      if (d.iniciada) { onRefresh(); }
+      else { setMsgIni("Le avisamos a la otra empresa. La reunión iniciará cuando ambas confirmen."); setIniciando(false); onRefresh(); }
+    } catch (e: any) { setMsgIni(e.message || "Error al iniciar"); setIniciando(false); }
+  };
 
   const handleFinalizar = async () => {
     setConfirmandoFin(false);
@@ -297,6 +316,21 @@ function DetalleReunionModal({ reunion, eeId, esEncargado, onClose, onCambiarHor
 
           {/* Actions */}
           <div className="space-y-2 pt-1">
+            {puedeIniciar && (
+              <>
+                {msgIni && <p className="text-xs text-gray-600 text-center bg-gray-50 rounded-lg py-2 px-3">{msgIni}</p>}
+                {yoPediIniciar ? (
+                  <div className="w-full text-center text-sm font-semibold text-[#449D3A] bg-green-50 rounded-xl py-2.5">
+                    Esperando que la otra empresa confirme el inicio…
+                  </div>
+                ) : (
+                  <button onClick={handleIniciar} disabled={iniciando}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#449D3A] hover:bg-[#3a8531] text-white text-sm font-bold disabled:opacity-50">
+                    {otraPidioIniciar ? "Confirmar inicio (la otra empresa quiere iniciar)" : "Iniciar reunión"}
+                  </button>
+                )}
+              </>
+            )}
             {esEncargado && esProgramada && (
               <button onClick={onCambiarHorario}
                 className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50">

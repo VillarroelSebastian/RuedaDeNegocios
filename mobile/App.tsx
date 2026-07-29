@@ -3,7 +3,7 @@ import './global.css';
 import React, { useState, useEffect, Component } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import LoginScreen      from './src/screens/auth/LoginScreen';
@@ -15,6 +15,10 @@ import { userStore, API_URL } from './src/utils/userStore';
 
 const Stack = createNativeStackNavigator();
 const VALID_ROLES = ['ADMINISTRADOR', 'TECNICO', 'EMPRESA'];
+
+// Ref global de navegación: permite navegar desde fuera de componentes (p. ej.
+// al tocar "Ver" en una notificación push) directo a la sección correspondiente.
+export const navigationRef = createNavigationContainerRef();
 
 // ── Error Boundary ────────────────────────────────────────────────────────────
 interface EBState { hasError: boolean; errorMsg: string }
@@ -119,7 +123,7 @@ export default function App() {
 
   return (
     <AppErrorBoundary>
-      <NavigationContainer>
+      <NavigationContainer ref={navigationRef}>
         <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName={initialRoute}>
           <Stack.Screen name="Login"       component={LoginScreen}      />
           <Stack.Screen name="Registro"    component={RegistroScreen}   />

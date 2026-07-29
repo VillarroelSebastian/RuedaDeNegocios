@@ -110,6 +110,24 @@ export class AppController implements OnModuleInit {
     // dentro de los próximos 15 minutos y avisa a ambas empresas (una sola vez,
     // usando seEnvioNotificacionDeRetraso como bandera de enviado).
     setInterval(() => { this.enviarRecordatoriosReuniones().catch(() => {}); }, 60_000);
+    // Cierre automático: una reunión en curso dura lo que definió el admin; al
+    // pasar su hora de fin se marca FINALIZADA y se pide calificar a ambos.
+    setInterval(() => { this.finalizarReunionesVencidas().catch(() => {}); }, 60_000);
+  }
+
+  private async finalizarReunionesVencidas() {
+    const ahora = new Date();
+    const vencidas = await this.prisma.reunion.findMany({
+      where: { estaActivo: 1, estadoReunion: 'EN_CURSO', fechaHoraFinReunion: { lte: ahora } },
+      select: { id: true },
+    });
+    for (const r of vencidas) {
+      await this.prisma.reunion.update({
+        where: { id: r.id },
+        data: { estadoReunion: 'FINALIZADA', creadoModificadoFecha: new Date() },
+      });
+      await this.notificarParaCalificar(r.id);
+    }
   }
 
   private async enviarRecordatoriosReuniones() {
@@ -4543,6 +4561,8 @@ export class AppController implements OnModuleInit {
         // true = la solicité yo; false = me la solicitaron a mí
         yoSolicite,
         cambioPendiente: (r as any).cambioreunion?.[0] ?? null,
+        // ee que pidió iniciar antes de la hora (para el consentimiento mutuo)
+        inicioAnticipadoPor: (r as any).inicioAnticipadoPor ?? null,
       };
     });
 

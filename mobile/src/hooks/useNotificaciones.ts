@@ -2,6 +2,20 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { Alert } from 'react-native';
 import { API_URL } from '../utils/userStore';
+import { navigationRef } from '../../App';
+
+// Pantalla destino según el tipo de notificación, para llevar directo a su
+// sección al tocar "Ver". Devuelve null si no hay una pantalla asociada.
+function rutaDeNotifMobile(evento: string): string | null {
+  const t = evento || '';
+  if (t.startsWith('solicitud')) return 'Solicitudes';
+  if (t === 'reunion:calificar') return 'Resultados';
+  if (t.startsWith('reunion')) return 'Reuniones';
+  if (t.startsWith('mensaje')) return 'Mensajes';
+  if (t.startsWith('comunicado')) return 'Comunicados';
+  if (t.startsWith('pago')) return 'Perfil';
+  return null;
+}
 
 // Socket.IO se conecta al ORIGEN del backend (sin el prefijo /api que usa el
 // proxy en producción): la ruta /socket.io/ la enruta Nginx directamente.
@@ -47,11 +61,26 @@ export function useNotificacionesMobile(eeId: number | null) {
       timestamp: Date.now(),
     };
     setNotifs((prev) => [notif, ...prev].slice(0, 10));
-    // Show native alert for important events
+    // Show native alert for important events, con acción "Ver" que navega a la
+    // sección correspondiente cuando existe una pantalla asociada.
+    const target = rutaDeNotifMobile(evento);
     Alert.alert(
       notif.titulo ?? 'Notificación',
       notif.mensaje,
-      [{ text: 'OK', style: 'default' }],
+      target
+        ? [
+            { text: 'Cerrar', style: 'cancel' as const },
+            {
+              text: 'Ver',
+              style: 'default' as const,
+              onPress: () => {
+                try {
+                  if (navigationRef.isReady()) navigationRef.navigate(target as never);
+                } catch {}
+              },
+            },
+          ]
+        : [{ text: 'OK', style: 'default' as const }],
     );
   }, []);
 

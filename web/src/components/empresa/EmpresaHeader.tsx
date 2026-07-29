@@ -10,6 +10,18 @@ function fmtNotifFecha(f: string) {
   return new Date(f).toLocaleDateString('es-BO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
+// Ruta destino según el tipo de notificación, para llevar directo a su sección.
+function rutaDeNotif(tipo: string): string {
+  const t = tipo || '';
+  if (t.startsWith('solicitud')) return '/empresa/solicitudes';
+  if (t === 'reunion:calificar') return '/empresa/resultados';
+  if (t.startsWith('reunion')) return '/empresa/reuniones';
+  if (t.startsWith('mensaje')) return '/empresa/mensajes';
+  if (t.startsWith('pago')) return '/empresa/perfil';
+  if (t.startsWith('comunicado')) return '/empresa/comunicados';
+  return '/empresa/dashboard';
+}
+
 export default function EmpresaHeader({ onMenuClick, eeId }: { onMenuClick?: () => void; eeId?: number | null }) {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
@@ -122,13 +134,14 @@ export default function EmpresaHeader({ onMenuClick, eeId }: { onMenuClick?: () 
                 <p className="text-xs text-gray-400 text-center py-6">No tienes notificaciones aún.</p>
               ) : (
                 notifs.map((n) => (
-                  <div key={n.id} className={`px-4 py-3 border-b border-gray-50 last:border-0 ${n.leida ? '' : 'bg-green-50/50'}`}>
+                  <button key={n.id} onClick={() => { setShowNotifs(false); router.push(rutaDeNotif(n.tipo)); }}
+                    className={`w-full text-left px-4 py-3 border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors ${n.leida ? '' : 'bg-green-50/50'}`}>
                     <p className="text-xs font-bold text-gray-800">{n.titulo}</p>
                     <p className="text-xs text-gray-600 mt-0.5 leading-relaxed">{n.mensaje}</p>
                     <p className="text-[10px] text-gray-400 mt-1 flex items-center gap-1">
                       <Clock className="w-3 h-3" />{fmtNotifFecha(n.fecha)}
                     </p>
-                  </div>
+                  </button>
                 ))
               )}
             </div>

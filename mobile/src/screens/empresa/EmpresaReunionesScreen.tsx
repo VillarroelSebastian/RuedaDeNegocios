@@ -264,11 +264,30 @@ function DetalleReunionModal({ reunion, eeId, esEncargado, navigation, onClose, 
   const esProgramada = (reunion.estado === 'PROGRAMADA' || reunion.estado === 'REPROGRAMADA') && new Date(reunion.fin) > ahora;
   const esFinalizada = reunion.estado === 'FINALIZADA' || new Date(reunion.fin) <= ahora;
   const puedeFinalizarEncargado = esEncargado && ['PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO'].includes(reunion.estado);
+  const puedeIniciar = esEncargado && ['PROGRAMADA', 'REPROGRAMADA'].includes(reunion.estado);
+  const otraPidioIniciar = reunion.inicioAnticipadoPor && reunion.inicioAnticipadoPor !== eeId;
+  const yoPediIniciar = reunion.inicioAnticipadoPor && reunion.inicioAnticipadoPor === eeId;
   const st = STATUS_STYLE[reunion.estado] ?? { bg: '#f1f5f9', text: '#475569', label: reunion.estado };
   const isVirtual = reunion.tipo === 'VIRTUAL';
   const [finalizando, setFinalizando] = useState(false);
   const [errFin, setErrFin] = useState<string | null>(null);
   const [confirmandoFin, setConfirmandoFin] = useState(false);
+  const [iniciando, setIniciando] = useState(false);
+  const [msgIni, setMsgIni] = useState<string | null>(null);
+
+  const handleIniciar = async () => {
+    setIniciando(true); setMsgIni(null);
+    try {
+      const res = await fetch(`${API_URL}/empresa/reuniones/${reunion.id}/iniciar`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eeId }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.message);
+      if (d.iniciada) { onFinalizado(); }
+      else { setMsgIni('Le avisamos a la otra empresa. La reunión iniciará cuando ambas confirmen.'); setIniciando(false); onFinalizado(); }
+    } catch (e: any) { setMsgIni(e.message || 'Error al iniciar'); setIniciando(false); }
+  };
 
   const handleFinalizar = async () => {
     setConfirmandoFin(false);
@@ -378,6 +397,26 @@ function DetalleReunionModal({ reunion, eeId, esEncargado, navigation, onClose, 
 
             {/* Actions */}
             <View style={dm.actions}>
+              {puedeIniciar && (
+                <>
+                  {!!msgIni && (
+                    <View style={{ backgroundColor: '#f8fafc', borderRadius: 10, padding: 10, marginBottom: 6 }}>
+                      <Text style={{ color: '#475569', fontSize: 12, textAlign: 'center' }}>{msgIni}</Text>
+                    </View>
+                  )}
+                  {yoPediIniciar ? (
+                    <View style={{ backgroundColor: '#f0fdf4', borderRadius: 12, paddingVertical: 12, marginBottom: 8 }}>
+                      <Text style={{ color: GREEN, fontSize: 13, fontWeight: '700', textAlign: 'center' }}>Esperando que la otra empresa confirme el inicio…</Text>
+                    </View>
+                  ) : (
+                    <TouchableOpacity onPress={handleIniciar} disabled={iniciando} style={[dm.iniciarBtn, iniciando && { opacity: 0.6 }]} activeOpacity={0.8}>
+                      {iniciando ? <ActivityIndicator size="small" color="#fff" /> : (
+                        <Text style={dm.finalizarBtnText}>{otraPidioIniciar ? 'Confirmar inicio (la otra quiere iniciar)' : 'Iniciar reunión'}</Text>
+                      )}
+                    </TouchableOpacity>
+                  )}
+                </>
+              )}
               {esEncargado && esProgramada && (
                 <TouchableOpacity onPress={onCambiarHorario} style={dm.secondaryBtn} activeOpacity={0.8}>
                   <Edit2 size={14} color="#374151" style={{ marginRight: 8 }} />
@@ -475,6 +514,7 @@ const dm = StyleSheet.create({
   closeBtnText: { fontSize: 14, fontWeight: '700', color: '#64748b' },
   finalizarBtn: { flexDirection: 'row', backgroundColor: '#f97316', borderRadius: 14, height: 50, alignItems: 'center', justifyContent: 'center' },
   finalizarBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  iniciarBtn: { flexDirection: 'row', backgroundColor: GREEN, borderRadius: 14, height: 50, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
   confirmFinBox: { backgroundColor: '#fff7ed', borderWidth: 1, borderColor: '#fed7aa', borderRadius: 14, padding: 12 },
   confirmFinText: { flex: 1, color: '#9a3412', fontSize: 13, fontWeight: '600', lineHeight: 18 },
   confirmFinCancel: { flex: 1, height: 42, borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
