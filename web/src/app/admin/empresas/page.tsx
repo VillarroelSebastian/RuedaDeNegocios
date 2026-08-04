@@ -268,7 +268,9 @@ export default function EmpresasPage() {
                         </div>
                         <div>
                           <p className="text-sm font-semibold text-gray-900">{emp.nombre}</p>
-                          <p className="text-[11px] text-gray-400">ID: {emp.id}</p>
+                          {emp.codigo
+                            ? <p className="text-[11px] font-mono font-semibold text-[#449D3A]">{emp.codigo}</p>
+                            : <p className="text-[11px] text-gray-400">ID: {emp.id}</p>}
                         </div>
                       </div>
                     </td>

@@ -360,7 +360,9 @@ export default function MesasPage() {
               <div className="grid gap-2 grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12">
                 {mesasFiltradas.map((m) => {
                   const cfg      = ESTADO_MESA[m.estadoMesa] ?? ESTADO_MESA.LIBRE;
-                  const disabled = m.estaHabilitada === 0 && m.estadoMesa === 'LIBRE';
+                  // Deshabilitada = gris siempre que no tenga una reunión activa
+                  // (cubre LIBRE y PRE_RESERVADA, que antes quedaban verdes).
+                  const disabled = m.estaHabilitada === 0 && !m.reunionActual;
                   const color    = disabled ? '#9ca3af' : cfg.grid;
                   const label    = disabled ? 'Inhabilitada' : cfg.label;
                   return (
@@ -441,7 +443,7 @@ export default function MesasPage() {
               const minsFromNow  = r ? minutesFromNow(r.fechaHoraInicioReunion) : 0;
               const elapsed      = r ? elapsedMin(r.fechaHoraInicioReunion) : 0;
               const remaining    = r ? Math.max(0, Math.round((new Date(r.fechaHoraFinReunion).getTime() - Date.now()) / 60000)) : 0;
-              const gridColor    = inhabilitada && isLibre ? '#9ca3af' : cfg.grid;
+              const gridColor    = inhabilitada && !r ? '#9ca3af' : cfg.grid;
 
               return (
                 <>

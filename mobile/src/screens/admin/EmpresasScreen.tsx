@@ -214,6 +214,9 @@ export default function EmpresasScreen({ navigation }: any) {
                 </View>
                 <View className="flex-1">
                   <Text className="font-bold text-gray-900 text-sm">{emp.nombre}</Text>
+                  {emp.codigo && (
+                    <Text style={{ fontSize: 11, fontFamily: 'monospace', fontWeight: '600', color: GREEN, marginTop: 1 }}>{emp.codigo}</Text>
+                  )}
                   <Text className="text-xs text-gray-500 mt-0.5">{emp.rubro} · {emp.ciudad}</Text>
                   <View className="flex-row items-center gap-3 mt-2">
                     {badgePago(emp.estadoVerificacionPago)}

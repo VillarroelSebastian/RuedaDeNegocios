@@ -68,9 +68,40 @@ export class AppController implements OnModuleInit {
     return (process.env.PUBLIC_URL || `http://localhost:${process.env.PORT ?? 3334}`).replace(/\/$/, '');
   }
 
-  private async asegurarCodigoEmpresa(empresaId: number, codigoActual: string | null): Promise<string> {
+  // Prefijo legible derivado del nombre de la empresa: iniciales de las palabras
+  // significativas (descartando sufijos societarios como SRL/SA/LTDA). Se combina
+  // con el id para formar un código único por empresa (ej: "RB-EDS-0012").
+  private slugCodigoEmpresa(nombre: string): string {
+    const IGNORAR = ['SRL', 'SA', 'LTDA', 'SOCIEDAD', 'EMPRESA', 'COMPANIA', 'CIA', 'DE', 'DEL', 'LA', 'EL', 'Y'];
+    const palabras = (nombre || '')
+      .normalize('NFD').replace(/[̀-ͯ]/g, '') // quitar acentos
+      .replace(/[^a-zA-Z0-9\s]/g, ' ')                  // solo alfanum + espacios
+      .split(/\s+/)
+      .filter(Boolean);
+    const signif = palabras.filter((w) => !IGNORAR.includes(w.toUpperCase()));
+    const fuente = signif.length ? signif : palabras;
+    let iniciales = fuente.map((w) => w[0]).join('').toUpperCase().slice(0, 4);
+    if (iniciales.length < 3) {
+      iniciales = (fuente[0] ?? 'EMP').toUpperCase().replace(/[^A-Z0-9]/g, '').padEnd(3, 'X').slice(0, 3);
+    }
+    return iniciales || 'EMP';
+  }
+
+  private async asegurarCodigoEmpresa(empresaId: number, codigoActual: string | null, nombre?: string): Promise<string> {
     if (codigoActual) return codigoActual;
-    const codigo = `RB-${String(empresaId).padStart(4, '0')}`;
+    let nom = nombre;
+    if (nom === undefined) {
+      const emp = await this.prisma.empresa.findUnique({ where: { id: empresaId }, select: { nombre: true } });
+      nom = emp?.nombre ?? '';
+    }
+    const prefijo = this.slugCodigoEmpresa(nom);
+    // El id ya garantiza unicidad; ante una colisión improbable se añade sufijo.
+    let codigo = `RB-${prefijo}-${String(empresaId).padStart(4, '0')}`;
+    let intento = 0;
+    while (await this.prisma.empresa.findFirst({ where: { codigo, NOT: { id: empresaId } }, select: { id: true } })) {
+      intento += 1;
+      codigo = `RB-${prefijo}-${String(empresaId).padStart(4, '0')}-${intento}`;
+    }
     await this.prisma.empresa.update({ where: { id: empresaId }, data: { codigo } });
     return codigo;
   }
@@ -487,7 +518,7 @@ export class AppController implements OnModuleInit {
         estaActivo: 1,
       },
     });
-    if (!empresaExistente) await this.asegurarCodigoEmpresa(empresa.id, null);
+    if (!empresaExistente) await this.asegurarCodigoEmpresa(empresa.id, null, empresa.nombre);
 
     // Crear empresaevento
     const ee = await this.prisma.empresaevento.create({
@@ -996,6 +1027,7 @@ export class AppController implements OnModuleInit {
       return {
         id: e.id,
         nombre: e.nombre,
+        codigo: e.codigo,
         rubro: e.rubro,
         ciudad: e.ciudad.nombre,
         telefonoWhatsapp: e.telefonoWhatsapp,

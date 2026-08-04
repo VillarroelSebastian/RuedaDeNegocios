@@ -397,7 +397,9 @@ export default function MesasScreen() {
                   <View className="flex-row flex-wrap gap-2">
                     {mesasFiltradas.map((m) => {
                       const cfg        = ESTADO_MESA[m.estadoMesa] ?? ESTADO_MESA.LIBRE;
-                      const inhabilitada = m.estaHabilitada === 0 && m.estadoMesa === 'LIBRE';
+                      // Deshabilitada = gris siempre que no tenga reunión activa
+                      // (cubre LIBRE y PRE_RESERVADA, que antes quedaban verdes).
+                      const inhabilitada = m.estaHabilitada === 0 && !m.reunionActual;
                       const color      = inhabilitada ? '#9ca3af' : cfg.grid;
                       const label      = inhabilitada ? 'Inhabilitada' : cfg.label;
                       return (
@@ -491,7 +493,7 @@ export default function MesasScreen() {
               const minsFromNow  = r ? minutesFromNow(r.fechaHoraInicioReunion) : 0;
               const elapsed      = r ? elapsedMin(r.fechaHoraInicioReunion) : 0;
               const remaining    = r ? Math.max(0, Math.round((new Date(r.fechaHoraFinReunion).getTime() - Date.now()) / 60000)) : 0;
-              const gridColor    = inhabilitada && isLibre ? '#9ca3af' : cfg.grid;
+              const gridColor    = inhabilitada && !r ? '#9ca3af' : cfg.grid;
 
               return (
                 <ScrollView>
