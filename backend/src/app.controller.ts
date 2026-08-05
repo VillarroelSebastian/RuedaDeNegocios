@@ -5211,6 +5211,14 @@ export class AppController implements OnModuleInit {
       },
     });
 
+    // La empresa ya está habilitada: generamos la credencial QR del nuevo
+    // participante igual que al aprobar el pago (antes quedaba sin QR).
+    try {
+      await this.generarCredencialQR(nuevoEu.id, '', `${nuevoUsuario.nombres} ${nuevoUsuario.apellidoPaterno}`);
+    } catch (qrErr) {
+      console.warn(`[WARN] No se pudo generar credencial QR para nuevo participante euId=${nuevoEu.id}:`, qrErr instanceof Error ? qrErr.message : qrErr);
+    }
+
     const isDevEmail = !process.env.MAIL_USER || process.env.MAIL_USER === 'tu_correo@gmail.com';
     console.log('\n╔══════════════════════════════════════════════════════╗');
     console.log('║   [PARTICIPANTE] CREDENCIALES GENERADAS              ║');
