@@ -13,6 +13,7 @@ import {
   Hash, QrCode, ExternalLink, CheckCircle2, Camera,
 } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
+import { LIMITES } from '../../utils/validaciones';
 
 const GREEN = '#449D3A';
 
@@ -718,11 +719,13 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
               <ScrollView>
                 {!!comercialError && <View style={s.errorBox}><Text style={s.errorText}>{comercialError}</Text></View>}
                 <Text style={s.label}>¿Qué ofrece tu empresa?</Text>
-                <TextInput style={[s.input, s.textArea]} value={comOferta} onChangeText={setComOferta}
+                <TextInput style={[s.input, s.textArea]} value={comOferta} onChangeText={(t) => setComOferta(t.slice(0, LIMITES.oferta))} maxLength={LIMITES.oferta}
                   placeholder="Ej: exportación de café orgánico..." placeholderTextColor="#9ca3af" multiline numberOfLines={3} />
+                <Text style={{ fontSize: 11, color: '#9ca3af', textAlign: 'right', marginTop: -6, marginBottom: 4 }}>{comOferta.length}/{LIMITES.oferta}</Text>
                 <Text style={s.label}>¿Qué busca tu empresa?</Text>
-                <TextInput style={[s.input, s.textArea]} value={comDemanda} onChangeText={setComDemanda}
+                <TextInput style={[s.input, s.textArea]} value={comDemanda} onChangeText={(t) => setComDemanda(t.slice(0, LIMITES.demanda))} maxLength={LIMITES.demanda}
                   placeholder="Ej: proveedores de insumos..." placeholderTextColor="#9ca3af" multiline numberOfLines={3} />
+                <Text style={{ fontSize: 11, color: '#9ca3af', textAlign: 'right', marginTop: -6, marginBottom: 4 }}>{comDemanda.length}/{LIMITES.demanda}</Text>
                 <Text style={s.label}>Sectores de interés (separados por coma)</Text>
                 <TextInput style={s.input} value={comIntereses} onChangeText={setComIntereses}
                   placeholder="Ej: Tecnología e Innovación, Agropecuario y Ganadería" placeholderTextColor="#9ca3af" />

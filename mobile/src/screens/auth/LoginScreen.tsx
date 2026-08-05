@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Mail, Lock, Eye, EyeOff, X, KeyRound, CheckCircle } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
+import { correoValido, sinEspacios } from '../../utils/validaciones';
 
 const GREEN  = '#449D3A';
 const GREEN2 = '#166534';
@@ -72,8 +73,14 @@ export default function LoginScreen({ navigation }: any) {
   };
 
   const handleLogin = async () => {
-    if (!correo.trim() || !contrasenia) {
-      setError('Ingresa tu correo y contraseña.');
+    // El login no acepta espacios; validamos formato de correo antes de enviar.
+    const correoLimpio = sinEspacios(correo);
+    if (!correoValido(correoLimpio)) {
+      setError('Ingresa un correo electrónico válido (sin espacios).');
+      return;
+    }
+    if (!contrasenia) {
+      setError('Ingresa tu contraseña.');
       return;
     }
     setError('');
@@ -82,7 +89,7 @@ export default function LoginScreen({ navigation }: any) {
       const res = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ correo: correo.trim(), contrasenia }),
+        body: JSON.stringify({ correo: correoLimpio, contrasenia }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || 'Credenciales inválidas');
@@ -144,7 +151,7 @@ export default function LoginScreen({ navigation }: any) {
                 autoCapitalize="none"
                 autoCorrect={false}
                 value={correo}
-                onChangeText={setCorreo}
+                onChangeText={(t) => setCorreo(sinEspacios(t))}
               />
             </View>
 
@@ -158,7 +165,7 @@ export default function LoginScreen({ navigation }: any) {
                 placeholderTextColor="#9ca3af"
                 secureTextEntry={!showPwd}
                 value={contrasenia}
-                onChangeText={setContrasenia}
+                onChangeText={(t) => setContrasenia(sinEspacios(t))}
               />
               <TouchableOpacity onPress={() => setShowPwd(v => !v)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 {showPwd

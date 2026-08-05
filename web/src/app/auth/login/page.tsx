@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Mail, Lock, Eye, Check } from "lucide-react";
+import { correoValido, sinEspacios } from "@/lib/validaciones";
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
 export default function LoginPage() {
@@ -18,13 +19,25 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+
+    // El login no acepta espacios; validamos formato de correo antes de enviar.
+    const correoLimpio = sinEspacios(correo);
+    if (!correoValido(correoLimpio)) {
+      setError("Ingresa un correo electrónico válido (sin espacios).");
+      return;
+    }
+    if (!contrasenia) {
+      setError("Ingresa tu contraseña.");
+      return;
+    }
+
     setLoading(true);
 
     try {
       const res = await fetch(`${API}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ correo, contrasenia }),
+        body: JSON.stringify({ correo: correoLimpio, contrasenia }),
       });
 
       if (!res.ok) {
@@ -122,7 +135,7 @@ export default function LoginPage() {
                       name="email"
                       type="email"
                       value={correo}
-                      onChange={(e) => setCorreo(e.target.value)}
+                      onChange={(e) => setCorreo(sinEspacios(e.target.value))}
                       autoComplete="email"
                       required
                       className="block w-full rounded-xl border border-gray-200 py-3.5 pl-10 pr-4 text-gray-900 placeholder:text-gray-400 focus:border-[#66A124] focus:ring-1 focus:ring-[#66A124] sm:text-sm bg-[#FAFAFA]"
@@ -148,7 +161,7 @@ export default function LoginPage() {
                       name="password"
                       type={showPassword ? "text" : "password"}
                       value={contrasenia}
-                      onChange={(e) => setContrasenia(e.target.value)}
+                      onChange={(e) => setContrasenia(sinEspacios(e.target.value))}
                       autoComplete="current-password"
                       required
                       className="block w-full rounded-xl border border-gray-200 py-3.5 pl-10 pr-10 text-gray-900 placeholder:text-gray-400 focus:border-[#66A124] focus:ring-1 focus:ring-[#66A124] sm:text-sm bg-[#FAFAFA]"

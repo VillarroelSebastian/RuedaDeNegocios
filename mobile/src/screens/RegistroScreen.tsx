@@ -7,6 +7,7 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import { StatusBar } from 'expo-status-bar';
 import { API_URL } from '../utils/userStore';
+import { LIMITES, correoValido, validarNombreEmpresa, limpiarEspacios } from '../utils/validaciones';
 
 const MAX_PARTICIPANTES = 5;
 
@@ -248,11 +249,13 @@ export default function RegistroScreen({ navigation }: any) {
 
   // Validations
   const validateStep0 = () => {
-    if (!nombre.trim()) return 'El nombre de la empresa es requerido.';
+    const nombreErr = validarNombreEmpresa(nombre);
+    if (nombreErr) return nombreErr;
     if (!rubro) return 'Selecciona un rubro.';
     if (!pais) return 'Selecciona un país.';
     if (!ciudad) return 'Selecciona una ciudad.';
     if (!correoEmpresa.trim()) return 'El correo corporativo es requerido.';
+    if (!correoValido(correoEmpresa)) return 'El correo corporativo no es válido.';
     if (!telefonoWA.trim()) return 'El teléfono/WhatsApp es requerido.';
     return null;
   };
@@ -264,11 +267,13 @@ export default function RegistroScreen({ navigation }: any) {
   const validateStep2 = () => {
     if (!responsable.nombre.trim() || !responsable.apellido.trim()) return 'Nombre y apellido del responsable son requeridos.';
     if (!responsable.correo.trim()) return 'El correo del responsable es requerido.';
+    if (!correoValido(responsable.correo)) return 'El correo del responsable no es válido.';
     if (!responsable.cargo.trim()) return 'El cargo del responsable es requerido.';
     if (!responsable.telefono.trim()) return 'El teléfono del responsable es requerido.';
     for (const [i, p] of adicionales.entries()) {
       if (!p.nombre.trim() || !p.apellido.trim() || !p.correo.trim() || !p.cargo.trim() || !p.telefono.trim())
         return `Completa todos los campos del participante adicional ${i + 2}.`;
+      if (!correoValido(p.correo)) return `El correo del participante adicional ${i + 2} no es válido.`;
     }
     return null;
   };
@@ -285,7 +290,7 @@ export default function RegistroScreen({ navigation }: any) {
     try {
       const payload = {
         empresa: {
-          nombre: nombre.trim(),
+          nombre: limpiarEspacios(nombre),
           rubro,
           paisNombre: pais,
           ciudadNombre: ciudad,
@@ -297,8 +302,8 @@ export default function RegistroScreen({ navigation }: any) {
         participacion: { numeroParticipantes: numParticipantes, tipoParticipacion },
         comprobante: { urlComprobante: comprobanteUrl },
         participantes: [
-          { nombreCompleto: `${responsable.nombre} ${responsable.apellido}`, cargo: responsable.cargo, correo: responsable.correo, telefono: responsable.telefono, esResponsable: true },
-          ...adicionales.map(p => ({ nombreCompleto: `${p.nombre} ${p.apellido}`, cargo: p.cargo, correo: p.correo, telefono: p.telefono, esResponsable: false })),
+          { nombreCompleto: limpiarEspacios(`${responsable.nombre} ${responsable.apellido}`), cargo: limpiarEspacios(responsable.cargo), correo: responsable.correo.trim(), telefono: responsable.telefono.trim(), esResponsable: true },
+          ...adicionales.map(p => ({ nombreCompleto: limpiarEspacios(`${p.nombre} ${p.apellido}`), cargo: limpiarEspacios(p.cargo), correo: p.correo.trim(), telefono: p.telefono.trim(), esResponsable: false })),
         ],
       };
       const res = await fetch(`${API_URL}/public/registro`, {
@@ -456,7 +461,7 @@ export default function RegistroScreen({ navigation }: any) {
               <Text style={{ fontSize: 13, color: '#6b7280', marginBottom: 20 }}>Datos generales de tu organización.</Text>
 
               <Field label="Nombre de la empresa *">
-                <TextInput style={inp} value={nombre} onChangeText={setNombre} placeholder="Empresa S.R.L." placeholderTextColor="#9ca3af" />
+                <TextInput style={inp} value={nombre} onChangeText={setNombre} maxLength={LIMITES.nombreEmpresa} placeholder="Empresa S.R.L." placeholderTextColor="#9ca3af" />
               </Field>
 
               <Field label="Rubro *">
@@ -496,7 +501,8 @@ export default function RegistroScreen({ navigation }: any) {
               </Field>
 
               <Field label="Descripción">
-                <TextInput style={{ ...inp, minHeight: 80, textAlignVertical: 'top' }} value={descripcion} onChangeText={setDescripcion} placeholder="Breve descripción…" placeholderTextColor="#9ca3af" multiline numberOfLines={3} />
+                <TextInput style={{ ...inp, minHeight: 80, textAlignVertical: 'top' }} value={descripcion} onChangeText={(t) => setDescripcion(t.slice(0, LIMITES.descripcion))} maxLength={LIMITES.descripcion} placeholder="Breve descripción…" placeholderTextColor="#9ca3af" multiline numberOfLines={3} />
+                <Text style={{ fontSize: 11, color: '#9ca3af', textAlign: 'right', marginTop: 2 }}>{descripcion.length}/{LIMITES.descripcion}</Text>
               </Field>
 
               {/* Participación */}

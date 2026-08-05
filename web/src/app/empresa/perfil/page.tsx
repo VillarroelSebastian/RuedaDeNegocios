@@ -8,6 +8,7 @@ import {
   KeyRound, Shield, X, Upload, FileText, Download, Camera,
 } from "lucide-react";
 import ImagenLightbox from "@/components/ui/ImagenLightbox";
+import { LIMITES } from "@/lib/validaciones";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
@@ -747,13 +748,17 @@ export default function EmpresaPerfilPage() {
             <div className="space-y-4">
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">¿Qué ofrece tu empresa?</label>
-                <textarea value={formComercial.oferta} onChange={(e) => setFormComercial((f) => ({ ...f, oferta: e.target.value }))}
+                <textarea value={formComercial.oferta} maxLength={LIMITES.oferta}
+                  onChange={(e) => setFormComercial((f) => ({ ...f, oferta: e.target.value.slice(0, LIMITES.oferta) }))}
                   rows={2} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A] resize-none" />
+                <p className="text-[11px] text-gray-400 mt-1 text-right">{formComercial.oferta.length}/{LIMITES.oferta}</p>
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">¿Qué busca tu empresa?</label>
-                <textarea value={formComercial.demanda} onChange={(e) => setFormComercial((f) => ({ ...f, demanda: e.target.value }))}
+                <textarea value={formComercial.demanda} maxLength={LIMITES.demanda}
+                  onChange={(e) => setFormComercial((f) => ({ ...f, demanda: e.target.value.slice(0, LIMITES.demanda) }))}
                   rows={2} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A] resize-none" />
+                <p className="text-[11px] text-gray-400 mt-1 text-right">{formComercial.demanda.length}/{LIMITES.demanda}</p>
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">Sectores de interés (separados por coma)</label>

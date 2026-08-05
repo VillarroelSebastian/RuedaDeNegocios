@@ -10,6 +10,8 @@ import {
   AlertCircle, X, Check, RefreshCw,
 } from "lucide-react";
 
+import { LIMITES, correoValido, validarNombreEmpresa, limpiarEspacios } from "@/lib/validaciones";
+
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 const MAX_PARTICIPANTES = 5;
 
@@ -275,12 +277,13 @@ export default function RegistroPage() {
 
   /* ─── Validations ───────────────────────────────────────────── */
   const validateStep1 = () => {
-    if (!empresa.nombre.trim()) return "El nombre de la empresa es obligatorio.";
+    const nombreErr = validarNombreEmpresa(empresa.nombre);
+    if (nombreErr) return nombreErr;
     if (!empresa.rubro) return "Selecciona un rubro.";
     if (!empresa.pais) return "Selecciona un país.";
     if (!empresa.ciudad) return "Selecciona una ciudad.";
     if (!empresa.correoCorporativo.trim()) return "El correo corporativo es obligatorio.";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(empresa.correoCorporativo)) return "El correo corporativo no es válido.";
+    if (!correoValido(empresa.correoCorporativo)) return "El correo corporativo no es válido.";
     if (!empresa.telefonoWhatsapp.trim()) return "El teléfono/WhatsApp es obligatorio.";
     if (!validTel(empresa.telefonoWhatsapp)) return "El teléfono/WhatsApp no es válido. Usa solo dígitos, espacios, +, - o ().";
     if (participacion.numeroParticipantes < 1) return "Debe haber al menos 1 participante.";
@@ -296,7 +299,7 @@ export default function RegistroPage() {
     if (!responsable.apellidoPaterno.trim()) return "El apellido paterno del responsable es obligatorio.";
     if (!responsable.cargo.trim()) return "El cargo del responsable es obligatorio.";
     if (!responsable.correo.trim()) return "El correo del responsable es obligatorio.";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(responsable.correo)) return "El correo del responsable no es válido.";
+    if (!correoValido(responsable.correo)) return "El correo del responsable no es válido.";
     if (!responsable.telefono.trim()) return "El teléfono del responsable es obligatorio.";
     if (!validTel(responsable.telefono)) return "El teléfono del responsable no es válido. Usa solo dígitos, espacios, +, - o ().";
     for (const [i, p] of adicionales.entries()) {
@@ -304,7 +307,7 @@ export default function RegistroPage() {
       if (!p.apellidoPaterno?.trim()) return `El apellido paterno del participante ${i + 2} es obligatorio.`;
       if (!p.cargo.trim()) return `El cargo del participante ${i + 2} es obligatorio.`;
       if (!p.correo.trim()) return `El correo del participante ${i + 2} es obligatorio.`;
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.correo)) return `El correo del participante ${i + 2} no es válido.`;
+      if (!correoValido(p.correo)) return `El correo del participante ${i + 2} no es válido.`;
       if (!p.telefono.trim()) return `El teléfono del participante ${i + 2} es obligatorio.`;
       if (!validTel(p.telefono)) return `El teléfono del participante ${i + 2} no es válido. Usa solo dígitos, +, - o ().`;
     }
@@ -342,25 +345,35 @@ export default function RegistroPage() {
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
+      // Limpieza de espacios en todo lo que escribe el usuario antes de enviar.
+      const limpiarPersona = (p: any) => ({
+        ...p,
+        nombres: limpiarEspacios(p.nombres),
+        apellidoPaterno: limpiarEspacios(p.apellidoPaterno),
+        apellidoMaterno: limpiarEspacios(p.apellidoMaterno),
+        cargo: limpiarEspacios(p.cargo),
+        correo: (p.correo || "").trim(),
+        telefono: (p.telefono || "").trim(),
+      });
       const payload = {
         empresa: {
-          nombre: empresa.nombre,
+          nombre: limpiarEspacios(empresa.nombre),
           rubro: empresa.rubro,
           paisNombre: empresa.pais,
           ciudadNombre: empresa.ciudad,
-          sitioWeb: empresa.sitioWeb || null,
-          correoCorporativo: empresa.correoCorporativo,
-          telefonoWhatsapp: empresa.telefonoWhatsapp,
-          descripcion: empresa.descripcion || null,
-          oferta: empresa.oferta || null,
-          demanda: empresa.demanda || null,
+          sitioWeb: empresa.sitioWeb.trim() || null,
+          correoCorporativo: empresa.correoCorporativo.trim(),
+          telefonoWhatsapp: empresa.telefonoWhatsapp.trim(),
+          descripcion: empresa.descripcion.trim() || null,
+          oferta: empresa.oferta.trim() || null,
+          demanda: empresa.demanda.trim() || null,
           interesesBusqueda: interesesBusqueda.length ? interesesBusqueda.join(", ") : null,
         },
         participacion,
         comprobante: { urlComprobante },
         participantes: [
-          { ...responsable, esResponsable: true },
-          ...adicionales.map((a) => ({ ...a, esResponsable: false })),
+          { ...limpiarPersona(responsable), esResponsable: true },
+          ...adicionales.map((a) => ({ ...limpiarPersona(a), esResponsable: false })),
         ],
       };
       const res = await fetch(`${API}/public/registro`, {
@@ -436,7 +449,8 @@ export default function RegistroPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="sm:col-span-2">
                   <Field label="Nombre de la Empresa" required>
-                    <input value={empresa.nombre} onChange={(e) => setEmpresa((f) => ({ ...f, nombre: e.target.value }))}
+                    <input value={empresa.nombre} maxLength={LIMITES.nombreEmpresa}
+                      onChange={(e) => setEmpresa((f) => ({ ...f, nombre: e.target.value }))}
                       className={inputCls} placeholder="Ej: Tech Solutions S.A." />
                   </Field>
                 </div>
@@ -498,17 +512,23 @@ export default function RegistroPage() {
                 </Field>
                 <div className="sm:col-span-2">
                   <Field label="Descripción de la Empresa">
-                    <textarea value={empresa.descripcion} onChange={(e) => setEmpresa((f) => ({ ...f, descripcion: e.target.value }))}
+                    <textarea value={empresa.descripcion} maxLength={LIMITES.descripcion}
+                      onChange={(e) => setEmpresa((f) => ({ ...f, descripcion: e.target.value.slice(0, LIMITES.descripcion) }))}
                       className={`${inputCls} resize-none h-24`} placeholder="Describe brevemente los productos o servicios que ofrece tu empresa..." />
+                    <p className="text-[11px] text-gray-400 mt-1 text-right">{empresa.descripcion.length}/{LIMITES.descripcion}</p>
                   </Field>
                 </div>
                 <Field label="¿Qué ofrece tu empresa?">
-                  <textarea value={empresa.oferta} onChange={(e) => setEmpresa((f) => ({ ...f, oferta: e.target.value }))}
+                  <textarea value={empresa.oferta} maxLength={LIMITES.oferta}
+                    onChange={(e) => setEmpresa((f) => ({ ...f, oferta: e.target.value.slice(0, LIMITES.oferta) }))}
                     className={`${inputCls} resize-none h-20`} placeholder="Ej: exportación de café orgánico, servicios de logística..." />
+                  <p className="text-[11px] text-gray-400 mt-1 text-right">{empresa.oferta.length}/{LIMITES.oferta}</p>
                 </Field>
                 <Field label="¿Qué busca tu empresa?">
-                  <textarea value={empresa.demanda} onChange={(e) => setEmpresa((f) => ({ ...f, demanda: e.target.value }))}
+                  <textarea value={empresa.demanda} maxLength={LIMITES.demanda}
+                    onChange={(e) => setEmpresa((f) => ({ ...f, demanda: e.target.value.slice(0, LIMITES.demanda) }))}
                     className={`${inputCls} resize-none h-20`} placeholder="Ej: proveedores de insumos, socios de distribución..." />
+                  <p className="text-[11px] text-gray-400 mt-1 text-right">{empresa.demanda.length}/{LIMITES.demanda}</p>
                 </Field>
                 <div className="sm:col-span-2">
                   <Field label="¿Con qué sectores te interesa reunirte? (opcional)">
@@ -579,17 +599,18 @@ export default function RegistroPage() {
           </div>
         )}
 
-        {/* ══ STEP 2 ══ */}
+        {/* ══ STEP 2 ══
+            En móvil (1 columna) el orden de lectura es 1→2→3 gracias a las clases
+            order-*; en escritorio se coloca el QR a la derecha (col 2) abarcando
+            ambas filas, con Resumen arriba-izq y Comprobante abajo-izq. */}
         {step === 2 && (
-          <div className="grid md:grid-cols-2 gap-6">
-            {/* Left */}
-            <div className="space-y-6">
-              {/* Resumen */}
-              <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <ClipboardList className="w-5 h-5 text-[#449D3A]" />
-                  <h2 className="font-bold text-gray-900">1. Resumen de Inscripción</h2>
-                </div>
+          <div className="grid md:grid-cols-2 md:grid-rows-[auto_auto] gap-6 md:items-start">
+            {/* Resumen */}
+            <section className="order-1 md:col-start-1 md:row-start-1 bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <ClipboardList className="w-5 h-5 text-[#449D3A]" />
+                <h2 className="font-bold text-gray-900">1. Resumen de Inscripción</h2>
+              </div>
                 <div className="space-y-2 text-sm">
                   {[
                     { k: "Empresa",      v: empresa.nombre },
@@ -607,10 +628,43 @@ export default function RegistroPage() {
                     <span className="text-[#449D3A]">{total} bs</span>
                   </div>
                 </div>
-              </section>
+            </section>
 
-              {/* Comprobante */}
-              <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+            {/* Pago con QR — a la derecha en escritorio, segundo paso en móvil */}
+            <section className="order-2 md:col-start-2 md:row-start-1 md:row-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-6 md:sticky md:top-6">
+              <div className="flex items-center gap-2 mb-4">
+                <QrCode className="w-5 h-5 text-[#449D3A]" />
+                <h2 className="font-bold text-gray-900">2. Pago con QR</h2>
+              </div>
+              {qrRule?.urlQR ? (
+                <div className="flex flex-col items-center">
+                  <div
+                    className="w-48 h-48 rounded-2xl overflow-hidden border-2 border-gray-100 bg-white p-2 cursor-pointer hover:border-[#449D3A] transition-colors"
+                    onClick={() => setLightboxUrl(qrRule.urlQR)}
+                    title="Click para ampliar"
+                  >
+                    <img src={qrRule.urlQR} alt="QR Pago" className="w-full h-full object-contain" />
+                  </div>
+                  <p className="text-[10px] text-gray-400 mt-1">Haz clic para ampliar el QR</p>
+                  <p className="text-sm font-semibold text-gray-700 mt-2 text-center">Escanea el código con tu app bancaria</p>
+                  <div className="mt-4 w-full bg-green-50 border border-green-200 rounded-xl p-3 text-center">
+                    <p className="text-xs text-green-700 font-semibold">Monto a pagar</p>
+                    <p className="text-2xl font-extrabold text-[#449D3A]">{total} Bs.</p>
+                    <p className="text-xs text-green-600">{participacion.numeroParticipantes} participante{participacion.numeroParticipantes > 1 ? "s" : ""}</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center py-8">
+                  <div className="w-32 h-32 bg-gray-100 rounded-2xl flex items-center justify-center mb-3">
+                    <QrCode className="w-16 h-16 text-gray-300" />
+                  </div>
+                  <p className="text-sm text-gray-400 text-center">No hay QR configurado. Contacta al administrador.</p>
+                </div>
+              )}
+            </section>
+
+            {/* Comprobante — tercer paso, debajo del resumen en escritorio */}
+            <section className="order-3 md:col-start-1 md:row-start-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
                 <div className="flex items-center gap-2 mb-4">
                   <FileText className="w-5 h-5 text-[#449D3A]" />
                   <h2 className="font-bold text-gray-900">3. Comprobante de Pago</h2>
@@ -653,43 +707,7 @@ export default function RegistroPage() {
                     Confirmo que el pago se ha realizado correctamente por el monto total especificado y adjunto el comprobante válido para su verificación.
                   </span>
                 </label>
-              </section>
-            </div>
-
-            {/* Right — QR */}
-            <div>
-              <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 sticky top-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <QrCode className="w-5 h-5 text-[#449D3A]" />
-                  <h2 className="font-bold text-gray-900">2. Pago con QR</h2>
-                </div>
-                {qrRule?.urlQR ? (
-                  <div className="flex flex-col items-center">
-                    <div
-                      className="w-48 h-48 rounded-2xl overflow-hidden border-2 border-gray-100 bg-white p-2 cursor-pointer hover:border-[#449D3A] transition-colors"
-                      onClick={() => setLightboxUrl(qrRule.urlQR)}
-                      title="Click para ampliar"
-                    >
-                      <img src={qrRule.urlQR} alt="QR Pago" className="w-full h-full object-contain" />
-                    </div>
-                    <p className="text-[10px] text-gray-400 mt-1">Haz clic para ampliar el QR</p>
-                    <p className="text-sm font-semibold text-gray-700 mt-2 text-center">Escanea el código con tu app bancaria</p>
-                    <div className="mt-4 w-full bg-green-50 border border-green-200 rounded-xl p-3 text-center">
-                      <p className="text-xs text-green-700 font-semibold">Monto a pagar</p>
-                      <p className="text-2xl font-extrabold text-[#449D3A]">{total} Bs.</p>
-                      <p className="text-xs text-green-600">{participacion.numeroParticipantes} participante{participacion.numeroParticipantes > 1 ? "s" : ""}</p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center py-8">
-                    <div className="w-32 h-32 bg-gray-100 rounded-2xl flex items-center justify-center mb-3">
-                      <QrCode className="w-16 h-16 text-gray-300" />
-                    </div>
-                    <p className="text-sm text-gray-400 text-center">No hay QR configurado. Contacta al administrador.</p>
-                  </div>
-                )}
-              </section>
-            </div>
+            </section>
           </div>
         )}
 

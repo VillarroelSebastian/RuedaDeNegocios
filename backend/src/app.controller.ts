@@ -477,6 +477,27 @@ export class AppController implements OnModuleInit {
     const evento = await this.prisma.evento.findUnique({ where: { id: eventoId } });
     if (!evento) throw new BadRequestException('Evento no encontrado.');
 
+    // ── Saneamiento y validación defensiva de lo que escribe el usuario ──
+    const emp = body.empresa || {};
+    const nombreLimpio = String(emp.nombre ?? '').replace(/\s+/g, ' ').trim();
+    if (nombreLimpio.length < 3 || nombreLimpio.length > 55)
+      throw new BadRequestException('El nombre de la empresa debe tener entre 3 y 55 caracteres.');
+    if (!/^[a-zA-ZÀ-ÿ0-9\s.,&\-'()]+$/.test(nombreLimpio))
+      throw new BadRequestException('El nombre de la empresa contiene caracteres no permitidos.');
+    if ((nombreLimpio.match(/[a-zA-ZÀ-ÿ]/g) || []).length < 2)
+      throw new BadRequestException('El nombre de la empresa debe incluir al menos 2 letras.');
+    const correoLimpio = String(emp.correoCorporativo ?? '').trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correoLimpio))
+      throw new BadRequestException('El correo corporativo no es válido.');
+    // Normalizar campos de texto (recorte + tope de longitud según columnas).
+    emp.nombre = nombreLimpio;
+    emp.correoCorporativo = correoLimpio;
+    emp.descripcion = emp.descripcion ? String(emp.descripcion).trim().slice(0, 1000) : emp.descripcion;
+    emp.oferta = emp.oferta ? String(emp.oferta).trim().slice(0, 500) : emp.oferta;
+    emp.demanda = emp.demanda ? String(emp.demanda).trim().slice(0, 500) : emp.demanda;
+    if (emp.interesesBusqueda) emp.interesesBusqueda = String(emp.interesesBusqueda).trim().slice(0, 600);
+    body.empresa = emp;
+
     // Verificar duplicado por correo corporativo
     const empresaExistente = await this.prisma.empresa.findFirst({
       where: { correoCorporativo: body.empresa.correoCorporativo, estaActivo: 1 },
