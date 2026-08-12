@@ -27,12 +27,105 @@ model actividadprograma {
   direccion_texto               String?   @db.VarChar(205)
   linkReunionVirtual            String?   @db.VarChar(505)
   ubicacionGoogleMapsPresencial String?   @db.VarChar(505)
+  // ── Cronograma en vivo ──
+  // Estado que admin/técnico controlan durante el evento para reflejar en tiempo
+  // real qué está pasando: PENDIENTE | EN_VIVO | FINALIZADA. Es independiente de
+  // estadoActividad (que describe la programación, no el momento actual).
+  estadoEnVivo                  String    @default("PENDIENTE") @db.VarChar(20)
+  // Aviso puntual del staff ("empieza 10 min tarde", "cambio de sala").
+  notaEnVivo                    String?   @db.VarChar(305)
+  horaInicioReal                DateTime? @db.Timestamp(6)
+  horaFinReal                   DateTime? @db.Timestamp(6)
   estaActivo                    Int       @default(1) @db.SmallInt
   fechaCreacion                 DateTime  @default(now()) @db.Timestamp(6)
   creadoModificadoFecha         DateTime? @db.Timestamp(6)
   evento                        evento    @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_actividadprograma_evento1")
 
   @@index([evento_id], map: "fk_actividadprograma_evento1_idx")
+  @@index([evento_id, estadoEnVivo])
+}
+
+// ── Paquetes de inscripción (Iténez / Beni / Mamoré) ────────────────────────
+// Sustituyen al cálculo por rango de participantes: el paquete fija el costo,
+// cuántas credenciales incluye y con qué QR se paga.
+model paquete {
+  id                    Int             @id @default(autoincrement())
+  evento_id             Int
+  nombre                String          @db.VarChar(105)
+  objetivo              String?         @db.VarChar(205)
+  descripcion           String?         @db.VarChar(505)
+  // Beneficios, uno por línea; se listan como viñetas en la web y la app.
+  contenido             String?         @db.VarChar(2000)
+  costo                 Decimal         @db.Decimal(10, 2)
+  credencialesIncluidas Int             @db.SmallInt
+  urlQR                 String?         @db.VarChar(505)
+  orden                 Int             @default(0) @db.SmallInt
+  estaActivo            Int             @default(1) @db.SmallInt
+  fechaCreacion         DateTime        @default(now()) @db.Timestamp(6)
+  creadoModificadoFecha DateTime?       @db.Timestamp(6)
+  evento                evento          @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  empresaevento         empresaevento[]
+  auspiciador           auspiciador[]
+
+  @@index([evento_id])
+}
+
+// ── Auspiciadores ───────────────────────────────────────────────────────────
+// Categoría de inscripción aparte de las empresas participantes: aportan dinero
+// o insumos y reciben una cantidad de ingresos (credenciales) al evento.
+model auspiciador {
+  id                    Int                  @id @default(autoincrement())
+  evento_id             Int
+  nombreEmpresa         String               @db.VarChar(155)
+  descripcion           String?              @db.VarChar(1000)
+  tipoAporte            String               @db.VarChar(20) // DINERO | INSUMOS | AMBOS
+  detalleAporte         String?              @db.VarChar(505)
+  montoAporte           Decimal?             @db.Decimal(10, 2)
+  paquete_id            Int?
+  cantidadIngresos      Int                  @db.SmallInt
+  estaActivo            Int                  @default(1) @db.SmallInt
+  fechaCreacion         DateTime             @default(now()) @db.Timestamp(6)
+  creadoModificadoFecha DateTime?            @db.Timestamp(6)
+  evento                evento               @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  paquete               paquete?             @relation(fields: [paquete_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  personas              auspiciadorpersona[]
+
+  @@index([evento_id])
+  @@index([paquete_id])
+}
+
+// Cada persona del auspiciador que entra al evento; lleva su propia credencial QR.
+model auspiciadorpersona {
+  id              Int         @id @default(autoincrement())
+  auspiciador_id  Int
+  nombreCompleto  String      @db.VarChar(155)
+  cargo           String?     @db.VarChar(105)
+  correo          String?     @db.VarChar(105)
+  urlCredencialQR String?     @db.VarChar(505)
+  estaActivo      Int         @default(1) @db.SmallInt
+  fechaCreacion   DateTime    @default(now()) @db.Timestamp(6)
+  auspiciador     auspiciador @relation(fields: [auspiciador_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([auspiciador_id])
+}
+
+// ── Repositorio de fotografías del evento ───────────────────────────────────
+// Cualquier participante habilitado sube fotos; todos las ven en la galería.
+model fotoevento {
+  id                 Int       @id @default(autoincrement())
+  evento_id          Int
+  // Quién subió: participante (empresa_usuario) o staff (usuario). Uno de los dos.
+  empresa_usuario_id Int?
+  usuario_id         Int?
+  autorNombre        String    @db.VarChar(155)
+  urlFoto            String    @db.VarChar(505)
+  descripcion        String?   @db.VarChar(305)
+  estaActivo         Int       @default(1) @db.SmallInt
+  fechaCreacion      DateTime  @default(now()) @db.Timestamp(6)
+  evento             evento    @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([evento_id, estaActivo])
+  @@index([empresa_usuario_id])
 }
 
 model ciudad {
@@ -94,6 +187,8 @@ model empresaevento {
   id                                                                            Int                         @id @default(autoincrement())
   empresa_id                                                                    Int
   evento_id                                                                     Int
+  // Paquete elegido en la inscripción; define costo y credenciales incluidas.
+  paquete_id                                                                    Int?
   tipoParticipacion                                                             String                      @db.VarChar(75)
   estadoHabilitacionAcceso                                                      String                      @db.VarChar(45)
   motivoRechazoAcceso                                                           String?                     @db.VarChar(500)
@@ -109,6 +204,7 @@ model empresaevento {
   empresa_usuario                                                               empresa_usuario[]
   empresa                                                                       empresa                     @relation(fields: [empresa_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_empresaevento_empresa1")
   evento                                                                        evento                      @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_empresaevento_evento1")
+  paquete                                                                       paquete?                    @relation(fields: [paquete_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   empresaeventocomprobantes                                                     empresaeventocomprobantes[]
   notificacion                                                                  notificacion[]
   resultadoreunion_resultadoreunion_empresaeventoCalificadora_idToempresaevento resultadoreunion[]          @relation("resultadoreunion_empresaeventoCalificadora_idToempresaevento")
@@ -206,6 +302,9 @@ model evento {
   noticia                        noticia[]
   reunion                        reunion[]
   usuario                        usuario[]
+  paquete                        paquete[]
+  auspiciador                    auspiciador[]
+  fotoevento                     fotoevento[]
 }
 
 model eventoreglaqr {

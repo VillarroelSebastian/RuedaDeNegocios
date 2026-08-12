@@ -4,6 +4,7 @@ import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { ImagenesModule } from './imagenes/imagenes.module.js';
+import { ExtrasModule } from './extras/extras.module.js';
 import { NotificacionesGateway } from './notificaciones/notificaciones.gateway.js';
 
 
@@ -12,6 +13,7 @@ import { NotificacionesGateway } from './notificaciones/notificaciones.gateway.j
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
     ImagenesModule,
+    ExtrasModule,
   ],
   controllers: [AppController],
   providers: [AppService, NotificacionesGateway],
