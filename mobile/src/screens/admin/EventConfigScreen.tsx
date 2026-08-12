@@ -107,11 +107,14 @@ export default function EventConfigScreen() {
     urlImagenCronogramaCharlas: '',
     urlLogoEvento: '',
     sobreElEvento: '',
+    urlVideoEvento: '',
+    pilaresEvento: '',
     correoContacto: '',
     telefonoContacto: '',
     enlaceFacebook: '',
     enlaceInstagram: '',
-    enlaceTwitterX: '',
+    enlaceLinkedIn: '',
+    enlaceTiktok: '',
     paisEvento: '',
     ciudadEvento: '',
   });
@@ -219,8 +222,9 @@ export default function EventConfigScreen() {
         montoBaseIncripcionBolivianos: '500',
         cantidadParticipantesIncluidos: '2', costoParticipanteExtra: '100',
         urlImagenMapaRecinto: '', urlImagenCronogramaCharlas: '', urlLogoEvento: '',
-        sobreElEvento: '', correoContacto: '', telefonoContacto: '',
-        enlaceFacebook: '', enlaceInstagram: '', enlaceTwitterX: '',
+        sobreElEvento: '', urlVideoEvento: '', pilaresEvento: '',
+        correoContacto: '', telefonoContacto: '',
+        enlaceFacebook: '', enlaceInstagram: '', enlaceLinkedIn: '', enlaceTiktok: '',
         paisEvento: '', ciudadEvento: '',
       });
       setReglasQR([{ rangoDesde: '1', rangoHasta: '2', monto: '500', urlQR: '' }]);
@@ -248,11 +252,14 @@ export default function EventConfigScreen() {
           urlImagenCronogramaCharlas: data.urlImagenCronogramaCharlas || '',
           urlLogoEvento: data.urlLogoEvento || '',
           sobreElEvento: data.sobreElEvento || '',
+          urlVideoEvento: data.urlVideoEvento || '',
+          pilaresEvento: data.pilaresEvento || '',
           correoContacto: data.correoContacto || '',
           telefonoContacto: data.telefonoContacto || '',
           enlaceFacebook: data.enlaceFacebook || '',
           enlaceInstagram: data.enlaceInstagram || '',
-          enlaceTwitterX: data.enlaceTwitterX || '',
+          enlaceLinkedIn: data.enlaceLinkedIn || '',
+          enlaceTiktok: data.enlaceTiktok || '',
           paisEvento: data.paisEvento || '',
           ciudadEvento: data.ciudadEvento || '',
         });
@@ -313,11 +320,14 @@ export default function EventConfigScreen() {
       urlImagenCronogramaCharlas: orNull(formData.urlImagenCronogramaCharlas),
       urlLogoEvento: orNull(formData.urlLogoEvento),
       sobreElEvento: orNull(formData.sobreElEvento),
+      urlVideoEvento: orNull(formData.urlVideoEvento),
+      pilaresEvento: orNull(formData.pilaresEvento),
       correoContacto: orNull(formData.correoContacto),
       telefonoContacto: orNull(formData.telefonoContacto),
       enlaceFacebook: orNull(formData.enlaceFacebook),
       enlaceInstagram: orNull(formData.enlaceInstagram),
-      enlaceTwitterX: orNull(formData.enlaceTwitterX),
+      enlaceLinkedIn: orNull(formData.enlaceLinkedIn),
+      enlaceTiktok: orNull(formData.enlaceTiktok),
       paisEvento: orNull(formData.paisEvento),
       ciudadEvento: orNull(formData.ciudadEvento),
       reglasQR: reglasQR.map((r) => ({
@@ -623,14 +633,27 @@ export default function EventConfigScreen() {
           <TextInput value={formData.enlaceInstagram} onChangeText={(t) => handleChange('enlaceInstagram', t)}
             className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm mb-4" placeholder="https://instagram.com/..." />
 
-          <Text className="text-xs font-bold text-gray-700 mb-2">Twitter / X</Text>
-          <TextInput value={formData.enlaceTwitterX} onChangeText={(t) => handleChange('enlaceTwitterX', t)}
-            className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm mb-4" placeholder="https://x.com/..." />
+          <Text className="text-xs font-bold text-gray-700 mb-2">LinkedIn</Text>
+          <TextInput value={formData.enlaceLinkedIn} onChangeText={(t) => handleChange('enlaceLinkedIn', t)}
+            className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm mb-4" placeholder="https://linkedin.com/company/..." />
+
+          <Text className="text-xs font-bold text-gray-700 mb-2">TikTok</Text>
+          <TextInput value={formData.enlaceTiktok} onChangeText={(t) => handleChange('enlaceTiktok', t)}
+            className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm mb-4" placeholder="https://tiktok.com/@..." />
+
+          <Text className="text-xs font-bold text-gray-700 mb-2">Video &quot;¿Qué es la rueda?&quot;</Text>
+          <TextInput value={formData.urlVideoEvento} onChangeText={(t) => handleChange('urlVideoEvento', t)}
+            className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm mb-4" placeholder="https://youtube.com/..." />
 
           <Text className="text-xs font-bold text-gray-700 mb-2">Sobre el Evento</Text>
           <TextInput value={formData.sobreElEvento} onChangeText={(t) => handleChange('sobreElEvento', t)}
             multiline textAlignVertical="top"
-            className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm h-24" placeholder="Historia detallada..." />
+            className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm h-24 mb-4" placeholder="Historia detallada..." />
+
+          <Text className="text-xs font-bold text-gray-700 mb-2">Ejes del evento (uno por línea)</Text>
+          <TextInput value={formData.pilaresEvento} onChangeText={(t) => handleChange('pilaresEvento', t)}
+            multiline textAlignVertical="top"
+            className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm h-24" placeholder={'Articulación Estratégica\nInternacionalización'} />
         </View>
 
         {/* ── Logística ── */}

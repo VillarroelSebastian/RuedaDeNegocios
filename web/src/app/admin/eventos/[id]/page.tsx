@@ -47,11 +47,14 @@ export default function ConfiguracionDeEventoPage() {
     urlImagenCronogramaCharlas: '',
     urlLogoEvento: '',
     sobreElEvento: '',
+    urlVideoEvento: '',
+    pilaresEvento: '',
     correoContacto: '',
     telefonoContacto: '',
     enlaceFacebook: '',
     enlaceInstagram: '',
-    enlaceTwitterX: '',
+    enlaceLinkedIn: '',
+    enlaceTiktok: '',
     ciudadEvento: '',
     paisEvento: '',
   });
@@ -92,11 +95,14 @@ export default function ConfiguracionDeEventoPage() {
             urlImagenCronogramaCharlas: data.urlImagenCronogramaCharlas || '',
             urlLogoEvento: data.urlLogoEvento || '',
             sobreElEvento: data.sobreElEvento || '',
+            urlVideoEvento: data.urlVideoEvento || '',
+            pilaresEvento: data.pilaresEvento || '',
             correoContacto: data.correoContacto || '',
             telefonoContacto: data.telefonoContacto || '',
             enlaceFacebook: data.enlaceFacebook || '',
             enlaceInstagram: data.enlaceInstagram || '',
-            enlaceTwitterX: data.enlaceTwitterX || '',
+            enlaceLinkedIn: data.enlaceLinkedIn || '',
+            enlaceTiktok: data.enlaceTiktok || '',
             ciudadEvento: data.ciudadEvento || '',
             paisEvento: data.paisEvento || '',
           });
@@ -213,11 +219,14 @@ export default function ConfiguracionDeEventoPage() {
       urlImagenCronogramaCharlas: orNull(formData.urlImagenCronogramaCharlas),
       urlLogoEvento: orNull(formData.urlLogoEvento),
       sobreElEvento: orNull(formData.sobreElEvento),
+      urlVideoEvento: orNull(formData.urlVideoEvento),
+      pilaresEvento: orNull(formData.pilaresEvento),
       correoContacto: orNull(formData.correoContacto),
       telefonoContacto: orNull(formData.telefonoContacto),
       enlaceFacebook: orNull(formData.enlaceFacebook),
       enlaceInstagram: orNull(formData.enlaceInstagram),
-      enlaceTwitterX: orNull(formData.enlaceTwitterX),
+      enlaceLinkedIn: orNull(formData.enlaceLinkedIn),
+      enlaceTiktok: orNull(formData.enlaceTiktok),
       ciudadEvento: orNull(formData.ciudadEvento),
       paisEvento: orNull(formData.paisEvento),
       reglasQR: reglasQR.map(r => ({
@@ -427,14 +436,30 @@ export default function ConfiguracionDeEventoPage() {
               <input type="text" name="enlaceInstagram" value={formData.enlaceInstagram} onChange={handleChange} className={styles.input} placeholder="https://instagram.com/..." />
             </div>
             <div>
-              <label className={styles.label}>Enlace Twitter/X</label>
-              <input type="text" name="enlaceTwitterX" value={formData.enlaceTwitterX} onChange={handleChange} className={styles.input} placeholder="https://x.com/..." />
+              <label className={styles.label}>Enlace LinkedIn</label>
+              <input type="text" name="enlaceLinkedIn" value={formData.enlaceLinkedIn} onChange={handleChange} className={styles.input} placeholder="https://linkedin.com/company/..." />
+            </div>
+          </div>
+
+          <div className={styles.grid + " " + styles.grid3Lg} style={{marginTop: '1rem'}}>
+            <div>
+              <label className={styles.label}>Enlace TikTok</label>
+              <input type="text" name="enlaceTiktok" value={formData.enlaceTiktok} onChange={handleChange} className={styles.input} placeholder="https://tiktok.com/@..." />
+            </div>
+            <div>
+              <label className={styles.label}>Video &quot;¿Qué es la rueda?&quot;</label>
+              <input type="text" name="urlVideoEvento" value={formData.urlVideoEvento} onChange={handleChange} className={styles.input} placeholder="https://youtube.com/..." />
             </div>
           </div>
 
           <div style={{marginTop: '1rem'}}>
             <label className={styles.label}>Sobre el Evento (Texto Pestaña)</label>
             <textarea name="sobreElEvento" value={formData.sobreElEvento} onChange={handleChange} className={styles.input + " " + styles.textarea} placeholder="Historia detallada, visión o texto largo para mostrar públicamente..." style={{height: '100px'}} />
+          </div>
+
+          <div style={{marginTop: '1rem'}}>
+            <label className={styles.label}>Ejes del evento (uno por línea)</label>
+            <textarea name="pilaresEvento" value={formData.pilaresEvento} onChange={handleChange} className={styles.input + " " + styles.textarea} placeholder={"Articulación Estratégica\nInternacionalización\nOportunidades de Negocio"} style={{height: '100px'}} />
           </div>
         </div>
 

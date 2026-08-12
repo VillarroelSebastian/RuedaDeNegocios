@@ -180,11 +180,19 @@ model evento {
   urlImagenCronogramaCharlas     String?             @db.VarChar(505)
   urlLogoEvento                  String?             @db.VarChar(505)
   sobreElEvento                  String?             @db.VarChar(2000)
+  // Enlace al video "¿Qué es la rueda?" que se muestra sobre el logo en la landing.
+  urlVideoEvento                 String?             @db.VarChar(505)
+  // Ejes/pilares del evento, uno por línea; se listan en dos columnas en la landing.
+  pilaresEvento                  String?             @db.VarChar(1000)
   correoContacto                 String?             @db.VarChar(105)
   telefonoContacto               String?             @db.VarChar(45)
   enlaceFacebook                 String?             @db.VarChar(505)
   enlaceInstagram                String?             @db.VarChar(505)
+  // enlaceTwitterX quedó en desuso (se retiró X de la web y del panel); se conserva
+  // la columna para no perder el dato histórico de ediciones anteriores.
   enlaceTwitterX                 String?             @db.VarChar(505)
+  enlaceLinkedIn                 String?             @db.VarChar(505)
+  enlaceTiktok                   String?             @db.VarChar(505)
   ciudadEvento                   String?             @db.VarChar(205)
   paisEvento                     String?             @db.VarChar(105)
   estaActivo                     Int                 @db.SmallInt

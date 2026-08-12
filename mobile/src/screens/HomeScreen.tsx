@@ -49,7 +49,8 @@ interface EventoPublico {
   telefonoContacto: string | null;
   enlaceFacebook: string | null;
   enlaceInstagram: string | null;
-  enlaceTwitterX: string | null;
+  enlaceLinkedIn: string | null;
+  enlaceTiktok: string | null;
   urlLogoEvento: string | null;
   urlImagenMapaRecinto: string | null;
   urlImagenCronogramaCharlas: string | null;
@@ -381,7 +382,7 @@ export default function HomeScreen({ navigation }: any) {
           ) : null}
 
           {/* Redes sociales */}
-          {(evento.enlaceFacebook || evento.enlaceInstagram || evento.enlaceTwitterX) && (
+          {(evento.enlaceFacebook || evento.enlaceInstagram || evento.enlaceLinkedIn || evento.enlaceTiktok) && (
             <View style={s.socialRow}>
               {evento.enlaceFacebook && (
                 <TouchableOpacity style={[s.socialBtn, { backgroundColor: '#1877f2' }]} onPress={() => Linking.openURL(evento.enlaceFacebook!)} activeOpacity={0.85}>
@@ -393,9 +394,14 @@ export default function HomeScreen({ navigation }: any) {
                   <Text style={s.socialBtnText}>ig</Text>
                 </TouchableOpacity>
               )}
-              {evento.enlaceTwitterX && (
-                <TouchableOpacity style={[s.socialBtn, { backgroundColor: C.gray900 }]} onPress={() => Linking.openURL(evento.enlaceTwitterX!)} activeOpacity={0.85}>
-                  <Text style={s.socialBtnText}>X</Text>
+              {evento.enlaceLinkedIn && (
+                <TouchableOpacity style={[s.socialBtn, { backgroundColor: '#0A66C2' }]} onPress={() => Linking.openURL(evento.enlaceLinkedIn!)} activeOpacity={0.85}>
+                  <Text style={s.socialBtnText}>in</Text>
+                </TouchableOpacity>
+              )}
+              {evento.enlaceTiktok && (
+                <TouchableOpacity style={[s.socialBtn, { backgroundColor: C.gray900 }]} onPress={() => Linking.openURL(evento.enlaceTiktok!)} activeOpacity={0.85}>
+                  <Text style={s.socialBtnText}>tt</Text>
                 </TouchableOpacity>
               )}
             </View>

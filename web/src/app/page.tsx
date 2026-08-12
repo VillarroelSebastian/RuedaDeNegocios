@@ -6,7 +6,7 @@ import Link from "next/link";
 import {
   Calendar, MapPin, Phone, Mail,
   Users, LayoutGrid, Layers, ChevronRight,
-  Clock, Building2, ArrowRight
+  Clock, Building2, ArrowRight, HelpCircle
 } from "lucide-react";
 import InstalarAppButton from "@/components/InstalarAppButton";
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
@@ -21,9 +21,14 @@ const IconInstagram = () => (
     <rect x="2" y="2" width="20" height="20" rx="5" ry="5" /><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" /><line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
   </svg>
 );
-const IconX = () => (
+const IconLinkedIn = () => (
   <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+    <path d="M4.98 3.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM3 9h4v12H3zM9 9h3.8v1.7h.05c.53-.95 1.83-1.95 3.77-1.95 4.03 0 4.78 2.5 4.78 5.76V21h-4v-5.6c0-1.34-.03-3.07-1.9-3.07-1.9 0-2.2 1.46-2.2 2.97V21H9z" />
+  </svg>
+);
+const IconTikTok = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+    <path d="M16.6 5.82A4.28 4.28 0 0 1 15.54 3h-3.09v12.4a2.59 2.59 0 0 1-2.59 2.5 2.59 2.59 0 1 1 .77-5.06v-3.2a5.74 5.74 0 0 0-.77-.05A5.71 5.71 0 1 0 15.54 15V9.01a7.35 7.35 0 0 0 4.3 1.38V7.3a4.31 4.31 0 0 1-3.24-1.48z" />
   </svg>
 );
 
@@ -39,8 +44,11 @@ interface EventoPublico {
   telefonoContacto: string | null;
   enlaceFacebook: string | null;
   enlaceInstagram: string | null;
-  enlaceTwitterX: string | null;
+  enlaceLinkedIn: string | null;
+  enlaceTiktok: string | null;
   urlLogoEvento: string | null;
+  urlVideoEvento: string | null;
+  pilaresEvento: string | null;
   urlImagenMapaRecinto: string | null;
   urlImagenCronogramaCharlas: string | null;
   ciudadEvento: string | null;
@@ -127,6 +135,11 @@ export default function HomePage() {
       </div>
     );
   }
+
+  const pilares = (evento.pilaresEvento ?? "")
+    .split("\n")
+    .map((p) => p.trim())
+    .filter(Boolean);
 
   return (
     <div className="min-h-screen bg-white font-sans">
@@ -224,19 +237,78 @@ export default function HomePage() {
       </section>
 
       {/* ── SOBRE EL EVENTO ────────────────────────────────────────── */}
-      <section id="sobre" className="py-20 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="grid md:grid-cols-2 gap-14 items-center">
-            <div>
-              <span className="text-green-600 font-semibold text-sm uppercase tracking-wider">Sobre el Evento</span>
-              <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mt-3 mb-6 leading-tight">
+      <section id="sobre" className="py-20 bg-white">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="grid md:grid-cols-2 gap-12 lg:gap-16 items-center">
+            {/* Logo del evento + botón flotante al video */}
+            <div className="relative">
+              <div className="relative aspect-square w-full rounded-2xl overflow-hidden bg-gray-50 border border-gray-100 shadow-sm">
+                <Image
+                  src={evento.urlLogoEvento ?? "/assets/iconos/logo.png"}
+                  alt={evento.nombre}
+                  fill
+                  sizes="(max-width: 768px) 100vw, 520px"
+                  className="object-contain p-6"
+                  unoptimized
+                />
+              </div>
+              {evento.urlVideoEvento && (
+                <a
+                  href={evento.urlVideoEvento}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  /* El bloque amarillo desplazado imita la tarjeta del diseño aprobado */
+                  className="group absolute -bottom-5 left-1/2 -translate-x-1/2 md:left-auto md:translate-x-0 md:right-[-2rem]"
+                >
+                  <span className="absolute inset-0 translate-x-2 translate-y-2 rounded-xl bg-[#F5B921]" aria-hidden="true" />
+                  <span className="relative flex flex-col items-center gap-1 rounded-xl bg-[#4A7C2A] px-7 py-4 text-center text-white shadow-lg transition-transform group-hover:-translate-y-0.5">
+                    <span className="flex items-center gap-2 text-base font-bold">
+                      <HelpCircle size={18} /> ¿Qué es la rueda?
+                    </span>
+                    <span className="text-xs text-white/85">Mira nuestro video</span>
+                  </span>
+                </a>
+              )}
+            </div>
+
+            {/* Texto + ejes del evento */}
+            <div className={evento.urlVideoEvento ? "mt-10 md:mt-0" : ""}>
+              <span className="text-sm font-bold text-gray-800">Sobre el evento</span>
+              <h2 className="mt-3 mb-5 text-3xl sm:text-4xl font-extrabold uppercase leading-tight text-[#4A7C2A]">
                 {evento.nombre}
               </h2>
               {evento.sobreElEvento && (
-                <p className="text-gray-600 text-lg leading-relaxed">
+                <p className="text-[#6B8F4E] text-base leading-relaxed">
                   {evento.sobreElEvento}
                 </p>
               )}
+              {pilares.length > 0 && (
+                <div className="mt-8 border-t border-gray-200 pt-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
+                    {pilares.map((pilar) => (
+                      <p key={pilar} className="text-gray-700 text-[15px]">{pilar}</p>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── RECINTO Y FECHAS ───────────────────────────────────────── */}
+      <section className="py-20 bg-gray-50">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="grid md:grid-cols-2 gap-14 items-center">
+            <div>
+              <span className="text-green-600 font-semibold text-sm uppercase tracking-wider">Dónde y cuándo</span>
+              <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mt-3 mb-6 leading-tight">
+                {evento.ciudadEvento ? `Te esperamos en ${evento.ciudadEvento}` : "Te esperamos"}
+              </h2>
+              <p className="text-gray-600 text-lg leading-relaxed">
+                {formatDate(evento.fechaInicioEvento)} – {formatDate(evento.fechaFinEvento)}
+                {evento.ciudadEvento ? ` · ${evento.ciudadEvento}` : ''}{evento.paisEvento ? `, ${evento.paisEvento}` : ''}
+              </p>
             </div>
             <div className="relative">
               <div className="relative h-96 rounded-2xl overflow-hidden shadow-2xl bg-gray-100">
@@ -320,11 +392,11 @@ export default function HomePage() {
         <section className="py-16 bg-gray-50">
           <div className="max-w-4xl mx-auto px-6 text-center">
             <span className="text-green-600 font-semibold text-sm uppercase tracking-wider">Programa</span>
-            <h2 className="text-3xl font-extrabold text-gray-900 mt-3 mb-8">Cronograma de Charlas</h2>
+            <h2 className="text-3xl font-extrabold text-gray-900 mt-3 mb-8">Cronograma de Actividades</h2>
             <div className="relative w-full h-[420px] sm:h-[560px] rounded-2xl overflow-hidden shadow-2xl bg-gray-100">
               <Image
                 src={evento.urlImagenCronogramaCharlas}
-                alt="Cronograma de charlas"
+                alt="Cronograma de actividades"
                 fill
                 sizes="(max-width: 640px) 100vw, 900px"
                 className="object-contain"
@@ -380,9 +452,10 @@ export default function HomePage() {
                 <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
                   <Mail size={22} className="text-blue-700" />
                 </div>
-                <div>
+                {/* min-w-0 + break-all: sin esto un correo largo desborda la tarjeta */}
+                <div className="min-w-0 flex-1">
                   <p className="text-xs text-gray-400 mb-1">Correo Electrónico</p>
-                  <p className="font-semibold text-gray-800 text-sm">{evento.correoContacto}</p>
+                  <p className="font-semibold text-gray-800 text-sm break-all leading-snug">{evento.correoContacto}</p>
                 </div>
               </a>
             )}
@@ -399,24 +472,30 @@ export default function HomePage() {
               </div>
             )}
           </div>
-          {(evento.enlaceFacebook || evento.enlaceInstagram || evento.enlaceTwitterX) && (
-            <div className="flex justify-center gap-4 mt-10">
+          {(evento.enlaceFacebook || evento.enlaceInstagram || evento.enlaceLinkedIn || evento.enlaceTiktok) && (
+            <div className="flex flex-wrap justify-center gap-4 mt-10">
               {evento.enlaceFacebook && (
-                <a href={evento.enlaceFacebook} target="_blank" rel="noopener noreferrer"
+                <a href={evento.enlaceFacebook} target="_blank" rel="noopener noreferrer" aria-label="Facebook"
                   className="w-12 h-12 bg-blue-600 hover:bg-blue-700 rounded-xl flex items-center justify-center text-white transition-colors">
                   <IconFacebook />
                 </a>
               )}
               {evento.enlaceInstagram && (
-                <a href={evento.enlaceInstagram} target="_blank" rel="noopener noreferrer"
+                <a href={evento.enlaceInstagram} target="_blank" rel="noopener noreferrer" aria-label="Instagram"
                   className="w-12 h-12 bg-pink-600 hover:bg-pink-700 rounded-xl flex items-center justify-center text-white transition-colors">
                   <IconInstagram />
                 </a>
               )}
-              {evento.enlaceTwitterX && (
-                <a href={evento.enlaceTwitterX} target="_blank" rel="noopener noreferrer"
+              {evento.enlaceLinkedIn && (
+                <a href={evento.enlaceLinkedIn} target="_blank" rel="noopener noreferrer" aria-label="LinkedIn"
+                  className="w-12 h-12 bg-[#0A66C2] hover:bg-[#08528f] rounded-xl flex items-center justify-center text-white transition-colors">
+                  <IconLinkedIn />
+                </a>
+              )}
+              {evento.enlaceTiktok && (
+                <a href={evento.enlaceTiktok} target="_blank" rel="noopener noreferrer" aria-label="TikTok"
                   className="w-12 h-12 bg-gray-900 hover:bg-gray-700 rounded-xl flex items-center justify-center text-white transition-colors">
-                  <IconX />
+                  <IconTikTok />
                 </a>
               )}
             </div>
