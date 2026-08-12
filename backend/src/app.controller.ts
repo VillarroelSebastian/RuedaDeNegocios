@@ -509,10 +509,30 @@ export class AppController implements OnModuleInit {
       if (eeExistente) throw new BadRequestException('Esta empresa ya está registrada para el evento actual.');
     }
 
-    // Calcular monto
+    // Calcular monto. Si eligió paquete, éste fija el costo y las credenciales
+    // incluidas; si no hay paquetes configurados se usa el monto base del evento.
+    // El precio se resuelve siempre en el servidor, nunca se toma del cliente.
     const numParticipantes = Number(body.participacion?.numeroParticipantes) || 1;
-    const numExtra = Math.max(0, numParticipantes - evento.cantidadParticipantesIncluidos);
-    const monto = Number(evento.montoBaseIncripcionBolivianos) + numExtra * evento.costoParticipanteExtra;
+    const paqueteIdSolicitado = body.participacion?.paquete_id
+      ? Number(body.participacion.paquete_id)
+      : null;
+    let paqueteElegido: { id: number; costo: any; credencialesIncluidas: number } | null = null;
+    if (paqueteIdSolicitado) {
+      const p = await this.prisma.paquete.findFirst({
+        where: { id: paqueteIdSolicitado, evento_id: eventoId, estaActivo: 1 },
+        select: { id: true, costo: true, credencialesIncluidas: true },
+      });
+      if (!p) throw new BadRequestException('El paquete seleccionado no está disponible.');
+      paqueteElegido = p;
+    }
+    const costoBase = paqueteElegido
+      ? Number(paqueteElegido.costo)
+      : Number(evento.montoBaseIncripcionBolivianos);
+    const incluidos = paqueteElegido
+      ? paqueteElegido.credencialesIncluidas
+      : evento.cantidadParticipantesIncluidos;
+    const numExtra = Math.max(0, numParticipantes - incluidos);
+    const monto = costoBase + numExtra * evento.costoParticipanteExtra;
 
     // Resolve pais / ciudad from names (frontend sends paisNombre + ciudadNombre)
     const paisNombre = (body.empresa.paisNombre || 'Bolivia').trim();
@@ -546,6 +566,7 @@ export class AppController implements OnModuleInit {
       data: {
         empresa_id: empresa.id,
         evento_id: eventoId,
+        paquete_id: paqueteElegido?.id ?? null,
         tipoParticipacion: body.participacion?.tipoParticipacion || 'PRESENCIAL',
         estadoHabilitacionAcceso: 'NO_HABILITADO',
         montoPagado: monto,

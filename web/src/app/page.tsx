@@ -9,6 +9,8 @@ import {
   Clock, Building2, ArrowRight, HelpCircle
 } from "lucide-react";
 import InstalarAppButton from "@/components/InstalarAppButton";
+import CronogramaVivo from "@/components/CronogramaVivo";
+import GaleriaEvento from "@/components/GaleriaEvento";
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
 const IconFacebook = () => (
@@ -161,6 +163,8 @@ export default function HomePage() {
         <nav className="hidden md:flex items-center space-x-6">
           <a href="#sobre" className="text-sm font-semibold text-gray-500 hover:text-gray-900 transition-colors">Sobre el Evento</a>
           <a href="#actividades" className="text-sm font-semibold text-gray-500 hover:text-gray-900 transition-colors">Actividades</a>
+          <a href="#envivo" className="text-sm font-semibold text-gray-500 hover:text-gray-900 transition-colors">En Vivo</a>
+          <a href="#galeria" className="text-sm font-semibold text-gray-500 hover:text-gray-900 transition-colors">Galería</a>
           <a href="#contacto" className="text-sm font-semibold text-gray-500 hover:text-gray-900 transition-colors">Contacto</a>
           <InstalarAppButton className="flex items-center gap-1.5 rounded-md border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 hover:border-[#449D3A] hover:text-[#449D3A] transition-colors" />
           <Link href="/registro" className="rounded-md border border-[#449D3A] px-5 py-2 text-sm font-semibold text-[#449D3A] hover:bg-green-50 transition-colors">
@@ -406,6 +410,32 @@ export default function HomePage() {
           </div>
         </section>
       )}
+
+      {/* ── CRONOGRAMA EN VIVO ─────────────────────────────────────── */}
+      <section id="envivo" className="py-20 bg-white">
+        <div className="max-w-4xl mx-auto px-6">
+          <div className="text-center mb-8">
+            <span className="text-green-600 font-semibold text-sm uppercase tracking-wider">En directo</span>
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mt-3">Cronograma en vivo</h2>
+            <p className="text-gray-500 mt-3">Lo que está pasando en el evento, en tiempo real.</p>
+          </div>
+          <CronogramaVivo />
+        </div>
+      </section>
+
+      {/* ── GALERÍA ────────────────────────────────────────────────── */}
+      <section id="galeria" className="py-20 bg-gray-50">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="text-center mb-8">
+            <span className="text-green-600 font-semibold text-sm uppercase tracking-wider">Recuerdos</span>
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mt-3">Galería del evento</h2>
+            <p className="text-gray-500 mt-3">
+              Momentos compartidos por los participantes. Inicia sesión para subir las tuyas.
+            </p>
+          </div>
+          <GaleriaEvento />
+        </div>
+      </section>
 
       {/* ── BANNER CTA ─────────────────────────────────────────────── */}
       <section className="py-16 bg-gradient-to-r from-green-800 to-emerald-700 relative overflow-hidden">

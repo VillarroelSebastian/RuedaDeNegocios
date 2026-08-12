@@ -201,6 +201,8 @@ export default function RegistroPage() {
   const [participacion, setParticipacion] = useState({
     numeroParticipantes: 1, tipoParticipacion: "PRESENCIAL",
   });
+  const [paquetes, setPaquetes] = useState<any[]>([]);
+  const [paqueteId, setPaqueteId] = useState<number | null>(null);
 
   // Step 2
   const [urlComprobante, setUrlComprobante] = useState("");
@@ -215,22 +217,52 @@ export default function RegistroPage() {
 
   /* ─── Load data ─────────────────────────────────────────────── */
   useEffect(() => {
-    fetch(`${API}/public/evento`)
-      .then((r) => r.json())
-      .then((ev) => { if (ev?.id) setEvento(ev); })
+    Promise.all([
+      fetch(`${API}/public/evento`).then((r) => r.json()).catch(() => null),
+      fetch(`${API}/public/paquetes`).then((r) => r.json()).catch(() => []),
+    ])
+      .then(([ev, pqs]) => {
+        if (ev?.id) setEvento(ev);
+        const lista = Array.isArray(pqs) ? pqs : [];
+        setPaquetes(lista);
+        // Se preselecciona el más económico para que el paso 2 ya muestre un monto.
+        if (lista.length) {
+          setPaqueteId(lista[0].id);
+          setParticipacion((p) => ({ ...p, numeroParticipantes: lista[0].credencialesIncluidas }));
+        }
+      })
       .finally(() => setLoading(false));
   }, []);
 
   /* ─── Calculations ──────────────────────────────────────────── */
-  const costoBase = Number(evento?.montoBaseIncripcionBolivianos ?? 0);
-  const incluidos = Number(evento?.cantidadParticipantesIncluidos ?? 2);
+  // El paquete manda: fija el costo, las credenciales incluidas y el QR de pago.
+  // Si aún no hay paquetes cargados se cae al monto base del evento.
+  const paquete = paquetes.find((p) => p.id === paqueteId) ?? null;
+  const costoBase = paquete
+    ? Number(paquete.costo)
+    : Number(evento?.montoBaseIncripcionBolivianos ?? 0);
+  const incluidos = paquete
+    ? Number(paquete.credencialesIncluidas)
+    : Number(evento?.cantidadParticipantesIncluidos ?? 2);
   const costoExtra = Number(evento?.costoParticipanteExtra ?? 0);
   const numExtra = Math.max(0, participacion.numeroParticipantes - incluidos);
   const total = costoBase + numExtra * costoExtra;
 
-  const qrRule = evento?.eventoreglaqr?.find(
-    (r: any) => participacion.numeroParticipantes >= r.rangoDesde && participacion.numeroParticipantes <= r.rangoHasta,
-  ) ?? evento?.eventoreglaqr?.[0];
+  const qrRule = paquete?.urlQR
+    ? { urlQR: paquete.urlQR }
+    : (evento?.eventoreglaqr?.find(
+        (r: any) => participacion.numeroParticipantes >= r.rangoDesde && participacion.numeroParticipantes <= r.rangoHasta,
+      ) ?? evento?.eventoreglaqr?.[0]);
+
+  // Al cambiar de paquete se ajusta el número de personas a lo que incluye,
+  // salvo que ya hubiera elegido más (esos pasan a contarse como extras).
+  const elegirPaquete = (p: any) => {
+    setPaqueteId(p.id);
+    setParticipacion((prev) => ({
+      ...prev,
+      numeroParticipantes: Math.max(p.credencialesIncluidas, prev.numeroParticipantes),
+    }));
+  };
 
   /* ─── Verificar correo duplicado ───────────────────────────── */
   const verificarCorreo = async (correo: string): Promise<string | null> => {
@@ -369,7 +401,7 @@ export default function RegistroPage() {
           demanda: empresa.demanda.trim() || null,
           interesesBusqueda: interesesBusqueda.length ? interesesBusqueda.join(", ") : null,
         },
-        participacion,
+        participacion: { ...participacion, paquete_id: paqueteId },
         comprobante: { urlComprobante },
         participantes: [
           { ...limpiarPersona(responsable), esResponsable: true },
@@ -559,6 +591,63 @@ export default function RegistroPage() {
                 <Users className="w-5 h-5 text-[#449D3A]" />
                 <h2 className="font-bold text-gray-900">Participación en el evento</h2>
               </div>
+
+              {/* Paquetes de inscripción */}
+              {paquetes.length > 0 && (
+                <div className="mb-6">
+                  <Field label="Paquete de inscripción" required>
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                      {paquetes.map((p) => {
+                        const activo = paqueteId === p.id;
+                        const beneficios = String(p.contenido ?? "").split("\n").filter(Boolean);
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => elegirPaquete(p)}
+                            aria-pressed={activo}
+                            className={`text-left rounded-2xl border-2 p-4 transition-all flex flex-col ${
+                              activo
+                                ? "border-[#449D3A] bg-green-50 shadow-sm"
+                                : "border-gray-200 bg-white hover:border-gray-300"
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="font-extrabold text-gray-900 leading-tight">{p.nombre}</p>
+                                {p.objetivo && <p className="text-xs text-[#449D3A] font-semibold mt-0.5">{p.objetivo}</p>}
+                              </div>
+                              <span className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${activo ? "border-[#449D3A] bg-[#449D3A]" : "border-gray-300"}`}>
+                                {activo && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+                              </span>
+                            </div>
+                            <p className="text-2xl font-extrabold text-gray-900 mt-3">
+                              Bs. {Number(p.costo)}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              Incluye {p.credencialesIncluidas} credencial{p.credencialesIncluidas > 1 ? "es" : ""}
+                            </p>
+                            {p.descripcion && (
+                              <p className="text-xs text-gray-500 mt-2 leading-snug">{p.descripcion}</p>
+                            )}
+                            {beneficios.length > 0 && (
+                              <ul className="mt-3 space-y-1 border-t border-gray-200 pt-3">
+                                {beneficios.map((b, i) => (
+                                  <li key={i} className="flex gap-1.5 text-xs text-gray-600 leading-snug">
+                                    <Check className="w-3 h-3 text-[#449D3A] flex-shrink-0 mt-0.5" strokeWidth={3} />
+                                    <span>{b}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </Field>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div>
                   <Field label="Número de personas" required>
@@ -571,7 +660,10 @@ export default function RegistroPage() {
                         disabled={participacion.numeroParticipantes >= MAX_PARTICIPANTES}
                         className="w-10 h-10 rounded-xl border border-gray-200 flex items-center justify-center font-bold text-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">+</button>
                     </div>
-                    <p className="text-xs text-gray-400 mt-2">Máximo {MAX_PARTICIPANTES} participantes por empresa.</p>
+                    <p className="text-xs text-gray-400 mt-2">
+                      Máximo {MAX_PARTICIPANTES} participantes por empresa.
+                      {paquete && ` Tu paquete incluye ${incluidos}; cada persona adicional cuesta Bs. ${costoExtra}.`}
+                    </p>
                   </Field>
                 </div>
                 <div>
@@ -615,8 +707,9 @@ export default function RegistroPage() {
                   {[
                     { k: "Empresa",      v: empresa.nombre },
                     { k: "País / Ciudad", v: `${empresa.pais} – ${empresa.ciudad}` },
+                    ...(paquete ? [{ k: "Paquete", v: paquete.nombre }] : []),
                     { k: "Participantes", v: `${participacion.numeroParticipantes} persona${participacion.numeroParticipantes > 1 ? "s" : ""}` },
-                    { k: "Costo base",   v: `${costoBase} bs` },
+                    { k: paquete ? "Costo del paquete" : "Costo base", v: `${costoBase} bs` },
                     ...(numExtra > 0 ? [{ k: `Costo extra (${numExtra} adic.)`, v: `${numExtra * costoExtra} bs` }] : []),
                   ].map((row) => (
                     <div key={row.k} className="flex justify-between text-gray-600">
