@@ -89,7 +89,27 @@ export class ExtrasController {
     const credenciales = Number(body.credencialesIncluidas);
     if (!Number.isInteger(credenciales) || credenciales < 1)
       throw new BadRequestException('Las credenciales incluidas deben ser al menos 1.');
+
+    // El tope de personas no puede quedar por debajo de lo que el paquete ya
+    // incluye, o la empresa no podría cargar ni las credenciales que pagó.
+    const maxParticipantes = Number(body.maxParticipantes ?? credenciales);
+    if (!Number.isInteger(maxParticipantes) || maxParticipantes < credenciales)
+      throw new BadRequestException(
+        `El máximo de participantes (${maxParticipantes}) no puede ser menor que las ${credenciales} credenciales incluidas.`,
+      );
+
+    const nivelMesa = String(body.nivelMesa ?? 'NORMAL').toUpperCase();
+    if (!['NORMAL', 'PREFERENCIAL', 'VIP'].includes(nivelMesa))
+      throw new BadRequestException('El nivel de mesa debe ser NORMAL, PREFERENCIAL o VIP.');
+
+    const bandera = (v: any, pordefecto = 0) => (v === undefined || v === null ? pordefecto : (v ? 1 : 0));
+
     return {
+      maxParticipantes,
+      nivelMesa,
+      apareceEnCatalogo: bandera(body.apareceEnCatalogo, 1),
+      logoEnWeb: bandera(body.logoEnWeb, 0),
+      destacadoEnListados: bandera(body.destacadoEnListados, 0),
       nombre: this.texto(body.nombre, 105, 'Nombre del paquete')!,
       objetivo: this.texto(body.objetivo, 205, 'Objetivo', false),
       descripcion: this.texto(body.descripcion, 505, 'Descripción', false),

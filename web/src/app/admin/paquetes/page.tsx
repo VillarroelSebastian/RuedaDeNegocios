@@ -16,13 +16,34 @@ type Paquete = {
   credencialesIncluidas: number;
   urlQR: string | null;
   orden: number;
+  maxParticipantes: number;
+  nivelMesa: "NORMAL" | "PREFERENCIAL" | "VIP";
+  apareceEnCatalogo: number;
+  logoEnWeb: number;
+  destacadoEnListados: number;
   _count?: { empresaevento: number; auspiciador: number };
 };
 
 const formVacio = {
   nombre: "", objetivo: "", descripcion: "", contenido: "",
   costo: "", credencialesIncluidas: "2", urlQR: "", orden: "0",
+  maxParticipantes: "2", nivelMesa: "NORMAL",
+  apareceEnCatalogo: true, logoEnWeb: false, destacadoEnListados: false,
 };
+
+const NIVELES_MESA = [
+  { val: "NORMAL",       label: "Normal",       desc: "Mesa estándar" },
+  { val: "PREFERENCIAL", label: "Preferencial", desc: "Mejor ubicación" },
+  { val: "VIP",          label: "VIP",          desc: "Ubicación privilegiada" },
+];
+
+// Solo lo que el sistema puede hacer cumplir. Los beneficios de difusión
+// (podcast, pantallas LED) van en "Contenido" porque se entregan fuera de la app.
+const CAPACIDADES = [
+  { key: "apareceEnCatalogo",   label: "Aparece en el catálogo de participantes", desc: "Otras empresas pueden encontrarla y pedirle reunión" },
+  { key: "destacadoEnListados", label: "Destacada en los listados",               desc: "Se muestra primero en Empresas y Oportunidades" },
+  { key: "logoEnWeb",           label: "Logo en la web del evento",               desc: "Su logo aparece en la página pública" },
+] as const;
 
 export default function PaquetesPage() {
   const { showSuccess, showError, showConfirm, ModalComponent } = useModal();
@@ -67,6 +88,11 @@ export default function PaquetesPage() {
       credencialesIncluidas: String(p.credencialesIncluidas),
       urlQR: p.urlQR ?? "",
       orden: String(p.orden),
+      maxParticipantes: String(p.maxParticipantes ?? p.credencialesIncluidas),
+      nivelMesa: p.nivelMesa ?? "NORMAL",
+      apareceEnCatalogo: (p.apareceEnCatalogo ?? 1) === 1,
+      logoEnWeb: (p.logoEnWeb ?? 0) === 1,
+      destacadoEnListados: (p.destacadoEnListados ?? 0) === 1,
     });
     setAbierto(true);
   };
@@ -93,6 +119,9 @@ export default function PaquetesPage() {
     if (!(Number(form.costo) >= 0)) return showError("Falta un dato", "Indica el costo del paquete.");
     if (!(Number(form.credencialesIncluidas) >= 1))
       return showError("Falta un dato", "El paquete debe incluir al menos 1 credencial.");
+    if (Number(form.maxParticipantes) < Number(form.credencialesIncluidas))
+      return showError("Dato incoherente",
+        `El máximo de participantes no puede ser menor que las ${form.credencialesIncluidas} credenciales incluidas.`);
 
     setGuardando(true);
     try {
@@ -104,6 +133,7 @@ export default function PaquetesPage() {
           ...form,
           costo: Number(form.costo),
           credencialesIncluidas: Number(form.credencialesIncluidas),
+          maxParticipantes: Number(form.maxParticipantes),
           orden: Number(form.orden) || 0,
         }),
       });
@@ -191,7 +221,18 @@ export default function PaquetesPage() {
                 <div className="flex flex-wrap gap-2 mt-2">
                   <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-green-50 text-green-700">
                     <Users className="w-3 h-3" /> {p.credencialesIncluidas} credencial{p.credencialesIncluidas > 1 ? "es" : ""}
+                    {p.maxParticipantes > p.credencialesIncluidas && ` (máx ${p.maxParticipantes})`}
                   </span>
+                  {p.nivelMesa !== "NORMAL" && (
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-purple-50 text-purple-700">
+                      Mesa {p.nivelMesa === "VIP" ? "VIP" : "preferencial"}
+                    </span>
+                  )}
+                  {p.destacadoEnListados === 1 && (
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700">
+                      Destacada
+                    </span>
+                  )}
                   {usos > 0 && (
                     <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700">
                       <Building2 className="w-3 h-3" /> {usos} inscrito{usos > 1 ? "s" : ""}
@@ -273,6 +314,51 @@ export default function PaquetesPage() {
                   <input type="number" min={0} value={form.orden}
                     onChange={(e) => setForm({ ...form, orden: e.target.value })}
                     className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#449D3A]" />
+                </div>
+              </div>
+
+              {/* Lo que el paquete habilita dentro del sistema */}
+              <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-4">
+                <p className="text-xs font-extrabold text-gray-700 uppercase tracking-wide">
+                  Qué habilita este paquete
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                      Máx. de participantes <span className="text-red-500">*</span>
+                    </label>
+                    <input type="number" min={1} value={form.maxParticipantes}
+                      onChange={(e) => setForm({ ...form, maxParticipantes: e.target.value })}
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:border-[#449D3A]" />
+                    <p className="text-[11px] text-gray-400 mt-1">
+                      Tope duro de personas. Los que superen las {form.credencialesIncluidas || 0} incluidas pagan extra.
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1.5">Nivel de mesa</label>
+                    <select value={form.nivelMesa}
+                      onChange={(e) => setForm({ ...form, nivelMesa: e.target.value })}
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:border-[#449D3A]">
+                      {NIVELES_MESA.map((n) => (
+                        <option key={n.val} value={n.val}>{n.label} — {n.desc}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  {CAPACIDADES.map(({ key, label, desc }) => (
+                    <label key={key} className="flex items-start gap-2.5 cursor-pointer">
+                      <input type="checkbox" checked={Boolean((form as any)[key])}
+                        onChange={(e) => setForm({ ...form, [key]: e.target.checked })}
+                        className="mt-0.5 w-4 h-4 accent-[#449D3A] flex-shrink-0" />
+                      <span>
+                        <span className="block text-sm font-semibold text-gray-800">{label}</span>
+                        <span className="block text-[11px] text-gray-400 leading-tight">{desc}</span>
+                      </span>
+                    </label>
+                  ))}
                 </div>
               </div>
 

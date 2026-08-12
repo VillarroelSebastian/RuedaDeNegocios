@@ -130,6 +130,68 @@ export class AppController implements OnModuleInit {
     return url;
   }
 
+  // Tope de participantes de una inscripción ya cargada (debe venir con
+  // `paquete` y `evento` en el include). El paquete manda sobre el evento.
+  private maxParticipantesDe(ee: any): number {
+    const p = ee?.paquete;
+    if (p) return Math.max(p.maxParticipantes ?? 0, p.credencialesIncluidas ?? 0);
+    return ee?.evento?.maxParticipantesPorEmpresa ?? 5;
+  }
+
+  // Capacidades efectivas de una inscripción. El paquete manda; si la empresa
+  // se inscribió antes de que existieran los paquetes, se cae a los valores
+  // generales del evento para no romper inscripciones antiguas.
+  private async capacidadesDe(empresaeventoId: number) {
+    const ee = await this.prisma.empresaevento.findUnique({
+      where: { id: empresaeventoId },
+      select: {
+        numeroParticipantes: true,
+        paquete: {
+          select: {
+            id: true, nombre: true, nivelMesa: true, maxParticipantes: true,
+            credencialesIncluidas: true, apareceEnCatalogo: true,
+            logoEnWeb: true, destacadoEnListados: true, costo: true, contenido: true,
+          },
+        },
+        evento: { select: { maxParticipantesPorEmpresa: true, cantidadParticipantesIncluidos: true } },
+      },
+    });
+    if (!ee) throw new BadRequestException('Inscripción no encontrada');
+
+    const p = ee.paquete;
+    return {
+      paqueteId: p?.id ?? null,
+      paqueteNombre: p?.nombre ?? null,
+      paqueteCosto: p ? Number(p.costo) : null,
+      contenido: p?.contenido ?? null,
+      // El tope nunca puede ser menor que lo que el paquete ya incluye.
+      maxParticipantes: p
+        ? Math.max(p.maxParticipantes, p.credencialesIncluidas)
+        : (ee.evento?.maxParticipantesPorEmpresa ?? 5),
+      credencialesIncluidas: p?.credencialesIncluidas ?? (ee.evento?.cantidadParticipantesIncluidos ?? 2),
+      nivelMesa: p?.nivelMesa ?? 'NORMAL',
+      apareceEnCatalogo: (p?.apareceEnCatalogo ?? 1) === 1,
+      logoEnWeb: (p?.logoEnWeb ?? 0) === 1,
+      destacadoEnListados: (p?.destacadoEnListados ?? 0) === 1,
+    };
+  }
+
+  // Lo consume la empresa para ver qué le habilita su paquete.
+  @Get('empresa/mi-paquete')
+  async getMiPaquete(@Query('eeId') eeId: string) {
+    if (!eeId) throw new BadRequestException('eeId requerido');
+    const cap = await this.capacidadesDe(Number(eeId));
+    const usados = await this.prisma.empresa_usuario.count({
+      where: { empresaevento_id: Number(eeId), estaActivo: 1 },
+    });
+    return {
+      ...cap,
+      beneficios: String(cap.contenido ?? '').split('\n').filter(Boolean),
+      participantesUsados: usados,
+      participantesDisponibles: Math.max(0, cap.maxParticipantes - usados),
+    };
+  }
+
   async onModuleInit() {
     await this.prisma.empresaevento.updateMany({
       where: { estadoVerificacionPago: 'APROBADO' },
@@ -3155,12 +3217,22 @@ export class AppController implements OnModuleInit {
               : {}),
           },
         },
-        include: { empresa: { include: { ciudad: { include: { pais: true } } } } },
+        include: {
+          empresa: { include: { ciudad: { include: { pais: true } } } },
+          paquete: { select: { nombre: true, nivelMesa: true, apareceEnCatalogo: true, destacadoEnListados: true } },
+        },
       }),
     ]);
 
     const miRubro = miEe?.empresa?.rubro ?? null;
-    const mapped = ees.map((ee) => ({
+    const mapped = ees
+      // El paquete decide si la empresa figura en el catálogo de participantes.
+      // Las inscripciones sin paquete (previas a los paquetes) siempre figuran.
+      .filter((ee) => (ee.paquete?.apareceEnCatalogo ?? 1) === 1)
+      .map((ee) => ({
+      destacado: (ee.paquete?.destacadoEnListados ?? 0) === 1,
+      paquete: ee.paquete?.nombre ?? null,
+      nivelMesa: ee.paquete?.nivelMesa ?? 'NORMAL',
       empresaeventoId: ee.id,
       empresaId: ee.empresa_id,
       codigo: ee.empresa.codigo,
@@ -3181,6 +3253,8 @@ export class AppController implements OnModuleInit {
     }));
     const peso = { alta: 2, media: 1 } as Record<string, number>;
     return mapped.sort((a, b) => {
+      // Los paquetes con destaque van primero; dentro de cada grupo manda la afinidad.
+      if (a.destacado !== b.destacado) return a.destacado ? -1 : 1;
       const pa = a.afinidad ? peso[a.afinidad] : 0;
       const pb = b.afinidad ? peso[b.afinidad] : 0;
       if (pa !== pb) return pb - pa;
@@ -5143,6 +5217,7 @@ export class AppController implements OnModuleInit {
     const ee = await this.prisma.empresaevento.findFirst({
       where: { id: Number(eeId), estaActivo: 1 },
       include: {
+        paquete: { select: { maxParticipantes: true, credencialesIncluidas: true, nombre: true, nivelMesa: true } },
         evento: { select: { maxParticipantesPorEmpresa: true } },
         empresa_usuario: {
           where: { estaActivo: 1 },
@@ -5160,7 +5235,7 @@ export class AppController implements OnModuleInit {
     const slotsUsados = (ee as any).empresa_usuario.length;
     const slotsPagados = ee.numeroParticipantes;
     const slotsDisponibles = Math.max(0, slotsPagados - slotsUsados);
-    const maxPermitidos = (ee as any).evento?.maxParticipantesPorEmpresa ?? 5;
+    const maxPermitidos = this.maxParticipantesDe(ee);
 
     const pagos = (ee as any).empresaeventocomprobantes.map((c: any) => ({
       id: c.id, tipoPago: c.tipoPago, cantidadParticipantes: c.cantidadParticipantes,
@@ -5196,6 +5271,7 @@ export class AppController implements OnModuleInit {
     const ee = await this.prisma.empresaevento.findFirst({
       where: { id: Number(eeId), estaActivo: 1, estadoVerificacionPago: 'COMPLETADO', estadoHabilitacionAcceso: 'HABILITADO' },
       include: {
+        paquete: { select: { maxParticipantes: true, credencialesIncluidas: true, nombre: true, nivelMesa: true } },
         evento: { select: { id: true, maxParticipantesPorEmpresa: true } },
         empresa_usuario: { where: { estaActivo: 1 } },
       },
@@ -5204,10 +5280,17 @@ export class AppController implements OnModuleInit {
 
     const slotsUsados = (ee as any).empresa_usuario.length;
     const slotsPagados = ee.numeroParticipantes;
-    const maxPermitidos = (ee as any).evento?.maxParticipantesPorEmpresa ?? 5;
+    const maxPermitidos = this.maxParticipantesDe(ee);
 
     if (slotsUsados >= slotsPagados) throw new BadRequestException('No hay cupos pagados disponibles. Solicita cupos adicionales.');
-    if (slotsUsados >= maxPermitidos) throw new BadRequestException(`No puedes agregar más participantes porque superarías el máximo permitido (${maxPermitidos}) por las reglas del evento.`);
+    if (slotsUsados >= maxPermitidos) {
+      const paq = (ee as any).paquete?.nombre;
+      throw new BadRequestException(
+        paq
+          ? `Tu ${paq} permite hasta ${maxPermitidos} participantes y ya los tienes registrados. Cambia de paquete para sumar más personas.`
+          : `No puedes agregar más participantes porque superarías el máximo permitido (${maxPermitidos}) por las reglas del evento.`,
+      );
+    }
 
     const correoNorm = correo.trim().toLowerCase();
     // Verificar email único
@@ -5298,13 +5381,14 @@ export class AppController implements OnModuleInit {
     const ee = await this.prisma.empresaevento.findFirst({
       where: { id: Number(eeId), estaActivo: 1 },
       include: {
+        paquete: { select: { maxParticipantes: true, credencialesIncluidas: true, nombre: true, nivelMesa: true } },
         evento: { select: { maxParticipantesPorEmpresa: true, costoParticipanteExtra: true } },
         empresa_usuario: { where: { estaActivo: 1 } },
       },
     });
     if (!ee) throw new BadRequestException('EmpresaEvento no encontrada');
 
-    const maxPermitidos = (ee as any).evento?.maxParticipantesPorEmpresa ?? 5;
+    const maxPermitidos = this.maxParticipantesDe(ee);
     const slotsTotalesConNuevos = ee.numeroParticipantes + Number(cantidadParticipantes);
 
     if (slotsTotalesConNuevos > maxPermitidos)
@@ -5371,12 +5455,12 @@ export class AppController implements OnModuleInit {
   async aprobarPagoAdicional(@Param('id') id: string) {
     const comp = await this.prisma.empresaeventocomprobantes.findFirst({
       where: { id: Number(id), tipoPago: 'ADICIONAL', estadoPago: 'PENDIENTE' },
-      include: { empresaevento: { include: { evento: { select: { maxParticipantesPorEmpresa: true } } } } },
+      include: { empresaevento: { include: { paquete: { select: { maxParticipantes: true, credencialesIncluidas: true, nombre: true, nivelMesa: true } }, evento: { select: { maxParticipantesPorEmpresa: true } } } } },
     });
     if (!comp) throw new BadRequestException('Comprobante adicional no encontrado o ya procesado');
 
     const ee = (comp as any).empresaevento;
-    const maxPermitidos = ee.evento?.maxParticipantesPorEmpresa ?? 5;
+    const maxPermitidos = this.maxParticipantesDe(ee);
     const nuevoTotal = ee.numeroParticipantes + (comp as any).cantidadParticipantes;
     if (nuevoTotal > maxPermitidos)
       throw new BadRequestException(`Aprobar este pago superaría el máximo de ${maxPermitidos} participantes por empresa`);

@@ -60,6 +60,23 @@ model paquete {
   credencialesIncluidas Int             @db.SmallInt
   urlQR                 String?         @db.VarChar(505)
   orden                 Int             @default(0) @db.SmallInt
+
+  // ── Capacidades que habilita el paquete ──
+  // Lo que el sistema puede hacer cumplir de verdad. Los beneficios de difusión
+  // (podcast, pantallas LED, entrevistas) van en `contenido` como texto, porque
+  // se entregan fuera de la plataforma y no hay nada que validar aquí.
+  //
+  // Tope duro de personas: el paquete manda sobre maxParticipantesPorEmpresa
+  // del evento. Debe ser >= credencialesIncluidas.
+  maxParticipantes      Int             @default(5) @db.SmallInt
+  // NORMAL | PREFERENCIAL | VIP — prioridad al asignar mesa.
+  nivelMesa             String          @default("NORMAL") @db.VarChar(20)
+  // Si la empresa se lista en el catálogo público de participantes.
+  apareceEnCatalogo     Int             @default(1) @db.SmallInt
+  // Si su logo se muestra en la web del evento.
+  logoEnWeb             Int             @default(0) @db.SmallInt
+  // Si aparece primero (destacada) en Empresas y Oportunidades.
+  destacadoEnListados   Int             @default(0) @db.SmallInt
   estaActivo            Int             @default(1) @db.SmallInt
   fechaCreacion         DateTime        @default(now()) @db.Timestamp(6)
   creadoModificadoFecha DateTime?       @db.Timestamp(6)

@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, CalendarDays, Newspaper, Building2,
   Send, Users, Star, User, Briefcase, Clock, X, Sparkles, MessageSquare,
-  Radio, Images,
+  Radio, Images, Package,
 } from 'lucide-react';
 
 const allMenuItems = [
@@ -22,6 +22,7 @@ const allMenuItems = [
   { name: 'Solicitudes',    icon: Send,            href: '/empresa/solicitudes',   soloEncargado: true  },
   { name: 'Mis Horarios',   icon: Clock,           href: '/empresa/horarios',      soloEncargado: true  },
   { name: 'Resultados',     icon: Star,            href: '/empresa/resultados',    soloEncargado: true  },
+  { name: 'Mi Paquete',     icon: Package,         href: '/empresa/mi-paquete',    soloEncargado: false },
   { name: 'Mi Perfil',      icon: User,            href: '/empresa/perfil',        soloEncargado: false },
 ];
 
