@@ -1,0 +1,50 @@
+[
+  {
+    "id": 1,
+    "nombre": "Paquete Iténez",
+    "objetivo": "Presencia Empresarial",
+    "descripcion": "Ideal para empresas que desean participar en la Rueda de Negocios y obtener visibilidad institucional.",
+    "costo": 150,
+    "credencialesIncluidas": 2,
+    "maxParticipantes": 3,
+    "nivelMesa": "NORMAL",
+    "tipoParticipacion": "PRESENCIAL",
+    "apareceEnCatalogo": true,
+    "logoEnWeb": true,
+    "destacadoEnListados": false,
+    "orden": 1,
+    "contenido": "Mesa de negocios\nParticipación en el Foro\n2 Credenciales empresariales\nMaterial institucional\nLogo en página web, programa oficial y pantalla principal\nPublicación de bienvenida en redes sociales\nCertificado de participación"
+  },
+  {
+    "id": 2,
+    "nombre": "Paquete Beni",
+    "objetivo": "Posicionamiento Comercial",
+    "descripcion": "Pensado para empresas que buscan mayor exposición de marca antes y durante el evento.",
+    "costo": 250,
+    "credencialesIncluidas": 3,
+    "maxParticipantes": 4,
+    "nivelMesa": "PREFERENCIAL",
+    "tipoParticipacion": "PRESENCIAL",
+    "apareceEnCatalogo": true,
+    "logoEnWeb": true,
+    "destacadoEnListados": false,
+    "orden": 2,
+    "contenido": "Todo lo del Paquete Iténez, más:\nMesa preferencial\n3 credenciales\nBolsa institucional de souvenirs\nPublicación exclusiva en redes\nDiseño de una pieza gráfica promocional\nPresencia en pantallas LED durante el evento\nInclusión en catálogo digital de empresas participantes\nEntrevista corta para redes sociales"
+  },
+  {
+    "id": 3,
+    "nombre": "Paquete Mamoré",
+    "objetivo": "Aliado Estratégico",
+    "descripcion": "El paquete diseñado para empresas que desean convertirse en protagonistas del evento.",
+    "costo": 350,
+    "credencialesIncluidas": 5,
+    "maxParticipantes": 6,
+    "nivelMesa": "VIP",
+    "tipoParticipacion": "PRESENCIAL",
+    "apareceEnCatalogo": true,
+    "logoEnWeb": true,
+    "destacadoEnListados": true,
+    "orden": 3,
+    "contenido": "Todo lo del Paquete Beni, más:\nEntrevista exclusiva empresarial\nPodcast empresarial\nNota especial en la revista oficial del evento\nPublicidad destacada durante toda la jornada\nLogo en todo el material oficial\nPublicaciones antes, durante y después del evento\nPublicidad en pantallas LED\nAfiches digitales personalizados\nCampaña en tres redes sociales\nMesa VIP\n5 credenciales\nBolsa Premium de souvenirs\nEspacio para exhibición de material promocional\nAsesoría en comunicación y posicionamiento durante la campaña\nReporte de alcance de difusión"
+  }
+]
