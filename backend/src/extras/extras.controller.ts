@@ -102,11 +102,16 @@ export class ExtrasController {
     if (!['NORMAL', 'PREFERENCIAL', 'VIP'].includes(nivelMesa))
       throw new BadRequestException('El nivel de mesa debe ser NORMAL, PREFERENCIAL o VIP.');
 
+    const tipoParticipacion = String(body.tipoParticipacion ?? 'PRESENCIAL').toUpperCase();
+    if (!['PRESENCIAL', 'VIRTUAL', 'HIBRIDO'].includes(tipoParticipacion))
+      throw new BadRequestException('La modalidad debe ser PRESENCIAL, VIRTUAL o HIBRIDO.');
+
     const bandera = (v: any, pordefecto = 0) => (v === undefined || v === null ? pordefecto : (v ? 1 : 0));
 
     return {
       maxParticipantes,
       nivelMesa,
+      tipoParticipacion,
       apareceEnCatalogo: bandera(body.apareceEnCatalogo, 1),
       logoEnWeb: bandera(body.logoEnWeb, 0),
       destacadoEnListados: bandera(body.destacadoEnListados, 0),

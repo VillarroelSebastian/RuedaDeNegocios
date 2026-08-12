@@ -18,6 +18,7 @@ type Paquete = {
   orden: number;
   maxParticipantes: number;
   nivelMesa: "NORMAL" | "PREFERENCIAL" | "VIP";
+  tipoParticipacion: "PRESENCIAL" | "VIRTUAL" | "HIBRIDO";
   apareceEnCatalogo: number;
   logoEnWeb: number;
   destacadoEnListados: number;
@@ -27,7 +28,7 @@ type Paquete = {
 const formVacio = {
   nombre: "", objetivo: "", descripcion: "", contenido: "",
   costo: "", credencialesIncluidas: "2", urlQR: "", orden: "0",
-  maxParticipantes: "2", nivelMesa: "NORMAL",
+  maxParticipantes: "2", nivelMesa: "NORMAL", tipoParticipacion: "PRESENCIAL",
   apareceEnCatalogo: true, logoEnWeb: false, destacadoEnListados: false,
 };
 
@@ -90,6 +91,7 @@ export default function PaquetesPage() {
       orden: String(p.orden),
       maxParticipantes: String(p.maxParticipantes ?? p.credencialesIncluidas),
       nivelMesa: p.nivelMesa ?? "NORMAL",
+      tipoParticipacion: p.tipoParticipacion ?? "PRESENCIAL",
       apareceEnCatalogo: (p.apareceEnCatalogo ?? 1) === 1,
       logoEnWeb: (p.logoEnWeb ?? 0) === 1,
       destacadoEnListados: (p.destacadoEnListados ?? 0) === 1,
@@ -333,6 +335,19 @@ export default function PaquetesPage() {
                       className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:border-[#449D3A]" />
                     <p className="text-[11px] text-gray-400 mt-1">
                       Tope duro de personas. Los que superen las {form.credencialesIncluidas || 0} incluidas pagan extra.
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1.5">Modalidad</label>
+                    <select value={form.tipoParticipacion}
+                      onChange={(e) => setForm({ ...form, tipoParticipacion: e.target.value })}
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:border-[#449D3A]">
+                      <option value="PRESENCIAL">Presencial</option>
+                      <option value="VIRTUAL">Virtual</option>
+                      <option value="HIBRIDO">Híbrido</option>
+                    </select>
+                    <p className="text-[11px] text-gray-400 mt-1">
+                      En el registro ya no se elige a mano: la define el paquete.
                     </p>
                   </div>
                   <div>

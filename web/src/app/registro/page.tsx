@@ -13,7 +13,12 @@ import {
 import { LIMITES, correoValido, validarNombreEmpresa, limpiarEspacios } from "@/lib/validaciones";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
-const MAX_PARTICIPANTES = 5;
+
+const ETIQUETA_MESA: Record<string, string> = {
+  NORMAL: "Mesa de negocios estándar",
+  PREFERENCIAL: "Mesa preferencial",
+  VIP: "Mesa VIP",
+};
 
 const RUBROS = [
   "Agropecuario y Ganadería",
@@ -228,7 +233,10 @@ export default function RegistroPage() {
         // Se preselecciona el más económico para que el paso 2 ya muestre un monto.
         if (lista.length) {
           setPaqueteId(lista[0].id);
-          setParticipacion((p) => ({ ...p, numeroParticipantes: lista[0].credencialesIncluidas }));
+          setParticipacion({
+            numeroParticipantes: lista[0].credencialesIncluidas,
+            tipoParticipacion: lista[0].tipoParticipacion ?? "PRESENCIAL",
+          });
         }
       })
       .finally(() => setLoading(false));
@@ -254,14 +262,14 @@ export default function RegistroPage() {
         (r: any) => participacion.numeroParticipantes >= r.rangoDesde && participacion.numeroParticipantes <= r.rangoHasta,
       ) ?? evento?.eventoreglaqr?.[0]);
 
-  // Al cambiar de paquete se ajusta el número de personas a lo que incluye,
-  // salvo que ya hubiera elegido más (esos pasan a contarse como extras).
+  // El paquete define cuántas personas entran y en qué modalidad. Para sumar
+  // más gente se piden cupos adicionales después, ya inscrita la empresa.
   const elegirPaquete = (p: any) => {
     setPaqueteId(p.id);
-    setParticipacion((prev) => ({
-      ...prev,
-      numeroParticipantes: Math.max(p.credencialesIncluidas, prev.numeroParticipantes),
-    }));
+    setParticipacion({
+      numeroParticipantes: p.credencialesIncluidas,
+      tipoParticipacion: p.tipoParticipacion ?? "PRESENCIAL",
+    });
   };
 
   /* ─── Verificar correo duplicado ───────────────────────────── */
@@ -345,7 +353,9 @@ export default function RegistroPage() {
     }
     const totalParticipantes = 1 + adicionales.length;
     if (totalParticipantes > participacion.numeroParticipantes) {
-      return `Registraste ${totalParticipantes} participantes pero declaraste ${participacion.numeroParticipantes}. Ajusta el número en el paso 1.`;
+      return paquete
+        ? `Tu ${paquete.nombre} incluye ${participacion.numeroParticipantes} credencial(es) y cargaste ${totalParticipantes} personas. Quita las que sobran o elige otro paquete en el paso 1.`
+        : `Registraste ${totalParticipantes} participantes pero declaraste ${participacion.numeroParticipantes}. Ajusta el número en el paso 1.`;
     }
     return null;
   };
@@ -648,45 +658,43 @@ export default function RegistroPage() {
                 </div>
               )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <div>
-                  <Field label="Número de personas" required>
+              {/* El paquete define cuántas personas entran y en qué modalidad,
+                  así que aquí solo se confirma; no hay nada que elegir a mano. */}
+              {paquete && (
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                  <p className="text-xs font-extrabold text-gray-500 uppercase tracking-wide mb-3">
+                    Lo que incluye tu {paquete.nombre}
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="flex items-center gap-3">
-                      <button type="button" onClick={() => setParticipacion((p) => ({ ...p, numeroParticipantes: Math.max(1, p.numeroParticipantes - 1) }))}
-                        className="w-10 h-10 rounded-xl border border-gray-200 flex items-center justify-center font-bold text-lg text-gray-600 hover:bg-gray-50">−</button>
-                      <span className="w-12 text-center text-xl font-bold text-gray-900">{participacion.numeroParticipantes}</span>
-                      <button type="button"
-                        onClick={() => setParticipacion((p) => ({ ...p, numeroParticipantes: Math.min(MAX_PARTICIPANTES, p.numeroParticipantes + 1) }))}
-                        disabled={participacion.numeroParticipantes >= MAX_PARTICIPANTES}
-                        className="w-10 h-10 rounded-xl border border-gray-200 flex items-center justify-center font-bold text-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">+</button>
+                      <div className="w-10 h-10 rounded-xl bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
+                        <Users className="w-5 h-5 text-[#449D3A]" />
+                      </div>
+                      <div>
+                        <p className="text-lg font-extrabold text-gray-900 leading-none">
+                          {incluidos} persona{incluidos > 1 ? "s" : ""}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Podrás sumar hasta {paquete.maxParticipantes} pagando Bs. {costoExtra} c/u después de inscribirte.
+                        </p>
+                      </div>
                     </div>
-                    <p className="text-xs text-gray-400 mt-2">
-                      Máximo {MAX_PARTICIPANTES} participantes por empresa.
-                      {paquete && ` Tu paquete incluye ${incluidos}; cada persona adicional cuesta Bs. ${costoExtra}.`}
-                    </p>
-                  </Field>
-                </div>
-                <div>
-                  <Field label="Tipo de participación" required>
-                    <div className="space-y-2">
-                      {[
-                        { val: "PRESENCIAL", label: "Presencial", desc: "Asistencia física en el recinto ferial" },
-                        { val: "VIRTUAL",    label: "Virtual",    desc: "Reuniones a través de la plataforma online" },
-                        { val: "HIBRIDO",    label: "Híbrido",    desc: "Combinación de presencial y acceso virtual" },
-                      ].map((t) => (
-                        <label key={t.val} className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${participacion.tipoParticipacion === t.val ? "border-[#449D3A] bg-green-50" : "border-gray-200 hover:border-gray-300"}`}>
-                          <input type="radio" name="tipo" value={t.val} checked={participacion.tipoParticipacion === t.val}
-                            onChange={() => setParticipacion((p) => ({ ...p, tipoParticipacion: t.val }))} className="mt-0.5 accent-[#449D3A]" />
-                          <div>
-                            <p className="text-sm font-semibold text-gray-800">{t.label}</p>
-                            <p className="text-xs text-gray-400">{t.desc}</p>
-                          </div>
-                        </label>
-                      ))}
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
+                        <MapPin className="w-5 h-5 text-[#449D3A]" />
+                      </div>
+                      <div>
+                        <p className="text-lg font-extrabold text-gray-900 leading-none capitalize">
+                          {String(paquete.tipoParticipacion ?? "PRESENCIAL").toLowerCase()}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {ETIQUETA_MESA[paquete.nivelMesa] ?? "Mesa estándar"}
+                        </p>
+                      </div>
                     </div>
-                  </Field>
+                  </div>
                 </div>
-              </div>
+              )}
             </section>
           </div>
         )}
@@ -896,7 +904,9 @@ export default function RegistroPage() {
             <div className="flex items-center justify-between">
               <button onClick={() => {
                 if (1 + adicionales.length >= participacion.numeroParticipantes) {
-                  showModal("warning", "Límite alcanzado", `Ya alcanzaste el número de participantes declarado (${participacion.numeroParticipantes}).`);
+                  showModal("warning", "Límite alcanzado", paquete
+                    ? `Tu ${paquete.nombre} incluye ${participacion.numeroParticipantes} credencial(es). Podrás sumar más personas desde tu panel, solicitando cupos adicionales.`
+                    : `Ya alcanzaste el número de participantes declarado (${participacion.numeroParticipantes}).`);
                   return;
                 }
                 setAdicionales((a) => [...a, { nombres: "", apellidoPaterno: "", apellidoMaterno: "", cargo: "", correo: "", telefono: "" }]);

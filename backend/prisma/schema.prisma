@@ -71,6 +71,9 @@ model paquete {
   maxParticipantes      Int             @default(5) @db.SmallInt
   // NORMAL | PREFERENCIAL | VIP — prioridad al asignar mesa.
   nivelMesa             String          @default("NORMAL") @db.VarChar(20)
+  // Modalidad que otorga el paquete: PRESENCIAL | VIRTUAL | HIBRIDO. En el
+  // registro ya no se elige a mano; la define el paquete contratado.
+  tipoParticipacion     String          @default("PRESENCIAL") @db.VarChar(75)
   // Si la empresa se lista en el catálogo público de participantes.
   apareceEnCatalogo     Int             @default(1) @db.SmallInt
   // Si su logo se muestra en la web del evento.
