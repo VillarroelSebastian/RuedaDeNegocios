@@ -728,7 +728,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
                 <Text style={{ fontSize: 11, color: '#9ca3af', textAlign: 'right', marginTop: -6, marginBottom: 4 }}>{comDemanda.length}/{LIMITES.demanda}</Text>
                 <Text style={s.label}>Sectores de interés (separados por coma)</Text>
                 <TextInput style={s.input} value={comIntereses} onChangeText={setComIntereses}
-                  placeholder="Ej: Tecnología e Innovación, Agropecuario y Ganadería" placeholderTextColor="#9ca3af" />
+                  placeholder="Ej: Agroindustria, Logística, Transporte y Comercio Exterior" placeholderTextColor="#9ca3af" />
                 <TouchableOpacity style={[s.btnPrimary, comercialSaving && { opacity: 0.7 }]} onPress={handleSaveComercial} disabled={comercialSaving}>
                   {comercialSaving ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Guardar</Text>}
                 </TouchableOpacity>

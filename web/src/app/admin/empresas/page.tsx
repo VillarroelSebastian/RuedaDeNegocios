@@ -4,6 +4,7 @@ import { Search, Building2, Users, Eye, Trash2, ChevronLeft, ChevronRight, Filte
 import ImagenLightbox from '@/components/ui/ImagenLightbox';
 import { useModal } from '@/components/ui/Modal';
 import { EnviarMensajeEmpresaModal } from '@/components/EnviarMensajeEmpresaModal';
+import FichaEmpresaModal from '@/components/admin/FichaEmpresaModal';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
@@ -87,6 +88,7 @@ function ParticipantesModal({ empresa, onClose }: { empresa: { id: number; nombr
 /* ── Main Page ───────────────────────────────────────────────── */
 export default function EmpresasPage() {
   const { modalState, showSuccess, showError, showConfirm, ModalComponent } = useModal();
+  const [fichaEmpresaId, setFichaEmpresaId] = useState<number | null>(null);
   const [empresas, setEmpresas] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -178,6 +180,7 @@ export default function EmpresasPage() {
     <div className="p-8 max-w-7xl mx-auto">
       <ModalComponent />
       <ParticipantesModal empresa={participantesEmpresa} onClose={() => setParticipantesEmpresa(null)} />
+      <FichaEmpresaModal empresaId={fichaEmpresaId} onClose={() => setFichaEmpresaId(null)} />
       {mensajeEmpresa && adminUserId && (
         <EnviarMensajeEmpresaModal
           usuarioId={adminUserId}
@@ -237,6 +240,7 @@ export default function EmpresasPage() {
                 <th className="py-3 px-5 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Empresa</th>
                 <th className="py-3 px-5 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Sector / Rubro</th>
                 <th className="py-3 px-5 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Ciudad</th>
+                <th className="py-3 px-5 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Paquete</th>
                 <th className="py-3 px-5 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Participantes</th>
                 <th className="py-3 px-5 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Estado de Pago</th>
                 <th className="py-3 px-5 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Estado de Acceso</th>
@@ -248,16 +252,19 @@ export default function EmpresasPage() {
               {loading ? (
                 [...Array(5)].map((_, i) => (
                   <tr key={i} className="animate-pulse">
-                    {[...Array(8)].map((_, j) => (
+                    {[...Array(9)].map((_, j) => (
                       <td key={j} className="py-4 px-5"><div className="h-4 bg-gray-200 rounded" /></td>
                     ))}
                   </tr>
                 ))
               ) : empresas.length === 0 ? (
-                <tr><td colSpan={8} className="py-12 text-center text-sm text-gray-400">No se encontraron empresas</td></tr>
+                <tr><td colSpan={9} className="py-12 text-center text-sm text-gray-400">No se encontraron empresas</td></tr>
               ) : (
                 empresas.map((emp) => (
-                  <tr key={emp.id} className="hover:bg-gray-50/50 transition-colors">
+                  <tr key={emp.id}
+                    onClick={() => setFichaEmpresaId(emp.id)}
+                    title="Ver ficha completa"
+                    className="hover:bg-gray-50/50 transition-colors cursor-pointer">
                     <td className="py-4 px-5">
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-lg bg-green-100 flex items-center justify-center shrink-0 overflow-hidden">
@@ -277,6 +284,18 @@ export default function EmpresasPage() {
                     <td className="py-4 px-5 text-sm text-gray-600">{emp.rubro}</td>
                     <td className="py-4 px-5 text-sm text-gray-600">{emp.ciudad}</td>
                     <td className="py-4 px-5">
+                      {emp.paquete ? (
+                        <div>
+                          <p className="text-sm font-semibold text-gray-800">{emp.paquete.nombre}</p>
+                          <p className="text-[11px] text-gray-400">
+                            Bs. {emp.paquete.costo} · {emp.paquete.credencialesIncluidas} cred.
+                          </p>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-400">Sin paquete</span>
+                      )}
+                    </td>
+                    <td className="py-4 px-5">
                       <div className="flex items-center gap-1 text-sm text-gray-600">
                         <Users className="w-4 h-4 text-gray-400" />
                         {emp.numeroParticipantes} participantes
@@ -287,7 +306,7 @@ export default function EmpresasPage() {
                     <td className="py-4 px-5 text-sm text-gray-500">
                       {new Date(emp.fechaCreacion).toLocaleDateString('es-BO')}
                     </td>
-                    <td className="py-4 px-5">
+                    <td className="py-4 px-5" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => setParticipantesEmpresa({ id: emp.id, nombre: emp.nombre })}

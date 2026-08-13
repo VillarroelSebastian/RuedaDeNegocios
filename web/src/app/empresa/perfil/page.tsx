@@ -763,7 +763,7 @@ export default function EmpresaPerfilPage() {
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">Sectores de interés (separados por coma)</label>
                 <input value={formComercial.interesesBusqueda} onChange={(e) => setFormComercial((f) => ({ ...f, interesesBusqueda: e.target.value }))}
-                  placeholder="Ej: Tecnología e Innovación, Agropecuario y Ganadería"
+                  placeholder="Ej: Agroindustria, Logística, Transporte y Comercio Exterior"
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A]" />
               </div>
               {errComercial && (

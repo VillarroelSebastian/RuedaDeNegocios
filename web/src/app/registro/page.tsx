@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 
 import { LIMITES, correoValido, validarNombreEmpresa, limpiarEspacios } from "@/lib/validaciones";
+import { RUBROS, RUBROS_CON_OTRO, OTRO } from "@/lib/rubros";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
@@ -20,24 +21,7 @@ const ETIQUETA_MESA: Record<string, string> = {
   VIP: "Mesa VIP",
 };
 
-const RUBROS = [
-  "Agropecuario y Ganadería",
-  "Comercio y Distribución",
-  "Construcción e Infraestructura",
-  "Educación y Capacitación",
-  "Finanzas y Seguros",
-  "Gastronomía y Turismo",
-  "Industria y Manufactura",
-  "Minería e Hidrocarburos",
-  "Salud y Bienestar",
-  "Servicios Profesionales",
-  "Tecnología e Innovación",
-  "Transporte y Logística",
-  "Artesanía y Cultura",
-  "Medio Ambiente y Energía",
-  "Inmobiliario",
-  "Otro",
-];
+// Los rubros viven en @/lib/rubros para no repetirlos en registro y perfil.
 
 const SOUTH_AMERICA: Record<string, string[]> = {
   "Bolivia":   ["Trinidad","Beni","La Paz","Santa Cruz de la Sierra","Cochabamba","Sucre","Oruro","Potosí","Tarija","Cobija","Riberalta","Guayaramerín"],
@@ -196,7 +180,7 @@ export default function RegistroPage() {
 
   // Step 1
   const [empresa, setEmpresa] = useState({
-    nombre: "", rubro: "", pais: "", ciudad: "", sitioWeb: "",
+    nombre: "", rubro: "", pais: "", ciudad: "", paisOtro: "", ciudadOtro: "", sitioWeb: "",
     correoCorporativo: "", telefonoWhatsapp: "", descripcion: "",
     oferta: "", demanda: "",
   });
@@ -321,7 +305,10 @@ export default function RegistroPage() {
     if (nombreErr) return nombreErr;
     if (!empresa.rubro) return "Selecciona un rubro.";
     if (!empresa.pais) return "Selecciona un país.";
-    if (!empresa.ciudad) return "Selecciona una ciudad.";
+    if (empresa.pais === OTRO && !empresa.paisOtro.trim()) return "Escribe el nombre del país.";
+    if (empresa.pais !== OTRO && !empresa.ciudad) return "Selecciona una ciudad.";
+    if ((empresa.pais === OTRO || empresa.ciudad === OTRO) && !empresa.ciudadOtro.trim())
+      return "Escribe el nombre de la ciudad.";
     if (!empresa.correoCorporativo.trim()) return "El correo corporativo es obligatorio.";
     if (!correoValido(empresa.correoCorporativo)) return "El correo corporativo no es válido.";
     if (!empresa.telefonoWhatsapp.trim()) return "El teléfono/WhatsApp es obligatorio.";
@@ -401,8 +388,8 @@ export default function RegistroPage() {
         empresa: {
           nombre: limpiarEspacios(empresa.nombre),
           rubro: empresa.rubro,
-          paisNombre: empresa.pais,
-          ciudadNombre: empresa.ciudad,
+          paisNombre: paisFinal,
+          ciudadNombre: ciudadFinal,
           sitioWeb: empresa.sitioWeb.trim() || null,
           correoCorporativo: empresa.correoCorporativo.trim(),
           telefonoWhatsapp: empresa.telefonoWhatsapp.trim(),
@@ -447,7 +434,14 @@ export default function RegistroPage() {
     );
   }
 
-  const ciudadesDePais = empresa.pais ? SOUTH_AMERICA[empresa.pais] ?? [] : [];
+  // "Otro" abre un campo de texto: la lista fija no cubre todos los países.
+  // Si el país es "Otro", la ciudad también se escribe (no hay lista que ofrecer).
+  const paisEsOtro = empresa.pais === OTRO;
+  const ciudadesDePais = empresa.pais && !paisEsOtro ? SOUTH_AMERICA[empresa.pais] ?? [] : [];
+  const ciudadEsOtra = paisEsOtro || empresa.ciudad === OTRO;
+  // Lo que realmente se guarda: el texto escrito cuando eligieron "Otro".
+  const paisFinal = (paisEsOtro ? empresa.paisOtro : empresa.pais).trim();
+  const ciudadFinal = (ciudadEsOtra ? empresa.ciudadOtro : empresa.ciudad).trim();
 
   /* ═══ RENDER ════════════════════════════════════════════════════ */
   return (
@@ -499,29 +493,61 @@ export default function RegistroPage() {
                 <Field label="Rubro" required>
                   <select value={empresa.rubro} onChange={(e) => setEmpresa((f) => ({ ...f, rubro: e.target.value }))} className={inputCls}>
                     <option value="">Selecciona un rubro</option>
-                    {RUBROS.map((r) => <option key={r} value={r}>{r}</option>)}
+                    {RUBROS_CON_OTRO.map((r) => <option key={r} value={r}>{r}</option>)}
                   </select>
                 </Field>
                 <Field label="País" required>
                   <select
                     value={empresa.pais}
-                    onChange={(e) => setEmpresa((f) => ({ ...f, pais: e.target.value, ciudad: "" }))}
+                    onChange={(e) => setEmpresa((f) => ({ ...f, pais: e.target.value, ciudad: "", paisOtro: "", ciudadOtro: "" }))}
                     className={inputCls}
                   >
                     <option value="">Selecciona un país</option>
                     {Object.keys(SOUTH_AMERICA).map((p) => <option key={p} value={p}>{p}</option>)}
+                    <option value={OTRO}>Otro (escribir)</option>
                   </select>
+                  {paisEsOtro && (
+                    <input
+                      value={empresa.paisOtro}
+                      maxLength={60}
+                      onChange={(e) => setEmpresa((f) => ({ ...f, paisOtro: e.target.value }))}
+                      className={inputCls + " mt-2"}
+                      placeholder="Escribe el nombre del país"
+                    />
+                  )}
                 </Field>
                 <Field label="Ciudad" required>
-                  <select
-                    value={empresa.ciudad}
-                    onChange={(e) => setEmpresa((f) => ({ ...f, ciudad: e.target.value }))}
-                    className={inputCls}
-                    disabled={!empresa.pais}
-                  >
-                    <option value="">{empresa.pais ? "Selecciona una ciudad" : "Selecciona un país primero"}</option>
-                    {ciudadesDePais.map((c) => <option key={c} value={c}>{c}</option>)}
-                  </select>
+                  {paisEsOtro ? (
+                    <input
+                      value={empresa.ciudadOtro}
+                      maxLength={60}
+                      onChange={(e) => setEmpresa((f) => ({ ...f, ciudadOtro: e.target.value }))}
+                      className={inputCls}
+                      placeholder="Escribe el nombre de la ciudad"
+                    />
+                  ) : (
+                    <>
+                      <select
+                        value={empresa.ciudad}
+                        onChange={(e) => setEmpresa((f) => ({ ...f, ciudad: e.target.value, ciudadOtro: "" }))}
+                        className={inputCls}
+                        disabled={!empresa.pais}
+                      >
+                        <option value="">{empresa.pais ? "Selecciona una ciudad" : "Selecciona un país primero"}</option>
+                        {ciudadesDePais.map((c) => <option key={c} value={c}>{c}</option>)}
+                        {empresa.pais && <option value={OTRO}>Otra (escribir)</option>}
+                      </select>
+                      {ciudadEsOtra && (
+                        <input
+                          value={empresa.ciudadOtro}
+                          maxLength={60}
+                          onChange={(e) => setEmpresa((f) => ({ ...f, ciudadOtro: e.target.value }))}
+                          className={inputCls + " mt-2"}
+                          placeholder="Escribe el nombre de la ciudad"
+                        />
+                      )}
+                    </>
+                  )}
                 </Field>
                 <Field label="Sitio Web">
                   <input value={empresa.sitioWeb} onChange={(e) => setEmpresa((f) => ({ ...f, sitioWeb: e.target.value }))}
@@ -575,7 +601,7 @@ export default function RegistroPage() {
                 <div className="sm:col-span-2">
                   <Field label="¿Con qué sectores te interesa reunirte? (opcional)">
                     <div className="flex flex-wrap gap-2">
-                      {RUBROS.filter((r) => r !== "Otro").map((r) => (
+                      {RUBROS.map((r) => (
                         <button
                           key={r} type="button"
                           onClick={() => toggleInteres(r)}
@@ -714,7 +740,7 @@ export default function RegistroPage() {
                 <div className="space-y-2 text-sm">
                   {[
                     { k: "Empresa",      v: empresa.nombre },
-                    { k: "País / Ciudad", v: `${empresa.pais} – ${empresa.ciudad}` },
+                    { k: "País / Ciudad", v: `${paisFinal} – ${ciudadFinal}` },
                     ...(paquete ? [{ k: "Paquete", v: paquete.nombre }] : []),
                     { k: "Participantes", v: `${participacion.numeroParticipantes} persona${participacion.numeroParticipantes > 1 ? "s" : ""}` },
                     { k: paquete ? "Costo del paquete" : "Costo base", v: `${costoBase} bs` },

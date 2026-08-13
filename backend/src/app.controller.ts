@@ -1132,7 +1132,10 @@ export class AppController implements OnModuleInit {
         empresaevento: eventoId
           ? {
               where: { evento_id: eventoId, estaActivo: 1 },
-              include: { empresa_usuario: true },
+              include: {
+                empresa_usuario: true,
+                paquete: { select: { id: true, nombre: true, costo: true, nivelMesa: true, credencialesIncluidas: true } },
+              },
             }
           : false,
       },
@@ -1141,7 +1144,9 @@ export class AppController implements OnModuleInit {
     const total = await this.prisma.empresa.count({ where });
 
     const result = empresas.map((e) => {
-      const ee = e.empresaevento?.[0];
+      // `empresaevento` es `false` en el tipo cuando no hay evento principal,
+      // así que el include con paquete no se refleja en la inferencia.
+      const ee = (e as any).empresaevento?.[0];
       if (estadoPago && ee?.estadoVerificacionPago !== estadoPago) return null;
       return {
         id: e.id,
@@ -1161,32 +1166,94 @@ export class AppController implements OnModuleInit {
         empresaEventoId: ee?.id ?? null,
         numeroParticipantes: ee?.numeroParticipantes ?? 0,
         montoPagado: ee?.montoPagado ?? null,
+        // Paquete al que postuló la empresa, para mostrarlo en el listado.
+        paquete: ee?.paquete
+          ? {
+              id: ee.paquete.id,
+              nombre: ee.paquete.nombre,
+              costo: Number(ee.paquete.costo),
+              nivelMesa: ee.paquete.nivelMesa,
+              credencialesIncluidas: ee.paquete.credencialesIncluidas,
+            }
+          : null,
+        tipoParticipacion: ee?.tipoParticipacion ?? null,
       };
     }).filter(Boolean);
 
     return { data: result, total, page: Number(page) || 1, limit: take };
   }
 
+  // Ficha completa de una empresa para el panel: todo lo que se capturó en el
+  // registro (datos, comercial, paquete, participantes y comprobantes).
   @Get('admin/empresas/:id')
   async getEmpresaById(@Param('id') id: string) {
     const eventoId = await this.getPrincipalEventoId();
     const empresa = await this.prisma.empresa.findUnique({
       where: { id: Number(id) },
       include: {
-        ciudad: true,
+        ciudad: { include: { pais: true } },
         empresaevento: eventoId
           ? {
               where: { evento_id: eventoId, estaActivo: 1 },
               include: {
-                empresa_usuario: { include: { usuario: true } },
-                empresaeventocomprobantes: { where: { estaActivo: 1 } },
+                empresa_usuario: {
+                  where: { estaActivo: 1 },
+                  include: { usuario: true },
+                  orderBy: [{ esResponsable: 'desc' }, { id: 'asc' }],
+                },
+                empresaeventocomprobantes: {
+                  where: { estaActivo: 1 },
+                  orderBy: { fechaCreacion: 'asc' },
+                },
+                paquete: true,
               },
             }
           : false,
       },
     });
     if (!empresa) throw new BadRequestException('Empresa no encontrada');
-    return empresa;
+
+    const ee = (empresa as any).empresaevento?.[0] ?? null;
+    return {
+      ...empresa,
+      // Se aplana lo del evento para que el panel no tenga que escarbar.
+      ficha: {
+        pais: (empresa as any).ciudad?.pais?.nombre ?? null,
+        ciudad: (empresa as any).ciudad?.nombre ?? null,
+        empresaEventoId: ee?.id ?? null,
+        paquete: ee?.paquete
+          ? { ...ee.paquete, costo: Number(ee.paquete.costo) }
+          : null,
+        tipoParticipacion: ee?.tipoParticipacion ?? null,
+        numeroParticipantes: ee?.numeroParticipantes ?? 0,
+        montoPagado: ee?.montoPagado != null ? Number(ee.montoPagado) : null,
+        estadoVerificacionPago: ee?.estadoVerificacionPago ?? 'SIN_REGISTRO',
+        estadoHabilitacionAcceso: ee?.estadoHabilitacionAcceso ?? 'SIN_REGISTRO',
+        motivoRechazoAcceso: ee?.motivoRechazoAcceso ?? null,
+        fechaHoraEnvioComprobante: ee?.fechaHoraEnvioComprobante ?? null,
+        participantes: (ee?.empresa_usuario ?? []).map((eu: any) => ({
+          id: eu.id,
+          esResponsable: eu.esResponsable === 1,
+          cargo: eu.cargo ?? null,
+          urlCredencialQR: eu.urlCredencialQR ?? null,
+          nombres: eu.usuario?.nombres ?? '',
+          apellidoPaterno: eu.usuario?.apellidoPaterno ?? '',
+          apellidoMaterno: eu.usuario?.apellidoMaterno ?? null,
+          correo: eu.usuario?.correo ?? null,
+          telefono: eu.usuario?.telefono ?? null,
+        })),
+        comprobantes: (ee?.empresaeventocomprobantes ?? []).map((c: any) => ({
+          id: c.id,
+          tipoPago: c.tipoPago,
+          estadoPago: c.estadoPago,
+          montoPago: c.montoPago != null ? Number(c.montoPago) : null,
+          cantidadParticipantes: c.cantidadParticipantes,
+          observacion: c.observacion,
+          url: c.urlComprobantePagoInscripcion,
+          fechaCreacion: c.fechaCreacion,
+        })),
+      },
+    };
   }
 
   @Put('admin/empresas/:id')
@@ -3171,21 +3238,18 @@ export class AppController implements OnModuleInit {
   // Rubros complementarios para la recomendación de reuniones (reglas simples de afinidad).
   // Afinidad ALTA = mismo rubro; MEDIA = rubro complementario según este mapa (se evalúa en ambas direcciones).
   private static readonly RUBROS_COMPLEMENTARIOS: Record<string, string[]> = {
-    'Agropecuario y Ganadería':        ['Transporte y Logística', 'Industria y Manufactura', 'Comercio y Distribución', 'Tecnología e Innovación', 'Medio Ambiente y Energía', 'Gastronomía y Turismo'],
-    'Comercio y Distribución':         ['Transporte y Logística', 'Industria y Manufactura', 'Agropecuario y Ganadería', 'Gastronomía y Turismo', 'Artesanía y Cultura', 'Finanzas y Seguros'],
-    'Construcción e Infraestructura':  ['Inmobiliario', 'Minería e Hidrocarburos', 'Finanzas y Seguros', 'Transporte y Logística', 'Medio Ambiente y Energía'],
-    'Educación y Capacitación':        ['Tecnología e Innovación', 'Servicios Profesionales', 'Salud y Bienestar', 'Artesanía y Cultura'],
-    'Finanzas y Seguros':              ['Servicios Profesionales', 'Comercio y Distribución', 'Construcción e Infraestructura', 'Inmobiliario'],
-    'Gastronomía y Turismo':           ['Agropecuario y Ganadería', 'Artesanía y Cultura', 'Transporte y Logística', 'Comercio y Distribución'],
-    'Industria y Manufactura':         ['Comercio y Distribución', 'Transporte y Logística', 'Agropecuario y Ganadería', 'Minería e Hidrocarburos'],
-    'Minería e Hidrocarburos':         ['Construcción e Infraestructura', 'Transporte y Logística', 'Medio Ambiente y Energía', 'Industria y Manufactura'],
-    'Salud y Bienestar':               ['Educación y Capacitación', 'Servicios Profesionales', 'Tecnología e Innovación'],
-    'Servicios Profesionales':         ['Finanzas y Seguros', 'Tecnología e Innovación', 'Educación y Capacitación', 'Inmobiliario'],
-    'Tecnología e Innovación':         ['Agropecuario y Ganadería', 'Educación y Capacitación', 'Salud y Bienestar', 'Servicios Profesionales', 'Comercio y Distribución', 'Finanzas y Seguros'],
-    'Transporte y Logística':          ['Agropecuario y Ganadería', 'Comercio y Distribución', 'Industria y Manufactura', 'Gastronomía y Turismo', 'Minería e Hidrocarburos'],
-    'Artesanía y Cultura':             ['Gastronomía y Turismo', 'Comercio y Distribución', 'Educación y Capacitación'],
-    'Medio Ambiente y Energía':        ['Agropecuario y Ganadería', 'Minería e Hidrocarburos', 'Construcción e Infraestructura', 'Tecnología e Innovación'],
-    'Inmobiliario':                    ['Construcción e Infraestructura', 'Finanzas y Seguros', 'Servicios Profesionales'],
+    'Agricultura y Producción de Granos':        ['Agroindustria', 'Logística, Transporte y Comercio Exterior', 'Energía y Tecnología', 'Servicios Financieros e Inversión', 'Industria y Manufactura'],
+    'Ganadería y Producción Pecuaria':           ['Agroindustria', 'Logística, Transporte y Comercio Exterior', 'Servicios Financieros e Inversión', 'Energía y Tecnología', 'Industria y Manufactura'],
+    'Agroindustria':                             ['Agricultura y Producción de Granos', 'Ganadería y Producción Pecuaria', 'Piscicultura', 'Industria y Manufactura', 'Logística, Transporte y Comercio Exterior', 'Servicios Financieros e Inversión'],
+    'Bioeconomía Amazónica':                     ['Forestal y Maderero', 'Turismo', 'Agroindustria', 'Energía y Tecnología', 'Servicios Empresariales'],
+    'Forestal y Maderero':                       ['Bioeconomía Amazónica', 'Industria y Manufactura', 'Logística, Transporte y Comercio Exterior', 'Servicios Financieros e Inversión'],
+    'Piscicultura':                              ['Agroindustria', 'Logística, Transporte y Comercio Exterior', 'Bioeconomía Amazónica', 'Servicios Financieros e Inversión'],
+    'Turismo':                                   ['Bioeconomía Amazónica', 'Servicios Empresariales', 'Logística, Transporte y Comercio Exterior', 'Energía y Tecnología'],
+    'Industria y Manufactura':                   ['Agroindustria', 'Forestal y Maderero', 'Logística, Transporte y Comercio Exterior', 'Energía y Tecnología', 'Servicios Financieros e Inversión'],
+    'Logística, Transporte y Comercio Exterior': ['Agricultura y Producción de Granos', 'Ganadería y Producción Pecuaria', 'Agroindustria', 'Forestal y Maderero', 'Piscicultura', 'Industria y Manufactura'],
+    'Energía y Tecnología':                      ['Industria y Manufactura', 'Agricultura y Producción de Granos', 'Bioeconomía Amazónica', 'Servicios Empresariales', 'Turismo'],
+    'Servicios Empresariales':                   ['Servicios Financieros e Inversión', 'Turismo', 'Energía y Tecnología', 'Industria y Manufactura'],
+    'Servicios Financieros e Inversión':         ['Servicios Empresariales', 'Agricultura y Producción de Granos', 'Ganadería y Producción Pecuaria', 'Agroindustria', 'Industria y Manufactura', 'Logística, Transporte y Comercio Exterior'],
   };
 
   private calcularAfinidad(miRubro: string | null, otroRubro: string | null): 'alta' | 'media' | null {

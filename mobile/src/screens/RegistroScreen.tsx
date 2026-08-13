@@ -11,13 +11,9 @@ import { LIMITES, correoValido, validarNombreEmpresa, limpiarEspacios } from '..
 
 const MAX_PARTICIPANTES = 5;
 
-const RUBROS = [
-  'Agropecuario y Ganadería','Comercio y Distribución','Construcción e Infraestructura',
-  'Educación y Capacitación','Finanzas y Seguros','Gastronomía y Turismo',
-  'Industria y Manufactura','Minería e Hidrocarburos','Salud y Bienestar',
-  'Servicios Profesionales','Tecnología e Innovación','Transporte y Logística',
-  'Artesanía y Cultura','Medio Ambiente y Energía','Inmobiliario','Otro',
-];
+// Los rubros viven en ../constants/rubros para no repetirlos entre pantallas.
+
+import { RUBROS, RUBROS_CON_OTRO, OTRO } from '../constants/rubros';
 
 const SOUTH_AMERICA: Record<string, string[]> = {
   'Bolivia':   ['Trinidad','Beni','La Paz','Santa Cruz de la Sierra','Cochabamba','Sucre','Oruro','Potosí','Tarija','Cobija','Riberalta'],
@@ -190,6 +186,9 @@ export default function RegistroScreen({ navigation }: any) {
   const [rubro, setRubro] = useState('');
   const [pais, setPais] = useState('');
   const [ciudad, setCiudad] = useState('');
+  // Texto libre cuando eligen "Otro": la lista fija no cubre todos los países.
+  const [paisOtro, setPaisOtro] = useState('');
+  const [ciudadOtro, setCiudadOtro] = useState('');
   const [sitioWeb, setSitioWeb] = useState('');
   const [correoEmpresa, setCorreoEmpresa] = useState('');
   const [telefonoWA, setTelefonoWA] = useState('');
@@ -253,7 +252,9 @@ export default function RegistroScreen({ navigation }: any) {
     if (nombreErr) return nombreErr;
     if (!rubro) return 'Selecciona un rubro.';
     if (!pais) return 'Selecciona un país.';
-    if (!ciudad) return 'Selecciona una ciudad.';
+    if (pais === OTRO && !paisOtro.trim()) return 'Escribe el nombre del país.';
+    if (pais !== OTRO && !ciudad) return 'Selecciona una ciudad.';
+    if ((pais === OTRO || ciudad === OTRO) && !ciudadOtro.trim()) return 'Escribe el nombre de la ciudad.';
     if (!correoEmpresa.trim()) return 'El correo corporativo es requerido.';
     if (!correoValido(correoEmpresa)) return 'El correo corporativo no es válido.';
     if (!telefonoWA.trim()) return 'El teléfono/WhatsApp es requerido.';
@@ -292,8 +293,8 @@ export default function RegistroScreen({ navigation }: any) {
         empresa: {
           nombre: limpiarEspacios(nombre),
           rubro,
-          paisNombre: pais,
-          ciudadNombre: ciudad,
+          paisNombre: paisFinal,
+          ciudadNombre: ciudadFinal,
           sitioWeb: sitioWeb.trim() || null,
           correoCorporativo: correoEmpresa.trim(),
           telefonoWhatsapp: telefonoWA.trim(),
@@ -329,8 +330,13 @@ export default function RegistroScreen({ navigation }: any) {
     );
   }
 
-  const paisList = Object.keys(SOUTH_AMERICA);
-  const ciudadList = pais ? SOUTH_AMERICA[pais] ?? [] : [];
+  const paisList = [...Object.keys(SOUTH_AMERICA), OTRO];
+  const paisEsOtro = pais === OTRO;
+  const ciudadEsOtra = paisEsOtro || ciudad === OTRO;
+  const ciudadList = pais && !paisEsOtro ? [...(SOUTH_AMERICA[pais] ?? []), OTRO] : [];
+  // Lo que se guarda: el texto escrito cuando eligieron "Otro".
+  const paisFinal = (paisEsOtro ? paisOtro : pais).trim();
+  const ciudadFinal = (ciudadEsOtra ? ciudadOtro : ciudad).trim();
 
   // ── Step 4: Confirmation ─────────────────────────────────────
   if (step === 3 && resultado) {
@@ -366,7 +372,7 @@ export default function RegistroScreen({ navigation }: any) {
           <View style={{ backgroundColor: '#fff', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 16, padding: 16, marginBottom: 16 }}>
             <Text style={{ fontSize: 12, fontWeight: '700', color: '#5B9A27', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 }}>Empresa registrada</Text>
             <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827' }}>{nombre}</Text>
-            <Text style={{ fontSize: 13, color: '#6b7280', marginTop: 2 }}>{rubro} · {ciudad}, {pais}</Text>
+            <Text style={{ fontSize: 13, color: '#6b7280', marginTop: 2 }}>{rubro} · {ciudadFinal}, {paisFinal}</Text>
           </View>
 
           {/* Ver participantes */}
@@ -437,8 +443,8 @@ export default function RegistroScreen({ navigation }: any) {
       {lightboxUrl && <Lightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />}
 
       {/* Pickers */}
-      <PickerModal visible={showRubros} title="Seleccionar rubro" items={RUBROS} selected={rubro} onSelect={setRubro} onClose={() => setShowRubros(false)} />
-      <PickerModal visible={showPaises} title="Seleccionar país" items={paisList} selected={pais} onSelect={(v) => { setPais(v); setCiudad(''); }} onClose={() => setShowPaises(false)} />
+      <PickerModal visible={showRubros} title="Seleccionar rubro" items={RUBROS_CON_OTRO} selected={rubro} onSelect={setRubro} onClose={() => setShowRubros(false)} />
+      <PickerModal visible={showPaises} title="Seleccionar país" items={paisList} selected={pais} onSelect={(v) => { setPais(v); setCiudad(''); setPaisOtro(''); setCiudadOtro(''); }} onClose={() => setShowPaises(false)} />
       <PickerModal visible={showCiudades} title="Seleccionar ciudad" items={ciudadList} selected={ciudad} onSelect={setCiudad} onClose={() => setShowCiudades(false)} />
 
       {/* Header */}
@@ -476,16 +482,31 @@ export default function RegistroScreen({ navigation }: any) {
                   <Text style={{ color: pais ? '#111827' : '#9ca3af', fontSize: 14 }}>{pais || 'Seleccionar país…'}</Text>
                   <Text style={{ color: '#9ca3af' }}>▾</Text>
                 </TouchableOpacity>
+                {paisEsOtro && (
+                  <TextInput style={{ ...inp, marginTop: 8 }} value={paisOtro} onChangeText={setPaisOtro}
+                    maxLength={60} placeholder="Escribe el nombre del país" placeholderTextColor="#9ca3af" />
+                )}
               </Field>
 
               <Field label="Ciudad *">
-                <TouchableOpacity
-                  style={{ ...selBtn(!!ciudad), opacity: pais ? 1 : 0.5 }}
-                  onPress={() => pais ? setShowCiudades(true) : showModal('warning', 'Selecciona un país', 'Primero selecciona un país para ver las ciudades disponibles.')}
-                >
-                  <Text style={{ color: ciudad ? '#111827' : '#9ca3af', fontSize: 14 }}>{ciudad || (pais ? 'Seleccionar ciudad…' : 'Selecciona un país primero')}</Text>
-                  <Text style={{ color: '#9ca3af' }}>▾</Text>
-                </TouchableOpacity>
+                {paisEsOtro ? (
+                  <TextInput style={inp} value={ciudadOtro} onChangeText={setCiudadOtro}
+                    maxLength={60} placeholder="Escribe el nombre de la ciudad" placeholderTextColor="#9ca3af" />
+                ) : (
+                  <>
+                    <TouchableOpacity
+                      style={{ ...selBtn(!!ciudad), opacity: pais ? 1 : 0.5 }}
+                      onPress={() => pais ? setShowCiudades(true) : showModal('warning', 'Selecciona un país', 'Primero selecciona un país para ver las ciudades disponibles.')}
+                    >
+                      <Text style={{ color: ciudad ? '#111827' : '#9ca3af', fontSize: 14 }}>{ciudad || (pais ? 'Seleccionar ciudad…' : 'Selecciona un país primero')}</Text>
+                      <Text style={{ color: '#9ca3af' }}>▾</Text>
+                    </TouchableOpacity>
+                    {ciudadEsOtra && (
+                      <TextInput style={{ ...inp, marginTop: 8 }} value={ciudadOtro} onChangeText={setCiudadOtro}
+                        maxLength={60} placeholder="Escribe el nombre de la ciudad" placeholderTextColor="#9ca3af" />
+                    )}
+                  </>
+                )}
               </Field>
 
               <Field label="Correo corporativo *">
