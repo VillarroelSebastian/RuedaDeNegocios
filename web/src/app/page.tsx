@@ -12,6 +12,8 @@ import InstalarAppButton from "@/components/InstalarAppButton";
 import CronogramaVivo from "@/components/CronogramaVivo";
 import GaleriaEvento from "@/components/GaleriaEvento";
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
+const EVENT_VIDEO_URL = "https://www.youtube.com/watch?v=IHNXdK3Lrmw";
+const EVENT_VIDEO_EMBED_URL = "https://www.youtube.com/embed/IHNXdK3Lrmw?rel=0";
 
 const IconFacebook = () => (
   <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
@@ -246,37 +248,34 @@ export default function HomePage() {
           <div className="grid md:grid-cols-2 gap-12 lg:gap-16 items-center">
             {/* Logo del evento + botón flotante al video */}
             <div className="relative">
-              <div className="relative aspect-square w-full rounded-2xl overflow-hidden bg-gray-50 border border-gray-100 shadow-sm">
-                <Image
-                  src={evento.urlLogoEvento ?? "/assets/iconos/logo.png"}
-                  alt={evento.nombre}
-                  fill
-                  sizes="(max-width: 768px) 100vw, 520px"
-                  className="object-contain p-6"
-                  unoptimized
+              <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl bg-gray-100 shadow-sm">
+                <iframe
+                  src={EVENT_VIDEO_EMBED_URL}
+                  title={`Video: ${evento.nombre}`}
+                  className="absolute inset-0 h-full w-full border-0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  referrerPolicy="strict-origin-when-cross-origin"
+                  allowFullScreen
                 />
               </div>
-              {evento.urlVideoEvento && (
-                <a
-                  href={evento.urlVideoEvento}
+              <a
+                  href={EVENT_VIDEO_URL}
                   target="_blank"
                   rel="noopener noreferrer"
-                  /* El bloque amarillo desplazado imita la tarjeta del diseño aprobado */
-                  className="group absolute -bottom-5 left-1/2 -translate-x-1/2 md:left-auto md:translate-x-0 md:right-[-2rem]"
+                  aria-label="Ver el video de la rueda de negocios en YouTube"
+                  className="group absolute -bottom-9 left-1/2 z-10 w-[min(82%,350px)] -translate-x-1/2 md:left-auto md:right-[-2rem] md:w-[350px] md:translate-x-0"
                 >
-                  <span className="absolute inset-0 translate-x-2 translate-y-2 rounded-xl bg-[#F5B921]" aria-hidden="true" />
-                  <span className="relative flex flex-col items-center gap-1 rounded-xl bg-[#4A7C2A] px-7 py-4 text-center text-white shadow-lg transition-transform group-hover:-translate-y-0.5">
-                    <span className="flex items-center gap-2 text-base font-bold">
-                      <HelpCircle size={18} /> ¿Qué es la rueda?
-                    </span>
-                    <span className="text-xs text-white/85">Mira nuestro video</span>
+                  <span className="absolute inset-0 translate-x-5 translate-y-5 rounded-[18px] bg-[#F5B921]" aria-hidden="true" />
+                  <span className="relative flex min-h-36 flex-col items-center justify-center rounded-[18px] bg-[#7C9E3F] px-7 py-5 text-center text-white shadow-lg transition-transform group-hover:-translate-y-0.5">
+                    <HelpCircle size={34} strokeWidth={3} aria-hidden="true" />
+                    <span className="mt-1 text-2xl font-medium sm:text-3xl">¿Qué es la rueda?</span>
+                    <span className="mt-1 text-sm font-semibold text-white">Mira nuestro video</span>
                   </span>
-                </a>
-              )}
+              </a>
             </div>
 
             {/* Texto + ejes del evento */}
-            <div className={evento.urlVideoEvento ? "mt-10 md:mt-0" : ""}>
+            <div className="mt-20 md:mt-0">
               <span className="text-sm font-bold text-gray-800">Sobre el evento</span>
               <h2 className="mt-3 mb-5 text-3xl sm:text-4xl font-extrabold uppercase leading-tight text-[#4A7C2A]">
                 {evento.nombre}
