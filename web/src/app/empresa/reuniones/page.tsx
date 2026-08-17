@@ -46,6 +46,8 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
   const [duracionMin, setDuracionMin] = useState(0);
   const [horaSelec, setHoraSelec] = useState<string>("");
   const [minutosStr, setMinutosStr] = useState("00");
+  const [tipoReunion, setTipoReunion] = useState(reunion?.tipo ?? "PRESENCIAL");
+  const [mensaje, setMensaje] = useState(reunion?.mensaje ?? "");
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -96,7 +98,7 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
       const res = await fetch(`${API}/empresa/reuniones/${reunion.id}/cambiar-horario`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eeId, inicio: seleccionado.inicio }),
+        body: JSON.stringify({ eeId, inicio: seleccionado.inicio, tipoReunion, mensaje }),
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
       onOk();
@@ -109,8 +111,27 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-y-auto max-h-[90vh]">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div>
-            <h3 className="font-extrabold text-gray-900">Proponer nuevo horario</h3>
+            <h3 className="font-extrabold text-gray-900">Proponer cambios</h3>
             <p className="text-xs text-gray-400 mt-0.5">Reunión con {reunion?.contraparte?.nombre}</p>
+          </div>
+
+          <div>
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Modalidad propuesta</label>
+            <div className="grid grid-cols-2 gap-2">
+              {["PRESENCIAL", "VIRTUAL"].map((tipo) => (
+                <button key={tipo} type="button" onClick={() => setTipoReunion(tipo)}
+                  className={`rounded-xl border px-3 py-2.5 text-xs font-bold ${tipoReunion === tipo ? "border-[#449D3A] bg-green-50 text-[#449D3A]" : "border-gray-200 text-gray-600"}`}>
+                  {tipo === "PRESENCIAL" ? "Presencial" : "Virtual"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Mensaje / detalle del cambio</label>
+            <textarea value={mensaje} onChange={(e) => setMensaje(e.target.value)} maxLength={500} rows={3}
+              placeholder="Explica a la otra empresa qué deseas cambiar..."
+              className="w-full resize-none rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-[#449D3A] focus:outline-none" />
           </div>
           <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center">
             <X className="w-4 h-4 text-gray-500" />
@@ -335,7 +356,7 @@ function DetalleReunionModal({ reunion, eeId, esEncargado, onClose, onCambiarHor
               <button onClick={onCambiarHorario}
                 className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50">
                 <Edit2 className="w-4 h-4" />
-                Cambiar horario
+                Solicitar cambios
               </button>
             )}
             {puedeFinalizarEncargado && (
@@ -507,7 +528,9 @@ export default function ReunionesPage() {
                 <p className="text-sm font-extrabold text-amber-900">Cambio solicitado por {r.contraparte?.nombre}</p>
                 <p className="mt-1 text-xs text-amber-700">
                   Nueva propuesta: {fmtDate(r.cambioPendiente.fechaHoraInicio)} · {fmtTime(r.cambioPendiente.fechaHoraInicio)}
+                  {` · ${r.cambioPendiente.tipoReunion === "VIRTUAL" ? "Virtual" : "Presencial"}`}
                 </p>
+                {r.cambioPendiente.mensaje && <p className="mt-1 text-xs text-amber-800">“{r.cambioPendiente.mensaje}”</p>}
               </div>
               <div className="flex gap-2">
                 <button onClick={() => responderCambio(r.cambioPendiente.id, false)}

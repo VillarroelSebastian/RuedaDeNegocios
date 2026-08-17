@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   Briefcase, CalendarDays, Send, Inbox,
-  Newspaper, ChevronRight, AlertCircle,
+  Newspaper, ChevronRight, AlertCircle, Star,
 } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
 
@@ -117,6 +117,14 @@ export default function EmpresaDashboardScreen({ navigation }: any) {
             <Text style={s.alertText}>
               Tienes {stats.pendientesRecibidas} solicitud{stats.pendientesRecibidas > 1 ? 'es' : ''} de reunión pendiente{stats.pendientesRecibidas > 1 ? 's' : ''} por revisar
             </Text>
+          </TouchableOpacity>
+        )}
+
+        {esEncargado && stats?.pendientesEvaluar > 0 && (
+          <TouchableOpacity style={[s.alertBox, { backgroundColor:'#f0fdf4', borderColor:'#86efac' }]} onPress={() => navigation.navigate('Resultados')} activeOpacity={0.8}>
+            <Star size={17} color={GREEN} style={{ marginRight:8 }} />
+            <Text style={[s.alertText, { color:'#166534' }]}>Tienes {stats.pendientesEvaluar} reunión(es) pendiente(s) de calificar. Registra el acuerdo y tus observaciones.</Text>
+            <ChevronRight size={17} color={GREEN}/>
           </TouchableOpacity>
         )}
 

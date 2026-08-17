@@ -46,6 +46,8 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
   const [duracionMin, setDuracionMin] = useState(0);
   const [horaSel, setHoraSel] = useState<number | null>(null);
   const [minutosStr, setMinutosStr] = useState('00');
+  const [tipoReunion, setTipoReunion] = useState(reunion?.tipo ?? 'PRESENCIAL');
+  const [mensaje, setMensaje] = useState(reunion?.mensaje ?? '');
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [appModal, setAppModal] = useState<AppModal | null>(null);
@@ -96,7 +98,7 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
       const res = await fetch(`${API_URL}/empresa/reuniones/${reunion.id}/cambiar-horario`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eeId, inicio: horarioMatch.inicio }),
+        body: JSON.stringify({ eeId, inicio: horarioMatch.inicio, tipoReunion, mensaje }),
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
       onOk();
@@ -121,7 +123,7 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
         <View style={cm.sheet}>
           <View style={cm.header}>
             <View style={{ flex: 1 }}>
-              <Text style={cm.title}>Proponer nuevo horario</Text>
+              <Text style={cm.title}>Proponer cambios</Text>
               <Text style={cm.sub} numberOfLines={1}>Con {reunion?.contraparte?.nombre}</Text>
             </View>
             <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -133,6 +135,21 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
               <Text style={cm.currentLabel}>Horario actual</Text>
               <Text style={cm.currentVal}>{fmtDate(reunion?.inicio)} · {fmtTime(reunion?.inicio)} – {fmtTime(reunion?.fin)}</Text>
             </View>
+
+            <Text style={cm.sectionLabel}>Modalidad propuesta</Text>
+            <View style={{ flexDirection:'row', gap:8, marginBottom:12 }}>
+              {['PRESENCIAL','VIRTUAL'].map((tipo) => (
+                <TouchableOpacity key={tipo} onPress={() => setTipoReunion(tipo)}
+                  style={{ flex:1, paddingVertical:10, borderRadius:12, alignItems:'center', borderWidth:1.5, borderColor:tipoReunion === tipo ? GREEN : '#e2e8f0', backgroundColor:tipoReunion === tipo ? '#f0fdf4' : '#fff' }}>
+                  <Text style={{ fontSize:12, fontWeight:'700', color:tipoReunion === tipo ? '#166534' : '#64748b' }}>{tipo === 'PRESENCIAL' ? 'Presencial' : 'Virtual'}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={cm.sectionLabel}>Mensaje / detalle del cambio</Text>
+            <TextInput value={mensaje} onChangeText={setMensaje} multiline maxLength={500}
+              placeholder="Explica a la otra empresa qué deseas cambiar..." placeholderTextColor="#94a3b8"
+              style={{ minHeight:76, textAlignVertical:'top', borderWidth:1, borderColor:'#e2e8f0', borderRadius:12, padding:12, color:'#0f172a', marginBottom:12 }} />
 
             {duracionMin > 0 && (
               <View style={cm.durBanner}>
@@ -647,7 +664,9 @@ export default function EmpresaReunionesScreen({ navigation }: any) {
                 <Text style={s.changeTitle}>Cambio solicitado por {r.contraparte?.nombre}</Text>
                 <Text style={s.changeText}>
                   Nueva propuesta: {fmtDate(r.cambioPendiente.fechaHoraInicio)} · {fmtTime(r.cambioPendiente.fechaHoraInicio)}
+                  {` · ${r.cambioPendiente.tipoReunion === 'VIRTUAL' ? 'Virtual' : 'Presencial'}`}
                 </Text>
+                {!!r.cambioPendiente.mensaje && <Text style={s.changeText}>“{r.cambioPendiente.mensaje}”</Text>}
                 <View style={s.changeActions}>
                   <TouchableOpacity style={s.changeReject} onPress={() => responderCambio(r.cambioPendiente.id, false)}>
                     <Text style={s.changeRejectText}>Rechazar</Text>

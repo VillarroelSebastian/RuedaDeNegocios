@@ -35,6 +35,7 @@ const menuItems = [
   { name: 'Pagos Adicionales', icon: PlusCircle, href: '/admin/pagos-adicionales' },
   { name: 'Mesas', icon: Armchair, href: '/admin/mesas' },
   { name: 'Agenda de Mesas', icon: CalendarDays, href: '/admin/agenda' },
+  { name: 'Control de Reuniones', icon: CalendarCheck, href: '/admin/reuniones' },
   { name: 'Actividades', icon: Star, href: '/admin/actividades' },
   { name: 'Cronograma en Vivo', icon: Radio, href: '/admin/cronograma-vivo' },
   { name: 'Galería', icon: Images, href: '/admin/galeria' },

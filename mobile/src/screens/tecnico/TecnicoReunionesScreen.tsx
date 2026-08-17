@@ -20,6 +20,7 @@ function fmtDate(iso: string) {
 
 const ESTADO_CFG: Record<string, { color: string; bg: string; dot: string; label: string }> = {
   PROGRAMADA: { color: '#1d4ed8', bg: '#dbeafe', dot: '#60a5fa', label: 'Programada' },
+  REPROGRAMADA:{ color: '#b45309', bg: '#fef3c7', dot: '#f59e0b', label: 'Reprogramada' },
   EN_CURSO:   { color: '#c2410c', bg: '#ffedd5', dot: '#f97316', label: 'En curso' },
   FINALIZADA: { color: '#15803d', bg: '#dcfce7', dot: '#22c55e', label: 'Finalizada' },
   CANCELADA:  { color: '#6b7280', bg: '#f3f4f6', dot: '#9ca3af', label: 'Cancelada' },
@@ -62,6 +63,12 @@ function ReunionCard({ r, onCambiarEstado }: { r: any; onCambiarEstado: (id:numb
     ?? (sol?.direccionTexto ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(sol.direccionTexto)}` : null);
   const esVirtual   = r.tipoReunion === 'VIRTUAL'    || r.tipoReunion === 'MIXTA';
   const esPresencial= r.tipoReunion === 'PRESENCIAL' || r.tipoReunion === 'MIXTA';
+  const permitidos: Record<string, string[]> = {
+    PROGRAMADA: ['EN_CURSO', 'FINALIZADA', 'CANCELADA'],
+    REPROGRAMADA: ['EN_CURSO', 'FINALIZADA', 'CANCELADA'],
+    EN_CURSO: ['FINALIZADA'], FINALIZADA: [], CANCELADA: [],
+  };
+  const opcionesEstado = permitidos[r.estadoReunion] ?? [];
 
   return (
     <View style={{ backgroundColor:'#fff', borderRadius:16, borderWidth:1, borderColor:'#f1f5f9',
@@ -119,10 +126,10 @@ function ReunionCard({ r, onCambiarEstado }: { r: any; onCambiarEstado: (id:numb
               <Text style={{ color:'#fff', fontWeight:'700', fontSize:12 }}>Ver en Google Maps</Text>
             </TouchableOpacity>
           )}
-          <TouchableOpacity onPress={() => setMenuOpen(true)}
+          {opcionesEstado.length > 0 && <TouchableOpacity onPress={() => setMenuOpen(true)}
             style={{ borderWidth:1, borderColor:GREEN, borderRadius:12, paddingVertical:10, alignItems:'center' }}>
             <Text style={{ color:GREEN, fontWeight:'700', fontSize:12 }}>Cambiar estado de reunión</Text>
-          </TouchableOpacity>
+          </TouchableOpacity>}
         </View>
       )}
 
@@ -132,7 +139,9 @@ function ReunionCard({ r, onCambiarEstado }: { r: any; onCambiarEstado: (id:numb
           activeOpacity={1} onPress={() => setMenuOpen(false)}>
           <View style={{ backgroundColor:'#fff', borderRadius:20, padding:20, width:'82%', maxWidth:340 }}>
             <Text style={{ fontSize:15, fontWeight:'700', color:'#111827', marginBottom:14, textAlign:'center' }}>Estado de la reunión</Text>
-            {Object.entries(ESTADO_CFG).map(([key, cfg]) => (
+            {opcionesEstado.map((key) => {
+              const cfg = ESTADO_CFG[key];
+              return (
               <TouchableOpacity key={key} onPress={() => { setMenuOpen(false); onCambiarEstado(r.id, key); }}
                 style={{ flexDirection:'row', alignItems:'center', gap:10, paddingVertical:12, paddingHorizontal:14,
                   borderRadius:12, marginBottom:6,
@@ -142,7 +151,8 @@ function ReunionCard({ r, onCambiarEstado }: { r: any; onCambiarEstado: (id:numb
                 <Text style={{ fontSize:13, fontWeight:'600', color: r.estadoReunion === key ? cfg.color : '#374151', flex:1 }}>{cfg.label}</Text>
                 {r.estadoReunion === key && <CheckCircle color={cfg.color} size={15}/>}
               </TouchableOpacity>
-            ))}
+              );
+            })}
           </View>
         </TouchableOpacity>
       </RNModal>
@@ -186,7 +196,7 @@ export default function TecnicoReunionesScreen() {
     }
   };
 
-  const estados = ['TODOS','PROGRAMADA','EN_CURSO','FINALIZADA','CANCELADA'];
+  const estados = ['TODOS','PROGRAMADA','REPROGRAMADA','EN_CURSO','FINALIZADA','CANCELADA'];
   const tipos   = ['TODOS','PRESENCIAL','VIRTUAL','MIXTA'];
 
   return (

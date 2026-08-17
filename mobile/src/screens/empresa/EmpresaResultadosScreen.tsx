@@ -95,6 +95,7 @@ export default function EmpresaResultadosScreen({ route }: any) {
 
   const handleSubmit = async () => {
     if (calificacion === 0) { setSaveError('Selecciona una calificación de 1 a 5 estrellas.'); return; }
+    if (!observacion.trim()) { setSaveError('Escribe los puntos tratados, compromisos u observaciones de la reunión.'); return; }
     setSaveError('');
     setSaving(true);
     try {

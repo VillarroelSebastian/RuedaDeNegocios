@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { TouchableOpacity, View, Text, StyleSheet } from 'react-native';
+import { TouchableOpacity, View, Text, StyleSheet, ScrollView } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator }   from '@react-navigation/bottom-tabs';
 import { useNavigation }              from '@react-navigation/native';
-import { LayoutDashboard, Building2, Send, CalendarDays, User, Bell } from 'lucide-react-native';
+import { LayoutDashboard, Building2, Send, CalendarDays, User, Bell, MoreHorizontal, Star, Clock, Newspaper, Lightbulb, MessageCircle } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AsistenteChatModal, { AsistenteChatButton } from '../components/AsistenteChatMobile';
 import { useNotificacionesMobile } from '../hooks/useNotificaciones';
@@ -28,6 +28,38 @@ const Stack = createNativeStackNavigator();
 const GREEN = '#449D3A';
 const GRAY  = '#9ca3af';
 const LS_KEY = 'comunicadosLastSeen';
+
+function EmpresaMenuScreen({ navigation }: any) {
+  const esEncargado = !!userStore.get()?.esResponsable;
+  const opciones = [
+    { nombre: 'Perfil', pantalla: 'Perfil', icono: User },
+    { nombre: 'Actividades', pantalla: 'Eventos', icono: CalendarDays },
+    { nombre: 'Comunicados', pantalla: 'Comunicados', icono: Newspaper },
+    { nombre: 'Oportunidades', pantalla: 'Oportunidades', icono: Lightbulb },
+    { nombre: 'Mensajes', pantalla: 'Mensajes', icono: MessageCircle },
+    ...(esEncargado ? [
+      { nombre: 'Resultados', pantalla: 'Resultados', icono: Star },
+      { nombre: 'Mis horarios', pantalla: 'Horarios', icono: Clock },
+    ] : []),
+  ];
+  return (
+    <ScrollView style={{ flex:1, backgroundColor:'#f8fafc' }} contentContainerStyle={{ padding:16 }}>
+      <Text style={{ fontSize:20, fontWeight:'800', color:'#0f172a', marginBottom:4 }}>Todas las opciones</Text>
+      <Text style={{ fontSize:12, color:'#64748b', marginBottom:16 }}>Accede a todas las funciones disponibles para tu cuenta.</Text>
+      <View style={{ flexDirection:'row', flexWrap:'wrap', gap:12 }}>
+        {opciones.map(({ nombre, pantalla, icono: Icon }) => (
+          <TouchableOpacity key={pantalla} onPress={() => navigation.navigate(pantalla)} activeOpacity={0.75}
+            style={{ width:'47%', minHeight:112, backgroundColor:'#fff', borderRadius:18, borderWidth:1, borderColor:'#e5e7eb', padding:16 }}>
+            <View style={{ width:42, height:42, borderRadius:13, backgroundColor:'#f0fdf4', alignItems:'center', justifyContent:'center', marginBottom:10 }}>
+              <Icon color={GREEN} size={21}/>
+            </View>
+            <Text style={{ fontSize:14, fontWeight:'800', color:'#111827' }}>{nombre}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </ScrollView>
+  );
+}
 
 // ── Bell button ─────────────────────────────────────────────────────────────
 
@@ -124,9 +156,9 @@ function EncargadoTabs() {
         options={{ title: 'Reuniones', tabBarIcon: ({ color }) => <CalendarDays color={color} size={22} /> }}
       />
       <Tab.Screen
-        name="Perfil"
-        component={EmpresaPerfilScreen}
-        options={{ title: 'Perfil', tabBarIcon: ({ color }) => <User color={color} size={22} /> }}
+        name="Mas"
+        component={EmpresaMenuScreen}
+        options={{ title: 'Más', tabBarIcon: ({ color }) => <MoreHorizontal color={color} size={22} /> }}
       />
     </Tab.Navigator>
   );
@@ -147,9 +179,9 @@ function ParticipanteTabs() {
         options={{ title: 'Reuniones', tabBarIcon: ({ color }) => <CalendarDays color={color} size={22} /> }}
       />
       <Tab.Screen
-        name="Perfil"
-        component={EmpresaPerfilScreen}
-        options={{ title: 'Perfil', tabBarIcon: ({ color }) => <User color={color} size={22} /> }}
+        name="Mas"
+        component={EmpresaMenuScreen}
+        options={{ title: 'Más', tabBarIcon: ({ color }) => <MoreHorizontal color={color} size={22} /> }}
       />
     </Tab.Navigator>
   );
@@ -213,6 +245,7 @@ export default function EmpresaNavigator() {
       <Stack.Screen name="Eventos"       component={EmpresaEventosScreen}       options={{ title: 'Actividades' }} />
       <Stack.Screen name="Oportunidades" component={EmpresaOportunidadesScreen} options={{ title: 'Oportunidades' }} />
       <Stack.Screen name="Mensajes"      component={EmpresaMensajesScreen}      options={{ title: 'Mensajes' }} />
+      <Stack.Screen name="Perfil"        component={EmpresaPerfilScreen}        options={{ title: 'Perfil' }} />
       <Stack.Screen name="PerfilEmpresa" component={EmpresaPerfilEmpresaScreen} options={{ title: 'Perfil de empresa', headerShown: false }} />
       {esEncargado && (
         <Stack.Screen name="Resultados"  component={EmpresaResultadosScreen}  options={{ title: 'Resultados' }} />

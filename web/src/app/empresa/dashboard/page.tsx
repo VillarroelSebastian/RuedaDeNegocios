@@ -121,6 +121,21 @@ export default function EmpresaDashboardPage() {
         </Link>
       )}
 
+      {esResponsable && stats?.pendientesEvaluar > 0 && (
+        <Link href="/empresa/resultados" className="block">
+          <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3 hover:border-green-300 transition-colors">
+            <Star className="w-5 h-5 text-[#449D3A] shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-bold text-green-900">
+                Tienes {stats.pendientesEvaluar} reunión{stats.pendientesEvaluar > 1 ? "es" : ""} finalizada{stats.pendientesEvaluar > 1 ? "s" : ""} pendiente{stats.pendientesEvaluar > 1 ? "s" : ""} de calificar
+              </p>
+              <p className="text-xs text-green-700 mt-0.5">Registra el acuerdo, la calificación y tus observaciones.</p>
+            </div>
+            <ArrowRight className="w-4 h-4 text-[#449D3A]" />
+          </div>
+        </Link>
+      )}
+
       {/* Stats counters */}
       {stats && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">

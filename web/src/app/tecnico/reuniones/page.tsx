@@ -6,6 +6,7 @@ const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
 const ESTADO_CFG: Record<string, { color: string; bg: string; dot: string; badge: string; label: string }> = {
   PROGRAMADA: { color:'text-blue-700',   bg:'bg-blue-50',    dot:'bg-blue-400',   badge:'bg-blue-100 text-blue-700',   label:'Programada' },
+  REPROGRAMADA:{ color:'text-amber-700', bg:'bg-amber-50',   dot:'bg-amber-400',  badge:'bg-amber-100 text-amber-700', label:'Reprogramada' },
   EN_CURSO:   { color:'text-orange-700', bg:'bg-orange-50',  dot:'bg-orange-400', badge:'bg-orange-100 text-orange-700',label:'En curso' },
   FINALIZADA: { color:'text-green-700',  bg:'bg-green-50',   dot:'bg-green-400',  badge:'bg-green-100 text-green-700', label:'Finalizada' },
   CANCELADA:  { color:'text-gray-500',   bg:'bg-gray-50',    dot:'bg-gray-400',   badge:'bg-gray-100 text-gray-500',   label:'Cancelada' },
@@ -46,6 +47,12 @@ function Modal({ visible, type, title, message, onClose }: any) {
 function EstadoDropdown({ reunion, onChange }: { reunion: any; onChange: (id: number, estado: string) => void }) {
   const [open, setOpen] = useState(false);
   const est = ESTADO_CFG[reunion.estadoReunion] ?? ESTADO_CFG.PROGRAMADA;
+  const permitidos: Record<string, string[]> = {
+    PROGRAMADA: ['EN_CURSO', 'FINALIZADA', 'CANCELADA'],
+    REPROGRAMADA: ['EN_CURSO', 'FINALIZADA', 'CANCELADA'],
+    EN_CURSO: ['FINALIZADA'], FINALIZADA: [], CANCELADA: [],
+  };
+  const opciones = permitidos[reunion.estadoReunion] ?? [];
   return (
     <div className="relative">
       <button
@@ -54,11 +61,13 @@ function EstadoDropdown({ reunion, onChange }: { reunion: any; onChange: (id: nu
       >
         <span className={`w-2 h-2 rounded-full ${est.dot}`} />
         {est.label}
-        <ChevronDown className="w-3 h-3" />
+        {opciones.length > 0 && <ChevronDown className="w-3 h-3" />}
       </button>
-      {open && (
+      {open && opciones.length > 0 && (
         <div className="absolute right-0 top-full mt-1 w-40 bg-white rounded-xl shadow-xl border border-gray-100 z-20 overflow-hidden">
-          {Object.entries(ESTADO_CFG).map(([key, cfg]) => (
+          {opciones.map((key) => {
+            const cfg = ESTADO_CFG[key];
+            return (
             <button
               key={key}
               onClick={() => { setOpen(false); onChange(reunion.id, key); }}
@@ -70,7 +79,8 @@ function EstadoDropdown({ reunion, onChange }: { reunion: any; onChange: (id: nu
               {cfg.label}
               {reunion.estadoReunion === key && <CheckCircle className="w-3 h-3 ml-auto" />}
             </button>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -193,7 +203,7 @@ export default function TecnicoReunionesPage() {
     }
   };
 
-  const estados = ['TODOS', 'PROGRAMADA', 'EN_CURSO', 'FINALIZADA', 'CANCELADA'];
+  const estados = ['TODOS', 'PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO', 'FINALIZADA', 'CANCELADA'];
   const tipos   = ['TODOS', 'PRESENCIAL', 'VIRTUAL', 'MIXTA'];
 
   return (

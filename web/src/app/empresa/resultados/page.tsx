@@ -109,6 +109,7 @@ function ResultadosContent() {
     if (!formulario.reunionId) { setErrForm("Selecciona una reunión."); return; }
     if (formulario.calificacion === 0) { setErrForm("Selecciona una calificación (1-5 estrellas)."); return; }
     if (!formulario.rango) { setErrForm("Selecciona el rango de acuerdo comercial."); return; }
+    if (!formulario.observaciones.trim()) { setErrForm("Escribe los puntos tratados, compromisos u observaciones de la reunión."); return; }
 
     setGuardando(true);
     try {
@@ -236,7 +237,7 @@ function ResultadosContent() {
               {/* Observaciones */}
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">
-                  Puntos tratados / Observaciones
+                  Puntos tratados / Observaciones *
                 </label>
                 <textarea
                   value={formulario.observaciones}

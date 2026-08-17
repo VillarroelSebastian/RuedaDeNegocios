@@ -316,7 +316,7 @@ export default function AuspiciadoresPage() {
       {/* ── Formulario ── */}
       {abierto && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-start sm:items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl my-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl my-4 overflow-hidden">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 sticky top-0 bg-white rounded-t-2xl">
               <h2 className="font-extrabold text-gray-900">
                 {editandoId ? "Editar auspiciador" : "Nuevo auspiciador"}
@@ -427,18 +427,18 @@ export default function AuspiciadoresPage() {
                 </p>
                 <div className="space-y-2">
                   {personas.map((p, i) => (
-                    <div key={i} className="grid grid-cols-1 sm:grid-cols-[1.4fr_1fr_1.2fr] gap-2 items-center">
+                    <div key={i} className="grid min-w-0 grid-cols-1 md:grid-cols-[1.4fr_1fr_1.4fr] gap-2 items-center">
                       <input value={p.nombreCompleto} maxLength={155}
                         onChange={(e) => setPersonas(personas.map((x, j) => j === i ? { ...x, nombreCompleto: e.target.value } : x))}
-                        className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#449D3A]"
+                        className="w-full min-w-0 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#449D3A]"
                         placeholder={`Nombre completo ${i + 1} *`} />
                       <input value={p.cargo} maxLength={105}
                         onChange={(e) => setPersonas(personas.map((x, j) => j === i ? { ...x, cargo: e.target.value } : x))}
-                        className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#449D3A]"
+                        className="w-full min-w-0 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#449D3A]"
                         placeholder="Cargo" />
                       <input value={p.correo} maxLength={105} type="email"
                         onChange={(e) => setPersonas(personas.map((x, j) => j === i ? { ...x, correo: e.target.value } : x))}
-                        className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#449D3A]"
+                        className="w-full min-w-0 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#449D3A]"
                         placeholder="Correo para enviar credencial *" />
                     </div>
                   ))}

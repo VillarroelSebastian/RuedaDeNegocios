@@ -205,13 +205,36 @@ export class AppController implements OnModuleInit {
     setInterval(() => { this.enviarRecordatoriosReuniones().catch(() => {}); }, 60_000);
     // Cierre automático: una reunión en curso dura lo que definió el admin; al
     // pasar su hora de fin se marca FINALIZADA y se pide calificar a ambos.
-    setInterval(() => { this.finalizarReunionesVencidas().catch(() => {}); }, 60_000);
+    await this.sincronizarEstadosReuniones().catch(() => {});
+    setInterval(() => { this.sincronizarEstadosReuniones().catch(() => {}); }, 60_000);
   }
 
-  private async finalizarReunionesVencidas() {
+  private async sincronizarEstadosReuniones() {
     const ahora = new Date();
+    const porIniciar = await this.prisma.reunion.findMany({
+      where: {
+        estaActivo: 1, estadoReunion: { in: ['PROGRAMADA', 'REPROGRAMADA'] },
+        fechaHoraInicioReunion: { lte: ahora }, fechaHoraFinReunion: { gt: ahora },
+      },
+      include: { solicitudreunion: { select: { empresaEvento_id: true, empresaEventorReceptora_id: true } } },
+    });
+    for (const r of porIniciar) {
+      await this.prisma.reunion.update({
+        where: { id: r.id },
+        data: { estadoReunion: 'EN_CURSO', inicioAnticipadoPor: null, creadoModificadoFecha: ahora },
+      });
+      const sol = (r as any).solicitudreunion;
+      for (const ee of [sol?.empresaEvento_id, sol?.empresaEventorReceptora_id].filter(Boolean)) {
+        await this.notificar(ee, 'reunion:iniciada', 'Reunión iniciada',
+          'La hora acordada llegó y tu reunión comenzó automáticamente.', r.id, 'reunion');
+      }
+    }
+
     const vencidas = await this.prisma.reunion.findMany({
-      where: { estaActivo: 1, estadoReunion: 'EN_CURSO', fechaHoraFinReunion: { lte: ahora } },
+      where: {
+        estaActivo: 1, estadoReunion: { in: ['PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO'] },
+        fechaHoraFinReunion: { lte: ahora },
+      },
       select: { id: true },
     });
     for (const r of vencidas) {
@@ -2697,8 +2720,19 @@ export class AppController implements OnModuleInit {
 
   @Put('tecnico/reuniones/:id/estado')
   async updateTecnicoReunionEstado(@Param('id') id: string, @Body() body: { estadoReunion: string; observaciones?: string }) {
+    const reunionId = Number(id);
+    const actual = await this.prisma.reunion.findUnique({ where: { id: reunionId } });
+    if (!actual || actual.estaActivo === 0) throw new BadRequestException('Reunión no encontrada');
+    const transiciones: Record<string, string[]> = {
+      PROGRAMADA: ['EN_CURSO', 'FINALIZADA', 'CANCELADA'],
+      REPROGRAMADA: ['EN_CURSO', 'FINALIZADA', 'CANCELADA'],
+      EN_CURSO: ['FINALIZADA'],
+      FINALIZADA: [], CANCELADA: [],
+    };
+    if (!(transiciones[actual.estadoReunion] ?? []).includes(body.estadoReunion))
+      throw new BadRequestException(`No se puede cambiar de ${actual.estadoReunion} a ${body.estadoReunion}`);
     const actualizada = await this.prisma.reunion.update({
-      where: { id: Number(id) },
+      where: { id: reunionId },
       data: {
         estadoReunion: body.estadoReunion,
         observacionesReunion: body.observaciones ?? undefined,
@@ -2709,7 +2743,13 @@ export class AppController implements OnModuleInit {
     // El técnico/admin puede terminar la reunión en cualquier momento: al hacerlo
     // se avisa a ambas empresas para que registren el resultado.
     if (body.estadoReunion === 'FINALIZADA') {
-      await this.notificarParaCalificar(Number(id));
+      await this.notificarParaCalificar(reunionId);
+    }
+    if (body.estadoReunion === 'CANCELADA') {
+      await this.prisma.mesabloque.updateMany({
+        where: { reunion_id: reunionId, estaActivo: 1 },
+        data: { estaOcupado: 0, estaActivo: 0, creadoModificadoFecha: new Date() },
+      });
     }
     return actualizada;
   }
@@ -4802,6 +4842,7 @@ export class AppController implements OnModuleInit {
         estado: r.estadoReunion,
         mesa: r.mesa,
         enlace: (r as any).enlaceReunionVirtual ?? sol?.enlaceReunionVirtual ?? null,
+        mensaje: sol?.mensajeParaEmpresaReceptora ?? null,
         contraparte,
         miResultado: (r as any).resultadoreunion?.[0] ?? null,
         solicitanteEeId: solicitanteEe?.id,
@@ -4825,7 +4866,7 @@ export class AppController implements OnModuleInit {
   @Put('empresa/reuniones/:id/cambiar-horario')
   async cambiarHorarioReunion(
     @Param('id') id: string,
-    @Body() body: { eeId: number; inicio: string },
+    @Body() body: { eeId: number; inicio: string; tipoReunion?: string; mensaje?: string },
   ) {
     const { eeId, inicio } = body;
     if (!eeId || !inicio) throw new BadRequestException('eeId e inicio requeridos');
@@ -4846,6 +4887,10 @@ export class AppController implements OnModuleInit {
     const iniDate = new Date(inicio);
     const finDate = new Date(iniDate.getTime() + evento.duracionReunion * 60000);
     const sol = (reunion as any).solicitudreunion;
+    const tipoPropuesto = String(body.tipoReunion ?? reunion.tipoReunion).toUpperCase();
+    if (!['PRESENCIAL', 'VIRTUAL'].includes(tipoPropuesto))
+      throw new BadRequestException('El tipo de reunión debe ser PRESENCIAL o VIRTUAL');
+    const mensajePropuesto = String(body.mensaje ?? sol.mensajeParaEmpresaReceptora ?? '').trim().slice(0, 500) || null;
     const eeA = sol.empresaEvento_id;
     const eeB = sol.empresaEventorReceptora_id;
 
@@ -4874,8 +4919,13 @@ export class AppController implements OnModuleInit {
     }
 
     // For PRESENCIAL: keep same mesa or find another if occupied
-    let mesaId = reunion.mesa_id;
-    if (reunion.tipoReunion === 'PRESENCIAL') {
+    let mesaId = tipoPropuesto === 'PRESENCIAL' ? reunion.mesa_id : null;
+    if (tipoPropuesto === 'PRESENCIAL') {
+      if (!mesaId) {
+        const primera = await this.prisma.mesa.findFirst({ where: { evento_id: eventoId!, estaActivo: 1, estaHabilitada: 1 }, orderBy: { numeroMesa: 'asc' } });
+        mesaId = primera?.id ?? null;
+      }
+      if (!mesaId) throw new BadRequestException('No hay mesas habilitadas para una reunión presencial');
       const ocupada = await this.prisma.mesabloque.findFirst({
         where: {
           mesa_id: mesaId!, fechaHoraInicio: iniDate, estaOcupado: 1, estaActivo: 1,
@@ -4900,15 +4950,15 @@ export class AppController implements OnModuleInit {
     const propuesta = await this.prisma.cambioreunion.create({
       data: {
         reunion_id: Number(id), solicitadoPorEe_id: Number(eeId),
-        tipoReunion: reunion.tipoReunion, fechaHoraInicio: iniDate, fechaHoraFin: finDate,
+        tipoReunion: tipoPropuesto, fechaHoraInicio: iniDate, fechaHoraFin: finDate,
         mesa_id: mesaId, enlaceReunionVirtual: sol.enlaceReunionVirtual,
-        mensaje: sol.mensajeParaEmpresaReceptora, estado: 'PENDIENTE',
+        mensaje: mensajePropuesto, estado: 'PENDIENTE',
       },
     });
     const contraparte = Number(eeId) === eeA ? eeB : eeA;
     const nuevaHoraPropuesta = this.fmtSlotAsistente(iniDate.toISOString());
     await this.notificar(contraparte, 'reunion:cambio-solicitado', 'Solicitud de cambio en la reunión',
-      `La otra empresa solicitó cambiar la reunión al ${nuevaHoraPropuesta}. Debes aceptar el cambio para que se aplique.`,
+      `La otra empresa solicitó cambios en la reunión (${tipoPropuesto.toLowerCase()}, ${nuevaHoraPropuesta}). Debes aceptar para que se apliquen.`,
       propuesta.id, 'cambioreunion');
     return { ok: true, pendienteAprobacion: true, propuesta };
   }
@@ -5074,11 +5124,24 @@ export class AppController implements OnModuleInit {
     const miNombre = soyA
       ? sol.empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa?.nombre
       : sol.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento?.empresa?.nombre;
+    const evento = await this.prisma.evento.findUnique({ where: { id: reunion.evento_id }, select: { duracionReunion: true } });
 
     const iniciar = async () => {
-      await this.prisma.reunion.update({
-        where: { id: Number(id) },
-        data: { estadoReunion: 'EN_CURSO', inicioAnticipadoPor: null, creadoModificadoFecha: new Date() },
+      const inicioReal = new Date();
+      const finReal = new Date(inicioReal.getTime() + (evento?.duracionReunion ?? 30) * 60000);
+      await this.prisma.$transaction(async (tx) => {
+        await tx.reunion.update({
+          where: { id: Number(id) },
+          data: {
+            estadoReunion: 'EN_CURSO', inicioAnticipadoPor: null,
+            fechaHoraInicioReunion: inicioReal, fechaHoraFinReunion: finReal,
+            creadoModificadoFecha: inicioReal,
+          },
+        });
+        await tx.mesabloque.updateMany({
+          where: { reunion_id: Number(id), estaActivo: 1 },
+          data: { fechaHoraInicio: inicioReal, fechaHoraFin: finReal, creadoModificadoFecha: inicioReal },
+        });
       });
       await this.notificar(sol.empresaEvento_id, 'reunion:iniciada', 'Reunión iniciada',
         'Tu reunión comenzó. ¡Éxitos en la negociación!', Number(id), 'reunion');
@@ -5114,8 +5177,8 @@ export class AppController implements OnModuleInit {
   @Post('empresa/resultados')
   async registrarResultado(@Body() body: any) {
     const { eeId, euId, reunionId, calificacion, rango, observaciones } = body;
-    if (!eeId || !euId || !reunionId || !calificacion || !rango)
-      throw new BadRequestException('Campos requeridos: eeId, euId, reunionId, calificacion, rango');
+    if (!eeId || !euId || !reunionId || !calificacion || !rango || !String(observaciones ?? '').trim())
+      throw new BadRequestException('Calificación, rango de acuerdo y observaciones son obligatorios');
 
     // Verificar que la reunión existe y la empresa participa
     const reunion = await this.prisma.reunion.findFirst({
@@ -5135,6 +5198,8 @@ export class AppController implements OnModuleInit {
       },
     });
     if (!reunion) throw new BadRequestException('Reunión no encontrada o no participas en ella');
+    if (reunion.estadoReunion !== 'FINALIZADA' && reunion.fechaHoraFinReunion > new Date())
+      throw new BadRequestException('La reunión debe estar finalizada antes de registrar el resultado');
 
     const sol = (reunion as any).solicitudreunion;
     const eeContraria = sol.empresaEvento_id === Number(eeId)
@@ -5151,7 +5216,8 @@ export class AppController implements OnModuleInit {
     const euRecord = await this.prisma.empresa_usuario.findFirst({
       where: { id: Number(euId), empresaevento_id: Number(eeId) },
     });
-    if (!euRecord) throw new BadRequestException('No tienes permiso para registrar este resultado');
+    if (!euRecord || euRecord.esResponsable !== 1)
+      throw new BadRequestException('Solo el encargado de la empresa puede registrar el resultado');
 
     return this.prisma.resultadoreunion.create({
       data: {
@@ -5161,7 +5227,7 @@ export class AppController implements OnModuleInit {
         empresa_usuario_id: Number(euId),
         calificacionReunion: Number(calificacion),
         rangoAcuerdoComercial: rango,
-        observacionesPuntosTratados: observaciones || '',
+        observacionesPuntosTratados: String(observaciones).trim(),
         estaActivo: 1,
       },
     });
@@ -5205,7 +5271,7 @@ export class AppController implements OnModuleInit {
     const eventoId = await this.getPrincipalEventoId();
     const ahora = new Date();
 
-    const [pendientesRecibidas, pendientesEnviadas, reunionesTotal, nextReunion, comunicados, actividades] =
+    const [pendientesRecibidas, pendientesEnviadas, reunionesTotal, pendientesEvaluar, nextReunion, comunicados, actividades] =
       await Promise.all([
         // Solicitudes recibidas pendientes
         this.prisma.solicitudreunion.count({
@@ -5222,6 +5288,19 @@ export class AppController implements OnModuleInit {
             solicitudreunion: {
               estaActivo: 1,
               OR: [{ empresaEvento_id: Number(eeId) }, { empresaEventorReceptora_id: Number(eeId) }],
+            },
+          },
+        }),
+        // Reuniones finalizadas que este encargado todavía no evaluó.
+        this.prisma.reunion.count({
+          where: {
+            estaActivo: 1, estadoReunion: 'FINALIZADA',
+            solicitudreunion: {
+              estaActivo: 1,
+              OR: [{ empresaEvento_id: Number(eeId) }, { empresaEventorReceptora_id: Number(eeId) }],
+            },
+            resultadoreunion: {
+              none: { empresaeventoCalificadora_id: Number(eeId), estaActivo: 1 },
             },
           },
         }),
@@ -5288,6 +5367,7 @@ export class AppController implements OnModuleInit {
       pendientesRecibidas,
       pendientesEnviadas,
       reunionesTotal,
+      pendientesEvaluar,
       proximaReunion,
       comunicados: comunicados.map((c) => ({
         id: c.id,
