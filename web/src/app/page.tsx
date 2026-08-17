@@ -9,7 +9,6 @@ import {
   Clock, Building2, ArrowRight, HelpCircle
 } from "lucide-react";
 import InstalarAppButton from "@/components/InstalarAppButton";
-import CronogramaVivo from "@/components/CronogramaVivo";
 import GaleriaEvento from "@/components/GaleriaEvento";
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 const EVENT_VIDEO_URL = "https://www.youtube.com/watch?v=IHNXdK3Lrmw";
@@ -411,17 +410,6 @@ export default function HomePage() {
       )}
 
       {/* ── CRONOGRAMA EN VIVO ─────────────────────────────────────── */}
-      <section id="envivo" className="py-20 bg-white">
-        <div className="max-w-4xl mx-auto px-6">
-          <div className="text-center mb-8">
-            <span className="text-green-600 font-semibold text-sm uppercase tracking-wider">En directo</span>
-            <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mt-3">Cronograma en vivo</h2>
-            <p className="text-gray-500 mt-3">Lo que está pasando en el evento, en tiempo real.</p>
-          </div>
-          <CronogramaVivo />
-        </div>
-      </section>
-
       {/* ── GALERÍA ────────────────────────────────────────────────── */}
       <section id="galeria" className="py-20 bg-gray-50">
         <div className="max-w-6xl mx-auto px-6">
@@ -538,7 +526,7 @@ export default function HomePage() {
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="relative h-10 w-36 opacity-80">
-                <Image src="/assets/iconos/logo.png" alt="Logo" fill sizes="144px" className="object-contain object-left" />
+                <Image src={evento.urlLogoEvento ?? "/assets/iconos/logo.png"} alt={`Logo de ${evento.nombre}`} fill sizes="144px" className="object-contain object-left" unoptimized />
               </div>
               <p className="text-green-400 text-xs">Edición {evento.edicion}{evento.ciudadEvento ? ` · ${evento.ciudadEvento}` : ''}{evento.paisEvento ? `, ${evento.paisEvento}` : ''}</p>
             </div>

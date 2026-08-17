@@ -63,8 +63,9 @@ export default function ActividadesScreen() {
   };
 
   const handleSave = async () => {
-    if (!form.nombreActividad || !form.fechaActividad) {
-      show({ type: 'warning', title: 'Campos requeridos', message: 'Ingresa al menos el nombre y la fecha.' });
+    if (!form.nombreActividad.trim() || !form.descripcionActividad.trim() || !form.nombreSalaEspacio.trim() ||
+        !(Number(form.capacidadPersonasSala) > 0) || !form.fechaActividad || !form.horaInicioActividad || !form.horaFinActividad) {
+      show({ type: 'warning', title: 'Campos requeridos', message: 'Completa nombre, descripción, sala, capacidad, fecha y horario.' });
       return;
     }
     setSaving(true);
@@ -93,6 +94,21 @@ export default function ActividadesScreen() {
   };
 
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  const cambiarEstadoEnVivo = async (id: number, estadoEnVivo: string) => {
+    try {
+      const res = await fetch(`${API_URL}/staff/cronograma-vivo/${id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estadoEnVivo }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || 'No se pudo actualizar');
+      await fetchActividades();
+      show({ type: 'success', title: 'Cronograma actualizado', message: `La actividad ahora está ${estadoEnVivo === 'EN_VIVO' ? 'en vivo' : estadoEnVivo.toLowerCase()}.` });
+    } catch (e: any) {
+      show({ type: 'error', title: 'No se pudo actualizar', message: e.message });
+    }
+  };
 
   const tipoBadgeColor = (tipo: string) => {
     const map: Record<string, string> = { Seminario: '#7c3aed', Taller: '#2563eb', Actividad: GREEN, Conferencia: '#ea580c', Panel: '#db2777' };
@@ -154,6 +170,18 @@ export default function ActividadesScreen() {
                       <Text className="text-xs font-semibold text-red-600">Eliminar</Text>
                     </TouchableOpacity>
                   </View>
+                  <Text className="text-[11px] font-bold text-gray-500 mt-4 mb-2 uppercase">Estado en vivo</Text>
+                  <View className="flex-row gap-2">
+                    {[
+                      ['PENDIENTE', 'Pendiente'], ['EN_VIVO', 'En vivo'], ['FINALIZADA', 'Finalizada'],
+                    ].map(([estado, label]) => (
+                      <TouchableOpacity key={estado} onPress={() => cambiarEstadoEnVivo(a.id, estado)}
+                        style={{ backgroundColor: a.estadoEnVivo === estado ? (estado === 'EN_VIVO' ? '#dc2626' : GREEN) : '#f3f4f6' }}
+                        className="flex-1 py-2 rounded-xl items-center">
+                        <Text style={{ color: a.estadoEnVivo === estado ? '#fff' : '#6b7280', fontSize: 10, fontWeight: '700' }}>{label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
                 </View>
               );
             })
@@ -174,7 +202,7 @@ export default function ActividadesScreen() {
               {[
                 { label: 'Nombre *', key: 'nombreActividad', placeholder: 'Nombre del evento' },
                 { label: 'Sala / Espacio *', key: 'nombreSalaEspacio', placeholder: 'Auditorio Principal' },
-                { label: 'Capacidad', key: 'capacidadPersonasSala', placeholder: '50', keyboardType: 'numeric' },
+                { label: 'Capacidad *', key: 'capacidadPersonasSala', placeholder: '50', keyboardType: 'numeric' },
                 { label: 'Fecha (YYYY-MM-DD) *', key: 'fechaActividad', placeholder: '2024-05-15' },
                 { label: 'Hora inicio (HH:MM) *', key: 'horaInicioActividad', placeholder: '10:00' },
                 { label: 'Hora fin (HH:MM) *', key: 'horaFinActividad', placeholder: '11:30' },

@@ -1614,6 +1614,10 @@ export class AppController implements OnModuleInit {
     try {
       const eventoId = body.evento_id ? Number(body.evento_id) : await this.getPrincipalEventoId();
       if (!eventoId) throw new BadRequestException('No hay evento principal configurado');
+      if (!String(body.nombreActividad ?? '').trim() || !String(body.descripcionActividad ?? '').trim() ||
+          !String(body.nombreSalaEspacio ?? '').trim() || !(Number(body.capacidadPersonasSala) > 0) ||
+          !body.fechaActividad || !body.horaInicioActividad || !body.horaFinActividad)
+        throw new BadRequestException('Nombre, descripción, sala, capacidad, fecha y horario son obligatorios');
 
       const parseTime = (t: string) => {
         const [h, m] = t.split(':');
@@ -1647,6 +1651,15 @@ export class AppController implements OnModuleInit {
   @Put('admin/actividades/:id')
   async updateActividad(@Param('id') id: string, @Body() body: any) {
     try {
+      const eventoId = await this.getPrincipalEventoId();
+      const existente = await this.prisma.actividadprograma.findFirst({
+        where: { id: Number(id), evento_id: eventoId!, estaActivo: 1 },
+      });
+      if (!existente) throw new BadRequestException('Actividad no encontrada en el evento activo');
+      if (!String(body.nombreActividad ?? '').trim() || !String(body.descripcionActividad ?? '').trim() ||
+          !String(body.nombreSalaEspacio ?? '').trim() || !(Number(body.capacidadPersonasSala) > 0) ||
+          !body.fechaActividad || !body.horaInicioActividad || !body.horaFinActividad)
+        throw new BadRequestException('Nombre, descripción, sala, capacidad, fecha y horario son obligatorios');
       const parseTime = (t: string) => {
         const [h, m] = t.split(':');
         return new Date(1970, 0, 1, Number(h), Number(m), 0);
@@ -1677,8 +1690,13 @@ export class AppController implements OnModuleInit {
 
   @Delete('admin/actividades/:id')
   async deleteActividad(@Param('id') id: string) {
+    const eventoId = await this.getPrincipalEventoId();
+    const actividad = await this.prisma.actividadprograma.findFirst({
+      where: { id: Number(id), evento_id: eventoId!, estaActivo: 1 },
+    });
+    if (!actividad) throw new BadRequestException('Actividad no encontrada en el evento activo');
     return await this.prisma.actividadprograma.update({
-      where: { id: Number(id) },
+      where: { id: actividad.id },
       data: { estaActivo: 0 },
     });
   }
@@ -2420,6 +2438,8 @@ export class AppController implements OnModuleInit {
         reunionesProgramadas: reunionesTotal,
         reunionesRealizadas: reunionesFinalizadas,
         acuerdosRegistrados,
+        tasaAcuerdos: reunionesFinalizadas > 0 ? Math.round((acuerdosRegistrados / reunionesFinalizadas) * 100) : 0,
+        tasaRealizacion: reunionesTotal > 0 ? Math.round((reunionesFinalizadas / reunionesTotal) * 100) : 0,
         pagosVerificados,
         pagosPendientes,
         mesasHabilitadas: mesasActivas,
@@ -3329,11 +3349,12 @@ export class AppController implements OnModuleInit {
     }));
     const peso = { alta: 2, media: 1 } as Record<string, number>;
     return mapped.sort((a, b) => {
-      // Los paquetes con destaque van primero; dentro de cada grupo manda la afinidad.
-      if (a.destacado !== b.destacado) return a.destacado ? -1 : 1;
+      // La afinidad/recomendación es la prioridad principal. El posicionamiento
+      // del paquete solo desempata empresas con el mismo nivel de afinidad.
       const pa = a.afinidad ? peso[a.afinidad] : 0;
       const pb = b.afinidad ? peso[b.afinidad] : 0;
       if (pa !== pb) return pb - pa;
+      if (a.destacado !== b.destacado) return a.destacado ? -1 : 1;
       return (a.nombre ?? '').localeCompare(b.nombre ?? '', 'es');
     });
   }

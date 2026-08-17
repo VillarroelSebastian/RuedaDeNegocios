@@ -115,6 +115,12 @@ export default function AuspiciadoresPage() {
     const sinNombre = personas.findIndex((p) => !p.nombreCompleto.trim());
     if (sinNombre >= 0)
       return showError("Falta un dato", `Escribe el nombre de la persona ${sinNombre + 1}.`);
+    const sinCorreo = personas.findIndex((p) => !p.correo.trim());
+    if (sinCorreo >= 0)
+      return showError("Falta un dato", `Escribe el correo de la persona ${sinCorreo + 1}; ahí recibirá su credencial.`);
+    const correoInvalido = personas.findIndex((p) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.correo.trim()));
+    if (correoInvalido >= 0)
+      return showError("Correo inválido", `Revisa el correo de la persona ${correoInvalido + 1}.`);
 
     setGuardando(true);
     try {
@@ -129,7 +135,7 @@ export default function AuspiciadoresPage() {
           personas: personas.map((p) => ({
             nombreCompleto: p.nombreCompleto.trim(),
             cargo: p.cargo.trim() || null,
-            correo: p.correo.trim() || null,
+            correo: p.correo.trim(),
           })),
         }),
       });
@@ -141,7 +147,7 @@ export default function AuspiciadoresPage() {
         editandoId ? "Auspiciador actualizado" : "Auspiciador registrado",
         editandoId
           ? "Los cambios se guardaron. Las personas que ya tenían credencial conservan su QR."
-          : `Se emitieron ${form.cantidadIngresos} credencial(es) de acceso.`,
+          : `Se emitieron y enviaron por correo ${form.cantidadIngresos} credencial(es) de acceso.`,
       );
     } catch (e: any) {
       showError("No se pudo guardar", e.message);
@@ -417,7 +423,7 @@ export default function AuspiciadoresPage() {
                   Personas que ingresan <span className="text-red-500">*</span>
                 </label>
                 <p className="text-[11px] text-gray-400 mb-2">
-                  Cada persona recibe su propia credencial QR de acceso al evento.
+                  Cada persona recibe su propia credencial QR en el correo indicado.
                 </p>
                 <div className="space-y-2">
                   {personas.map((p, i) => (
@@ -433,7 +439,7 @@ export default function AuspiciadoresPage() {
                       <input value={p.correo} maxLength={105} type="email"
                         onChange={(e) => setPersonas(personas.map((x, j) => j === i ? { ...x, correo: e.target.value } : x))}
                         className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#449D3A]"
-                        placeholder="Correo (opcional)" />
+                        placeholder="Correo para enviar credencial *" />
                     </div>
                   ))}
                 </div>

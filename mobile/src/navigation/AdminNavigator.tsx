@@ -23,6 +23,7 @@ import AgendaScreen                from '../screens/admin/AgendaScreen';
 import EventConfigScreen           from '../screens/admin/EventConfigScreen';
 import PagosAdicionalesScreen      from '../screens/admin/PagosAdicionalesScreen';
 import AdminEventoConfigScreen     from '../screens/admin/AdminEventoConfigScreen';
+import AuspiciadoresScreen         from '../screens/admin/AuspiciadoresScreen';
 
 const Tab        = createBottomTabNavigator();
 const AdminStack = createNativeStackNavigator();
@@ -50,7 +51,8 @@ function MenuScreen({ navigation }: any) {
     { name: 'Eventos',          icon: CalendarRange,     screen: 'Eventos',           desc: 'Gestión de eventos',      highlight: true },
     { name: 'Pagos Adicionales',icon: PlusCircle,        screen: 'PagosAdicionales',  desc: 'Cupos extra de empresas'  },
     { name: 'Config. Evento',   icon: SlidersHorizontal, screen: 'EventoConfig',       desc: 'Reglas del evento'        },
-    { name: 'Actividades',      icon: CalendarCheck,     screen: 'Actividades',       desc: 'Programa del evento'      },
+    { name: 'Cronograma en vivo', icon: CalendarCheck,   screen: 'Actividades',       desc: 'CRUD y estado en tiempo real' },
+    { name: 'Auspiciadores',     icon: Users,             screen: 'Auspiciadores',     desc: 'Credenciales y aportes'     },
     { name: 'Agenda',           icon: ListChecks,        screen: 'Agenda',            desc: 'Ocupación de mesas'       },
     { name: 'Noticias',         icon: Newspaper,         screen: 'Noticias',          desc: 'Comunicados'              },
     { name: 'Técnicos',         icon: Users,             screen: 'Tecnicos',          desc: 'Gestión de técnicos'      },
@@ -180,6 +182,7 @@ export default function AdminNavigator() {
       <AdminStack.Screen name="AdminTabs"    component={AdminTabs}          options={{ headerShown: false }} />
       <AdminStack.Screen name="Eventos"      component={EventConfigScreen}  options={{ title: 'Gestión de Eventos' }} />
       <AdminStack.Screen name="Actividades"  component={ActividadesScreen}  options={{ title: 'Actividades del Programa' }} />
+      <AdminStack.Screen name="Auspiciadores" component={AuspiciadoresScreen} options={{ title: 'Auspiciadores' }} />
       <AdminStack.Screen name="Noticias"     component={NoticiasScreen}     options={{ title: 'Noticias y Comunicados' }} />
       <AdminStack.Screen name="Tecnicos"     component={TecnicosScreen}     options={{ title: 'Técnicos' }} />
       <AdminStack.Screen name="Estadisticas" component={EstadisticasScreen} options={{ title: 'Estadísticas' }} />

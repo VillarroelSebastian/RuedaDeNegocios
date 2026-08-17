@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { Building2, Users, CalendarCheck, Handshake, Shield, Clock, Armchair, CalendarDays, RefreshCw } from 'lucide-react';
+import { Building2, Users, CalendarCheck, Handshake, Shield, Clock, TrendingUp, CalendarDays, RefreshCw } from 'lucide-react';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
@@ -52,7 +52,7 @@ export default function EstadisticasPage() {
     { label: 'REUNIONES REALIZADAS', value: stats.kpis.reunionesRealizadas, icon: Handshake, color: 'text-purple-600', bg: 'bg-purple-50' },
     { label: 'PAGOS VERIFICADOS', value: stats.kpis.pagosVerificados, icon: Shield, color: 'text-emerald-600', bg: 'bg-emerald-50' },
     { label: 'PAGOS PENDIENTES', value: stats.kpis.pagosPendientes, icon: Clock, color: 'text-orange-600', bg: 'bg-orange-50' },
-    { label: 'MESAS HABILITADAS', value: stats.kpis.mesasHabilitadas, icon: Armchair, color: 'text-pink-600', bg: 'bg-pink-50' },
+    { label: 'TASA DE ACUERDOS', value: `${stats.kpis.tasaAcuerdos ?? 0}%`, icon: TrendingUp, color: 'text-pink-600', bg: 'bg-pink-50' },
     { label: 'EVENTOS INTERNOS', value: stats.kpis.eventosInternos, icon: CalendarDays, color: 'text-teal-600', bg: 'bg-teal-50' },
     { label: 'ACUERDOS REGISTRADOS', value: stats.kpis.acuerdosRegistrados ?? 0, icon: Handshake, color: 'text-amber-600', bg: 'bg-amber-50' },
   ];
@@ -189,37 +189,6 @@ export default function EstadisticasPage() {
           </div>
         </div>
       </div>
-
-      {/* Disponibilidad de mesas */}
-      {stats.mesas && stats.mesas.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="font-bold text-gray-900">Disponibilidad de Mesas</h2>
-            <p className="text-xs text-gray-400">Estado actual de la infraestructura del recinto</p>
-          </div>
-          <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-12 gap-2 mb-4">
-            {stats.mesas.map((m: any) => (
-              <div
-                key={m.id}
-                title={`Mesa ${m.numero} — ${m.activa ? 'Activa' : 'Inactiva'}`}
-                className={`h-10 rounded-lg flex items-center justify-center text-xs font-bold ${m.activa ? 'bg-[#449D3A] text-white' : 'bg-gray-200 text-gray-400'}`}
-              >
-                {String(m.numero).padStart(2, '0')}
-              </div>
-            ))}
-          </div>
-          <div className="flex items-center gap-6 text-sm">
-            <div className="flex items-center gap-2">
-              <span className="w-4 h-4 rounded bg-[#449D3A]" />
-              <span className="text-gray-600">{stats.mesasActivas} Mesas activas</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-4 h-4 rounded bg-gray-200" />
-              <span className="text-gray-600">{stats.mesasInhabilitadas} Mesas inhabilitadas</span>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Empresas por rubro */}
       {stats.empresasPorRubro && stats.empresasPorRubro.length > 0 && (

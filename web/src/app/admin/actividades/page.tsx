@@ -76,8 +76,9 @@ export default function ActividadesPage() {
   };
 
   const handleSave = async () => {
-    if (!form.nombreActividad || !form.fechaActividad || !form.horaInicioActividad || !form.horaFinActividad) {
-      showError('Campos requeridos', 'Completa al menos nombre, fecha y horario.');
+    if (!form.nombreActividad.trim() || !form.descripcionActividad.trim() || !form.nombreSalaEspacio.trim() ||
+        !(Number(form.capacidadPersonasSala) > 0) || !form.fechaActividad || !form.horaInicioActividad || !form.horaFinActividad) {
+      showError('Campos requeridos', 'Completa nombre, descripción, sala, capacidad, fecha y horario.');
       return;
     }
     setSaving(true);
@@ -210,21 +211,21 @@ export default function ActividadesPage() {
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Tipo</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Tipo *</label>
                   <select value={form.tipoActividad} onChange={(e) => set('tipoActividad', e.target.value)}
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A] bg-white">
                     {TIPOS.map((t) => <option key={t}>{t}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Estado</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Estado *</label>
                   <select value={form.estadoActividad} onChange={(e) => set('estadoActividad', e.target.value)}
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A] bg-white">
                     {ESTADOS.map((s) => <option key={s}>{s}</option>)}
                   </select>
                 </div>
                 <div className="col-span-2">
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Descripción</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Descripción *</label>
                   <textarea value={form.descripcionActividad} onChange={(e) => set('descripcionActividad', e.target.value)}
                     rows={2} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A] resize-none" />
                 </div>
@@ -234,7 +235,7 @@ export default function ActividadesPage() {
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Capacidad (personas)</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Capacidad (personas) *</label>
                   <input type="number" value={form.capacidadPersonasSala} onChange={(e) => set('capacidadPersonasSala', e.target.value)}
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
                 </div>

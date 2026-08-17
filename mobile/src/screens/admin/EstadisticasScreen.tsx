@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl
 } from 'react-native';
-import { Building2, Users, CalendarCheck, Handshake, Shield, Clock, Armchair, CalendarDays } from 'lucide-react-native';
+import { Building2, Users, CalendarCheck, Handshake, Shield, Clock, TrendingUp, CalendarDays } from 'lucide-react-native';
 import { API_URL } from '../../utils/userStore';
 
 const GREEN = '#449D3A';
@@ -44,7 +44,7 @@ export default function EstadisticasScreen() {
     { label: 'Realizadas', value: stats.kpis.reunionesRealizadas, icon: Handshake, color: '#7c3aed' },
     { label: 'P. Verificados', value: stats.kpis.pagosVerificados, icon: Shield, color: '#059669' },
     { label: 'P. Pendientes', value: stats.kpis.pagosPendientes, icon: Clock, color: '#ea580c' },
-    { label: 'Mesas', value: stats.kpis.mesasHabilitadas, icon: Armchair, color: '#db2777' },
+    { label: 'Tasa acuerdos', value: `${stats.kpis.tasaAcuerdos ?? 0}%`, icon: TrendingUp, color: '#db2777' },
     { label: 'Eventos', value: stats.kpis.eventosInternos, icon: CalendarDays, color: '#0891b2' },
   ];
 
@@ -118,33 +118,6 @@ export default function EstadisticasScreen() {
             <Text className="text-sm font-bold text-gray-900">{pagosPorEstado.total}</Text>
           </View>
         </View>
-
-        {/* Mesas grid */}
-        {stats.mesas && stats.mesas.length > 0 && (
-          <View className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-            <Text className="font-bold text-gray-900 mb-3">Disponibilidad de Mesas</Text>
-            <View className="flex-row flex-wrap gap-1.5">
-              {stats.mesas.map((m: any) => (
-                <View key={m.id}
-                  style={{ backgroundColor: m.activa ? GREEN : '#e5e7eb', width: '13.5%', aspectRatio: 1, borderRadius: 8, alignItems: 'center', justifyContent: 'center' }}>
-                  <Text style={{ color: m.activa ? 'white' : '#9ca3af', fontSize: 10, fontWeight: '700' }}>
-                    {String(m.numero).padStart(2, '0')}
-                  </Text>
-                </View>
-              ))}
-            </View>
-            <View className="flex-row gap-4 mt-3">
-              <View className="flex-row items-center gap-1.5">
-                <View style={{ backgroundColor: GREEN }} className="w-3 h-3 rounded" />
-                <Text className="text-xs text-gray-500">{stats.mesasActivas} activas</Text>
-              </View>
-              <View className="flex-row items-center gap-1.5">
-                <View className="w-3 h-3 rounded bg-gray-200" />
-                <Text className="text-xs text-gray-500">{stats.mesasInhabilitadas} inactivas</Text>
-              </View>
-            </View>
-          </View>
-        )}
 
         {/* Empresas por rubro */}
         {stats.empresasPorRubro && stats.empresasPorRubro.length > 0 && (

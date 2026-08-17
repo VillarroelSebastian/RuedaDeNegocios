@@ -4,6 +4,7 @@ import {
 import { writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { randomBytes, createHmac } from 'crypto';
+import * as nodemailer from 'nodemailer';
 import * as QRCode from 'qrcode';
 import { PrismaService } from '../prisma/prisma.service.js';
 
@@ -57,6 +58,33 @@ export class ExtrasController {
     const url = `${this.uploadsBaseUrl()}/uploads/${filename}`;
     await this.prisma.auspiciadorpersona.update({ where: { id: personaId }, data: { urlCredencialQR: url } });
     return url;
+  }
+
+  private async enviarCredencialAuspiciador(personaId: number): Promise<void> {
+    const persona = await this.prisma.auspiciadorpersona.findUnique({
+      where: { id: personaId },
+      include: { auspiciador: { include: { evento: true } } },
+    });
+    if (!persona?.correo || !persona.urlCredencialQR) return;
+
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user: process.env.MAIL_USER, pass: process.env.MAIL_PASS },
+    });
+    await transporter.sendMail({
+      from: process.env.MAIL_FROM,
+      to: persona.correo,
+      subject: `Tu credencial para ${persona.auspiciador.evento.nombre}`,
+      html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;color:#1f2937">
+        <h2 style="color:#449D3A">Hola, ${persona.nombreCompleto}</h2>
+        <p>Fuiste registrado como representante de <strong>${persona.auspiciador.nombreEmpresa}</strong>
+        para <strong>${persona.auspiciador.evento.nombre}</strong>.</p>
+        <p>Presenta esta credencial QR para ingresar al evento:</p>
+        <p style="text-align:center"><img src="${persona.urlCredencialQR}" alt="Credencial QR" width="280" style="max-width:100%;height:auto" /></p>
+        <p style="text-align:center"><a href="${persona.urlCredencialQR}" style="color:#449D3A;font-weight:bold">Abrir o descargar credencial</a></p>
+        <p style="font-size:12px;color:#6b7280">Esta credencial es personal y corresponde únicamente a este evento.</p>
+      </div>`,
+    });
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -232,7 +260,7 @@ export class ExtrasController {
       .map((p: any) => ({
         nombreCompleto: String(p?.nombreCompleto ?? '').replace(/\s+/g, ' ').trim(),
         cargo: String(p?.cargo ?? '').replace(/\s+/g, ' ').trim() || null,
-        correo: String(p?.correo ?? '').trim().toLowerCase() || null,
+        correo: String(p?.correo ?? '').trim().toLowerCase(),
       }))
       .filter((p: any) => p.nombreCompleto);
 
@@ -245,7 +273,9 @@ export class ExtrasController {
     for (const p of limpias) {
       if (p.nombreCompleto.length > 155)
         throw new BadRequestException('El nombre de una persona supera los 155 caracteres.');
-      if (p.correo && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.correo))
+      if (!p.correo)
+        throw new BadRequestException(`El correo de ${p.nombreCompleto} es obligatorio para enviar su credencial.`);
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.correo))
         throw new BadRequestException(`El correo "${p.correo}" no es válido.`);
     }
     return limpias;
@@ -262,7 +292,16 @@ export class ExtrasController {
       include: { personas: true },
     });
     // Cada persona entra al evento, así que se le emite su credencial.
-    for (const p of ausp.personas) await this.generarQRAuspiciador(p.id);
+    for (const p of ausp.personas) {
+      await this.generarQRAuspiciador(p.id);
+      try {
+        await this.enviarCredencialAuspiciador(p.id);
+      } catch {
+        throw new BadRequestException(
+          `El auspiciador fue registrado, pero no se pudo enviar la credencial a ${p.correo}. Revisa la configuración de correo.`,
+        );
+      }
+    }
     return this.obtenerAuspiciador(String(ausp.id));
   }
 
@@ -297,6 +336,7 @@ export class ExtrasController {
           data: { ...enviadas[i], auspiciador_id: auspId },
         });
         await this.generarQRAuspiciador(creada.id);
+        await this.enviarCredencialAuspiciador(creada.id);
       }
     }
     return this.obtenerAuspiciador(String(auspId));
