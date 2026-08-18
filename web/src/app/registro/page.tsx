@@ -961,7 +961,7 @@ export default function RegistroPage() {
               </p>
 
               {/* Stats */}
-              <div className="grid grid-cols-3 gap-4 mt-8">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-8">
                 {[
                   { Icon: Building2,  color: "bg-green-50 text-[#449D3A]",  label: "EMPRESA",       value: result.empresa?.nombre },
                   { Icon: Users,      color: "bg-blue-50 text-blue-600",     label: "PARTICIPANTES", value: `${result.empresaevento?.numeroParticipantes} registrado${result.empresaevento?.numeroParticipantes > 1 ? "s" : ""}` },

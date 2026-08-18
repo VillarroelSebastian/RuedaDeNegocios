@@ -15,6 +15,11 @@ import { PrismaService } from '../prisma/prisma.service.js';
 export class ExtrasController {
   constructor(private readonly prisma: PrismaService) {}
 
+  private cabeceraCorreo(): string {
+    const web = (process.env.WEB_URL || 'https://app.ruedadenegocios.univalle.edu').replace(/\/$/, '');
+    return `<div style="text-align:center;margin-bottom:18px"><img src="${web}/assets/iconos/logo.png" alt="Rueda de Negocios" width="190" style="display:inline-block;max-width:190px;max-height:90px;object-fit:contain" /></div>`;
+  }
+
   // ── Utilidades compartidas ────────────────────────────────────────────────
 
   private async eventoPrincipalId(): Promise<number> {
@@ -83,7 +88,7 @@ export class ExtrasController {
       return { empresa, ee, usuario };
     });
     const transporter = nodemailer.createTransport({ service: 'gmail', auth: { user: process.env.MAIL_USER, pass: process.env.MAIL_PASS } });
-    await transporter.sendMail({ from: process.env.MAIL_FROM || process.env.MAIL_USER, to: correo, subject: `Acceso a la plataforma — ${ausp.nombreEmpresa}`, html: `<div style="font-family:Arial;max-width:560px;margin:auto"><h2 style="color:#449D3A">Acceso de empresa auspiciadora</h2><p>Ya puedes ingresar como empresa y acceder a las funcionalidades del evento.</p><div style="padding:18px;background:#f0fdf4;border-radius:12px"><b>Correo:</b> ${correo}<br/><b>Contraseña temporal:</b> ${pwd}</div><p><a href="${(process.env.WEB_URL || 'http://localhost:3000').replace(/\/$/,'')}/auth/login">Ingresar a la plataforma</a></p></div>` });
+    await transporter.sendMail({ from: process.env.MAIL_FROM || process.env.MAIL_USER, to: correo, subject: `Acceso a la plataforma — ${ausp.nombreEmpresa}`, html: `${this.cabeceraCorreo()}<div style="font-family:Arial;max-width:560px;margin:auto"><h2 style="color:#449D3A">Acceso de empresa auspiciadora</h2><p>Ya puedes ingresar como empresa y acceder a las funcionalidades del evento.</p><div style="padding:18px;background:#f0fdf4;border-radius:12px"><b>Correo:</b> ${correo}<br/><b>Contraseña temporal:</b> ${pwd}</div><p><a href="${(process.env.WEB_URL || 'http://localhost:3000').replace(/\/$/,'')}/auth/login">Ingresar a la plataforma</a></p></div>` });
     return { creado: true, empresaEventoId: creado.ee.id };
   }
 
@@ -102,7 +107,7 @@ export class ExtrasController {
       from: process.env.MAIL_FROM,
       to: persona.correo,
       subject: `Tu credencial para ${persona.auspiciador.evento.nombre}`,
-      html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;color:#1f2937">
+      html: `${this.cabeceraCorreo()}<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;color:#1f2937">
         <h2 style="color:#449D3A">Hola, ${persona.nombreCompleto}</h2>
         <p>Fuiste registrado como representante de <strong>${persona.auspiciador.nombreEmpresa}</strong>
         para <strong>${persona.auspiciador.evento.nombre}</strong>.</p>

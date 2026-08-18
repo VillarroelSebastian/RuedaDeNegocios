@@ -85,7 +85,11 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
         const available = [...new Set(hrs.map((h: any) => new Date(h.inicio).getHours()))].sort((a, b) => a - b) as number[];
         const cur = new Date().getHours();
         const auto = available.find((h) => h >= cur) ?? available[0];
-        if (auto !== undefined) { setHoraSelec(String(auto)); setMinutosStr("00"); }
+        if (auto !== undefined) {
+          setHoraSelec(String(auto));
+          const primerMinuto = hrs.find((h: any) => new Date(h.inicio).getHours() === auto);
+          setMinutosStr(primerMinuto ? String(new Date(primerMinuto.inicio).getMinutes()).padStart(2, "0") : "00");
+        }
       })
       .catch(() => setHorarios([]))
       .finally(() => setCargando(false));
@@ -166,7 +170,12 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-[10px] font-bold text-gray-500 uppercase mb-1 block">Hora</label>
-                    <select value={horaSelec} onChange={(e) => { setHoraSelec(e.target.value); setMinutosStr("00"); }}
+                    <select value={horaSelec} onChange={(e) => {
+                      const nuevaHora = e.target.value;
+                      setHoraSelec(nuevaHora);
+                      const primera = horarios.find((h: any) => new Date(h.inicio).getHours() === Number(nuevaHora));
+                      setMinutosStr(primera ? String(new Date(primera.inicio).getMinutes()).padStart(2, "0") : "");
+                    }}
                       className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A] bg-white">
                       <option value="">-- Hora --</option>
                       {horasDisponibles.map((h) => (

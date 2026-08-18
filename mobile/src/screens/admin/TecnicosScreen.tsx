@@ -69,11 +69,11 @@ export default function TecnicosScreen() {
     try {
       const url = editId ? `${API_URL}/admin/tecnicos/${editId}` : `${API_URL}/admin/tecnicos`;
       const res = await fetch(url, { method: editId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.message || 'Error al guardar');
-      }
-      show({ type: 'success', title: '¡Listo!', message: editId ? 'Técnico actualizado.' : 'Técnico creado correctamente.' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Error al guardar');
+      show(data.correoEnviado === false && !editId
+        ? { type: 'warning', title: 'Técnico creado', message: 'La cuenta se creó, pero no se pudieron enviar las credenciales. Revisa la configuración de correo.' }
+        : { type: 'success', title: '¡Listo!', message: editId ? 'Técnico actualizado.' : 'Técnico creado y credenciales enviadas por correo.' });
       setShowForm(false);
       fetchTecnicos();
     } catch (e: any) { show({ type: 'error', title: 'Error', message: e.message || 'No se pudo guardar.' }); }

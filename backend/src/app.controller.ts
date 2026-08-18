@@ -27,6 +27,8 @@ function generarPasswordTemporal(): string {
   return pwd;
 }
 
+const EMAIL_LOGO_HTML = `<div style="text-align:center;margin-bottom:18px"><img src="${(process.env.WEB_URL || 'https://app.ruedadenegocios.univalle.edu').replace(/\/$/, '')}/assets/iconos/logo.png" alt="Rueda de Negocios" width="190" style="display:inline-block;max-width:190px;max-height:90px;object-fit:contain" /></div>`;
+
 function normalizarCorreo(valor: unknown): string {
   return String(valor ?? '').trim().toLowerCase();
 }
@@ -914,7 +916,7 @@ export class AppController implements OnModuleInit {
           from: process.env.MAIL_FROM,
           to: encargado.correo,
           subject: `Solicitud de inscripción recibida — ${evento.nombre ?? 'Rueda de Negocios'}`,
-          html: `
+          html: `${EMAIL_LOGO_HTML}
             <div style="font-family:sans-serif;max-width:540px;margin:0 auto;padding:32px;background:#f9fafb;border-radius:12px">
               <h2 style="color:#449D3A;margin-bottom:4px">¡Solicitud recibida con éxito!</h2>
               <p style="color:#374151;margin-bottom:20px">
@@ -1595,7 +1597,7 @@ export class AppController implements OnModuleInit {
           subject: `¡Tu acceso ha sido aprobado! — ${(ee as any).evento?.nombre ?? 'Rueda de Negocios'}`,
           html: `
             <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px;background:#f9fafb;border-radius:12px">
-              ${(ee as any).evento?.urlLogoEvento ? `<div style="text-align:center;margin-bottom:18px"><img src="${(ee as any).evento.urlLogoEvento}" alt="Logo del evento" width="180" style="max-width:180px;max-height:80px;object-fit:contain" /></div>` : ''}
+              ${(ee as any).evento?.urlLogoEvento ? `<div style="text-align:center;margin-bottom:18px"><img src="${(ee as any).evento.urlLogoEvento}" alt="Logo del evento" width="180" style="max-width:180px;max-height:80px;object-fit:contain" /></div>` : EMAIL_LOGO_HTML}
               <h2 style="color:#449D3A;margin-bottom:4px">¡Bienvenido/a a la Rueda de Negocios!</h2>
               <p style="color:#374151;margin-bottom:20px">
                 Hola <strong>${u.nombres} ${u.apellidoPaterno}</strong>, tu registro como parte de
@@ -1666,7 +1668,7 @@ export class AppController implements OnModuleInit {
           from: process.env.MAIL_FROM,
           to: encargado.correo,
           subject: `Comprobante con observaciones — ${ee.evento?.nombre ?? 'Rueda de Negocios'}`,
-          html: `
+          html: `${EMAIL_LOGO_HTML}
             <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px;background:#f9fafb;border-radius:12px">
               <h2 style="color:#d97706;margin-bottom:4px">Comprobante con observaciones</h2>
               <p style="color:#374151;margin-bottom:20px">
@@ -1726,7 +1728,7 @@ export class AppController implements OnModuleInit {
           from: process.env.MAIL_FROM,
           to: encargado.correo,
           subject: `Comprobante de pago rechazado — ${ee.evento?.nombre ?? 'Rueda de Negocios'}`,
-          html: `
+          html: `${EMAIL_LOGO_HTML}
             <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px;background:#f9fafb;border-radius:12px">
               <h2 style="color:#dc2626;margin-bottom:4px">Comprobante rechazado</h2>
               <p style="color:#374151;margin-bottom:20px">
@@ -2375,7 +2377,7 @@ export class AppController implements OnModuleInit {
             from: process.env.MAIL_FROM,
             to: correo,
             subject: `Tus credenciales de Técnico — ${evento?.nombre ?? 'Rueda de Negocios'}`,
-            html: `
+            html: `${EMAIL_LOGO_HTML}
               <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px;background:#f9fafb;border-radius:12px">
                 <h2 style="color:#449D3A;margin-bottom:4px">¡Bienvenido/a al equipo técnico!</h2>
                 <p style="color:#374151;margin-bottom:20px">
@@ -3071,7 +3073,7 @@ export class AppController implements OnModuleInit {
       from: process.env.MAIL_FROM,
       to: usuario.correo,
       subject: 'Mensaje del técnico — Rueda de Negocios',
-      html: `
+      html: `${EMAIL_LOGO_HTML}
         <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#f9fafb;border-radius:12px">
           <h2 style="color:#449D3A;margin-bottom:8px">Mensaje del Técnico</h2>
           <p style="color:#374151;margin-bottom:16px">Hola <strong>${usuario.nombres}</strong>, el técnico del evento te ha enviado el siguiente mensaje:</p>
@@ -3280,7 +3282,7 @@ export class AppController implements OnModuleInit {
         from: process.env.MAIL_FROM,
         to: u.correo,
         subject: 'Código para restablecer tu contraseña — Rueda de Negocios',
-        html: `
+        html: `${EMAIL_LOGO_HTML}
           <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#f9fafb;border-radius:12px">
             <h2 style="color:#449D3A;margin-bottom:8px">Restablece tu contraseña</h2>
             <p style="color:#374151;margin-bottom:24px">Hola <strong>${u.nombres}</strong>, recibimos una solicitud para cambiar tu contraseña.</p>

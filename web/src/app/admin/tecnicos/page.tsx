@@ -17,7 +17,7 @@ const defaultForm = {
 };
 
 export default function TecnicosPage() {
-  const { showSuccess, showError, showConfirm, ModalComponent } = useModal();
+  const { showSuccess, showError, showWarning, showConfirm, ModalComponent } = useModal();
   const [tecnicos, setTecnicos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -67,8 +67,11 @@ export default function TecnicosPage() {
     setSaving(true);
     try {
       const url = editId ? `${API}/admin/tecnicos/${editId}` : `${API}/admin/tecnicos`;
-      await fetch(url, { method: editId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
-      showSuccess(editId ? 'Técnico actualizado' : 'Técnico creado', 'Los datos se guardaron correctamente.');
+      const res = await fetch(url, { method: editId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || 'No se pudo guardar.');
+      if (!editId && data.correoEnviado === false) showWarning('Técnico creado', 'La cuenta se creó, pero no se pudieron enviar las credenciales. Revisa la configuración de correo.');
+      else showSuccess(editId ? 'Técnico actualizado' : 'Técnico creado', editId ? 'Los datos se guardaron correctamente.' : 'La contraseña temporal fue enviada al correo del técnico.');
       setShowForm(false);
       fetch_();
     } catch (e: any) {

@@ -13,6 +13,7 @@ import TecnicoPerfilScreen     from '../screens/tecnico/TecnicoPerfilScreen';
 import TecnicoAgendarScreen    from '../screens/tecnico/TecnicoAgendarScreen';
 import TecnicoAsistenciaScreen from '../screens/tecnico/TecnicoAsistenciaScreen';
 import TecnicoEventosVivoScreen from '../screens/tecnico/TecnicoEventosVivoScreen';
+import { userStore } from '../utils/userStore';
 
 const Tab          = createBottomTabNavigator();
 const TecnicoStack = createNativeStackNavigator();
@@ -60,7 +61,15 @@ function TecnicoTabs() {
   );
 }
 
+function TecnicoEventosTabs() {
+  return <Tab.Navigator screenOptions={tabOptions}>
+    <Tab.Screen name="TecnicoEventosVivo" component={TecnicoEventosVivoScreen} options={{ title: 'En vivo', tabBarIcon: ({color}) => <Video color={color} size={22}/> }} />
+    <Tab.Screen name="TecnicoPerfil" component={TecnicoPerfilScreen} options={{ title: 'Mi Perfil', tabBarIcon: IconPerfil }} />
+  </Tab.Navigator>;
+}
+
 export default function TecnicoNavigator() {
+  if (userStore.get()?.rolEvento === 'TECNICO_EVENTOS') return <TecnicoEventosTabs />;
   return (
     <TecnicoStack.Navigator screenOptions={{ headerShown: false }}>
       <TecnicoStack.Screen name="TecnicoTabs"     component={TecnicoTabs} />

@@ -36,7 +36,7 @@ export default function Dashboard() {
       <div className="p-8 max-w-7xl mx-auto">
         <div className="animate-pulse space-y-6">
           <div className="h-8 bg-gray-200 rounded w-48" />
-          <div className="grid grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             {[...Array(5)].map((_, i) => <div key={i} className="h-28 bg-gray-200 rounded-xl" />)}
           </div>
           <div className="h-64 bg-gray-200 rounded-xl" />

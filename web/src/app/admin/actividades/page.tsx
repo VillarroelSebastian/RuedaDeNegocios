@@ -111,13 +111,13 @@ export default function ActividadesPage() {
     <div className="p-8 max-w-7xl mx-auto">
       <ModalComponent />
 
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Eventos del programa</h1>
           <p className="text-sm text-gray-500 mt-1">Administra seminarios, talleres y actividades dentro de la rueda de negocios.</p>
         </div>
         <button onClick={openCreate}
-          className="flex items-center gap-2 bg-[#449D3A] text-white font-semibold px-5 py-2.5 rounded-xl hover:bg-[#367d2e] transition-colors shadow-sm">
+          className="flex w-full sm:w-auto items-center justify-center gap-2 bg-[#449D3A] text-white font-semibold px-5 py-2.5 rounded-xl hover:bg-[#367d2e] transition-colors shadow-sm">
           <Plus className="w-4 h-4" /> Crear evento
         </button>
       </div>
@@ -206,7 +206,7 @@ export default function ActividadesPage() {
               </button>
             </div>
             <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="col-span-2">
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">Nombre del evento *</label>
                   <input value={form.nombreActividad} onChange={(e) => set('nombreActividad', e.target.value)}
@@ -246,7 +246,7 @@ export default function ActividadesPage() {
                   <input type="date" value={form.fechaActividad} onChange={(e) => set('fechaActividad', e.target.value)}
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1.5">Hora inicio *</label>
                     <input type="time" value={form.horaInicioActividad} onChange={(e) => set('horaInicioActividad', e.target.value)}
