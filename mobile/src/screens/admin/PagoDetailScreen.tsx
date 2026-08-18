@@ -37,8 +37,14 @@ export default function PagoDetailScreen({ route, navigation }: any) {
       onConfirm: async () => {
         setSubmitting(true);
         try {
-          await fetch(`${API_URL}/admin/pagos/${id}/aprobar`, { method: 'PUT' });
-          show({ type: 'success', title: '¡Aprobado!', message: 'El pago fue aprobado correctamente.' });
+          const res = await fetch(`${API_URL}/admin/pagos/${id}/aprobar`, { method: 'PUT' });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data?.message || 'No se pudo aprobar el pago.');
+          if (data.correosFallidos?.length) {
+            show({ type: 'warning', title: 'Pago aprobado con envios pendientes', message: `No se pudieron enviar credenciales a: ${data.correosFallidos.join(', ')}. Vuelve a aprobar para reintentar.` });
+          } else {
+            show({ type: 'success', title: '¡Aprobado!', message: 'El pago fue aprobado y las credenciales fueron enviadas.' });
+          }
           fetchPago();
         } catch { show({ type: 'error', title: 'Error', message: 'No se pudo aprobar el pago.' }); }
         finally { setSubmitting(false); }

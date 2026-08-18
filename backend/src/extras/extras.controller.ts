@@ -387,11 +387,19 @@ export class ExtrasController {
   // ═══════════════════════════════════════════════════════════════════════════
 
   @Get('public/galeria')
-  async galeriaPublica(@Query('limit') limit?: string) {
+  async galeriaPublica(@Query('limit') limit?: string, @Query('soloTecnicos') soloTecnicos?: string) {
     const eventoId = await this.eventoPrincipalId();
     const take = Math.min(Number(limit) || 60, 200);
+    let usuariosTecnicos: number[] | undefined;
+    if (soloTecnicos === '1' || soloTecnicos === 'true') {
+      const tecnicos = await this.prisma.usuario.findMany({
+        where: { evento_id: eventoId, rolEvento: { in: ['TECNICO', 'TECNICO_EVENTOS'] }, estaActivo: 1 },
+        select: { id: true },
+      });
+      usuariosTecnicos = tecnicos.map((u) => u.id);
+    }
     return this.prisma.fotoevento.findMany({
-      where: { evento_id: eventoId, estaActivo: 1 },
+      where: { evento_id: eventoId, estaActivo: 1, ...(usuariosTecnicos ? { usuario_id: { in: usuariosTecnicos } } : {}) },
       orderBy: { fechaCreacion: 'desc' },
       take,
     });
@@ -463,6 +471,8 @@ export class ExtrasController {
         nombreSalaEspacio: true, fechaActividad: true,
         horaInicioActividad: true, horaFinActividad: true,
         nombreCompletoPilaExpositor: true, organizacionDelExpositor: true,
+        urlImagenBannerActividad: true, linkReunionVirtual: true,
+        direccion_texto: true, ubicacionGoogleMapsPresencial: true,
         estadoEnVivo: true, notaEnVivo: true, horaInicioReal: true, horaFinReal: true,
       },
     });

@@ -28,14 +28,27 @@ const allMenuItems = [
 
 interface EmpresaSidebarProps {
   esEncargado?: boolean;
+  eeId?: number | null;
   mobileOpen?: boolean;
   onClose?: () => void;
 }
 
-export default function EmpresaSidebar({ esEncargado = false, mobileOpen = false, onClose }: EmpresaSidebarProps) {
+export default function EmpresaSidebar({ esEncargado = false, eeId = null, mobileOpen = false, onClose }: EmpresaSidebarProps) {
   const pathname = usePathname();
   const [foto, setFoto] = useState<string>('');
   const [nombre, setNombre] = useState<string>('');
+  const [mensajesNoLeidos, setMensajesNoLeidos] = useState(0);
+
+  useEffect(() => {
+    if (!eeId) return;
+    const cargar = () => fetch(`${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334'}/empresa/mensajes/conversaciones?eeId=${eeId}`)
+      .then((r) => r.json())
+      .then((data) => setMensajesNoLeidos(Array.isArray(data) ? data.reduce((n, c) => n + Number(c.noLeidos ?? 0), 0) : 0))
+      .catch(() => {});
+    cargar();
+    const timer = window.setInterval(cargar, 15000);
+    return () => window.clearInterval(timer);
+  }, [eeId, pathname]);
 
   useEffect(() => {
     const leer = () => {
@@ -105,7 +118,12 @@ export default function EmpresaSidebar({ esEncargado = false, mobileOpen = false
               }`}
             >
               <item.icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#449D3A]' : 'text-gray-400'}`} />
-              {item.name}
+              <span className="flex-1">{item.name}</span>
+              {item.href === '/empresa/mensajes' && mensajesNoLeidos > 0 && (
+                <span className="min-w-5 h-5 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                  {mensajesNoLeidos > 99 ? '99+' : mensajesNoLeidos}
+                </span>
+              )}
             </Link>
           );
         })}

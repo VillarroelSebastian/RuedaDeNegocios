@@ -22,6 +22,7 @@ const defaultForm = {
   horaInicioActividad: '',
   horaFinActividad: '',
   nombreCompletoPilaExpositor: '',
+  linkReunionVirtual: '',
   estadoActividad: 'Activo',
 };
 
@@ -56,6 +57,7 @@ export default function ActividadesScreen() {
       horaInicioActividad: a.horaInicioActividad ? new Date(a.horaInicioActividad).toTimeString().substring(0, 5) : '',
       horaFinActividad: a.horaFinActividad ? new Date(a.horaFinActividad).toTimeString().substring(0, 5) : '',
       nombreCompletoPilaExpositor: a.nombreCompletoPilaExpositor || '',
+      linkReunionVirtual: a.linkReunionVirtual || '',
       estadoActividad: a.estadoActividad,
     });
     setEditId(a.id);
@@ -207,6 +209,7 @@ export default function ActividadesScreen() {
                 { label: 'Hora inicio (HH:MM) *', key: 'horaInicioActividad', placeholder: '10:00' },
                 { label: 'Hora fin (HH:MM) *', key: 'horaFinActividad', placeholder: '11:30' },
                 { label: 'Expositor', key: 'nombreCompletoPilaExpositor', placeholder: 'Nombre completo' },
+                { label: 'Link de transmisión', key: 'linkReunionVirtual', placeholder: 'https://...' },
               ].map(({ label, key, placeholder, keyboardType }: any) => (
                 <View key={key} className="mb-3">
                   <Text className="text-sm font-semibold text-gray-700 mb-1">{label}</Text>

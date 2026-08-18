@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import EmpresaSidebar from '@/components/empresa/EmpresaSidebar';
 import EmpresaHeader from '@/components/empresa/EmpresaHeader';
 import AsistenteChat from '@/components/empresa/AsistenteChat';
@@ -11,6 +11,7 @@ const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
 export default function EmpresaLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [esEncargado, setEsEncargado] = useState(false);
   const [eeId, setEeId] = useState<number | null>(null);
   const [euId, setEuId] = useState<number | null>(null);
@@ -43,13 +44,13 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
 
   return (
     <div className="min-h-screen bg-[#F9FAFB]">
-      <EmpresaSidebar esEncargado={esEncargado} mobileOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <EmpresaSidebar esEncargado={esEncargado} eeId={eeId} mobileOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="md:ml-64 flex flex-col min-h-screen">
         <EmpresaHeader onMenuClick={() => setSidebarOpen(true)} eeId={eeId} />
         <main className="flex-1">{children}</main>
       </div>
       <NotificacionToast eeId={eeId} />
-      <AsistenteChat eeId={eeId} euId={euId} />
+      {pathname !== '/empresa/mensajes' && <AsistenteChat eeId={eeId} euId={euId} />}
     </div>
   );
 }

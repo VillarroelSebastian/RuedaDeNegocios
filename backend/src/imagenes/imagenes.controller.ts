@@ -7,12 +7,17 @@ import { randomBytes } from 'crypto';
 @Controller('admin/imagenes')
 export class ImagenesController {
   @Post('upload')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 5 * 1024 * 1024 } }))
   async uploadImage(
     @UploadedFile() file: Express.Multer.File,
     @Req() req: any,
   ) {
     if (!file) throw new BadRequestException('No se proporcionó ningún archivo');
+    const permitidos = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'];
+    if (!permitidos.includes(file.mimetype))
+      throw new BadRequestException('Formato no permitido. Usa JPG, PNG, WEBP, GIF o PDF.');
+    if (file.size > 5 * 1024 * 1024)
+      throw new BadRequestException('El archivo no debe superar 5 MB.');
 
     const uploadsDir = join(process.cwd(), 'uploads');
     mkdirSync(uploadsDir, { recursive: true });

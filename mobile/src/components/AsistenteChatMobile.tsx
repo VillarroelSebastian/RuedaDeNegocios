@@ -72,7 +72,10 @@ export default function AsistenteChatModal({ visible, onClose }: { visible: bool
   }, [msgs, visible]);
 
   const send = async (texto: string) => {
-    const t = texto.trim();
+    const escrito = texto.trim();
+    const ultimasOpciones = [...msgs].reverse().find((m) => m.role === 'bot' && m.opciones?.length)?.opciones;
+    const indice = /^\d+$/.test(escrito) ? Number(escrito) - 1 : -1;
+    const t = indice >= 0 && ultimasOpciones?.[indice] ? ultimasOpciones[indice] : escrito;
     if (!t || loading) return;
     if (!eeId) {
       setMsgs((prev) => [...prev, { role: 'bot', text: 'Aún estoy cargando tu información. Intenta en unos segundos.' }]);
@@ -102,7 +105,8 @@ export default function AsistenteChatModal({ visible, onClose }: { visible: bool
     <Modal visible={visible} animationType="slide" transparent statusBarTranslucent>
       <Pressable style={s.overlay} onPress={onClose}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior="padding"
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
           style={s.sheet}
         >
           <Pressable onPress={() => {}} style={{ flex: 1 }}>
@@ -127,6 +131,8 @@ export default function AsistenteChatModal({ visible, onClose }: { visible: bool
               keyExtractor={(_, i) => String(i)}
               contentContainerStyle={s.msgList}
               onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
               renderItem={({ item, index }) => (
                 <View>
                   <View style={[s.row, item.role === 'user' ? s.rowUser : s.rowBot]}>
@@ -146,9 +152,9 @@ export default function AsistenteChatModal({ visible, onClose }: { visible: bool
                   {/* Quick replies: solo en el último mensaje del bot */}
                   {item.role === 'bot' && !!item.opciones?.length && index === msgs.length - 1 && !loading && (
                     <View style={s.quickWrap}>
-                      {item.opciones.map((op: string) => (
+                      {item.opciones.map((op: string, optionIndex: number) => (
                         <TouchableOpacity key={op} style={s.quick} onPress={() => send(op)} activeOpacity={0.7}>
-                          <Text style={s.quickText}>{op}</Text>
+                          <Text style={s.quickText}>{optionIndex + 1}. {op}</Text>
                         </TouchableOpacity>
                       ))}
                     </View>
@@ -182,7 +188,7 @@ export default function AsistenteChatModal({ visible, onClose }: { visible: bool
                 style={s.input}
                 value={input}
                 onChangeText={setInput}
-                placeholder="Escribe tu pregunta..."
+                placeholder="Escribe tu pregunta o el numero de una opcion..."
                 placeholderTextColor="#9ca3af"
                 onSubmitEditing={() => send(input)}
                 returnKeyType="send"

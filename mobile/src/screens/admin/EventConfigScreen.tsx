@@ -95,6 +95,8 @@ export default function EventConfigScreen() {
     descripcion: '',
     fechaInicioEvento: '',
     fechaFinEvento: '',
+    horaInicioEvento: '08:00',
+    horaFinEvento: '18:00',
     duracionReunion: '20',
     tiempoEntreReuniones: '5',
     cantidadTotalMesasEvento: '50',
@@ -216,7 +218,7 @@ export default function EventConfigScreen() {
     setViewState('formulario');
     if (id === 'nuevo') {
       setFormData({
-        id: 0, nombre: '', edicion: '', descripcion: '', fechaInicioEvento: '', fechaFinEvento: '',
+        id: 0, nombre: '', edicion: '', descripcion: '', fechaInicioEvento: '', fechaFinEvento: '', horaInicioEvento: '08:00', horaFinEvento: '18:00',
         duracionReunion: '20', tiempoEntreReuniones: '5', cantidadTotalMesasEvento: '50',
         capacidadPersonasPorMesa: '4', maxParticipantesPorEmpresa: '5',
         montoBaseIncripcionBolivianos: '500',
@@ -240,6 +242,8 @@ export default function EventConfigScreen() {
           nombre: data.nombre || '', edicion: data.edicion || '', descripcion: data.descripcion || '',
           fechaInicioEvento: data.fechaInicioEvento ? data.fechaInicioEvento.substring(0, 10) : '',
           fechaFinEvento: data.fechaFinEvento ? data.fechaFinEvento.substring(0, 10) : '',
+          horaInicioEvento: data.fechaInicioEvento ? data.fechaInicioEvento.substring(11, 16) : '08:00',
+          horaFinEvento: data.fechaFinEvento ? data.fechaFinEvento.substring(11, 16) : '18:00',
           duracionReunion: String(data.duracionReunion || 20),
           tiempoEntreReuniones: String(data.tiempoEntreReuniones || 5),
           cantidadTotalMesasEvento: String(data.cantidadTotalMesasEvento || 50),
@@ -306,8 +310,8 @@ export default function EventConfigScreen() {
     const payload: any = {
       nombre: formData.nombre, edicion: formData.edicion || '',
       descripcion: orNull(formData.descripcion),
-      fechaInicioEvento: `${formData.fechaInicioEvento}T00:00:00`,
-      fechaFinEvento: `${formData.fechaFinEvento}T00:00:00`,
+      fechaInicioEvento: `${formData.fechaInicioEvento}T${formData.horaInicioEvento}:00`,
+      fechaFinEvento: `${formData.fechaFinEvento}T${formData.horaFinEvento}:00`,
       duracionReunion: Number(formData.duracionReunion),
       tiempoEntreReuniones: Number(formData.tiempoEntreReuniones),
       cantidadTotalMesasEvento: Number(formData.cantidadTotalMesasEvento),
@@ -559,6 +563,21 @@ export default function EventConfigScreen() {
               <Text className="text-xs font-bold text-gray-700 mb-2">Fecha fin *</Text>
               <TextInput value={formData.fechaFinEvento} onChangeText={(t) => handleChange('fechaFinEvento', t)}
                 className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm" placeholder="YYYY-MM-DD" />
+            </View>
+          </View>
+
+          <View className="flex-row gap-3 mb-4">
+            <View className="flex-1">
+              <Text className="text-xs font-bold text-gray-700 mb-2">Hora inicio *</Text>
+              <TextInput value={formData.horaInicioEvento} onChangeText={(t) => handleChange('horaInicioEvento', t)}
+                keyboardType="numbers-and-punctuation" maxLength={5}
+                className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm" placeholder="08:00" />
+            </View>
+            <View className="flex-1">
+              <Text className="text-xs font-bold text-gray-700 mb-2">Hora fin *</Text>
+              <TextInput value={formData.horaFinEvento} onChangeText={(t) => handleChange('horaFinEvento', t)}
+                keyboardType="numbers-and-punctuation" maxLength={5}
+                className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm" placeholder="18:00" />
             </View>
           </View>
 

@@ -35,7 +35,10 @@ export default function AsistenteChat({ eeId, euId }: { eeId: number | null; euI
   }, [msgs, open]);
 
   const send = async (texto: string) => {
-    const t = texto.trim();
+    const escrito = texto.trim();
+    const ultimasOpciones = [...msgs].reverse().find((m) => m.role === 'bot' && m.opciones?.length)?.opciones;
+    const indice = /^\d+$/.test(escrito) ? Number(escrito) - 1 : -1;
+    const t = indice >= 0 && ultimasOpciones?.[indice] ? ultimasOpciones[indice] : escrito;
     if (!t || loading || !eeId) return;
     setInput("");
     setMsgs((prev) => [...prev, { role: "user", text: t }]);
@@ -116,13 +119,13 @@ export default function AsistenteChat({ eeId, euId }: { eeId: number | null; euI
                   {/* Quick replies: solo en el último mensaje del bot */}
                   {m.role === "bot" && m.opciones && m.opciones.length > 0 && i === msgs.length - 1 && !loading && (
                     <div className="flex flex-wrap gap-1.5">
-                      {m.opciones.map((op) => (
+                      {m.opciones.map((op, optionIndex) => (
                         <button
                           key={op}
                           onClick={() => send(op)}
                           className="text-[11px] bg-white border border-[#449D3A]/40 text-[#449D3A] font-semibold px-2.5 py-1.5 rounded-lg hover:bg-[#449D3A]/10 transition-colors"
                         >
-                          {op}
+                          {optionIndex + 1}. {op}
                         </button>
                       ))}
                     </div>

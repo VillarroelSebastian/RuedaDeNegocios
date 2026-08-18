@@ -420,7 +420,7 @@ export default function HomePage() {
               Momentos compartidos por los participantes. Inicia sesión para subir las tuyas.
             </p>
           </div>
-          <GaleriaEvento />
+          <GaleriaEvento soloTecnicos />
         </div>
       </section>
 

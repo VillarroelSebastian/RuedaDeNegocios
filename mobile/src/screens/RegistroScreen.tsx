@@ -357,7 +357,7 @@ export default function RegistroScreen({ navigation }: any) {
           </View>
 
           {/* Stats */}
-          <View style={{ flexDirection: 'row', gap: 12, marginBottom: 20 }}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
             <View style={{ flex: 1, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 16, padding: 16, alignItems: 'center' }}>
               <Text style={{ fontSize: 20, fontWeight: '800', color: '#5B9A27' }}>{resultado.empresaevento?.numeroParticipantes ?? numParticipantes}</Text>
               <Text style={{ fontSize: 11, color: '#6b7280', marginTop: 4, textAlign: 'center' }}>Participantes</Text>
@@ -386,18 +386,19 @@ export default function RegistroScreen({ navigation }: any) {
           {showParticipants && resultado.participantes?.length > 0 && (
             <View style={{ backgroundColor: '#fff', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 16, padding: 16, marginBottom: 16 }}>
               {resultado.participantes.map((p: any, i: number) => (
-                <View key={i} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#f9fafb', borderRadius: 12, padding: 12, marginBottom: 8 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                <View key={i} style={{ backgroundColor: '#f9fafb', borderRadius: 12, padding: 12, marginBottom: 8 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 0 }}>
                     <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: '#dcfce7', alignItems: 'center', justifyContent: 'center' }}>
                       <Text style={{ fontWeight: '700', color: '#166534' }}>{(p.nombres ?? p.nombreCompleto ?? '?')[0]?.toUpperCase()}</Text>
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 14, fontWeight: '600', color: '#111827' }}>{p.nombres ?? p.nombreCompleto} {p.apellidoPaterno ?? ''}</Text>
-                      <Text style={{ fontSize: 12, color: '#6b7280' }}>{p.cargo} · {p.correo}</Text>
+                      <Text numberOfLines={2} style={{ fontSize: 14, fontWeight: '600', color: '#111827', flexShrink: 1 }}>{p.nombres ?? p.nombreCompleto} {p.apellidoPaterno ?? ''}</Text>
+                      <Text numberOfLines={1} style={{ fontSize: 12, color: '#6b7280', flexShrink: 1 }}>{p.cargo}</Text>
+                      <Text numberOfLines={2} style={{ fontSize: 12, color: '#6b7280', flexShrink: 1 }}>{p.correo}</Text>
                     </View>
                   </View>
                   {p.esResponsable && (
-                    <View style={{ backgroundColor: '#dcfce7', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 }}>
+                    <View style={{ alignSelf: 'flex-start', marginTop: 8, backgroundColor: '#dcfce7', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 }}>
                       <Text style={{ fontSize: 10, fontWeight: '700', color: '#166534' }}>Resp.</Text>
                     </View>
                   )}

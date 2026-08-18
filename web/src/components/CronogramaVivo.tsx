@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { Radio, Clock, MapPin, User, CheckCircle2, Circle, Play, Square } from "lucide-react";
+import { Radio, Clock, MapPin, User, CheckCircle2, Circle, Play, Square, ExternalLink } from "lucide-react";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
@@ -23,6 +23,8 @@ export type ActividadVivo = {
   organizacionDelExpositor: string | null;
   estadoEnVivo: "PENDIENTE" | "EN_VIVO" | "FINALIZADA";
   notaEnVivo: string | null;
+  linkReunionVirtual: string | null;
+  urlImagenBannerActividad: string | null;
 };
 
 export function hora(iso: string) {
@@ -212,6 +214,13 @@ export default function CronogramaVivo({
                       )}
                     </p>
                     {a.notaEnVivo && <p className="text-xs text-red-600 font-semibold mt-1.5">⚠ {a.notaEnVivo}</p>}
+                    <p className="text-sm text-gray-600 mt-2 whitespace-pre-line">{a.descripcionActividad}</p>
+                    {a.linkReunionVirtual && (
+                      <a href={a.linkReunionVirtual} target="_blank" rel="noreferrer"
+                        className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-[#449D3A] px-3 py-2 text-xs font-bold text-white">
+                        <ExternalLink className="w-3.5 h-3.5" /> Ver transmisión
+                      </a>
+                    )}
                   </div>
 
                   {staff && (

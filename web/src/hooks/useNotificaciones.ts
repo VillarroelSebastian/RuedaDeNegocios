@@ -50,7 +50,7 @@ export function useNotificaciones(eeId: number | null) {
       "solicitud:nueva", "solicitud:aceptada", "solicitud:rechazada", "solicitud:editada",
       "reunion:reprogramada", "reunion:recordatorio",
       "reunion:cambio-solicitado", "reunion:cambio-aceptado", "reunion:cambio-rechazado",
-      "reunion:calificar", "mensaje:staff",
+      "reunion:calificar", "mensaje:staff", "mensaje:empresa",
       "comunicado:nuevo",
     ];
 

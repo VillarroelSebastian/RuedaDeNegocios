@@ -135,7 +135,7 @@ export default function EmpresaMensajesScreen() {
   if (activa) {
     return (
       <SafeAreaView style={s.root} edges={['top']}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <KeyboardAvoidingView behavior="padding" keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0} style={{ flex: 1 }}>
           <View style={s.chatHeader}>
             <TouchableOpacity onPress={() => { setActiva(null); setMensajes([]); cargarConvs(); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <ChevronLeft size={22} color="#374151" />
@@ -150,6 +150,8 @@ export default function EmpresaMensajesScreen() {
             keyExtractor={(m: any) => String(m.id)}
             contentContainerStyle={{ padding: 14, gap: 8 }}
             onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
             ListEmptyComponent={
               <Text style={s.chatEmpty}>Escribe el primer mensaje para iniciar la conversación.</Text>
             }

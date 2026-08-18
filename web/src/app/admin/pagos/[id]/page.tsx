@@ -33,8 +33,13 @@ export default function PagoDetailPage() {
         setSubmitting(true);
         try {
           const res = await fetch(`${API}/admin/pagos/${id}/aprobar`, { method: 'PUT' });
-          if (!res.ok) throw new Error();
-          showSuccess('Pago aprobado', 'La empresa ha sido habilitada y se enviaron las credenciales por correo.');
+          const data = await res.json();
+          if (!res.ok) throw new Error(data?.message || 'No se pudo aprobar el pago.');
+          if (data.correosFallidos?.length) {
+            showError('Pago aprobado con envios pendientes', `No se pudieron enviar credenciales a: ${data.correosFallidos.join(', ')}. Puedes volver a aprobar para reintentar.`);
+          } else {
+            showSuccess('Pago aprobado', 'La empresa ha sido habilitada y se enviaron las credenciales por correo.');
+          }
           setTimeout(() => router.push('/admin/pagos'), 1500);
         } catch { showError('Error', 'No se pudo aprobar el pago.'); }
         finally { setSubmitting(false); }

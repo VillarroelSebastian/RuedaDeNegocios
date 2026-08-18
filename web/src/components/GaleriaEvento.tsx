@@ -27,6 +27,7 @@ export default function GaleriaEvento({
   esStaff = false,
   onError,
   onOk,
+  soloTecnicos = false,
 }: {
   empresaUsuarioId?: number | null;
   usuarioId?: number | null;
@@ -35,6 +36,7 @@ export default function GaleriaEvento({
   esStaff?: boolean;
   onError?: (m: string) => void;
   onOk?: (t: string, m: string) => void;
+  soloTecnicos?: boolean;
 }) {
   const [fotos, setFotos] = useState<Foto[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -44,21 +46,21 @@ export default function GaleriaEvento({
 
   const cargar = useCallback(async () => {
     try {
-      const res = await fetch(`${API}/public/galeria`);
+      const res = await fetch(`${API}/public/galeria${soloTecnicos ? '?soloTecnicos=1' : ''}`);
       setFotos(res.ok ? await res.json() : []);
     } catch {
       onError?.("No se pudo cargar la galería.");
     } finally {
       setCargando(false);
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [soloTecnicos]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { cargar(); }, [cargar]);
 
   // Dos pasos: la imagen va al backend y luego se registra en la galería.
   const subir = async (file: File) => {
     if (!file.type.startsWith("image/")) return onError?.("Solo se permiten imágenes.");
-    if (file.size > 10 * 1024 * 1024) return onError?.("La imagen no puede pesar más de 10 MB.");
+    if (file.size > 5 * 1024 * 1024) return onError?.("La imagen no puede pesar más de 5 MB.");
 
     setSubiendo(true);
     try {

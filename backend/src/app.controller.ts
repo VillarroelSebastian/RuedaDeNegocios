@@ -336,8 +336,19 @@ export class AppController implements OnModuleInit {
 
     if (!user) throw new UnauthorizedException('Credenciales inválidas');
 
-    const isValid = await bcrypt.compare(body.contrasenia, user.contrasenia);
+    const tieneHashBcrypt = /^\$2[aby]\$/.test(user.contrasenia);
+    const isValid = tieneHashBcrypt
+      ? await bcrypt.compare(body.contrasenia, user.contrasenia)
+      : body.contrasenia === user.contrasenia;
     if (!isValid) throw new UnauthorizedException('Credenciales inválidas');
+
+    // Migra de forma transparente cuentas antiguas guardadas en texto plano.
+    if (!tieneHashBcrypt) {
+      await this.prisma.usuario.update({
+        where: { id: user.id },
+        data: { contrasenia: await bcrypt.hash(body.contrasenia, 10), creadoModificadoFecha: new Date() },
+      });
+    }
 
     if (user.rolEvento === 'TECNICO') {
       const eventoId = await this.getPrincipalEventoId();
@@ -478,6 +489,61 @@ export class AppController implements OnModuleInit {
       } catch {}
     }
     return { ok: true, regeneradas: n };
+  }
+
+  @Post('tecnico/asistencias')
+  async registrarAsistencia(@Body() body: { tecnicoId: number; euId: number; token: string }) {
+    const tecnicoId = Number(body.tecnicoId);
+    const euId = Number(body.euId);
+    if (!tecnicoId || !euId || !body.token || body.token !== this.credencialToken(euId))
+      throw new BadRequestException('El codigo QR no es valido.');
+    const eventoId = await this.getPrincipalEventoId();
+    if (!eventoId) throw new BadRequestException('No hay un evento activo.');
+    const tecnico = await this.prisma.usuario.findFirst({
+      where: { id: tecnicoId, rolEvento: { in: ['TECNICO', 'TECNICO_EVENTOS', 'ADMINISTRADOR'] }, estaActivo: 1 },
+      select: { id: true },
+    });
+    if (!tecnico) throw new BadRequestException('La cuenta tecnica no esta habilitada.');
+    const participante = await this.prisma.empresa_usuario.findFirst({
+      where: {
+        id: euId,
+        estaActivo: 1,
+        empresaevento: { evento_id: eventoId, estaActivo: 1, estadoHabilitacionAcceso: 'HABILITADO', estadoVerificacionPago: 'COMPLETADO' },
+      },
+      include: { usuario: true, empresa: true },
+    });
+    if (!participante) throw new BadRequestException('El participante no esta habilitado para este evento.');
+    const existente = await this.prisma.asistenciaevento.findFirst({
+      where: { evento_id: eventoId, empresa_usuario_id: euId, estaActivo: 1 },
+    });
+    const asistencia = existente ?? await this.prisma.asistenciaevento.create({
+      data: { evento_id: eventoId, empresa_usuario_id: euId, tecnico_id: tecnicoId, estaActivo: 1 },
+    });
+    return {
+      ok: true,
+      yaRegistrada: !!existente,
+      fechaHoraAsistencia: asistencia.fechaHoraAsistencia,
+      participante: {
+        nombre: `${participante.usuario.nombres} ${participante.usuario.apellidoPaterno}`.trim(),
+        empresa: participante.empresa.nombre,
+        cargo: participante.cargo,
+      },
+    };
+  }
+
+  @Get('tecnico/asistencias')
+  async listarAsistencias(@Query('tecnicoId') tecnicoId?: string) {
+    const eventoId = await this.getPrincipalEventoId();
+    if (!eventoId) return [];
+    return this.prisma.asistenciaevento.findMany({
+      where: { evento_id: eventoId, estaActivo: 1, ...(tecnicoId ? { tecnico_id: Number(tecnicoId) } : {}) },
+      orderBy: { fechaHoraAsistencia: 'desc' },
+      include: {
+        empresa_usuario: { include: { usuario: { select: { nombres: true, apellidoPaterno: true } }, empresa: { select: { nombre: true } } } },
+        tecnico: { select: { nombres: true, apellidoPaterno: true } },
+      },
+      take: 200,
+    });
   }
 
   @Get('public/seguimiento')
@@ -1480,15 +1546,12 @@ export class AppController implements OnModuleInit {
     });
 
     const codigoEmpresa = await this.asegurarCodigoEmpresa((ee as any).empresa.id, (ee as any).empresa.codigo);
+    const correosFallidos: string[] = [];
 
     for (const eu of (ee as any).empresa_usuario.filter((e: any) => e.estaActivo !== 0)) {
       const u = eu.usuario;
       const pwd = generarPasswordTemporal();
       const hashed = await bcrypt.hash(pwd, 10);
-      await this.prisma.usuario.update({
-        where: { id: u.id },
-        data: { contrasenia: hashed, creadoModificadoFecha: new Date() },
-      });
 
       let qrUrl = '';
       try {
@@ -1509,6 +1572,10 @@ export class AppController implements OnModuleInit {
         : '';
 
       if (isDevEmail || !transporter) {
+        await this.prisma.usuario.update({
+          where: { id: u.id },
+          data: { contrasenia: hashed, creadoModificadoFecha: new Date() },
+        });
         console.log('\n╔══════════════════════════════════════════════════════╗');
         console.log('║   [DEV] CREDENCIALES GENERADAS (email no enviado)    ║');
         console.log('╠══════════════════════════════════════════════════════╣');
@@ -1528,6 +1595,7 @@ export class AppController implements OnModuleInit {
           subject: `¡Tu acceso ha sido aprobado! — ${(ee as any).evento?.nombre ?? 'Rueda de Negocios'}`,
           html: `
             <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px;background:#f9fafb;border-radius:12px">
+              ${(ee as any).evento?.urlLogoEvento ? `<div style="text-align:center;margin-bottom:18px"><img src="${(ee as any).evento.urlLogoEvento}" alt="Logo del evento" width="180" style="max-width:180px;max-height:80px;object-fit:contain" /></div>` : ''}
               <h2 style="color:#449D3A;margin-bottom:4px">¡Bienvenido/a a la Rueda de Negocios!</h2>
               <p style="color:#374151;margin-bottom:20px">
                 Hola <strong>${u.nombres} ${u.apellidoPaterno}</strong>, tu registro como parte de
@@ -1552,15 +1620,19 @@ export class AppController implements OnModuleInit {
             </div>
           `,
         });
+        await this.prisma.usuario.update({
+          where: { id: u.id },
+          data: { contrasenia: hashed, creadoModificadoFecha: new Date() },
+        });
       } catch (emailErr) {
         console.warn(`[WARN] No se pudo enviar email a ${u.correo}:`, emailErr instanceof Error ? emailErr.message : emailErr);
-        console.log(`[DEV] Credenciales para ${u.correo} — contraseña: ${pwd}`);
+        correosFallidos.push(u.correo);
       }
     }
 
     await this.notificar((ee as any).id, 'pago:aprobado', 'Pago aprobado',
       'Tu pago de inscripción fue aprobado. ¡Ya tienes acceso al evento!');
-    return ee;
+    return { ...ee, correosFallidos, credencialesEnviadas: correosFallidos.length === 0 };
   }
 
   @Put('admin/pagos/:id/observar')
@@ -4202,10 +4274,20 @@ export class AppController implements OnModuleInit {
         estaActivo: 1,
       },
     });
-    // Aviso en tiempo real a la empresa receptora para refrescar su chat
-    try {
-      this.notifGateway.emitirParaEe(Number(receptorEeId), 'mensaje:nuevo', { deEeId: Number(eeId) });
-    } catch {}
+    const emisor = await this.prisma.empresaevento.findUnique({
+      where: { id: Number(eeId) },
+      select: { empresa: { select: { nombre: true } } },
+    });
+    await this.notificar(
+      Number(receptorEeId),
+      'mensaje:empresa',
+      'Nuevo mensaje',
+      `${emisor?.empresa?.nombre ?? 'Otra empresa'} te envio un mensaje.`,
+      msg.id,
+      'mensajeempresa',
+    );
+    // Evento especifico para que una conversacion abierta se refresque al instante.
+    try { this.notifGateway.emitirParaEe(Number(receptorEeId), 'mensaje:nuevo', { deEeId: Number(eeId) }); } catch {}
     return { ok: true, id: msg.id, fecha: msg.fechaCreacion };
   }
 

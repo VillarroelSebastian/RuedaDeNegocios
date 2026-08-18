@@ -197,6 +197,7 @@ model empresa_usuario {
   usuario          usuario            @relation(fields: [usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_empresa_usuario_usuario1")
   resultadoreunion resultadoreunion[]
   solicitudreunion solicitudreunion[]
+  asistenciaevento asistenciaevento[]
 
   @@index([empresa_id], map: "fk_empresa_usuario_empresa_idx")
   @@index([empresaevento_id], map: "fk_empresa_usuario_empresaevento1_idx")
@@ -325,6 +326,7 @@ model evento {
   paquete                        paquete[]
   auspiciador                    auspiciador[]
   fotoevento                     fotoevento[]
+  asistenciaevento               asistenciaevento[]
 }
 
 model eventoreglaqr {
@@ -567,6 +569,23 @@ model usuario {
   empresa_usuario       empresa_usuario[]
   noticia               noticia[]
   evento                evento?           @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_usuario_evento1")
+  asistenciasRegistradas asistenciaevento[] @relation("TecnicoAsistencia")
 
   @@index([evento_id], map: "fk_usuario_evento1_idx")
+}
+
+model asistenciaevento {
+  id                 Int             @id @default(autoincrement())
+  evento_id          Int
+  empresa_usuario_id Int
+  tecnico_id         Int
+  fechaHoraAsistencia DateTime       @default(now()) @db.Timestamp(6)
+  estaActivo         Int             @default(1) @db.SmallInt
+  evento             evento          @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  empresa_usuario    empresa_usuario @relation(fields: [empresa_usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tecnico            usuario         @relation("TecnicoAsistencia", fields: [tecnico_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([evento_id, empresa_usuario_id])
+  @@index([evento_id, fechaHoraAsistencia])
+  @@index([tecnico_id])
 }

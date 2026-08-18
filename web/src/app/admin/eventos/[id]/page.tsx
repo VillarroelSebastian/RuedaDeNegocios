@@ -80,8 +80,8 @@ export default function ConfiguracionDeEventoPage() {
             nombre: data.nombre || '',
             edicion: data.edicion || '',
             descripcion: data.descripcion || '',
-            fechaInicioEvento: data.fechaInicioEvento ? data.fechaInicioEvento.substring(0, 10) : '',
-            fechaFinEvento: data.fechaFinEvento ? data.fechaFinEvento.substring(0, 10) : '',
+            fechaInicioEvento: data.fechaInicioEvento ? data.fechaInicioEvento.substring(0, 16) : '',
+            fechaFinEvento: data.fechaFinEvento ? data.fechaFinEvento.substring(0, 16) : '',
             fechaInicioSolicitudes: data.fechaInicioSolicitudes ? data.fechaInicioSolicitudes.substring(0, 16) : '',
             fechaFinSolicitudes: data.fechaFinSolicitudes ? data.fechaFinSolicitudes.substring(0, 16) : '',
             duracionReunion: data.duracionReunion || 20,
@@ -204,8 +204,8 @@ export default function ConfiguracionDeEventoPage() {
       nombre: formData.nombre,
       edicion: formData.edicion || '',
       descripcion: orNull(formData.descripcion),
-      fechaInicioEvento: formData.fechaInicioEvento ? `${formData.fechaInicioEvento}T00:00:00` : new Date().toISOString(),
-      fechaFinEvento: formData.fechaFinEvento ? `${formData.fechaFinEvento}T00:00:00` : new Date().toISOString(),
+      fechaInicioEvento: formData.fechaInicioEvento || new Date().toISOString(),
+      fechaFinEvento: formData.fechaFinEvento || new Date().toISOString(),
       fechaInicioSolicitudes: formData.fechaInicioSolicitudes || null,
       fechaFinSolicitudes: formData.fechaFinSolicitudes || null,
       duracionReunion: Number(formData.duracionReunion),
@@ -299,12 +299,12 @@ export default function ConfiguracionDeEventoPage() {
             </div>
 
             <div>
-              <label className={styles.label}>Fecha Inicio *</label>
-              <input required type="date" name="fechaInicioEvento" value={formData.fechaInicioEvento} onChange={handleChange} className={styles.input} />
+              <label className={styles.label}>Inicio del evento (fecha y hora) *</label>
+              <input required type="datetime-local" name="fechaInicioEvento" value={formData.fechaInicioEvento} onChange={handleChange} className={styles.input} />
             </div>
             <div>
-              <label className={styles.label}>Fecha Fin *</label>
-              <input required type="date" name="fechaFinEvento" value={formData.fechaFinEvento} onChange={handleChange} className={styles.input} />
+              <label className={styles.label}>Fin del evento (fecha y hora) *</label>
+              <input required type="datetime-local" name="fechaFinEvento" value={formData.fechaFinEvento} onChange={handleChange} className={styles.input} />
             </div>
             <div>
               <label className={styles.label}>Apertura de solicitudes de reunión</label>

@@ -2,6 +2,7 @@
 
 import React, { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import {
   Building2,
   CheckCircle2,
@@ -200,7 +201,7 @@ function SeguimientoContent() {
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file || !eeId) return;
-    if (file.size > 10 * 1024 * 1024) { setUploadError('El archivo no debe superar 10 MB.'); return; }
+    if (file.size > 5 * 1024 * 1024) { setUploadError('El archivo no debe superar 5 MB.'); return; }
     setUploading(true);
     setUploadError(null);
     setUploadSuccess(false);
@@ -267,6 +268,9 @@ function SeguimientoContent() {
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
+          <Link href="/auth/login" className="rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700">
+            Ir al login
+          </Link>
         </div>
       </header>
 
@@ -442,7 +446,7 @@ function SeguimientoContent() {
                         ? 'Reemplazar comprobante'
                         : 'Subir comprobante de pago'}
                     </p>
-                    <p className="text-xs text-gray-400 mt-1">Imagen o PDF — Máximo 10 MB</p>
+                    <p className="text-xs text-gray-400 mt-1">Imagen o PDF — Máximo 5 MB</p>
                   </label>
                 )}
               </div>
@@ -580,6 +584,12 @@ function SeguimientoContent() {
                 </p>
               </div>
             )}
+
+            <div className="flex justify-center">
+              <Link href="/auth/login" className="rounded-xl bg-green-600 px-6 py-3 text-sm font-semibold text-white hover:bg-green-700">
+                Iniciar sesion
+              </Link>
+            </div>
 
             <p className="text-center text-xs text-gray-400 pb-4">
               ID de seguimiento: #{data.id} &nbsp;·&nbsp; Actualiza la página para ver cambios

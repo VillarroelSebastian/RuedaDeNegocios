@@ -278,7 +278,7 @@ export default function RegistroPage() {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 10 * 1024 * 1024) { showModal("error", "Archivo muy grande", "El archivo no debe superar los 10 MB."); return; }
+    if (file.size > 5 * 1024 * 1024) { showModal("error", "Archivo muy grande", "El archivo no debe superar los 5 MB."); return; }
     setUploadingFile(true);
     try {
       const fd = new FormData();
@@ -700,9 +700,7 @@ export default function RegistroPage() {
                         <p className="text-lg font-extrabold text-gray-900 leading-none">
                           {incluidos} persona{incluidos > 1 ? "s" : ""}
                         </p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          Podrás sumar hasta {paquete.maxParticipantes} pagando Bs. {costoExtra} c/u después de inscribirte.
-                        </p>
+                        <p className="text-xs text-gray-500 mt-1">Credenciales incluidas en el paquete</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">

@@ -6,7 +6,8 @@ import { useNavigation }              from '@react-navigation/native';
 import { LayoutDashboard, Building2, Send, CalendarDays, User, Bell, MoreHorizontal, Star, Clock, Newspaper, Lightbulb, MessageCircle } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AsistenteChatModal, { AsistenteChatButton } from '../components/AsistenteChatMobile';
-import { useNotificacionesMobile } from '../hooks/useNotificaciones';
+import { rutaDeNotifMobile, useNotificacionesMobile } from '../hooks/useNotificaciones';
+import { navigationRef } from '../../App';
 
 import EmpresaDashboardScreen   from '../screens/empresa/EmpresaDashboardScreen';
 import EmpresaEmpresasScreen    from '../screens/empresa/EmpresaEmpresasScreen';
@@ -191,7 +192,8 @@ export default function EmpresaNavigator() {
   const esEncargado = !!userStore.get()?.esResponsable;
   const [chatOpen, setChatOpen] = useState(false);
   const [eeId, setEeId] = useState<number | null>(userStore.get()?.empresaeventoId ?? null);
-  useNotificacionesMobile(eeId);
+  const { notifs, dismiss } = useNotificacionesMobile(eeId);
+  const notifActual = notifs[0];
 
   // Resolver el contexto empresa (eeId, euId) apenas se monta el navigator,
   // sin depender de que el Dashboard cargue primero.
@@ -260,6 +262,26 @@ export default function EmpresaNavigator() {
         <Stack.Screen name="Empresas"    component={EmpresaEmpresasScreen}    options={{ title: 'Empresas' }} />
       )}
       </Stack.Navigator>
+      {notifActual && (
+        <View style={{ position: 'absolute', top: 62, left: 12, right: 12, zIndex: 100, backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#bbf7d0', padding: 14, shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 12, elevation: 10 }}>
+          <Text style={{ fontSize: 14, fontWeight: '800', color: '#166534' }} numberOfLines={1}>{notifActual.titulo}</Text>
+          <Text style={{ fontSize: 12, color: '#374151', marginTop: 4 }} numberOfLines={3}>{notifActual.mensaje}</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
+            <TouchableOpacity onPress={() => dismiss(notifActual.id)} style={{ paddingHorizontal: 12, paddingVertical: 8 }}>
+              <Text style={{ color: '#6b7280', fontWeight: '700', fontSize: 12 }}>Cerrar</Text>
+            </TouchableOpacity>
+            {rutaDeNotifMobile(notifActual.evento) && (
+              <TouchableOpacity onPress={() => {
+                const ruta = rutaDeNotifMobile(notifActual.evento);
+                dismiss(notifActual.id);
+                if (ruta && navigationRef.isReady()) navigationRef.navigate(ruta as never);
+              }} style={{ backgroundColor: GREEN, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 }}>
+                <Text style={{ color: '#fff', fontWeight: '800', fontSize: 12 }}>Ver</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      )}
     </>
   );
 }

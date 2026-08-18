@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity,
   ActivityIndicator, RefreshControl, StyleSheet, Linking,
-  Modal, ScrollView, Pressable, TextInput,
+  Modal, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -85,7 +85,14 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
         const available = [...new Set(hrs.map((h: any) => new Date(h.inicio).getHours()))].sort((a: any, b: any) => a - b) as number[];
         const cur = new Date().getHours();
         const auto = available.find((h) => h >= cur) ?? available[0];
-        if (auto !== undefined) { setHoraSel(auto); setMinutosStr('00'); }
+        if (auto !== undefined) {
+          const primerMinuto = hrs
+            .filter((slot: any) => new Date(slot.inicio).getHours() === auto)
+            .map((slot: any) => new Date(slot.inicio).getMinutes())
+            .sort((a: number, b: number) => a - b)[0];
+          setHoraSel(auto);
+          setMinutosStr(String(primerMinuto ?? 0).padStart(2, '0'));
+        }
       })
       .catch(() => setHorarios([]))
       .finally(() => setCargando(false));
@@ -120,7 +127,7 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
         </View>
       )}
       <View style={cm.overlay}>
-        <View style={cm.sheet}>
+        <KeyboardAvoidingView behavior="padding" keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0} style={cm.sheet}>
           <View style={cm.header}>
             <View style={{ flex: 1 }}>
               <Text style={cm.title}>Proponer cambios</Text>
@@ -130,7 +137,7 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
               <X size={22} color="#6b7280" />
             </TouchableOpacity>
           </View>
-          <ScrollView showsVerticalScrollIndicator={false}>
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 12 }}>
             <View style={cm.currentBox}>
               <Text style={cm.currentLabel}>Horario actual</Text>
               <Text style={cm.currentVal}>{fmtDate(reunion?.inicio)} · {fmtTime(reunion?.inicio)} – {fmtTime(reunion?.fin)}</Text>
@@ -171,7 +178,14 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
                   <View style={{ flexDirection: 'row', gap: 8 }}>
                     {horasDisponibles.map((h: number) => (
-                      <TouchableOpacity key={h} onPress={() => { setHoraSel(h); setMinutosStr('00'); }}
+                      <TouchableOpacity key={h} onPress={() => {
+                        setHoraSel(h);
+                        const disponibles = horarios
+                          .filter((slot: any) => new Date(slot.inicio).getHours() === h)
+                          .map((slot: any) => new Date(slot.inicio).getMinutes())
+                          .sort((a: number, b: number) => a - b);
+                        setMinutosStr(String(disponibles[0] ?? 0).padStart(2, '0'));
+                      }}
                         style={[cm.horaBtn, horaSel === h && cm.horaBtnActive]} activeOpacity={0.8}>
                         <Text style={[cm.horaBtnText, horaSel === h && cm.horaBtnTextActive]}>
                           {String(h).padStart(2,'0')}:00
@@ -227,7 +241,7 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
             </View>
             <View style={{ height: 24 }} />
           </ScrollView>
-        </View>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );
@@ -235,7 +249,7 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
 
 const cm = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, maxHeight: '90%' },
+  sheet: { backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 16, paddingTop: 18, maxHeight: '94%', width: '100%' },
   header: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 16 },
   title:  { fontSize: 18, fontWeight: '800', color: '#0f172a' },
   sub:    { fontSize: 13, color: '#64748b', marginTop: 2 },

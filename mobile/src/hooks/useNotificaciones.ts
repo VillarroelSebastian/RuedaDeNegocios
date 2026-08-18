@@ -1,12 +1,10 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { Alert } from 'react-native';
 import { API_URL } from '../utils/userStore';
-import { navigationRef } from '../../App';
 
 // Pantalla destino según el tipo de notificación, para llevar directo a su
 // sección al tocar "Ver". Devuelve null si no hay una pantalla asociada.
-function rutaDeNotifMobile(evento: string): string | null {
+export function rutaDeNotifMobile(evento: string): string | null {
   const t = evento || '';
   if (t.startsWith('solicitud')) return 'Solicitudes';
   if (t === 'reunion:calificar') return 'Resultados';
@@ -37,6 +35,7 @@ const EVENTO_LABELS: Record<string, string> = {
   'reunion:calificar':        'Califica tu reunión',
   'solicitud:editada':        'Solicitud actualizada',
   'mensaje:staff':            'Mensaje del equipo del evento',
+  'mensaje:empresa':          'Nuevo mensaje de una empresa',
   'comunicado:nuevo':         'Nuevo comunicado',
 };
 
@@ -63,25 +62,6 @@ export function useNotificacionesMobile(eeId: number | null) {
     setNotifs((prev) => [notif, ...prev].slice(0, 10));
     // Show native alert for important events, con acción "Ver" que navega a la
     // sección correspondiente cuando existe una pantalla asociada.
-    const target = rutaDeNotifMobile(evento);
-    Alert.alert(
-      notif.titulo ?? 'Notificación',
-      notif.mensaje,
-      target
-        ? [
-            { text: 'Cerrar', style: 'cancel' as const },
-            {
-              text: 'Ver',
-              style: 'default' as const,
-              onPress: () => {
-                try {
-                  if (navigationRef.isReady()) navigationRef.navigate(target as never);
-                } catch {}
-              },
-            },
-          ]
-        : [{ text: 'OK', style: 'default' as const }],
-    );
   }, []);
 
   useEffect(() => {
@@ -100,7 +80,7 @@ export function useNotificacionesMobile(eeId: number | null) {
       'solicitud:nueva', 'solicitud:aceptada', 'solicitud:rechazada', 'solicitud:editada',
       'reunion:reprogramada', 'reunion:recordatorio',
       'reunion:cambio-solicitado', 'reunion:cambio-aceptado', 'reunion:cambio-rechazado',
-      'reunion:calificar', 'mensaje:staff',
+      'reunion:calificar', 'mensaje:staff', 'mensaje:empresa',
       'comunicado:nuevo',
     ];
 

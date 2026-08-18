@@ -110,7 +110,7 @@ function PagoAdicionalModal({ eeId, euEncargadoId, maxPermitidos, slotsPagados, 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 10 * 1024 * 1024) { setErr("El archivo no debe superar 10 MB."); return; }
+    if (file.size > 5 * 1024 * 1024) { setErr("El archivo no debe superar 5 MB."); return; }
     setUploading(true); setErr(null); setPreviewUrl(null);
     try {
       const fd = new FormData();
@@ -200,7 +200,7 @@ function PagoAdicionalModal({ eeId, euEncargadoId, maxPermitidos, slotsPagados, 
                 <p className={`text-sm font-semibold ${uploading ? "text-[#449D3A]" : "text-gray-600"}`}>
                   {uploading ? "Subiendo..." : previewUrl ? "Reemplazar comprobante" : "Subir comprobante"}
                 </p>
-                <p className="text-xs text-gray-400 mt-0.5">Imagen o PDF — Máx. 10 MB</p>
+                <p className="text-xs text-gray-400 mt-0.5">Imagen o PDF — Máx. 5 MB</p>
               </label>
             </div>
             {err && (
@@ -241,7 +241,7 @@ export default function EmpresaPerfilPage() {
   const handleFotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !ctx) return;
-    if (file.size > 10 * 1024 * 1024) { setErrForm("La imagen no debe superar 10 MB."); return; }
+    if (file.size > 5 * 1024 * 1024) { setErrForm("La imagen no debe superar 5 MB."); return; }
     setSubiendoFoto(true);
     setErrForm(null);
     try {

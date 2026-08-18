@@ -32,6 +32,7 @@ const defaultForm = {
   organizacionDelExpositor: '',
   estadoActividad: 'Activo',
   urlImagenBannerActividad: '',
+  linkReunionVirtual: '',
 };
 
 export default function ActividadesPage() {
@@ -70,6 +71,7 @@ export default function ActividadesPage() {
       organizacionDelExpositor: a.organizacionDelExpositor || '',
       estadoActividad: a.estadoActividad,
       urlImagenBannerActividad: a.urlImagenBannerActividad || '',
+      linkReunionVirtual: a.linkReunionVirtual || '',
     });
     setEditId(a.id);
     setShowForm(true);
@@ -265,6 +267,12 @@ export default function ActividadesPage() {
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">Organización del expositor</label>
                   <input value={form.organizacionDelExpositor} onChange={(e) => set('organizacionDelExpositor', e.target.value)}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Link de transmisión</label>
+                  <input type="url" value={form.linkReunionVirtual} onChange={(e) => set('linkReunionVirtual', e.target.value)}
+                    placeholder="https://..."
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
                 </div>
               </div>
