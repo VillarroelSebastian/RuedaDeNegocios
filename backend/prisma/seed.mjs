@@ -45,7 +45,7 @@ async function main() {
       costoParticipanteExtra: 150,
       sobreElEvento: 'Espacio de encuentro para empresas del Beni y Bolivia que buscan establecer alianzas comerciales estratégicas.',
       correoContacto: 'contacto@ruedadenegociosbeni.bo',
-      telefonoContacto: '+591 3 4621890',
+      telefonoContacto: '78454407',
       estaActivo: 1,
       esPrincipal: 1,
     },

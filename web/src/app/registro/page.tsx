@@ -451,9 +451,9 @@ export default function RegistroPage() {
 
       {/* ── Header ─────────────────────────────────────────────── */}
       <header className="w-full bg-white flex items-center justify-between px-8 py-4 border-b border-gray-100 shadow-sm shrink-0">
-        <div className="relative h-12 w-48">
+        <Link href="/" aria-label="Volver a la pagina principal" className="relative block h-12 w-48">
           <Image src="/assets/iconos/logo.png" alt="Logo" fill sizes="192px" className="object-contain object-left" priority />
-        </div>
+        </Link>
         <nav className="hidden md:flex items-center space-x-8">
           <Link href="/" className="text-sm font-semibold text-gray-500 hover:text-gray-900">← Inicio</Link>
           <Link href="/#actividades" className="text-sm font-semibold text-gray-500 hover:text-gray-900">Actividades</Link>

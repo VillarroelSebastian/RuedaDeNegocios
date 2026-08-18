@@ -13,7 +13,7 @@ const GREEN = '#449D3A';
 export default function ConfiguracionScreen({ navigation }: any) {
   const { show, modal } = useModal();
   const [user, setUser] = useState<any>(null);
-  const [form, setForm] = useState({ nombres: '', apellidoPaterno: '', apellidoMaterno: '', telefono: '', urlFotoPerfil: '' });
+  const [form, setForm] = useState({ nombres: '', apellidoPaterno: '', apellidoMaterno: '', correo: '', telefono: '', urlFotoPerfil: '' });
   const [passForm, setPassForm] = useState({ contraseniaActual: '', nuevaContrasenia: '', confirmar: '' });
   const [tab, setTab] = useState<'perfil' | 'seguridad'>('perfil');
   const [saving, setSaving] = useState(false);
@@ -23,7 +23,7 @@ export default function ConfiguracionScreen({ navigation }: any) {
     const u = userStore.get();
     if (u) {
       setUser(u);
-      setForm({ nombres: u.nombres || '', apellidoPaterno: u.apellidoPaterno || '', apellidoMaterno: u.apellidoMaterno || '', telefono: u.telefono || '', urlFotoPerfil: u.urlFotoPerfil || '' });
+      setForm({ nombres: u.nombres || '', apellidoPaterno: u.apellidoPaterno || '', apellidoMaterno: u.apellidoMaterno || '', correo: u.correo || '', telefono: u.telefono || '', urlFotoPerfil: u.urlFotoPerfil || '' });
     }
   }, []);
 
@@ -55,6 +55,7 @@ export default function ConfiguracionScreen({ navigation }: any) {
         body: JSON.stringify(form),
       });
       const updated = await res.json();
+      if (!res.ok) throw new Error(updated?.message || 'No se pudo actualizar el perfil.');
       const newUser = { ...user, ...updated };
       await userStore.set(newUser);
       setUser(newUser);
@@ -169,8 +170,9 @@ export default function ConfiguracionScreen({ navigation }: any) {
             ))}
             <View className="mb-3">
               <Text className="text-sm font-semibold text-gray-700 mb-1.5">Correo electrónico</Text>
-              <TextInput value={user?.correo || ''} editable={false}
-                className="border border-gray-200 rounded-xl px-4 py-3 text-sm bg-gray-50 text-gray-400" />
+              <TextInput value={form.correo} onChangeText={(v) => setF('correo', v)}
+                keyboardType="email-address" autoCapitalize="none"
+                className="border border-gray-200 rounded-xl px-4 py-3 text-sm" />
             </View>
             <TouchableOpacity onPress={handleSavePerfil} disabled={saving}
               style={{ backgroundColor: saving ? '#9ca3af' : GREEN }}

@@ -27,6 +27,14 @@ function generarPasswordTemporal(): string {
   return pwd;
 }
 
+function normalizarCorreo(valor: unknown): string {
+  return String(valor ?? '').trim().toLowerCase();
+}
+
+function normalizarTelefono(valor: unknown): string {
+  return String(valor ?? '').replace(/\D/g, '');
+}
+
 @Controller()
 export class AppController implements OnModuleInit {
   constructor(
@@ -389,7 +397,7 @@ export class AppController implements OnModuleInit {
     const eventoId = await this.getPrincipalEventoId();
     if (!eventoId) return { existe: false };
     const empresa = await this.prisma.empresa.findFirst({
-      where: { correoCorporativo: correo.trim(), estaActivo: 1 },
+      where: { correoCorporativo: { equals: normalizarCorreo(correo), mode: 'insensitive' }, estaActivo: 1 },
     });
     if (!empresa) return { existe: false };
     const ee = await this.prisma.empresaevento.findFirst({
@@ -571,12 +579,13 @@ export class AppController implements OnModuleInit {
       throw new BadRequestException('El nombre de la empresa contiene caracteres no permitidos.');
     if ((nombreLimpio.match(/[a-zA-ZÀ-ÿ]/g) || []).length < 2)
       throw new BadRequestException('El nombre de la empresa debe incluir al menos 2 letras.');
-    const correoLimpio = String(emp.correoCorporativo ?? '').trim();
+    const correoLimpio = normalizarCorreo(emp.correoCorporativo);
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correoLimpio))
       throw new BadRequestException('El correo corporativo no es válido.');
     // Normalizar campos de texto (recorte + tope de longitud según columnas).
     emp.nombre = nombreLimpio;
     emp.correoCorporativo = correoLimpio;
+    emp.telefonoWhatsapp = String(emp.telefonoWhatsapp ?? '').trim();
     emp.descripcion = emp.descripcion ? String(emp.descripcion).trim().slice(0, 1000) : emp.descripcion;
     emp.oferta = emp.oferta ? String(emp.oferta).trim().slice(0, 500) : emp.oferta;
     emp.demanda = emp.demanda ? String(emp.demanda).trim().slice(0, 500) : emp.demanda;
@@ -585,7 +594,7 @@ export class AppController implements OnModuleInit {
 
     // Verificar duplicado por correo corporativo
     const empresaExistente = await this.prisma.empresa.findFirst({
-      where: { correoCorporativo: body.empresa.correoCorporativo, estaActivo: 1 },
+      where: { correoCorporativo: { equals: correoLimpio, mode: 'insensitive' }, estaActivo: 1 },
     });
     if (empresaExistente) {
       const eeExistente = await this.prisma.empresaevento.findFirst({
@@ -597,6 +606,58 @@ export class AppController implements OnModuleInit {
     // Calcular monto. Si eligió paquete, éste fija el costo y las credenciales
     // incluidas; si no hay paquetes configurados se usa el monto base del evento.
     // El precio se resuelve siempre en el servidor, nunca se toma del cliente.
+    const telefonoEmpresa = normalizarTelefono(emp.telefonoWhatsapp);
+    if (telefonoEmpresa.length < 7)
+      throw new BadRequestException('El telefono/WhatsApp de la empresa no es valido.');
+    const empresasConTelefono = await this.prisma.empresa.findMany({
+      where: { estaActivo: 1 },
+      select: { id: true, telefonoWhatsapp: true, nombre: true },
+    });
+    const empresaMismoTelefono = empresasConTelefono.find((e) =>
+      normalizarTelefono(e.telefonoWhatsapp) === telefonoEmpresa && e.id !== empresaExistente?.id,
+    );
+    if (empresaMismoTelefono)
+      throw new BadRequestException(`El telefono/WhatsApp ya esta registrado por la empresa "${empresaMismoTelefono.nombre}".`);
+
+    // Se valida todo antes de crear la empresa, la inscripcion o el pago. De ese
+    // modo un duplicado no deja una inscripcion sin usuario ni credenciales.
+    const participantesEntrada = Array.isArray(body.participantes) ? body.participantes : [];
+    if (participantesEntrada.length === 0)
+      throw new BadRequestException('Debes registrar al menos un participante.');
+    const correosParticipantes = new Set<string>();
+    const telefonosParticipantes = new Set<string>();
+    for (let i = 0; i < participantesEntrada.length; i += 1) {
+      const p = participantesEntrada[i];
+      const correo = normalizarCorreo(p?.correo);
+      const telefono = normalizarTelefono(p?.telefono);
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo))
+        throw new BadRequestException(`El correo del participante ${i + 1} no es valido.`);
+      if (correosParticipantes.has(correo))
+        throw new BadRequestException(`El correo ${correo} esta repetido entre los participantes.`);
+      if (telefono.length < 7)
+        throw new BadRequestException(`El telefono del participante ${i + 1} no es valido.`);
+      if (telefonosParticipantes.has(telefono))
+        throw new BadRequestException(`El telefono del participante ${i + 1} esta repetido.`);
+      correosParticipantes.add(correo);
+      telefonosParticipantes.add(telefono);
+    }
+    const usuariosConCorreo = await this.prisma.usuario.findMany({
+      where: {
+        estaActivo: 1,
+        OR: [...correosParticipantes].map((correo) => ({ correo: { equals: correo, mode: 'insensitive' as const } })),
+      },
+      select: { correo: true },
+    });
+    if (usuariosConCorreo.length > 0)
+      throw new BadRequestException(`El correo ${usuariosConCorreo[0].correo} ya esta asociado a una cuenta.`);
+    const usuariosConTelefono = await this.prisma.usuario.findMany({
+      where: { estaActivo: 1 },
+      select: { telefono: true },
+    });
+    const telefonosRegistrados = new Set(usuariosConTelefono.map((u) => normalizarTelefono(u.telefono)).filter(Boolean));
+    if ([...telefonosParticipantes].some((telefono) => telefonosRegistrados.has(telefono)))
+      throw new BadRequestException('Uno de los telefonos de los participantes ya esta asociado a una cuenta.');
+
     const paqueteIdSolicitado = body.participacion?.paquete_id
       ? Number(body.participacion.paquete_id)
       : null;
@@ -2192,8 +2253,18 @@ export class AppController implements OnModuleInit {
   @Post('admin/tecnicos')
   async createTecnico(@Body() body: any) {
     try {
-      const existing = await this.prisma.usuario.findFirst({ where: { correo: body.correo } });
+      const correo = normalizarCorreo(body.correo);
+      const telefono = normalizarTelefono(body.telefono);
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo))
+        throw new BadRequestException('El correo no es valido');
+      if (telefono.length < 7) throw new BadRequestException('El telefono no es valido');
+      const existing = await this.prisma.usuario.findFirst({
+        where: { correo: { equals: correo, mode: 'insensitive' }, estaActivo: 1 },
+      });
       if (existing) throw new BadRequestException('Ya existe un usuario con ese correo');
+      const usuarios = await this.prisma.usuario.findMany({ where: { estaActivo: 1 }, select: { telefono: true } });
+      if (usuarios.some((u) => normalizarTelefono(u.telefono) === telefono))
+        throw new BadRequestException('Ya existe un usuario con ese telefono');
 
       const eventoId = await this.getPrincipalEventoId();
       if (!eventoId) throw new BadRequestException('No hay un evento principal activo');
@@ -2206,9 +2277,9 @@ export class AppController implements OnModuleInit {
           nombres: body.nombres,
           apellidoPaterno: body.apellidoPaterno,
           apellidoMaterno: body.apellidoMaterno || null,
-          correo: body.correo,
+          correo,
           contrasenia: hashed,
-          telefono: body.telefono,
+          telefono: String(body.telefono).trim(),
           urlFotoPerfil: body.urlFotoPerfil || '',
           rolEvento: 'TECNICO',
           evento_id: eventoId,
@@ -2229,7 +2300,7 @@ export class AppController implements OnModuleInit {
           const transporter = createMailTransporter();
           await transporter.sendMail({
             from: process.env.MAIL_FROM,
-            to: body.correo,
+            to: correo,
             subject: `Tus credenciales de Técnico — ${evento?.nombre ?? 'Rueda de Negocios'}`,
             html: `
               <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px;background:#f9fafb;border-radius:12px">
@@ -2240,7 +2311,7 @@ export class AppController implements OnModuleInit {
                 </p>
                 <div style="background:#fff;border:2px solid #bbf7d0;border-radius:10px;padding:20px;margin-bottom:20px">
                   <p style="color:#166534;font-size:13px;margin:0 0 8px;font-weight:700;text-transform:uppercase">Tus credenciales de acceso:</p>
-                  <p style="color:#374151;font-size:14px;margin:0 0 4px"><strong>Correo:</strong> ${body.correo}</p>
+                  <p style="color:#374151;font-size:14px;margin:0 0 4px"><strong>Correo:</strong> ${correo}</p>
                   <p style="color:#374151;font-size:14px;margin:0"><strong>Contraseña:</strong> <code style="background:#f0fdf4;padding:2px 8px;border-radius:6px;font-size:15px">${pwd}</code></p>
                 </div>
                 <p style="color:#6b7280;font-size:13px;margin:0">
@@ -2324,10 +2395,19 @@ export class AppController implements OnModuleInit {
   @Put('admin/perfil/:id')
   async updatePerfil(@Param('id') id: string, @Body() body: any) {
     try {
+      const correo = normalizarCorreo(body.correo);
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo))
+        throw new BadRequestException('El correo no es valido');
+      const correoEnUso = await this.prisma.usuario.findFirst({
+        where: { id: { not: Number(id) }, correo: { equals: correo, mode: 'insensitive' }, estaActivo: 1 },
+        select: { id: true },
+      });
+      if (correoEnUso) throw new BadRequestException('Ya existe una cuenta con ese correo');
       const data: any = {
         nombres: body.nombres,
         apellidoPaterno: body.apellidoPaterno,
         apellidoMaterno: body.apellidoMaterno || null,
+        correo,
         telefono: body.telefono,
         urlFotoPerfil: body.urlFotoPerfil || undefined,
         creadoModificadoFecha: new Date(),

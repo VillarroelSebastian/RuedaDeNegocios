@@ -154,7 +154,7 @@ export default function ConfiguracionPage() {
   const { showSuccess, showError, ModalComponent } = useModal();
 
   const [user, setUser] = useState<any>(null);
-  const [form, setForm] = useState({ nombres: '', apellidoPaterno: '', apellidoMaterno: '', telefono: '', urlFotoPerfil: '' });
+  const [form, setForm] = useState({ nombres: '', apellidoPaterno: '', apellidoMaterno: '', correo: '', telefono: '', urlFotoPerfil: '' });
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [tab, setTab] = useState<'perfil' | 'evento' | 'seguridad'>('perfil');
@@ -175,7 +175,7 @@ export default function ConfiguracionPage() {
     if (!stored) { router.push('/auth/login'); return; }
     const u = JSON.parse(stored);
     setUser(u);
-    setForm({ nombres: u.nombres || '', apellidoPaterno: u.apellidoPaterno || '', apellidoMaterno: u.apellidoMaterno || '', telefono: u.telefono || '', urlFotoPerfil: u.urlFotoPerfil || '' });
+    setForm({ nombres: u.nombres || '', apellidoPaterno: u.apellidoPaterno || '', apellidoMaterno: u.apellidoMaterno || '', correo: u.correo || '', telefono: u.telefono || '', urlFotoPerfil: u.urlFotoPerfil || '' });
   }, []);
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -202,6 +202,7 @@ export default function ConfiguracionPage() {
         body: JSON.stringify(form),
       });
       const updated = await res.json();
+      if (!res.ok) throw new Error(updated?.message || 'No se pudo actualizar el perfil.');
       const newUser = { ...user, ...updated };
       localStorage.setItem('adminUser', JSON.stringify(newUser));
       setUser(newUser);
@@ -422,9 +423,9 @@ export default function ConfiguracionPage() {
               ))}
               <div className="col-span-2">
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Correo electrónico</label>
-                <input value={user?.correo || ''} disabled
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-gray-50 text-gray-400 cursor-not-allowed" />
-                <p className="text-xs text-gray-400 mt-1">El correo no se puede modificar.</p>
+                <input type="email" value={form.correo} onChange={(e) => setF('correo', e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
+                <p className="text-xs text-gray-400 mt-1">Este correo se usara para iniciar sesion y recuperar la cuenta.</p>
               </div>
             </div>
             <div className="flex justify-end pt-2">
