@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import {
   LayoutDashboard, Video, Armchair, CalendarCheck, Building2,
-  Clock, Calendar, ChevronRight, X, CheckCircle, AlertCircle, MapPin, CalendarPlus, QrCode,
+  Clock, Calendar, ChevronRight, X, CheckCircle, AlertCircle, MapPin, CalendarPlus, QrCode, Radio,
 } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
 
@@ -294,6 +294,12 @@ export default function TecnicoDashboardScreen() {
               <Text style={{ fontSize:11, color:'rgba(255,255,255,0.75)', marginTop:1 }}>Escanea la credencial QR del participante</Text>
             </View>
             <ChevronRight color="#fff" size={20} />
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={() => navigation.navigate('TecnicoEventosVivo')} activeOpacity={0.85}
+            style={{ flexDirection:'row', alignItems:'center', gap:12, backgroundColor:'#dc2626', borderRadius:16, padding:16, marginBottom:20 }}>
+            <View style={{ width:40, height:40, borderRadius:12, backgroundColor:'rgba(255,255,255,0.15)', alignItems:'center', justifyContent:'center' }}><Radio color="#fff" size={20}/></View>
+            <View style={{flex:1}}><Text style={{fontSize:15,fontWeight:'800',color:'#fff'}}>Monitorear eventos en vivo</Text><Text style={{fontSize:11,color:'rgba(255,255,255,0.75)',marginTop:1}}>Estados, transmisión y anuncios</Text></View><ChevronRight color="#fff" size={20}/>
           </TouchableOpacity>
 
           {/* Próximas reuniones */}

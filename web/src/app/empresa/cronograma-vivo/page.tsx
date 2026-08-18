@@ -1,10 +1,12 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Radio } from "lucide-react";
 import CronogramaVivo from "@/components/CronogramaVivo";
 
 export default function EmpresaCronogramaVivoPage() {
+  const [eeId, setEeId] = useState<number | null>(null);
+  useEffect(() => { try { setEeId(JSON.parse(localStorage.getItem('empresaUser') || 'null')?.empresaEventoId ?? null); } catch {} }, []);
   return (
     <div className="p-4 sm:p-6 max-w-4xl mx-auto">
       <div className="mb-6">
@@ -16,7 +18,7 @@ export default function EmpresaCronogramaVivoPage() {
         </p>
       </div>
       {/* Solo lectura: el staff es quien mueve los estados. */}
-      <CronogramaVivo />
+      <CronogramaVivo eeId={eeId} />
     </div>
   );
 }

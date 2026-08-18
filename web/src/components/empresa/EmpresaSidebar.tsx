@@ -86,7 +86,7 @@ export default function EmpresaSidebar({ esEncargado = false, eeId = null, mobil
         </button>
       <div className="flex items-center gap-2.5 px-5 h-16 border-b border-gray-100 shrink-0">
         {foto ? (
-          <img src={foto} alt="Tu foto de perfil" className="w-9 h-9 rounded-full object-cover border border-gray-200 shrink-0" />
+          <img src={foto} alt="Tu foto de perfil" className="w-9 h-9 rounded-full object-contain border border-gray-200 shrink-0" />
         ) : (
           <div className="w-8 h-8 bg-[#449D3A] rounded-lg flex items-center justify-center shrink-0">
             <Briefcase className="w-4 h-4 text-white" />

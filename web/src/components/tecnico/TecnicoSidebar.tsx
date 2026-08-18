@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Armchair, Video, Search, Newspaper,
-  UserCircle, LogOut, Shield, Menu, X, CalendarPlus, Radio, QrCode,
+  UserCircle, LogOut, Shield, Menu, X, CalendarPlus, Radio, QrCode, Images,
 } from 'lucide-react';
 
 const menuItems = [
@@ -15,6 +15,7 @@ const menuItems = [
   { name: 'Virtuales',        icon: Video,           href: '/tecnico/virtuales' },
   { name: 'Buscador',         icon: Search,          href: '/tecnico/buscar' },
   { name: 'Cronograma en Vivo', icon: Radio,         href: '/tecnico/cronograma-vivo' },
+  { name: 'Galería del evento', icon: Images,        href: '/tecnico/galeria' },
   { name: 'Asistencia QR',    icon: QrCode,          href: '/tecnico/asistencia' },
   { name: 'Noticias',         icon: Newspaper,       href: '/tecnico/noticias' },
   { name: 'Mi Perfil',        icon: UserCircle,      href: '/tecnico/perfil' },
@@ -79,7 +80,7 @@ export default function TecnicoSidebar() {
       <div className="px-4 py-3 border-b border-gray-100 shrink-0">
         <div className="flex items-center gap-2 bg-green-50 rounded-lg px-3 py-2">
           {user?.urlFotoPerfil
-            ? <img src={user.urlFotoPerfil} alt="Tu foto de perfil" className="w-7 h-7 rounded-full object-cover border border-green-200 shrink-0" />
+            ? <img src={user.urlFotoPerfil} alt="Tu foto de perfil" className="w-7 h-7 rounded-full object-contain border border-green-200 shrink-0" />
             : <Shield className="w-4 h-4 text-green-700 shrink-0" />}
           <div className="min-w-0">
             <p className="text-xs font-bold text-green-700">Panel Técnico</p>
@@ -91,7 +92,7 @@ export default function TecnicoSidebar() {
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-3 mb-2">Menú principal</p>
-        {menuItems.map((item) => {
+        {menuItems.filter((item) => user?.rolEvento !== 'TECNICO_EVENTOS' || ['/tecnico/cronograma-vivo', '/tecnico/galeria', '/tecnico/perfil'].includes(item.href)).map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
           return (
             <Link key={item.name} href={item.href}

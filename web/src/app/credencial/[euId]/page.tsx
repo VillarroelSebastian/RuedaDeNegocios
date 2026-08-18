@@ -95,7 +95,7 @@ export default function CredencialPage() {
           {/* Participante */}
           <div className="px-6 pt-6 pb-4 flex items-center gap-4 border-b border-gray-50">
             {participante.urlFotoPerfil ? (
-              <img src={participante.urlFotoPerfil} alt={participante.nombre} className="w-16 h-16 rounded-2xl object-cover border border-gray-100 shrink-0" />
+              <img src={participante.urlFotoPerfil} alt={participante.nombre} className="w-16 h-16 rounded-2xl object-contain border border-gray-100 shrink-0" />
             ) : (
               <div className="w-16 h-16 rounded-2xl bg-green-50 flex items-center justify-center shrink-0">
                 <User className="w-8 h-8 text-[#449D3A]" />
@@ -122,7 +122,7 @@ export default function CredencialPage() {
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Empresa</p>
             <div className="flex items-center gap-3">
               {empresa.urlFotoPerfil ? (
-                <img src={empresa.urlFotoPerfil} alt={empresa.nombre} className="w-12 h-12 rounded-xl object-cover border border-gray-100 shrink-0" />
+                <img src={empresa.urlFotoPerfil} alt={empresa.nombre} className="w-12 h-12 rounded-xl object-contain border border-gray-100 shrink-0" />
               ) : (
                 <div className="w-12 h-12 rounded-xl bg-green-50 flex items-center justify-center shrink-0">
                   <Building2 className="w-6 h-6 text-[#449D3A]" />

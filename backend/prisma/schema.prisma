@@ -40,6 +40,8 @@ model actividadprograma {
   fechaCreacion                 DateTime  @default(now()) @db.Timestamp(6)
   creadoModificadoFecha         DateTime? @db.Timestamp(6)
   evento                        evento    @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_actividadprograma_evento1")
+  suscripciones                 suscripcionactividad[]
+  anuncios                      anuncioactividad[]
 
   @@index([evento_id], map: "fk_actividadprograma_evento1_idx")
   @@index([evento_id, estadoEnVivo])
@@ -234,6 +236,7 @@ model empresaevento {
   solicitudreunion_solicitudreunion_empresaEventorReceptora_idToempresaevento   solicitudreunion[]          @relation("solicitudreunion_empresaEventorReceptora_idToempresaevento")
   empresa_bloqueo                                                               empresa_bloqueo[]
   empresa_horario                                                               empresa_horario[]
+  suscripcionesactividad                                                        suscripcionactividad[]
 
   @@index([empresa_id], map: "fk_empresaevento_empresa1_idx")
   @@index([evento_id], map: "fk_empresaevento_evento1_idx")
@@ -244,6 +247,7 @@ model empresa_bloqueo {
   empresaevento_id Int
   inicio           DateTime      @db.Timestamp(6)
   fin              DateTime      @db.Timestamp(6)
+  estaActivo       Int           @default(1) @db.SmallInt
   empresaevento    empresaevento @relation(fields: [empresaevento_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([empresaevento_id])
@@ -254,6 +258,7 @@ model empresa_horario {
   empresaevento_id Int
   desde_hora       String        @db.VarChar(5)
   hasta_hora       String        @db.VarChar(5)
+  estaActivo       Int           @default(1) @db.SmallInt
   empresaevento    empresaevento @relation(fields: [empresaevento_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([empresaevento_id])
@@ -421,6 +426,33 @@ model notificacion {
 // Mensajes del equipo del evento (admin/técnico) usan emisorEe_id = 0 (centinela,
 // no hay empresaevento del staff), empresa_usuario_id nulo y remitenteRol/Nombre
 // con quién escribió. Estos mensajes son de una sola vía (la empresa no responde).
+model suscripcionactividad {
+  id               Int               @id @default(autoincrement())
+  actividad_id     Int
+  empresaevento_id Int
+  estaActivo       Int               @default(1) @db.SmallInt
+  fechaCreacion    DateTime          @default(now()) @db.Timestamp(6)
+  actividad        actividadprograma @relation(fields: [actividad_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  empresaevento    empresaevento     @relation(fields: [empresaevento_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([actividad_id, empresaevento_id])
+  @@index([empresaevento_id])
+}
+
+model anuncioactividad {
+  id            Int               @id @default(autoincrement())
+  actividad_id  Int
+  usuario_id    Int
+  mensaje       String            @db.VarChar(500)
+  estaActivo    Int               @default(1) @db.SmallInt
+  fechaCreacion DateTime          @default(now()) @db.Timestamp(6)
+  actividad     actividadprograma @relation(fields: [actividad_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  usuario       usuario           @relation(fields: [usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([actividad_id, fechaCreacion])
+  @@index([usuario_id])
+}
+
 model mensajeempresa {
   id                    Int       @id @default(autoincrement())
   evento_id             Int
@@ -570,6 +602,7 @@ model usuario {
   noticia               noticia[]
   evento                evento?           @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_usuario_evento1")
   asistenciasRegistradas asistenciaevento[] @relation("TecnicoAsistencia")
+  anunciosActividad      anuncioactividad[]
 
   @@index([evento_id], map: "fk_usuario_evento1_idx")
 }

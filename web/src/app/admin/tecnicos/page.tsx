@@ -13,6 +13,7 @@ const defaultForm = {
   telefono: '',
   contrasenia: '',
   urlFotoPerfil: '',
+  rolEvento: 'TECNICO',
 };
 
 export default function TecnicosPage() {
@@ -39,7 +40,7 @@ export default function TecnicosPage() {
 
   const openCreate = () => { setForm({ ...defaultForm }); setEditId(null); setShowForm(true); };
   const openEdit = (t: any) => {
-    setForm({ nombres: t.nombres, apellidoPaterno: t.apellidoPaterno, apellidoMaterno: t.apellidoMaterno || '', correo: t.correo, telefono: t.telefono, contrasenia: '', urlFotoPerfil: t.urlFotoPerfil || '' });
+    setForm({ nombres: t.nombres, apellidoPaterno: t.apellidoPaterno, apellidoMaterno: t.apellidoMaterno || '', correo: t.correo, telefono: t.telefono, contrasenia: '', urlFotoPerfil: t.urlFotoPerfil || '', rolEvento: t.rolEvento || 'TECNICO' });
     setEditId(t.id);
     setShowForm(true);
   };
@@ -61,10 +62,6 @@ export default function TecnicosPage() {
   const handleSave = async () => {
     if (!form.nombres || !form.apellidoPaterno || !form.correo || !form.telefono) {
       showError('Campos requeridos', 'Completa nombre, apellido, correo y teléfono.');
-      return;
-    }
-    if (!editId && !form.contrasenia) {
-      showError('Contraseña requerida', 'Ingresa una contraseña para el nuevo técnico.');
       return;
     }
     setSaving(true);
@@ -180,6 +177,13 @@ export default function TecnicosPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Tipo de técnico *</label>
+                  <select value={form.rolEvento} onChange={(e) => set('rolEvento', e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                    <option value="TECNICO">Técnico general</option>
+                    <option value="TECNICO_EVENTOS">Técnico de eventos en vivo</option>
+                  </select>
+                </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">Nombres *</label>
                   <input value={form.nombres} onChange={(e) => set('nombres', e.target.value)}
@@ -208,7 +212,7 @@ export default function TecnicosPage() {
                 </div>
                 <div className="col-span-2">
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    {editId ? 'Nueva contraseña (dejar en blanco para no cambiar)' : 'Contraseña *'}
+                    {editId ? 'Nueva contraseña (dejar en blanco para no cambiar)' : 'La contraseña se genera y envía por correo'}
                   </label>
                   <div className="relative">
                     <input type={showPass ? 'text' : 'password'} value={form.contrasenia} onChange={(e) => set('contrasenia', e.target.value)}

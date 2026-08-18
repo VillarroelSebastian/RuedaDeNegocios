@@ -18,6 +18,7 @@ const defaultForm = {
   telefono: '',
   contrasenia: '',
   urlFotoPerfil: '',
+  rolEvento: 'TECNICO',
 };
 
 export default function TecnicosScreen() {
@@ -62,10 +63,6 @@ export default function TecnicosScreen() {
   const handleSave = async () => {
     if (!form.nombres || !form.apellidoPaterno || !form.correo || !form.telefono) {
       show({ type: 'warning', title: 'Requerido', message: 'Completa nombre, apellido, correo y teléfono.' });
-      return;
-    }
-    if (!editId && !form.contrasenia) {
-      show({ type: 'warning', title: 'Requerido', message: 'La contraseña es obligatoria para crear un técnico.' });
       return;
     }
     setSaving(true);
@@ -149,7 +146,7 @@ export default function TecnicosScreen() {
                 </View>
                 <View className="gap-2">
                   <TouchableOpacity onPress={() => {
-                    setForm({ nombres: t.nombres, apellidoPaterno: t.apellidoPaterno, apellidoMaterno: t.apellidoMaterno || '', correo: t.correo, telefono: t.telefono, contrasenia: '', urlFotoPerfil: t.urlFotoPerfil || '' });
+                    setForm({ nombres: t.nombres, apellidoPaterno: t.apellidoPaterno, apellidoMaterno: t.apellidoMaterno || '', correo: t.correo, telefono: t.telefono, contrasenia: '', urlFotoPerfil: t.urlFotoPerfil || '', rolEvento: t.rolEvento || 'TECNICO' });
                     setEditId(t.id); setShowForm(true);
                   }} className="p-2 bg-green-50 rounded-xl">
                     <Pencil color={GREEN} size={16} />
@@ -175,6 +172,10 @@ export default function TecnicosScreen() {
               <TouchableOpacity onPress={() => setShowForm(false)}><X color="#9ca3af" size={22} /></TouchableOpacity>
             </View>
             <ScrollView showsVerticalScrollIndicator={false}>
+              <Text className="text-sm font-semibold text-gray-700 mb-2">Tipo de técnico *</Text>
+              <View className="flex-row gap-2 mb-4">
+                {[['TECNICO','General'],['TECNICO_EVENTOS','Eventos en vivo']].map(([value,label]) => <TouchableOpacity key={value} onPress={() => set('rolEvento', value)} style={{ backgroundColor: form.rolEvento === value ? GREEN : '#f1f5f9' }} className="flex-1 rounded-xl py-3 items-center"><Text style={{ color: form.rolEvento === value ? '#fff' : '#475569', fontSize: 12, fontWeight: '700' }}>{label}</Text></TouchableOpacity>)}
+              </View>
               {/* Foto */}
               <View className="items-center mb-4">
                 <TouchableOpacity onPress={handlePickPhoto}>
@@ -193,7 +194,7 @@ export default function TecnicosScreen() {
                 { label: 'Apellido materno', key: 'apellidoMaterno' },
                 { label: 'Teléfono *', key: 'telefono', keyboardType: 'phone-pad' },
                 { label: 'Correo electrónico *', key: 'correo', keyboardType: 'email-address' },
-                { label: editId ? 'Nueva contraseña (dejar en blanco para no cambiar)' : 'Contraseña *', key: 'contrasenia', secureTextEntry: true },
+                { label: editId ? 'Nueva contraseña (dejar en blanco para no cambiar)' : 'Contraseña (se generará y enviará por correo)', key: 'contrasenia', secureTextEntry: true },
               ].map(({ label, key, keyboardType, secureTextEntry }: any) => (
                 <View key={key} className="mb-3">
                   <Text className="text-sm font-semibold text-gray-700 mb-1">{label}</Text>

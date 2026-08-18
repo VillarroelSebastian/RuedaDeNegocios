@@ -12,6 +12,7 @@ import TecnicoNoticiasScreen   from '../screens/tecnico/TecnicoNoticiasScreen';
 import TecnicoPerfilScreen     from '../screens/tecnico/TecnicoPerfilScreen';
 import TecnicoAgendarScreen    from '../screens/tecnico/TecnicoAgendarScreen';
 import TecnicoAsistenciaScreen from '../screens/tecnico/TecnicoAsistenciaScreen';
+import TecnicoEventosVivoScreen from '../screens/tecnico/TecnicoEventosVivoScreen';
 
 const Tab          = createBottomTabNavigator();
 const TecnicoStack = createNativeStackNavigator();
@@ -66,6 +67,7 @@ export default function TecnicoNavigator() {
       <TecnicoStack.Screen name="TecnicoReuniones" component={TecnicoReunionesScreen} />
       <TecnicoStack.Screen name="TecnicoAgendar"   component={TecnicoAgendarScreen} />
       <TecnicoStack.Screen name="TecnicoAsistencia" component={TecnicoAsistenciaScreen} />
+      <TecnicoStack.Screen name="TecnicoEventosVivo" component={TecnicoEventosVivoScreen} />
     </TecnicoStack.Navigator>
   );
 }

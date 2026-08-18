@@ -115,7 +115,7 @@ export default function GaleriaEvento({
     <div>
       {puedeSubir && (
         <div className="mb-6">
-          <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden"
+          <input ref={fileRef} type="file" accept="image/*" className="hidden"
             onChange={(e) => { const f = e.target.files?.[0]; if (f) subir(f); }} />
           <button onClick={() => fileRef.current?.click()} disabled={subiendo}
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-[#449D3A] hover:bg-[#367d2e] text-white font-semibold px-6 py-3 rounded-xl transition-colors disabled:opacity-50">

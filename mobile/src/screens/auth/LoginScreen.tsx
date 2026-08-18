@@ -96,7 +96,7 @@ export default function LoginScreen({ navigation }: any) {
       await userStore.set(data);
       if (data.rolEvento === 'ADMINISTRADOR') {
         navigation.replace('AdminRoot');
-      } else if (data.rolEvento === 'TECNICO') {
+      } else if (['TECNICO', 'TECNICO_EVENTOS'].includes(data.rolEvento)) {
         navigation.replace('TecnicoRoot');
       } else if (data.rolEvento === 'EMPRESA') {
         navigation.replace('EmpresaRoot');

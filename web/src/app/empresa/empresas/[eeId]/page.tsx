@@ -98,7 +98,7 @@ export default function PerfilEmpresaPage() {
           <div className="absolute -top-8 -right-8 w-48 h-48 bg-white/10 rounded-full blur-2xl" />
           <div className="relative flex items-center gap-4">
             {emp.urlFotoPerfil ? (
-              <img src={emp.urlFotoPerfil} alt={emp.nombre} className="h-16 w-16 shrink-0 rounded-2xl border-2 border-white/60 bg-white object-cover shadow-lg sm:h-20 sm:w-20" />
+              <img src={emp.urlFotoPerfil} alt={emp.nombre} className="h-16 w-16 shrink-0 rounded-2xl border-2 border-white/60 bg-white object-contain shadow-lg sm:h-20 sm:w-20" />
             ) : (
               <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border-2 border-white/60 bg-white/15 shadow-lg sm:h-20 sm:w-20">
                 <Building2 className="h-8 w-8 text-white sm:h-10 sm:w-10" />

@@ -104,8 +104,14 @@ function PagoAdicionalModal({ eeId, euEncargadoId, maxPermitidos, slotsPagados, 
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [qrPago, setQrPago] = useState<string | null>(null);
+  const [montoCalculado, setMontoCalculado] = useState<number>(0);
 
   const maxAdicionales = maxPermitidos - slotsPagados;
+
+  useEffect(() => {
+    fetch(`${API}/empresa/pagos-adicionales/qr?eeId=${eeId}&cantidad=${cantidad}`).then((r) => r.json()).then((d) => { setQrPago(d.urlQR || null); setMontoCalculado(Number(d.monto || 0)); }).catch(() => setQrPago(null));
+  }, [eeId, cantidad]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -178,6 +184,7 @@ function PagoAdicionalModal({ eeId, euEncargadoId, maxPermitidos, slotsPagados, 
             </div>
             <div>
               <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Comprobante de pago *</label>
+              {qrPago && <div className="mb-3 rounded-xl border border-green-200 bg-green-50 p-3 text-center"><p className="text-xs font-bold text-green-800 mb-2">QR para {cantidad} participante{cantidad > 1 ? 's' : ''} adicional{cantidad > 1 ? 'es' : ''} · Bs {montoCalculado.toFixed(2)}</p><a href={qrPago} target="_blank" rel="noreferrer"><img src={qrPago} alt="QR de pago adicional" className="mx-auto h-48 w-full object-contain" /></a><p className="mt-1 text-[11px] text-green-700">Toca la imagen para verla completa.</p></div>}
 
               {/* Preview */}
               {previewUrl && (
@@ -568,7 +575,7 @@ export default function EmpresaPerfilPage() {
           <div className="relative shrink-0">
             <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center text-2xl font-extrabold border-2 border-white/40 overflow-hidden">
               {usuario.urlFotoPerfil
-                ? <img src={usuario.urlFotoPerfil} alt="Tu foto de perfil" className="w-full h-full object-cover" />
+                ? <img src={usuario.urlFotoPerfil} alt="Tu foto de perfil" className="w-full h-full object-contain" />
                 : initials}
             </div>
             <label className="absolute -bottom-1 -right-1 w-8 h-8 bg-white rounded-full flex items-center justify-center cursor-pointer shadow-md hover:bg-green-50 transition-colors" title="Cambiar foto de perfil">

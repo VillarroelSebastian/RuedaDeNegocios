@@ -1,7 +1,7 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  ActivityIndicator, RefreshControl, StyleSheet, Modal, Alert, Image, Linking,
+  ActivityIndicator, RefreshControl, StyleSheet, Modal, Image, Linking,
 } from 'react-native';
 import ImagenLightbox from '../../components/ImagenLightbox';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -14,10 +14,12 @@ import {
 } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
 import { LIMITES } from '../../utils/validaciones';
+import { useModal } from '../../components/AppModal';
 
 const GREEN = '#449D3A';
 
 export default function EmpresaPerfilScreen({ navigation }: any) {
+  const { show, modal } = useModal();
   const [perfil,      setPerfil]      = useState<any>(null);
   const [empresa,     setEmpresa]     = useState<any>(null);
   const [participantes, setParticipantes] = useState<any>(null);
@@ -60,6 +62,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
   const [pagoUrl,       setPagoUrl]       = useState('');
   const [pagoPreview,   setPagoPreview]   = useState<string | null>(null);
   const [pagoMonto,     setPagoMonto]     = useState('');
+  const [pagoQr,        setPagoQr]        = useState<string | null>(null);
   const [pagandoAd,     setPagandoAd]     = useState(false);
   const [pagoUploading, setPagoUploading] = useState(false);
   const [pagoError,     setPagoError]     = useState('');
@@ -242,15 +245,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
   };
 
   const handleDeactivate = (eu: any) => {
-    Alert.alert(
-      'Desactivar participante',
-      `¿Deseas desactivar a ${eu.usuario?.nombres ?? 'este participante'}? No podrá iniciar sesión.`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Desactivar',
-          style: 'destructive',
-          onPress: async () => {
+    show({ type: 'confirm', title: 'Desactivar participante', message: `¿Deseas desactivar a ${eu.usuario?.nombres ?? 'este participante'}? No podrá iniciar sesión.`, cancelText: 'Cancelar', confirmText: 'Desactivar', onConfirm: async () => {
             try {
               const res = await fetch(`${API_URL}/empresa/participantes/${eu.id ?? eu.euId}/desactivar`, {
                 method: 'PUT',
@@ -259,17 +254,14 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
               });
               if (!res.ok) {
                 const d = await res.json();
-                Alert.alert('Error', d?.message || 'No se pudo desactivar');
+                show({ type: 'error', title: 'Error', message: d?.message || 'No se pudo desactivar' });
               } else {
                 fetchAll();
               }
             } catch {
-              Alert.alert('Error', 'Error de red');
+              show({ type: 'error', title: 'Error', message: 'Error de red' });
             }
-          },
-        },
-      ]
-    );
+          } });
   };
 
   const openPagoAdicional = () => {
@@ -277,6 +269,12 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
     setPagoError(''); setPagoOk(false); setPagoUploading(false);
     setPagoModal(true);
   };
+
+  useEffect(() => {
+    if (!pagoModal || !empresa?.empresaeventoId) return;
+    fetch(`${API_URL}/empresa/pagos-adicionales/qr?eeId=${empresa.empresaeventoId}&cantidad=${parseInt(pagoCant,10)||1}`)
+      .then((r) => r.json()).then((d) => { setPagoQr(d.urlQR || null); setPagoMonto(String(d.monto || '')); }).catch(() => setPagoQr(null));
+  }, [pagoModal, pagoCant, empresa?.empresaeventoId]);
 
   const pickComprobante = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -373,13 +371,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
   };
 
   const handleLogout = () => {
-    Alert.alert('Cerrar sesión', '¿Estás seguro?', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Salir', style: 'destructive',
-        onPress: () => { userStore.clear(); navigation.replace('Login'); },
-      },
-    ]);
+    show({ type: 'confirm', title: 'Cerrar sesión', message: '¿Estás seguro?', cancelText: 'Cancelar', confirmText: 'Salir', onConfirm: () => { userStore.clear(); navigation.replace('Login'); } });
   };
 
   if (loading) return (
@@ -395,6 +387,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
 
   return (
     <SafeAreaView style={s.root} edges={['top']}>
+      {modal}
       <ScrollView
         contentContainerStyle={s.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchAll(); }} tintColor={GREEN} />}
@@ -808,6 +801,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
                 <Text style={s.label}>Cantidad de cupos a solicitar</Text>
                 <TextInput style={s.input} value={pagoCant} onChangeText={setPagoCant} keyboardType="number-pad" placeholder="1" placeholderTextColor="#9ca3af" />
                 <Text style={s.label}>Comprobante de pago *</Text>
+                {!!pagoQr && <View style={{ backgroundColor:'#f0fdf4', borderRadius:12, padding:10, marginBottom:12 }}><Text style={{ color:'#166534', textAlign:'center', fontSize:12, fontWeight:'700', marginBottom:7 }}>QR para {pagoCant || '1'} participante(s) adicional(es)</Text><ImagenLightbox uri={pagoQr} style={{ width:'100%', height:190 }} imgStyle={{ resizeMode:'contain' }} /><Text style={{ color:'#15803d', textAlign:'center', fontSize:10, marginTop:5 }}>Toca para ampliar</Text></View>}
                 {pagoPreview && (
                   <ImagenLightbox uri={pagoPreview} style={s.previewBox} imgStyle={{ borderRadius: 10 }} />
                 )}

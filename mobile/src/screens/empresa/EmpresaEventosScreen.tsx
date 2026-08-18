@@ -1,12 +1,12 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, FlatList, ActivityIndicator,
-  RefreshControl, StyleSheet,
+  RefreshControl, StyleSheet, TouchableOpacity, Linking, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { CalendarDays, Clock, MapPin, AlertCircle } from 'lucide-react-native';
-import { API_URL } from '../../utils/userStore';
+import { CalendarDays, Clock, MapPin, AlertCircle, Bell, ExternalLink, Megaphone } from 'lucide-react-native';
+import { API_URL, userStore } from '../../utils/userStore';
 
 const GREEN = '#449D3A';
 
@@ -32,10 +32,11 @@ export default function EmpresaEventosScreen() {
   const fetchData = useCallback(async () => {
     setError('');
     try {
-      const res = await fetch(`${API_URL}/empresa/actividades`);
+      const eeId = userStore.get()?.empresaeventoId ?? userStore.get()?.empresaEventoId;
+      const res = await fetch(`${API_URL}/public/cronograma-vivo${eeId ? `?eeId=${eeId}` : ''}`);
       if (!res.ok) throw new Error('Error cargando actividades');
       const data = await res.json();
-      setItems(Array.isArray(data) ? data : []);
+      setItems(Array.isArray(data?.actividades) ? data.actividades : []);
     } catch (e: any) {
       setError(e.message || 'Error de red');
     } finally {
@@ -45,6 +46,13 @@ export default function EmpresaEventosScreen() {
   }, []);
 
   useFocusEffect(useCallback(() => { fetchData(); }, [fetchData]));
+
+  const suscribir = async (item: any) => {
+    const eeId = userStore.get()?.empresaeventoId ?? userStore.get()?.empresaEventoId;
+    if (!eeId) return;
+    await fetch(`${API_URL}/empresa/cronograma-vivo/${item.id}/suscripcion`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ eeId, suscrito: !item.suscrito }) });
+    fetchData();
+  };
 
   if (loading) return (
     <View style={s.center}><ActivityIndicator size="large" color={GREEN} /></View>
@@ -73,6 +81,7 @@ export default function EmpresaEventosScreen() {
           const colors = TIPO_COLORS[item.tipoActividad] ?? { bg: '#f1f5f9', text: '#475569' };
           return (
             <View style={s.card}>
+              {!!item.urlImagenBannerActividad && <Image source={{ uri: item.urlImagenBannerActividad }} style={{ width: '100%', height: 150, resizeMode: 'contain', marginBottom: 12 }} />}
               <View style={s.cardHeader}>
                 <View style={[s.tipoBadge, { backgroundColor: colors.bg }]}>
                   <Text style={[s.tipoText, { color: colors.text }]}>{item.tipoActividad ?? 'ACTIVIDAD'}</Text>
@@ -99,15 +108,20 @@ export default function EmpresaEventosScreen() {
                   </Text>
                 </View>
               )}
-              {!!item.lugarActividad && (
+              {!!item.nombreSalaEspacio && (
                 <View style={s.metaRow}>
                   <MapPin size={13} color="#94a3b8" style={{ marginRight: 4 }} />
-                  <Text style={s.metaText}>{item.lugarActividad}</Text>
+                  <Text style={s.metaText}>{item.nombreSalaEspacio}</Text>
                 </View>
               )}
-              {!!item.nombreResponsableActividad && (
-                <Text style={s.responsible}>Responsable: {item.nombreResponsableActividad}</Text>
+              {!!item.nombreCompletoPilaExpositor && (
+                <Text style={s.responsible}>Expositor: {item.nombreCompletoPilaExpositor}</Text>
               )}
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+                {!!item.linkReunionVirtual && <TouchableOpacity onPress={() => Linking.openURL(item.linkReunionVirtual)} style={{ backgroundColor: GREEN, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, flexDirection: 'row', gap: 6 }}><ExternalLink size={14} color="#fff"/><Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>Ver transmisión</Text></TouchableOpacity>}
+                <TouchableOpacity onPress={() => suscribir(item)} style={{ backgroundColor: item.suscrito ? '#fef3c7' : '#f1f5f9', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, flexDirection: 'row', gap: 6 }}><Bell size={14} color={item.suscrito ? '#92400e' : '#475569'}/><Text style={{ color: item.suscrito ? '#92400e' : '#475569', fontSize: 12, fontWeight: '700' }}>{item.suscrito ? 'Suscrito' : 'Suscribirme'}</Text></TouchableOpacity>
+              </View>
+              {!!item.anuncios?.length && <View style={{ marginTop: 10, gap: 6 }}>{item.anuncios.map((a: any) => <View key={a.id} style={{ backgroundColor: '#fffbeb', borderRadius: 10, padding: 10, flexDirection: 'row', gap: 6 }}><Megaphone size={14} color="#92400e"/><Text style={{ color: '#92400e', fontSize: 12, flex: 1 }}>{a.mensaje}</Text></View>)}</View>}
             </View>
           );
         }}

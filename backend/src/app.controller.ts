@@ -350,7 +350,7 @@ export class AppController implements OnModuleInit {
       });
     }
 
-    if (user.rolEvento === 'TECNICO') {
+    if (['TECNICO', 'TECNICO_EVENTOS'].includes(user.rolEvento)) {
       const eventoId = await this.getPrincipalEventoId();
       if (user.evento_id !== eventoId) {
         throw new UnauthorizedException('Tu cuenta no está habilitada para el evento activo actualmente.');
@@ -2303,7 +2303,7 @@ export class AppController implements OnModuleInit {
   async getTecnicos() {
     const eventoId = await this.getPrincipalEventoId();
     return await this.prisma.usuario.findMany({
-      where: { rolEvento: 'TECNICO', estaActivo: 1, evento_id: eventoId ?? undefined },
+      where: { rolEvento: { in: ['TECNICO', 'TECNICO_EVENTOS'] }, estaActivo: 1, evento_id: eventoId ?? undefined },
       orderBy: { fechaCreacion: 'desc' },
       select: {
         id: true,
@@ -2344,6 +2344,7 @@ export class AppController implements OnModuleInit {
       // Credenciales generadas por el sistema y enviadas al correo del técnico
       const pwd = generarPasswordTemporal();
       const hashed = await bcrypt.hash(pwd, 10);
+      const rolTecnico = body.rolEvento === 'TECNICO_EVENTOS' ? 'TECNICO_EVENTOS' : 'TECNICO';
       const tecnico = await this.prisma.usuario.create({
         data: {
           nombres: body.nombres,
@@ -2353,7 +2354,7 @@ export class AppController implements OnModuleInit {
           contrasenia: hashed,
           telefono: String(body.telefono).trim(),
           urlFotoPerfil: body.urlFotoPerfil || '',
-          rolEvento: 'TECNICO',
+          rolEvento: rolTecnico,
           evento_id: eventoId,
           estaActivo: 1,
         },
@@ -2421,6 +2422,7 @@ export class AppController implements OnModuleInit {
         telefono: body.telefono,
         urlFotoPerfil: body.urlFotoPerfil || undefined,
         creadoModificadoFecha: new Date(),
+        rolEvento: body.rolEvento === 'TECNICO_EVENTOS' ? 'TECNICO_EVENTOS' : 'TECNICO',
       };
 
       if (body.contrasenia) {
@@ -4375,9 +4377,9 @@ export class AppController implements OnModuleInit {
     const excludeId = excludeReunionId ? Number(excludeReunionId) : undefined;
 
     const [bloqueosA, bloqueosB, rangosReceptora] = await Promise.all([
-      this.prisma.empresa_bloqueo.findMany({ where: { empresaevento_id: Number(eeId) } }),
-      this.prisma.empresa_bloqueo.findMany({ where: { empresaevento_id: Number(eeReceptoraId) } }),
-      this.prisma.empresa_horario.findMany({ where: { empresaevento_id: Number(eeReceptoraId) } }),
+      this.prisma.empresa_bloqueo.findMany({ where: { empresaevento_id: Number(eeId), estaActivo: 1 } }),
+      this.prisma.empresa_bloqueo.findMany({ where: { empresaevento_id: Number(eeReceptoraId), estaActivo: 1 } }),
+      this.prisma.empresa_horario.findMany({ where: { empresaevento_id: Number(eeReceptoraId), estaActivo: 1 } }),
     ]);
 
     const reunionesA = await this.prisma.reunion.findMany({
@@ -4486,7 +4488,7 @@ export class AppController implements OnModuleInit {
   async getRangosHorario(@Query('eeId') eeId: string) {
     if (!eeId) throw new BadRequestException('eeId requerido');
     return this.prisma.empresa_horario.findMany({
-      where: { empresaevento_id: Number(eeId) },
+      where: { empresaevento_id: Number(eeId), estaActivo: 1 },
       orderBy: { desde_hora: 'asc' },
     });
   }
@@ -4497,7 +4499,7 @@ export class AppController implements OnModuleInit {
     if (!eeId) throw new BadRequestException('eeId requerido');
 
     // Persist ranges
-    await this.prisma.empresa_horario.deleteMany({ where: { empresaevento_id: Number(eeId) } });
+    await this.prisma.empresa_horario.updateMany({ where: { empresaevento_id: Number(eeId), estaActivo: 1 }, data: { estaActivo: 0 } });
     for (const r of rangos) {
       await this.prisma.empresa_horario.create({
         data: { empresaevento_id: Number(eeId), desde_hora: r.desde, hasta_hora: r.hasta },
@@ -4505,7 +4507,7 @@ export class AppController implements OnModuleInit {
     }
 
     // Recompute blocks: block every franja outside any saved range
-    await this.prisma.empresa_bloqueo.deleteMany({ where: { empresaevento_id: Number(eeId) } });
+    await this.prisma.empresa_bloqueo.updateMany({ where: { empresaevento_id: Number(eeId), estaActivo: 1 }, data: { estaActivo: 0 } });
     if (rangos.length > 0) {
       const eventoId = await this.getPrincipalEventoId();
       const evento = eventoId ? await this.prisma.evento.findUnique({ where: { id: eventoId } }) : null;
@@ -4537,7 +4539,7 @@ export class AppController implements OnModuleInit {
 
     const franjas = this.generarFranjas(evento);
     const bloqueos = await this.prisma.empresa_bloqueo.findMany({
-      where: { empresaevento_id: Number(eeId) },
+      where: { empresaevento_id: Number(eeId), estaActivo: 1 },
     });
 
     return franjas.map((f) => {
@@ -4553,7 +4555,7 @@ export class AppController implements OnModuleInit {
   @Delete('empresa/horarios-empresa/todos')
   async resetHorariosEmpresa(@Query('eeId') eeId: string) {
     if (!eeId) throw new BadRequestException('eeId requerido');
-    await this.prisma.empresa_bloqueo.deleteMany({ where: { empresaevento_id: Number(eeId) } });
+    await this.prisma.empresa_bloqueo.updateMany({ where: { empresaevento_id: Number(eeId), estaActivo: 1 }, data: { estaActivo: 0 } });
     return { ok: true };
   }
 
@@ -4565,11 +4567,11 @@ export class AppController implements OnModuleInit {
     const iniDate = new Date(inicio);
     const finDate = new Date(fin);
     const existing = await this.prisma.empresa_bloqueo.findFirst({
-      where: { empresaevento_id: eeId, inicio: iniDate },
+      where: { empresaevento_id: eeId, inicio: iniDate, estaActivo: 1 },
     });
 
     if (existing) {
-      await this.prisma.empresa_bloqueo.delete({ where: { id: existing.id } });
+      await this.prisma.empresa_bloqueo.update({ where: { id: existing.id }, data: { estaActivo: 0 } });
       return { disponible: true };
     } else {
       await this.prisma.empresa_bloqueo.create({
@@ -5057,8 +5059,8 @@ export class AppController implements OnModuleInit {
     const eeB = sol.empresaEventorReceptora_id;
 
     const [bloqueosA, bloqueosB, reunionesA, reunionesB] = await Promise.all([
-      this.prisma.empresa_bloqueo.findMany({ where: { empresaevento_id: eeA } }),
-      this.prisma.empresa_bloqueo.findMany({ where: { empresaevento_id: eeB } }),
+      this.prisma.empresa_bloqueo.findMany({ where: { empresaevento_id: eeA, estaActivo: 1 } }),
+      this.prisma.empresa_bloqueo.findMany({ where: { empresaevento_id: eeB, estaActivo: 1 } }),
       this.prisma.reunion.findMany({
         where: { estaActivo: 1, estadoReunion: { not: 'CANCELADA' }, id: { not: Number(id) }, solicitudreunion: { OR: [{ empresaEvento_id: eeA }, { empresaEventorReceptora_id: eeA }] } },
         select: { fechaHoraInicioReunion: true, fechaHoraFinReunion: true },
@@ -5705,6 +5707,20 @@ export class AppController implements OnModuleInit {
   }
 
   // ─── Pagos adicionales endpoints ───────────────────────────────────────────
+
+  @Get('empresa/pagos-adicionales/qr')
+  async getQrPagoAdicional(@Query('eeId') eeId: string, @Query('cantidad') cantidad: string) {
+    const ee = await this.prisma.empresaevento.findFirst({
+      where: { id: Number(eeId), estaActivo: 1 },
+      include: { evento: { include: { eventoreglaqr: { where: { estadoActivo: 1 }, orderBy: { rangoDesde: 'asc' } } } }, paquete: true },
+    });
+    if (!ee) throw new BadRequestException('Empresa no encontrada.');
+    const nuevos = Math.max(1, Number(cantidad));
+    const total = ee.numeroParticipantes + nuevos;
+    const regla = ee.evento.eventoreglaqr.find((r: any) => total >= r.rangoDesde && total <= r.rangoHasta)
+      || ee.evento.eventoreglaqr.find((r: any) => nuevos >= r.rangoDesde && nuevos <= r.rangoHasta);
+    return { cantidad: nuevos, total, urlQR: regla?.urlQR || ee.paquete?.urlQR || null, monto: Number(ee.evento.costoParticipanteExtra) * nuevos };
+  }
 
   @Post('empresa/pagos-adicionales')
   async solicitarPagoAdicional(@Body() body: { eeId: number; euEncargadoId: number; cantidadParticipantes: number; urlComprobante: string }) {

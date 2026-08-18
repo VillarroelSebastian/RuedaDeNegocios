@@ -6,6 +6,7 @@ import { join } from 'path';
 import { randomBytes, createHmac } from 'crypto';
 import * as nodemailer from 'nodemailer';
 import * as QRCode from 'qrcode';
+import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 // Paquetes de inscripción, auspiciadores, repositorio de fotos y cronograma en
@@ -58,6 +59,32 @@ export class ExtrasController {
     const url = `${this.uploadsBaseUrl()}/uploads/${filename}`;
     await this.prisma.auspiciadorpersona.update({ where: { id: personaId }, data: { urlCredencialQR: url } });
     return url;
+  }
+
+  private async crearAccesoEmpresaAuspiciador(ausp: any) {
+    const responsable = ausp.personas?.[0];
+    if (!responsable?.correo) return { creado: false };
+    const correo = String(responsable.correo).trim().toLowerCase();
+    const existente = await this.prisma.usuario.findFirst({ where: { correo: { equals: correo, mode: 'insensitive' }, estaActivo: 1 } });
+    if (existente) return { creado: false, motivo: 'El correo ya tenía una cuenta.' };
+    const ciudad = await this.prisma.ciudad.findFirst({ orderBy: { id: 'asc' } });
+    if (!ciudad) throw new BadRequestException('No existe una ciudad configurada para crear el acceso del auspiciador.');
+    const partes = String(responsable.nombreCompleto).trim().split(/\s+/);
+    const nombres = partes.shift() || 'Responsable';
+    const apellidoPaterno = partes.shift() || 'Auspiciador';
+    const pwd = randomBytes(6).toString('base64url');
+    const hash = await bcrypt.hash(pwd, 10);
+    const telefono = `AUSP-${ausp.id}-${responsable.id}`;
+    const creado = await this.prisma.$transaction(async (tx) => {
+      const empresa = await tx.empresa.create({ data: { ciudad_id: ciudad.id, nombre: ausp.nombreEmpresa.substring(0,55), rubro: 'Auspiciador', descripcion: ausp.descripcion, telefonoWhatsapp: telefono, correoCorporativo: correo, estaActivo: 1 } });
+      const ee = await tx.empresaevento.create({ data: { empresa_id: empresa.id, evento_id: ausp.evento_id, paquete_id: ausp.paquete_id, tipoParticipacion: ausp.paquete?.tipoParticipacion || 'PRESENCIAL', estadoHabilitacionAcceso: 'HABILITADO', estadoVerificacionPago: 'APROBADO', numeroParticipantes: ausp.cantidadIngresos, estaActivo: 1 } });
+      const usuario = await tx.usuario.create({ data: { evento_id: ausp.evento_id, nombres, apellidoPaterno, apellidoMaterno: partes.join(' ') || null, correo, contrasenia: hash, telefono, urlFotoPerfil: '', rolEvento: 'EMPRESA', estaActivo: 1 } });
+      await tx.empresa_usuario.create({ data: { empresa_id: empresa.id, empresaevento_id: ee.id, usuario_id: usuario.id, cargo: responsable.cargo || 'Responsable', esResponsable: 1, estaActivo: 1 } });
+      return { empresa, ee, usuario };
+    });
+    const transporter = nodemailer.createTransport({ service: 'gmail', auth: { user: process.env.MAIL_USER, pass: process.env.MAIL_PASS } });
+    await transporter.sendMail({ from: process.env.MAIL_FROM || process.env.MAIL_USER, to: correo, subject: `Acceso a la plataforma — ${ausp.nombreEmpresa}`, html: `<div style="font-family:Arial;max-width:560px;margin:auto"><h2 style="color:#449D3A">Acceso de empresa auspiciadora</h2><p>Ya puedes ingresar como empresa y acceder a las funcionalidades del evento.</p><div style="padding:18px;background:#f0fdf4;border-radius:12px"><b>Correo:</b> ${correo}<br/><b>Contraseña temporal:</b> ${pwd}</div><p><a href="${(process.env.WEB_URL || 'http://localhost:3000').replace(/\/$/,'')}/auth/login">Ingresar a la plataforma</a></p></div>` });
+    return { creado: true, empresaEventoId: creado.ee.id };
   }
 
   private async enviarCredencialAuspiciador(personaId: number): Promise<void> {
@@ -289,7 +316,7 @@ export class ExtrasController {
 
     const ausp = await this.prisma.auspiciador.create({
       data: { ...datos, evento_id: eventoId, personas: { create: personas } },
-      include: { personas: true },
+      include: { personas: true, paquete: true },
     });
     // Cada persona entra al evento, así que se le emite su credencial.
     for (const p of ausp.personas) {
@@ -302,7 +329,8 @@ export class ExtrasController {
         );
       }
     }
-    return this.obtenerAuspiciador(String(ausp.id));
+    const accesoPlataforma = await this.crearAccesoEmpresaAuspiciador(ausp);
+    return { ...(await this.obtenerAuspiciador(String(ausp.id))), accesoPlataforma };
   }
 
   @Put('admin/auspiciadores/:id')
@@ -461,7 +489,7 @@ export class ExtrasController {
 
   // Devuelve la agenda del día con lo que está pasando ahora mismo.
   @Get('public/cronograma-vivo')
-  async cronogramaVivo() {
+  async cronogramaVivo(@Query('eeId') eeId?: string) {
     const eventoId = await this.eventoPrincipalId();
     const actividades = await this.prisma.actividadprograma.findMany({
       where: { evento_id: eventoId, estaActivo: 1 },
@@ -474,14 +502,57 @@ export class ExtrasController {
         urlImagenBannerActividad: true, linkReunionVirtual: true,
         direccion_texto: true, ubicacionGoogleMapsPresencial: true,
         estadoEnVivo: true, notaEnVivo: true, horaInicioReal: true, horaFinReal: true,
+        anuncios: { where: { estaActivo: 1 }, orderBy: { fechaCreacion: 'desc' }, take: 10,
+          select: { id: true, mensaje: true, fechaCreacion: true, usuario: { select: { nombres: true, apellidoPaterno: true } } } },
       },
     });
     return {
       // El cliente refresca contra este sello para saber si algo cambió.
       actualizadoEn: new Date().toISOString(),
       enVivo: actividades.filter((a) => a.estadoEnVivo === 'EN_VIVO').map((a) => a.id),
-      actividades,
+      actividades: await Promise.all(actividades.map(async (a) => ({ ...a,
+        suscrito: eeId ? !!(await this.prisma.suscripcionactividad.findFirst({ where: { actividad_id: a.id, empresaevento_id: Number(eeId), estaActivo: 1 }, select: { id: true } })) : false,
+      }))),
     };
+  }
+
+  @Put('empresa/cronograma-vivo/:id/suscripcion')
+  async suscribirActividad(@Param('id') id: string, @Body() body: any) {
+    const actividadId = Number(id), eeId = Number(body.eeId);
+    const actividad = await this.prisma.actividadprograma.findFirst({ where: { id: actividadId, estaActivo: 1 } });
+    const ee = await this.prisma.empresaevento.findFirst({ where: { id: eeId, estaActivo: 1 } });
+    if (!actividad || !ee || actividad.evento_id !== ee.evento_id) throw new BadRequestException('Actividad o empresa no válidas para este evento.');
+    const estaActivo = body.suscrito === false ? 0 : 1;
+    return this.prisma.suscripcionactividad.upsert({
+      where: { actividad_id_empresaevento_id: { actividad_id: actividadId, empresaevento_id: eeId } },
+      create: { actividad_id: actividadId, empresaevento_id: eeId, estaActivo },
+      update: { estaActivo },
+    });
+  }
+
+  @Post('staff/cronograma-vivo/:id/anuncios')
+  async crearAnuncioActividad(@Param('id') id: string, @Body() body: any) {
+    const actividadId = Number(id), usuarioId = Number(body.usuarioId);
+    const mensaje = this.texto(body.mensaje, 500, 'Anuncio')!;
+    const actividad = await this.prisma.actividadprograma.findFirst({ where: { id: actividadId, estaActivo: 1 } });
+    const usuario = await this.prisma.usuario.findFirst({ where: { id: usuarioId, estaActivo: 1, rolEvento: { in: ['ADMINISTRADOR', 'TECNICO', 'TECNICO_EVENTOS'] } } });
+    if (!actividad || !usuario || usuario.evento_id !== actividad.evento_id) throw new BadRequestException('No tienes acceso a esta actividad.');
+    const anuncio = await this.prisma.anuncioactividad.create({ data: { actividad_id: actividadId, usuario_id: usuarioId, mensaje } });
+    const subs = await this.prisma.suscripcionactividad.findMany({ where: { actividad_id: actividadId, estaActivo: 1 }, select: { empresaevento_id: true } });
+    if (subs.length) await this.prisma.notificacion.createMany({ data: subs.map((s) => ({
+      empresaevento_id: s.empresaevento_id, tituloNotificacion: `Aviso: ${actividad.nombreActividad}`,
+      mensajeNotificacion: mensaje, tipoNotificacion: 'evento:anuncio', referenciaId: actividadId,
+      referenciaNombreTabla: 'actividadprograma', haSidoLeida: 0, estaActivo: 1,
+    })) });
+    return anuncio;
+  }
+
+  @Delete('staff/cronograma-vivo/anuncios/:id')
+  async eliminarAnuncioActividad(@Param('id') id: string, @Query('usuarioId') usuarioId: string) {
+    const usuario = await this.prisma.usuario.findFirst({ where: { id: Number(usuarioId), estaActivo: 1, rolEvento: { in: ['ADMINISTRADOR', 'TECNICO', 'TECNICO_EVENTOS'] } } });
+    const anuncio = await this.prisma.anuncioactividad.findUnique({ where: { id: Number(id) }, include: { actividad: true } });
+    if (!usuario || !anuncio || usuario.evento_id !== anuncio.actividad.evento_id) throw new BadRequestException('Anuncio no encontrado.');
+    return this.prisma.anuncioactividad.update({ where: { id: anuncio.id }, data: { estaActivo: 0 } });
   }
 
   // Admin y técnicos mueven el cronograma durante el evento.

@@ -1,12 +1,14 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Radio } from "lucide-react";
 import CronogramaVivo from "@/components/CronogramaVivo";
 import { useModal } from "@/components/ui/Modal";
 
 export default function TecnicoCronogramaVivoPage() {
   const { showError, ModalComponent } = useModal();
+  const [usuarioId, setUsuarioId] = useState<number | null>(null);
+  useEffect(() => { try { setUsuarioId(JSON.parse(localStorage.getItem('tecnicoUser') || 'null')?.id ?? null); } catch {} }, []);
 
   return (
     <div className="p-4 sm:p-6 max-w-5xl mx-auto">
@@ -19,7 +21,7 @@ export default function TecnicoCronogramaVivoPage() {
           Actualiza en tiempo real qué está pasando en el evento.
         </p>
       </div>
-      <CronogramaVivo staff onError={(m) => showError("No se pudo actualizar", m)} />
+      <CronogramaVivo staff usuarioId={usuarioId} onError={(m) => showError("No se pudo actualizar", m)} />
     </div>
   );
 }
