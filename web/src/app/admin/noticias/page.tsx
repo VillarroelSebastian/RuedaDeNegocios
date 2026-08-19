@@ -38,7 +38,7 @@ export default function NoticiasPage() {
   useEffect(() => { fetch_(); }, [fetch_]);
 
   const openCreate = () => {
-    const user = JSON.parse(localStorage.getItem('adminUser') || '{}');
+    const user = JSON.parse(localStorage.getItem('adminUser') || localStorage.getItem('tecnicoUser') || '{}');
     setForm({ ...defaultForm });
     setEditId(null);
     setShowForm(true);
@@ -77,7 +77,7 @@ export default function NoticiasPage() {
     }
     setSaving(true);
     try {
-      const user = JSON.parse(localStorage.getItem('adminUser') || '{}');
+    const user = JSON.parse(localStorage.getItem('adminUser') || localStorage.getItem('tecnicoUser') || '{}');
       const payload = { ...form, usuario_id: user.id || 1 };
       const url = editId ? `${API}/admin/noticias/${editId}` : `${API}/admin/noticias`;
       await fetch(url, { method: editId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });

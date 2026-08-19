@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { API_URL } from '../utils/userStore';
+import { API_URL, userStore } from '../utils/userStore';
 
 // Pantalla destino según el tipo de notificación, para llevar directo a su
 // sección al tocar "Ver". Devuelve null si no hay una pantalla asociada.
@@ -67,7 +67,7 @@ export function useNotificacionesMobile(eeId: number | null) {
   useEffect(() => {
     if (!eeId) return;
 
-    const socket = io(`${SOCKET_URL}/notificaciones`, { transports: ['websocket'] });
+    const socket = io(`${SOCKET_URL}/notificaciones`, { transports: ['websocket'], auth: { token: userStore.get()?.token } });
     socketRef.current = socket;
 
     socket.on('connect', () => {

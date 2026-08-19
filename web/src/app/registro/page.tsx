@@ -283,7 +283,7 @@ export default function RegistroPage() {
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const res = await fetch(`${API}/admin/imagenes/upload`, { method: "POST", body: fd });
+      const res = await fetch(`${API}/public/imagenes/upload`, { method: "POST", body: fd });
       const data = await res.json();
       if (data.url) setUrlComprobante(data.url);
       else throw new Error("Sin URL");
@@ -991,7 +991,7 @@ export default function RegistroPage() {
                   Ir al Login
                 </Link>
                 {result.empresaeventoId && (
-                  <Link href={`/seguimiento?ee=${result.empresaeventoId}`}
+                  <Link href={`/seguimiento?ee=${result.empresaeventoId}&t=${encodeURIComponent(result.seguimientoToken || '')}`}
                     className="flex items-center gap-2 border border-[#449D3A] text-[#449D3A] font-semibold px-6 py-3 rounded-xl hover:bg-green-50 transition-colors">
                     <CheckCircle2 className="w-4 h-4" /> Ver estado de inscripción
                   </Link>

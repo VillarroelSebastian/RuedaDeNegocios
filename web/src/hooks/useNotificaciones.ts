@@ -37,7 +37,9 @@ export function useNotificaciones(eeId: number | null) {
   useEffect(() => {
     if (!eeId) return;
 
-    const socket = io(`${SOCKET_URL}/notificaciones`, { transports: ["websocket"] });
+    let token = "";
+    try { token = JSON.parse(localStorage.getItem("empresaUser") || "null")?.token || ""; } catch {}
+    const socket = io(`${SOCKET_URL}/notificaciones`, { transports: ["websocket"], auth: { token } });
     socketRef.current = socket;
 
     socket.on("connect", () => {

@@ -14,7 +14,7 @@ import EmpresaNavigator from './src/navigation/EmpresaNavigator';
 import { userStore, API_URL } from './src/utils/userStore';
 
 const Stack = createNativeStackNavigator();
-const VALID_ROLES = ['ADMINISTRADOR', 'TECNICO', 'EMPRESA'];
+const VALID_ROLES = ['ADMINISTRADOR', 'TECNICO', 'TECNICO_EVENTOS', 'EMPRESA'];
 
 // Ref global de navegación: permite navegar desde fuera de componentes (p. ej.
 // al tocar "Ver" en una notificación push) directo a la sección correspondiente.
@@ -92,7 +92,7 @@ export default function App() {
         if (user?.id && role && VALID_ROLES.includes(role)) {
           console.log('[App] Session restored. id:', user.id, 'role:', role);
           if (role === 'ADMINISTRADOR')  finish('AdminRoot');
-          else if (role === 'TECNICO')   finish('TecnicoRoot');
+          else if (role === 'TECNICO' || role === 'TECNICO_EVENTOS') finish('TecnicoRoot');
           else                           finish('EmpresaRoot');
         } else {
           if (user) {

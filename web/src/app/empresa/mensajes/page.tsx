@@ -145,7 +145,9 @@ function MensajesContent() {
   // Socket: refrescar en tiempo real cuando llega un mensaje
   useEffect(() => {
     if (!ctx?.empresaeventoId) return;
-    const socket: Socket = io(`${SOCKET_URL}/notificaciones`, { transports: ["websocket"] });
+    let token = "";
+    try { token = JSON.parse(localStorage.getItem("empresaUser") || "null")?.token || ""; } catch {}
+    const socket: Socket = io(`${SOCKET_URL}/notificaciones`, { transports: ["websocket"], auth: { token } });
     socket.on("connect", () => socket.emit("unirse", { eeId: ctx.empresaeventoId }));
     socket.on("mensaje:nuevo", () => {
       cargarConvs(ctx.empresaeventoId);

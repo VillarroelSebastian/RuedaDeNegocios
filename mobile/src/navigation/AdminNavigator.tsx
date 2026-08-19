@@ -25,6 +25,7 @@ import PagosAdicionalesScreen      from '../screens/admin/PagosAdicionalesScreen
 import AdminEventoConfigScreen     from '../screens/admin/AdminEventoConfigScreen';
 import AuspiciadoresScreen         from '../screens/admin/AuspiciadoresScreen';
 import TecnicoReunionesScreen     from '../screens/tecnico/TecnicoReunionesScreen';
+import TecnicoGaleriaScreen       from '../screens/tecnico/TecnicoGaleriaScreen';
 
 const Tab        = createBottomTabNavigator();
 const AdminStack = createNativeStackNavigator();
@@ -57,6 +58,7 @@ function MenuScreen({ navigation }: any) {
     { name: 'Agenda',           icon: ListChecks,        screen: 'Agenda',            desc: 'Ocupación de mesas'       },
     { name: 'Control reuniones',icon: CalendarCheck,     screen: 'ControlReuniones',  desc: 'Finalizar o cancelar'     },
     { name: 'Noticias',         icon: Newspaper,         screen: 'Noticias',          desc: 'Comunicados'              },
+    { name: 'Galería',          icon: Newspaper,         screen: 'Galeria',           desc: 'Fotos y moderación'       },
     { name: 'Técnicos',         icon: Users,             screen: 'Tecnicos',          desc: 'Gestión de técnicos'      },
     { name: 'Estadísticas',     icon: BarChart3,         screen: 'Estadisticas',      desc: 'Reportes del evento'      },
     { name: 'Configuración',    icon: Settings,          screen: 'Configuracion',     desc: 'Mi perfil y cuenta'       },
@@ -186,6 +188,7 @@ export default function AdminNavigator() {
       <AdminStack.Screen name="Actividades"  component={ActividadesScreen}  options={{ title: 'Actividades del Programa' }} />
       <AdminStack.Screen name="Auspiciadores" component={AuspiciadoresScreen} options={{ title: 'Auspiciadores' }} />
       <AdminStack.Screen name="Noticias"     component={NoticiasScreen}     options={{ title: 'Noticias y Comunicados' }} />
+      <AdminStack.Screen name="Galeria"      component={TecnicoGaleriaScreen} options={{ title: 'Galería del evento' }} />
       <AdminStack.Screen name="Tecnicos"     component={TecnicosScreen}     options={{ title: 'Técnicos' }} />
       <AdminStack.Screen name="Estadisticas" component={EstadisticasScreen} options={{ title: 'Estadísticas' }} />
       <AdminStack.Screen name="Configuracion"component={ConfiguracionScreen}options={{ title: 'Configuración' }} />

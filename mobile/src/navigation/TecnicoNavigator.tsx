@@ -14,6 +14,7 @@ import TecnicoAgendarScreen    from '../screens/tecnico/TecnicoAgendarScreen';
 import TecnicoAsistenciaScreen from '../screens/tecnico/TecnicoAsistenciaScreen';
 import TecnicoEventosVivoScreen from '../screens/tecnico/TecnicoEventosVivoScreen';
 import TecnicoGaleriaScreen from '../screens/tecnico/TecnicoGaleriaScreen';
+import TecnicoContenidoScreen from '../screens/tecnico/TecnicoContenidoScreen';
 import { userStore } from '../utils/userStore';
 
 const Tab          = createBottomTabNavigator();
@@ -54,8 +55,8 @@ function TecnicoTabs() {
         options={{ title: 'Virtuales', tabBarIcon: IconVirtuales }} />
       <Tab.Screen name="TecnicoBuscador"   component={TecnicoBuscadorScreen}
         options={{ title: 'Buscar',    tabBarIcon: IconBuscador }} />
-      <Tab.Screen name="TecnicoNoticias"   component={TecnicoNoticiasScreen}
-        options={{ title: 'Noticias',  tabBarIcon: IconNoticias }} />
+      <Tab.Screen name="TecnicoContenido"  component={TecnicoContenidoScreen}
+        options={{ title: 'Contenido', tabBarIcon: IconNoticias }} />
       <Tab.Screen name="TecnicoPerfil"     component={TecnicoPerfilScreen}
         options={{ title: 'Mi Perfil', tabBarIcon: IconPerfil }} />
     </Tab.Navigator>
@@ -64,7 +65,7 @@ function TecnicoTabs() {
 
 function TecnicoEventosTabs() {
   return <Tab.Navigator screenOptions={tabOptions}>
-    <Tab.Screen name="TecnicoEventosVivo" component={TecnicoEventosVivoScreen} options={{ title: 'En vivo', tabBarIcon: ({color}) => <Video color={color} size={22}/> }} />
+    <Tab.Screen name="TecnicoContenido" component={TecnicoContenidoScreen} options={{ title: 'Contenido', tabBarIcon: IconNoticias }} />
     <Tab.Screen name="TecnicoGaleria" component={TecnicoGaleriaScreen} options={{ title: 'Fotos', tabBarIcon: ({color}) => <Newspaper color={color} size={22}/> }} />
     <Tab.Screen name="TecnicoPerfil" component={TecnicoPerfilScreen} options={{ title: 'Mi Perfil', tabBarIcon: IconPerfil }} />
   </Tab.Navigator>;

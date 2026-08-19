@@ -105,7 +105,7 @@ export default function AsistenteChatModal({ visible, onClose }: { visible: bool
     <Modal visible={visible} animationType="slide" transparent statusBarTranslucent>
       <Pressable style={s.overlay} onPress={onClose}>
         <KeyboardAvoidingView
-          behavior="padding"
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
           style={s.sheet}
         >

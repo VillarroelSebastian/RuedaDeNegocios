@@ -358,11 +358,11 @@ export default function RegistroScreen({ navigation }: any) {
 
           {/* Stats */}
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
-            <View style={{ flex: 1, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 16, padding: 16, alignItems: 'center' }}>
+            <View style={{ flexGrow: 1, flexBasis: 130, minWidth: 0, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 16, padding: 16, alignItems: 'center' }}>
               <Text style={{ fontSize: 20, fontWeight: '800', color: '#5B9A27' }}>{resultado.empresaevento?.numeroParticipantes ?? numParticipantes}</Text>
               <Text style={{ fontSize: 11, color: '#6b7280', marginTop: 4, textAlign: 'center' }}>Participantes</Text>
             </View>
-            <View style={{ flex: 1, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 16, padding: 16, alignItems: 'center' }}>
+            <View style={{ flexGrow: 1, flexBasis: 130, minWidth: 0, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 16, padding: 16, alignItems: 'center' }}>
               <Text style={{ fontSize: 14, fontWeight: '800', color: '#f59e0b' }}>PENDIENTE</Text>
               <Text style={{ fontSize: 11, color: '#6b7280', marginTop: 4, textAlign: 'center' }}>Estado del pago</Text>
             </View>

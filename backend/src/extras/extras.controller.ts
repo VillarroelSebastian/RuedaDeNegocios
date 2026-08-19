@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Put, Delete, Param, Body, Query, BadRequestException,
+  Controller, Get, Post, Put, Delete, Param, Body, Query, BadRequestException, Req,
 } from '@nestjs/common';
 import { writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
@@ -35,6 +35,15 @@ export class ExtrasController {
     return (process.env.PUBLIC_URL || `http://localhost:${process.env.PORT ?? 3334}`).replace(/\/$/, '');
   }
 
+  private esUrlSubidaValida(value: string): boolean {
+    try {
+      const url = new URL(value);
+      const permitidos = new Set([new URL(this.uploadsBaseUrl()).host,
+        ...String(process.env.UPLOAD_HOSTS || '').split(',').map((x) => x.trim()).filter(Boolean)]);
+      return ['http:', 'https:'].includes(url.protocol) && permitidos.has(url.host) && url.pathname.startsWith('/uploads/');
+    } catch { return false; }
+  }
+
   private texto(v: any, max: number, campo: string, obligatorio = true): string | null {
     const s = String(v ?? '').replace(/\s+/g, ' ').trim();
     if (!s) {
@@ -48,7 +57,7 @@ export class ExtrasController {
   // Igual que en app.controller: el enlace del QR no debe poder enumerarse.
   private tokenAuspiciador(personaId: number): string {
     const secret = process.env.JWT_SECRET || 'rueda-cred-secret';
-    return createHmac('sha256', secret).update(`auspiciador-${personaId}`).digest('hex').slice(0, 12);
+    return createHmac('sha256', secret).update(`auspiciador-${personaId}`).digest('hex');
   }
 
   private async generarQRAuspiciador(personaId: number): Promise<string> {
@@ -324,18 +333,22 @@ export class ExtrasController {
       include: { personas: true, paquete: true },
     });
     // Cada persona entra al evento, así que se le emite su credencial.
+    const correosFallidos: string[] = [];
     for (const p of ausp.personas) {
       await this.generarQRAuspiciador(p.id);
       try {
         await this.enviarCredencialAuspiciador(p.id);
       } catch {
-        throw new BadRequestException(
-          `El auspiciador fue registrado, pero no se pudo enviar la credencial a ${p.correo}. Revisa la configuración de correo.`,
-        );
+        correosFallidos.push(p.correo || 'sin correo');
       }
     }
-    const accesoPlataforma = await this.crearAccesoEmpresaAuspiciador(ausp);
-    return { ...(await this.obtenerAuspiciador(String(ausp.id))), accesoPlataforma };
+    let accesoPlataforma: any;
+    try {
+      accesoPlataforma = await this.crearAccesoEmpresaAuspiciador(ausp);
+    } catch (error) {
+      accesoPlataforma = { creado: false, motivo: error instanceof Error ? error.message : 'No se pudo enviar el acceso' };
+    }
+    return { ...(await this.obtenerAuspiciador(String(ausp.id))), accesoPlataforma, correosFallidos };
   }
 
   @Put('admin/auspiciadores/:id')
@@ -435,18 +448,32 @@ export class ExtrasController {
       where: { evento_id: eventoId, estaActivo: 1, ...(usuariosTecnicos ? { usuario_id: { in: usuariosTecnicos } } : {}) },
       orderBy: { fechaCreacion: 'desc' },
       take,
+      select: { id: true, urlFoto: true, descripcion: true, fechaCreacion: true },
     });
   }
 
+  @Get('galeria')
+  async galeriaPrivada(@Query('limit') limit?: string, @Query('soloTecnicos') soloTecnicos?: string) {
+    const eventoId = await this.eventoPrincipalId();
+    const take = Math.min(Number(limit) || 60, 200);
+    let usuariosTecnicos: number[] | undefined;
+    if (soloTecnicos === '1' || soloTecnicos === 'true') {
+      const tecnicos = await this.prisma.usuario.findMany({ where: { evento_id: eventoId, rolEvento: { in: ['TECNICO', 'TECNICO_EVENTOS'] }, estaActivo: 1 }, select: { id: true } });
+      usuariosTecnicos = tecnicos.map((u) => u.id);
+    }
+    return this.prisma.fotoevento.findMany({ where: { evento_id: eventoId, estaActivo: 1, ...(usuariosTecnicos ? { usuario_id: { in: usuariosTecnicos } } : {}) }, orderBy: { fechaCreacion: 'desc' }, take });
+  }
+
   @Post('galeria')
-  async subirFoto(@Body() body: any) {
+  async subirFoto(@Body() body: any, @Req() req: any) {
     const eventoId = await this.eventoPrincipalId();
     const urlFoto = this.texto(body.urlFoto, 505, 'Fotografía')!;
-    if (!/^https?:\/\//i.test(urlFoto))
+    if (!this.esUrlSubidaValida(urlFoto))
       throw new BadRequestException('La fotografía debe subirse desde el dispositivo.');
 
     const empresaUsuarioId = body.empresa_usuario_id ? Number(body.empresa_usuario_id) : null;
     const usuarioId = body.usuario_id ? Number(body.usuario_id) : null;
+    let autorNombre = '';
     if (!empresaUsuarioId && !usuarioId)
       throw new BadRequestException('No se pudo identificar quién sube la foto.');
 
@@ -462,12 +489,21 @@ export class ExtrasController {
         throw new BadRequestException('Tu empresa aún no está habilitada para subir fotos.');
     }
 
+    if (empresaUsuarioId) {
+      const euAutor = await this.prisma.empresa_usuario.findUnique({ where: { id: empresaUsuarioId }, select: { usuario_id: true } });
+      const autor = euAutor ? await this.prisma.usuario.findUnique({ where: { id: euAutor.usuario_id }, select: { nombres: true, apellidoPaterno: true } }) : null;
+      autorNombre = `${autor?.nombres || ''} ${autor?.apellidoPaterno || ''}`.trim();
+    } else {
+      if (Number(usuarioId) !== Number(req.user?.sub)) throw new BadRequestException('Usuario no autorizado.');
+      const autor = await this.prisma.usuario.findUnique({ where: { id: Number(usuarioId) }, select: { nombres: true, apellidoPaterno: true } });
+      autorNombre = `${autor?.nombres || ''} ${autor?.apellidoPaterno || ''}`.trim();
+    }
     return this.prisma.fotoevento.create({
       data: {
         evento_id: eventoId,
         empresa_usuario_id: empresaUsuarioId,
         usuario_id: usuarioId,
-        autorNombre: this.texto(body.autorNombre, 155, 'Autor')!,
+        autorNombre: this.texto(autorNombre, 155, 'Autor')!,
         urlFoto,
         descripcion: this.texto(body.descripcion, 305, 'Descripción', false),
       },
@@ -476,11 +512,11 @@ export class ExtrasController {
 
   // Borra el autor su propia foto, o el staff cualquiera (moderación).
   @Delete('galeria/:id')
-  async eliminarFoto(@Param('id') id: string, @Query('empresa_usuario_id') euId?: string, @Query('esStaff') esStaff?: string) {
+  async eliminarFoto(@Param('id') id: string, @Req() req: any, @Query('empresa_usuario_id') euId?: string) {
     const foto = await this.prisma.fotoevento.findUnique({ where: { id: Number(id) } });
     if (!foto || foto.estaActivo === 0) throw new BadRequestException('La foto ya no existe.');
 
-    const staff = esStaff === '1' || esStaff === 'true';
+    const staff = ['ADMINISTRADOR', 'TECNICO', 'TECNICO_EVENTOS'].includes(req.user?.role);
     if (!staff && (!euId || foto.empresa_usuario_id !== Number(euId)))
       throw new BadRequestException('Solo puedes eliminar las fotos que tú subiste.');
 

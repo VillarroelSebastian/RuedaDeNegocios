@@ -135,7 +135,7 @@ export default function EmpresaMensajesScreen() {
   if (activa) {
     return (
       <SafeAreaView style={s.root} edges={['top']}>
-        <KeyboardAvoidingView behavior="padding" keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0} style={{ flex: 1 }}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0} style={{ flex: 1 }}>
           <View style={s.chatHeader}>
             <TouchableOpacity onPress={() => { setActiva(null); setMensajes([]); cargarConvs(); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <ChevronLeft size={22} color="#374151" />

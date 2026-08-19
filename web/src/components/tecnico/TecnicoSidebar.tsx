@@ -17,7 +17,7 @@ const menuItems = [
   { name: 'Cronograma en Vivo', icon: Radio,         href: '/tecnico/cronograma-vivo' },
   { name: 'Galería del evento', icon: Images,        href: '/tecnico/galeria' },
   { name: 'Asistencia QR',    icon: QrCode,          href: '/tecnico/asistencia' },
-  { name: 'Noticias',         icon: Newspaper,       href: '/tecnico/noticias' },
+  { name: 'Contenido del evento', icon: Newspaper,   href: '/tecnico/contenido' },
   { name: 'Mi Perfil',        icon: UserCircle,      href: '/tecnico/perfil' },
 ];
 
@@ -92,7 +92,7 @@ export default function TecnicoSidebar() {
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-3 mb-2">Menú principal</p>
-        {menuItems.filter((item) => user?.rolEvento !== 'TECNICO_EVENTOS' || ['/tecnico/cronograma-vivo', '/tecnico/galeria', '/tecnico/perfil'].includes(item.href)).map((item) => {
+        {menuItems.filter((item) => user?.rolEvento !== 'TECNICO_EVENTOS' || ['/tecnico/contenido', '/tecnico/cronograma-vivo', '/tecnico/galeria', '/tecnico/perfil'].includes(item.href)).map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
           return (
             <Link key={item.name} href={item.href}

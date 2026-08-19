@@ -6,7 +6,7 @@
     "descripcion": "Ideal para empresas que desean participar en la Rueda de Negocios y obtener visibilidad institucional.",
     "costo": 150,
     "credencialesIncluidas": 2,
-    "maxParticipantes": 3,
+    "maxParticipantes": 2,
     "nivelMesa": "NORMAL",
     "tipoParticipacion": "PRESENCIAL",
     "apareceEnCatalogo": true,

@@ -46,7 +46,8 @@ export default function GaleriaEvento({
 
   const cargar = useCallback(async () => {
     try {
-      const res = await fetch(`${API}/public/galeria${soloTecnicos ? '?soloTecnicos=1' : ''}`);
+      const ruta = (esStaff || empresaUsuarioId || puedeSubir) ? 'galeria' : 'public/galeria';
+      const res = await fetch(`${API}/${ruta}${soloTecnicos ? '?soloTecnicos=1' : ''}`);
       setFotos(res.ok ? await res.json() : []);
     } catch {
       onError?.("No se pudo cargar la galería.");

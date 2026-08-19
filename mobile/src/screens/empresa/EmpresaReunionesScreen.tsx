@@ -127,7 +127,7 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
         </View>
       )}
       <View style={cm.overlay}>
-        <KeyboardAvoidingView behavior="padding" keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0} style={cm.sheet}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0} style={cm.sheet}>
           <View style={cm.header}>
             <View style={{ flex: 1 }}>
               <Text style={cm.title}>Proponer cambios</Text>
@@ -175,8 +175,8 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
             ) : (
               <>
                 <Text style={cm.sectionLabel}>Hora</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }} contentContainerStyle={{ paddingRight: 16 }}>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, maxWidth: 680 }}>
                     {horasDisponibles.map((h: number) => (
                       <TouchableOpacity key={h} onPress={() => {
                         setHoraSel(h);
@@ -198,14 +198,14 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
                 {horaSel !== null && (
                   <>
                     <Text style={cm.sectionLabel}>Minutos</Text>
-                    <TextInput
-                      value={minutosStr}
-                      onChangeText={setMinutosStr}
-                      keyboardType="number-pad"
-                      maxLength={2}
-                      placeholder="00"
-                      style={[cm.minsInput, minutosInvalidos && cm.minsInputErr]}
-                    />
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                      {minutosParaHora.map((minuto: number) => {
+                        const valor = String(minuto).padStart(2, '0');
+                        return <TouchableOpacity key={minuto} onPress={() => setMinutosStr(valor)} style={[cm.horaBtn, minutosStr === valor && cm.horaBtnActive]}>
+                          <Text style={[cm.horaBtnText, minutosStr === valor && cm.horaBtnTextActive]}>:{valor}</Text>
+                        </TouchableOpacity>;
+                      })}
+                    </View>
                     {minutosInvalidos && (
                       <View style={cm.warnBox}>
                         <AlertTriangle size={12} color="#d97706" style={{ marginRight: 6 }} />

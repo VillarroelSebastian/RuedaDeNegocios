@@ -7,6 +7,15 @@ const BACKEND_PORT = 3334;
 
 let currentUser: any = null;
 
+const nativeFetch = global.fetch.bind(global);
+global.fetch = ((input: any, init: RequestInit = {}) => {
+  const token = currentUser?.token;
+  if (!token) return nativeFetch(input, init);
+  const headers = new Headers(init.headers || (typeof Request !== 'undefined' && input instanceof Request ? input.headers : undefined));
+  if (!headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`);
+  return nativeFetch(input, { ...init, headers });
+}) as typeof fetch;
+
 export const userStore = {
   set: async (user: any) => {
     currentUser = user;

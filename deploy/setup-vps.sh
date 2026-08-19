@@ -81,6 +81,9 @@ cat > .env <<EOF
 DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@localhost:5432/${DB_NAME}"
 JWT_SECRET="${JWT_SECRET}"
 PORT=3334
+NODE_ENV=production
+BIND_ADDRESS=127.0.0.1
+CORS_ORIGINS="${WEB_PUBLIC_URL}"
 MAIL_USER="${MAIL_USER}"
 MAIL_PASS="${MAIL_PASS}"
 MAIL_FROM="${MAIL_FROM}"
@@ -89,7 +92,25 @@ WEB_URL="${WEB_PUBLIC_URL}"
 EOF
 npm ci
 npx prisma generate
-npx prisma db push   # crea/sincroniza tablas (no borra datos)
+# Bases instaladas antes del historial de migraciones ya contienen este esquema
+# (se creaban con db push). Se marca la línea base, sin volver a crear tablas.
+if sudo -u postgres psql -d "${DB_NAME}" -tAc "SELECT to_regclass('public.usuario') IS NOT NULL" | grep -q t; then
+  npx prisma migrate resolve --applied 20260701000000_baseline 2>/dev/null || true
+fi
+if sudo -u postgres psql -d "${DB_NAME}" -tAc "SELECT to_regclass('public.cambioreunion') IS NOT NULL" | grep -q t; then
+  npx prisma migrate resolve --applied 20260728190000_cambios_reunion_con_acuerdo 2>/dev/null || true
+fi
+# No se elige automáticamente qué cuenta histórica conservar: si hay datos
+# incompatibles, se detiene el despliegue con un diagnóstico explícito.
+if sudo -u postgres psql -d "${DB_NAME}" -tAc "SELECT to_regclass('public.usuario') IS NOT NULL AND EXISTS (SELECT 1 FROM usuario WHERE \"estaActivo\"=1 GROUP BY lower(correo) HAVING count(*)>1)" | grep -q t; then
+  echo "✖ Existen correos activos duplicados. Depúralos antes de aplicar la migración de seguridad."
+  exit 1
+fi
+if sudo -u postgres psql -d "${DB_NAME}" -tAc "SELECT to_regclass('public.empresaevento') IS NOT NULL AND (EXISTS (SELECT 1 FROM empresaevento WHERE \"estaActivo\"=1 GROUP BY empresa_id,evento_id HAVING count(*)>1) OR EXISTS (SELECT 1 FROM mesa GROUP BY evento_id,\"numeroMesa\" HAVING count(*)>1) OR EXISTS (SELECT 1 FROM resultadoreunion WHERE \"estaActivo\"=1 GROUP BY reunion_id,\"empresaeventoCalificadora_id\" HAVING count(*)>1))" | grep -q t; then
+  echo "✖ Existen participaciones, mesas o resultados duplicados. Revisa esos registros antes de migrar."
+  exit 1
+fi
+npx prisma migrate deploy
 npm run build
 mkdir -p uploads
 pm2 delete rueda-backend 2>/dev/null || true
@@ -127,7 +148,7 @@ echo "════════ 8/8 Firewall + arranque automático ════�
 ufw allow 22/tcp
 ufw allow 80/tcp
 ufw allow 443/tcp
-ufw allow 3334/tcp
+ufw delete allow 3334/tcp 2>/dev/null || true
 ufw --force enable
 pm2 save
 pm2 startup systemd -u root --hp /root | tail -1 | bash || true

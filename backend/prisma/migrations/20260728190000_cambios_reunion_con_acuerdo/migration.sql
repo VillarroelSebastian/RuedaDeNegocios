@@ -1,4 +1,4 @@
-CREATE TABLE "cambioreunion" (
+CREATE TABLE IF NOT EXISTS "cambioreunion" (
     "id" SERIAL NOT NULL,
     "reunion_id" INTEGER NOT NULL,
     "solicitadoPorEe_id" INTEGER NOT NULL,
@@ -16,7 +16,11 @@ CREATE TABLE "cambioreunion" (
     CONSTRAINT "cambioreunion_pkey" PRIMARY KEY ("id")
 );
 
-CREATE INDEX "cambioreunion_reunion_id_estado_idx" ON "cambioreunion"("reunion_id", "estado");
-CREATE INDEX "cambioreunion_solicitadoPorEe_id_idx" ON "cambioreunion"("solicitadoPorEe_id");
-ALTER TABLE "cambioreunion" ADD CONSTRAINT "cambioreunion_reunion_id_fkey"
-FOREIGN KEY ("reunion_id") REFERENCES "reunion"("id") ON DELETE NO ACTION ON UPDATE NO ACTION;
+CREATE INDEX IF NOT EXISTS "cambioreunion_reunion_id_estado_idx" ON "cambioreunion"("reunion_id", "estado");
+CREATE INDEX IF NOT EXISTS "cambioreunion_solicitadoPorEe_id_idx" ON "cambioreunion"("solicitadoPorEe_id");
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'cambioreunion_reunion_id_fkey') THEN
+    ALTER TABLE "cambioreunion" ADD CONSTRAINT "cambioreunion_reunion_id_fkey"
+    FOREIGN KEY ("reunion_id") REFERENCES "reunion"("id") ON DELETE NO ACTION ON UPDATE NO ACTION;
+  END IF;
+END $$;

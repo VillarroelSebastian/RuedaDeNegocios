@@ -8,6 +8,7 @@ import * as QRCode from 'qrcode';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomBytes, createHmac } from 'node:crypto';
+import { JwtService } from '@nestjs/jwt';
 
 function createMailTransporter() {
   return nodemailer.createTransport({
@@ -37,12 +38,20 @@ function normalizarTelefono(valor: unknown): string {
   return String(valor ?? '').replace(/\D/g, '');
 }
 
+function validarPasswordSegura(valor: unknown): string {
+  const password = String(valor ?? '');
+  if (password.length < 12 || !/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/\d/.test(password) || !/[^A-Za-z0-9]/.test(password))
+    throw new BadRequestException('La contraseña debe tener al menos 12 caracteres, mayúscula, minúscula, número y símbolo.');
+  return password;
+}
+
 @Controller()
 export class AppController implements OnModuleInit {
   constructor(
     private readonly appService: AppService,
     private readonly prisma: PrismaService,
     private readonly notifGateway: NotificacionesGateway,
+    private readonly jwt: JwtService,
   ) {}
 
   // Notifica a una empresa: persiste en la tabla notificacion (historial/campanita)
@@ -120,7 +129,7 @@ export class AppController implements OnModuleInit {
   // Deriva de euId + JWT_SECRET, así el enlace del QR no se puede enumerar.
   private credencialToken(euId: number): string {
     const secret = process.env.JWT_SECRET || 'rueda-cred-secret';
-    return createHmac('sha256', secret).update(`credencial-${euId}`).digest('hex').slice(0, 12);
+    return createHmac('sha256', secret).update(`credencial-${euId}`).digest('hex');
   }
 
   // Genera la credencial digital (QR) de un participante: un PNG guardado en
@@ -217,6 +226,11 @@ export class AppController implements OnModuleInit {
     // pasar su hora de fin se marca FINALIZADA y se pide calificar a ambos.
     await this.sincronizarEstadosReuniones().catch(() => {});
     setInterval(() => { this.sincronizarEstadosReuniones().catch(() => {}); }, 60_000);
+  }
+
+  private seguimientoToken(eeId: number): string {
+    const secret = process.env.JWT_SECRET || 'development-only-change-me';
+    return createHmac('sha256', secret).update(`seguimiento-${eeId}`).digest('hex');
   }
 
   private async sincronizarEstadosReuniones() {
@@ -354,7 +368,10 @@ export class AppController implements OnModuleInit {
 
     if (['TECNICO', 'TECNICO_EVENTOS'].includes(user.rolEvento)) {
       const eventoId = await this.getPrincipalEventoId();
-      if (user.evento_id !== eventoId) {
+      if (user.evento_id == null && eventoId) {
+        await this.prisma.usuario.update({ where: { id: user.id }, data: { evento_id: eventoId } });
+        user.evento_id = eventoId;
+      } else if (user.evento_id !== eventoId) {
         throw new UnauthorizedException('Tu cuenta no está habilitada para el evento activo actualmente.');
       }
     }
@@ -368,7 +385,11 @@ export class AppController implements OnModuleInit {
       esResponsable = eu?.esResponsable === 1;
     }
 
+    const memberships = await this.prisma.empresa_usuario.findMany({ where: { usuario_id: user.id, estaActivo: 1 }, select: { id: true, empresaevento_id: true } });
+    const token = await this.jwt.signAsync({ sub: user.id, role: user.rolEvento, eventoId: user.evento_id,
+      eeIds: memberships.map((m) => m.empresaevento_id), euIds: memberships.map((m) => m.id) });
     return {
+      token,
       id: user.id,
       correo: user.correo,
       nombres: user.nombres,
@@ -549,8 +570,9 @@ export class AppController implements OnModuleInit {
   }
 
   @Get('public/seguimiento')
-  async getSeguimiento(@Query('ee') eeId: string) {
+  async getSeguimiento(@Query('ee') eeId: string, @Query('t') token: string) {
     const id = Number(eeId);
+    if (token !== this.seguimientoToken(id)) throw new UnauthorizedException('Enlace de seguimiento inválido.');
     if (!id) throw new BadRequestException('ID inválido');
     const ee: any = await this.prisma.empresaevento.findUnique({
       where: { id },
@@ -589,8 +611,9 @@ export class AppController implements OnModuleInit {
   }
 
   @Post('public/seguimiento/:id/comprobante')
-  async resubirComprobante(@Param('id') id: string, @Body() body: { urlComprobante: string }) {
+  async resubirComprobante(@Param('id') id: string, @Body() body: { urlComprobante: string; token: string }) {
     const eeId = Number(id);
+    if (body.token !== this.seguimientoToken(eeId)) throw new UnauthorizedException('Enlace de seguimiento inválido.');
     if (!eeId || !body.urlComprobante) throw new BadRequestException('Datos inválidos');
 
     const ee = await this.prisma.empresaevento.findUnique({ where: { id: eeId } });
@@ -599,25 +622,27 @@ export class AppController implements OnModuleInit {
       throw new BadRequestException('No se puede modificar el comprobante en el estado actual');
     }
 
+    await this.prisma.$transaction(async (tx) => {
     // Desactivar comprobantes anteriores
-    await this.prisma.empresaeventocomprobantes.updateMany({
+    await tx.empresaeventocomprobantes.updateMany({
       where: { empresaEvento_id: eeId, estaActivo: 1 },
       data: { estaActivo: 0 },
     });
 
     // Crear nuevo comprobante
-    await this.prisma.empresaeventocomprobantes.create({
+    await tx.empresaeventocomprobantes.create({
       data: { empresaEvento_id: eeId, urlComprobantePagoInscripcion: body.urlComprobante, estaActivo: 1 },
     });
 
     // Volver a PENDIENTE — se mantiene la observación para que el encargado y el admin la vean
-    await this.prisma.empresaevento.update({
+    await tx.empresaevento.update({
       where: { id: eeId },
       data: {
         estadoVerificacionPago: 'PENDIENTE',
         fechaHoraEnvioComprobante: new Date(),
       },
     });
+    }, { isolationLevel: 'Serializable' });
 
     return { ok: true };
   }
@@ -769,7 +794,8 @@ export class AppController implements OnModuleInit {
     if (!ciudadRec) ciudadRec = await this.prisma.ciudad.create({ data: { nombre: ciudadNombre, pais_id: paisRec.id } });
 
     // Crear o reusar empresa
-    const empresa = empresaExistente ?? await this.prisma.empresa.create({
+    const registroCreado = await this.prisma.$transaction(async (tx) => {
+    const empresa = empresaExistente ?? await tx.empresa.create({
       data: {
         ciudad_id: ciudadRec.id,
         nombre: body.empresa.nombre,
@@ -785,10 +811,8 @@ export class AppController implements OnModuleInit {
         estaActivo: 1,
       },
     });
-    if (!empresaExistente) await this.asegurarCodigoEmpresa(empresa.id, null, empresa.nombre);
-
     // Crear empresaevento
-    const ee = await this.prisma.empresaevento.create({
+    const ee = await tx.empresaevento.create({
       data: {
         empresa_id: empresa.id,
         evento_id: eventoId,
@@ -805,7 +829,7 @@ export class AppController implements OnModuleInit {
 
     // Crear comprobante si existe URL
     if (body.comprobante?.urlComprobante) {
-      await this.prisma.empresaeventocomprobantes.create({
+      await tx.empresaeventocomprobantes.create({
         data: {
           empresaEvento_id: ee.id,
           urlComprobantePagoInscripcion: body.comprobante.urlComprobante,
@@ -846,7 +870,7 @@ export class AppController implements OnModuleInit {
       correosVistos.add(correoNorm);
 
       // Verificar si el email ya existe en la base de datos
-      const existente = await this.prisma.usuario.findFirst({
+      const existente = await tx.usuario.findFirst({
         where: { correo: correoNorm, estaActivo: 1 },
         select: { id: true, rolEvento: true, empresa_usuario: { select: { empresa_id: true } } },
       });
@@ -871,7 +895,7 @@ export class AppController implements OnModuleInit {
         }
       }
 
-      const usuario = await this.prisma.usuario.create({
+      const usuario = await tx.usuario.create({
         data: {
           nombres,
           apellidoPaterno,
@@ -885,7 +909,7 @@ export class AppController implements OnModuleInit {
         },
       });
 
-      await this.prisma.empresa_usuario.create({
+      await tx.empresa_usuario.create({
         data: {
           empresa_id: empresa.id,
           usuario_id: usuario.id,
@@ -906,11 +930,16 @@ export class AppController implements OnModuleInit {
     }
 
     // Enviar email de confirmación al encargado
+    return { empresa, ee, participantesCreados, participantesOmitidos };
+    }, { isolationLevel: 'Serializable', timeout: 20_000 });
+    const { empresa, ee, participantesCreados, participantesOmitidos } = registroCreado;
+    if (!empresaExistente) await this.asegurarCodigoEmpresa(empresa.id, null, empresa.nombre);
+
     const encargado = (body.participantes || []).find((p: any) => p.esResponsable);
     if (encargado?.correo) {
       try {
         const baseUrl = process.env.WEB_URL || 'http://localhost:3000';
-        const trackingUrl = `${baseUrl}/seguimiento?ee=${ee.id}`;
+        const trackingUrl = `${baseUrl}/seguimiento?ee=${ee.id}&t=${this.seguimientoToken(ee.id)}`;
         const transporter = createMailTransporter();
         await transporter.sendMail({
           from: process.env.MAIL_FROM,
@@ -947,6 +976,7 @@ export class AppController implements OnModuleInit {
 
     return {
       empresaeventoId: ee.id,
+      seguimientoToken: this.seguimientoToken(ee.id),
       empresa: { id: empresa.id, nombre: empresa.nombre, rubro: empresa.rubro },
       empresaevento: {
         id: ee.id,
@@ -1522,7 +1552,13 @@ export class AppController implements OnModuleInit {
   async aprobarPago(@Param('id') id: string) {
     const pagoId = Number(id);
 
-    const ee = await this.prisma.empresaevento.update({
+    const ee = await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.empresaevento.updateMany({
+        where: { id: pagoId, estadoVerificacionPago: { in: ['PENDIENTE', 'OBSERVADO', 'COMPLETADO'] }, estaActivo: 1 },
+        data: { estadoVerificacionPago: 'PROCESANDO' },
+      });
+      if (claimed.count !== 1) throw new BadRequestException('El pago ya fue procesado o no está disponible.');
+      const aprobado = await tx.empresaevento.update({
       where: { id: pagoId },
       data: {
         estadoVerificacionPago: 'COMPLETADO',
@@ -1536,17 +1572,18 @@ export class AppController implements OnModuleInit {
         empresa_usuario: { include: { usuario: true } },
       },
     });
+      await (tx.empresaeventocomprobantes as any).updateMany({
+        where: { empresaEvento_id: pagoId, tipoPago: 'INICIAL', estaActivo: 1 },
+        data: { estadoPago: 'COMPLETADO' },
+      });
+      return aprobado;
+    }, { isolationLevel: 'Serializable' });
 
     // Generar credenciales únicas y enviar correo a cada participante
     const isDevEmail = !process.env.MAIL_USER || process.env.MAIL_USER === 'tu_correo@gmail.com';
     const transporter = isDevEmail ? null : createMailTransporter();
 
     // Also update initial comprobante status
-    await (this.prisma.empresaeventocomprobantes as any).updateMany({
-      where: { empresaEvento_id: pagoId, tipoPago: 'INICIAL', estaActivo: 1 },
-      data: { estadoPago: 'COMPLETADO' },
-    });
-
     const codigoEmpresa = await this.asegurarCodigoEmpresa((ee as any).empresa.id, (ee as any).empresa.codigo);
     const correosFallidos: string[] = [];
 
@@ -1574,19 +1611,8 @@ export class AppController implements OnModuleInit {
         : '';
 
       if (isDevEmail || !transporter) {
-        await this.prisma.usuario.update({
-          where: { id: u.id },
-          data: { contrasenia: hashed, creadoModificadoFecha: new Date() },
-        });
-        console.log('\n╔══════════════════════════════════════════════════════╗');
-        console.log('║   [DEV] CREDENCIALES GENERADAS (email no enviado)    ║');
-        console.log('╠══════════════════════════════════════════════════════╣');
-        console.log(`║  Empresa  : ${(ee as any).empresa?.nombre ?? ''}`);
-        console.log(`║  Nombre   : ${u.nombres} ${u.apellidoPaterno}`);
-        console.log(`║  Correo   : ${u.correo}`);
-        console.log(`║  Contraseña: ${pwd}`);
-        console.log(`║  Encargado: ${esEncargado ? 'SÍ' : 'NO'}`);
-        console.log('╚══════════════════════════════════════════════════════╝\n');
+        console.warn(`[WARN] No se enviaron las credenciales de ${u.correo}; solicita un restablecimiento seguro.`);
+        correosFallidos.push(u.correo);
         continue;
       }
 
@@ -1608,7 +1634,7 @@ export class AppController implements OnModuleInit {
                 <p style="color:#6b7280;font-size:13px;margin:0 0 12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Tus credenciales de acceso</p>
                 <table style="width:100%;border-collapse:collapse">
                   <tr><td style="padding:6px 0;color:#6b7280;font-size:13px;width:110px">Código empresa</td><td style="padding:6px 0;font-weight:700;color:#111827">${codigoEmpresa}</td></tr>
-                  <tr><td style="padding:6px 0;color:#6b7280;font-size:13px">Correo</td><td style="padding:6px 0;font-weight:700;color:#111827">${u.correo}</td></tr>
+                  <tr><td style="padding:6px 0;color:#6b7280;font-size:13px">Correo</td><td style="padding:6px 0;font-weight:700;color:#111827;overflow-wrap:anywhere;word-break:break-word">${u.correo}</td></tr>
                   <tr><td style="padding:6px 0;color:#6b7280;font-size:13px">Contraseña</td><td style="padding:6px 0;font-weight:700;color:#111827;font-size:18px;letter-spacing:2px">${pwd}</td></tr>
                 </table>
               </div>
@@ -1663,7 +1689,7 @@ export class AppController implements OnModuleInit {
       try {
         const transporter = createMailTransporter();
         const baseUrl = process.env.WEB_URL || 'http://localhost:3000';
-        const trackingUrl = `${baseUrl}/seguimiento?ee=${ee.id}`;
+        const trackingUrl = `${baseUrl}/seguimiento?ee=${ee.id}&t=${this.seguimientoToken(ee.id)}`;
         await transporter.sendMail({
           from: process.env.MAIL_FROM,
           to: encargado.correo,
@@ -1851,7 +1877,7 @@ export class AppController implements OnModuleInit {
     const eventoId = await this.getPrincipalEventoId();
     const actividad = await this.prisma.actividadprograma.findFirst({
       where: { id: Number(id), evento_id: eventoId!, estaActivo: 1 },
-    });
+      });
     if (!actividad) throw new BadRequestException('Actividad no encontrada en el evento activo');
     return await this.prisma.actividadprograma.update({
       where: { id: actividad.id },
@@ -2401,11 +2427,7 @@ export class AppController implements OnModuleInit {
         }
       }
       if (!correoEnviado) {
-        console.log('\n╔══════════════════════════════════════════════════════╗');
-        console.log('║  [DEV] CREDENCIALES DE TÉCNICO (email no enviado)     ║');
-        console.log(`║  Correo    : ${body.correo}`);
-        console.log(`║  Contraseña: ${pwd}`);
-        console.log('╚══════════════════════════════════════════════════════╝\n');
+        console.warn(`[WARN] No se enviaron las credenciales de ${body.correo}; usa restablecimiento de contraseña.`);
       }
 
       return { ...tecnico, correoEnviado };
@@ -2417,11 +2439,21 @@ export class AppController implements OnModuleInit {
   @Put('admin/tecnicos/:id')
   async updateTecnico(@Param('id') id: string, @Body() body: any) {
     try {
+      const tecnicoId = Number(id);
+      const correo = normalizarCorreo(body.correo);
+      const telefono = normalizarTelefono(body.telefono);
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) throw new BadRequestException('El correo no es valido');
+      if (telefono.length < 7) throw new BadRequestException('El telefono no es valido');
+      const correoUsado = await this.prisma.usuario.findFirst({ where: { id: { not: tecnicoId }, correo: { equals: correo, mode: 'insensitive' }, estaActivo: 1 } });
+      if (correoUsado) throw new BadRequestException('Ya existe un usuario con ese correo');
+      const otros = await this.prisma.usuario.findMany({ where: { id: { not: tecnicoId }, estaActivo: 1 }, select: { telefono: true } });
+      if (otros.some((u) => normalizarTelefono(u.telefono) === telefono)) throw new BadRequestException('Ya existe un usuario con ese telefono');
       const data: any = {
         nombres: body.nombres,
         apellidoPaterno: body.apellidoPaterno,
         apellidoMaterno: body.apellidoMaterno || null,
-        telefono: body.telefono,
+        correo,
+        telefono: String(body.telefono).trim(),
         urlFotoPerfil: body.urlFotoPerfil || undefined,
         creadoModificadoFecha: new Date(),
         rolEvento: body.rolEvento === 'TECNICO_EVENTOS' ? 'TECNICO_EVENTOS' : 'TECNICO',
@@ -2432,7 +2464,7 @@ export class AppController implements OnModuleInit {
       }
 
       return await this.prisma.usuario.update({
-        where: { id: Number(id) },
+        where: { id: tecnicoId },
         data,
         select: {
           id: true, evento_id: true, nombres: true, apellidoPaterno: true, apellidoMaterno: true,
@@ -3193,8 +3225,8 @@ export class AppController implements OnModuleInit {
     });
     if (!responsableA) throw new BadRequestException('La primera empresa no tiene un encargado registrado');
 
-    const sol = await this.prisma.solicitudreunion.create({
-      data: {
+    const { sol, reunion } = await this.prisma.$transaction(async (tx) => {
+      const sol = await tx.solicitudreunion.create({ data: {
         empresaEvento_id: Number(eeAId),
         empresaEventorReceptora_id: Number(eeBId),
         empresa_usuarioResponsableSolicitud: responsableA.id,
@@ -3206,10 +3238,8 @@ export class AppController implements OnModuleInit {
         estadoSolicitud: 'ACEPTADA',
         mesa_id: mesaAsignada,
         estaActivo: 1,
-      },
-    });
-    const reunion = await this.prisma.reunion.create({
-      data: {
+      }});
+      const reunion = await tx.reunion.create({ data: {
         solicitudReunion_id: sol.id,
         mesa_id: mesaAsignada,
         evento_id: eventoId!,
@@ -3220,7 +3250,8 @@ export class AppController implements OnModuleInit {
         seEnvioNotificacionDeRetraso: 0,
         cantidadAsistentesRegistrados: 0,
         estaActivo: 1,
-      },
+      }});
+      return { sol, reunion };
     });
 
     const cuando = this.fmtSlotAsistente(iniDate.toISOString());
@@ -3240,6 +3271,7 @@ export class AppController implements OnModuleInit {
   @Put('auth/cambiar-password')
   async cambiarPassword(@Body() body: { usuarioId: number; passwordActual: string; passwordNueva: string }) {
     try {
+      validarPasswordSegura(body.passwordNueva);
       const user = await this.prisma.usuario.findUnique({ where: { id: body.usuarioId } });
       if (!user) throw new BadRequestException('Usuario no encontrado');
       const valid = await bcrypt.compare(body.passwordActual, user.contrasenia);
@@ -3266,6 +3298,7 @@ export class AppController implements OnModuleInit {
         select: { id: true, nombres: true, correo: true },
         orderBy: { id: 'desc' },
       });
+      if (!u) return { ok: true, message: 'Si la cuenta existe, recibirá un código.' };
       if (!u) throw new BadRequestException('No existe una cuenta registrada con ese correo electrónico.');
 
       const codigo = generarCodigo();
@@ -4891,8 +4924,8 @@ export class AppController implements OnModuleInit {
       if (conflicto) throw new BadRequestException('Una de las empresas ya tiene una reunión confirmada en ese horario. Rechaza esta solicitud y elige otro horario.');
     }
 
-    const [reunion] = await Promise.all([
-      this.prisma.reunion.create({
+    const reunion = await this.prisma.$transaction(async (tx) => {
+      const creada = await tx.reunion.create({
         data: {
           solicitudReunion_id: Number(id),
           mesa_id: mesaId,
@@ -4905,12 +4938,13 @@ export class AppController implements OnModuleInit {
           cantidadAsistentesRegistrados: 0,
           estaActivo: 1,
         },
-      }),
-      this.prisma.solicitudreunion.update({
+      });
+      await tx.solicitudreunion.update({
         where: { id: Number(id) },
         data: { estadoSolicitud: 'ACEPTADA', creadoModificadoFecha: new Date() },
-      }),
-    ]);
+      });
+      return creada;
+    }, { isolationLevel: 'Serializable' });
 
     await this.notificar(sol.empresaEvento_id, 'solicitud:aceptada', 'Solicitud aceptada',
       'Tu solicitud de reunión fue aceptada. Revisa el horario en Reuniones.', reunion.id, 'reunion');
@@ -5643,23 +5677,24 @@ export class AppController implements OnModuleInit {
     const pwd = generarPasswordTemporal();
     const hashed = await bcrypt.hash(pwd, 10);
 
-    const nuevoUsuario = await this.prisma.usuario.create({
-      data: {
+    const { nuevoUsuario, nuevoEu } = await this.prisma.$transaction(async (tx) => {
+      const usadosActuales = await tx.empresa_usuario.count({ where: { empresaevento_id: Number(eeId), estaActivo: 1 } });
+      if (usadosActuales >= slotsPagados || usadosActuales >= maxPermitidos)
+        throw new BadRequestException('No quedan cupos disponibles para agregar otro participante.');
+      const nuevoUsuario = await tx.usuario.create({ data: {
         nombres: nombres.trim(), apellidoPaterno: apellidoPaterno.trim(),
         correo: correoNorm, contrasenia: hashed,
         telefono: body.telefono?.trim() ?? '+591',
         urlFotoPerfil: `https://ui-avatars.com/api/?name=${encodeURIComponent(nombres)}+${encodeURIComponent(apellidoPaterno)}&background=449D3A&color=fff&size=128`,
         rolEvento: 'EMPRESA', estaActivo: 1,
-      },
-    });
-
-    const nuevoEu = await this.prisma.empresa_usuario.create({
-      data: {
+      }});
+      const nuevoEu = await tx.empresa_usuario.create({ data: {
         empresa_id: ee.empresa_id, usuario_id: nuevoUsuario.id,
         empresaevento_id: Number(eeId), cargo: cargo?.trim() ?? 'Participante',
         esResponsable: 0, estaActivo: 1,
-      },
-    });
+      }});
+      return { nuevoUsuario, nuevoEu };
+    }, { isolationLevel: 'Serializable' });
 
     // La empresa ya está habilitada: generamos la credencial QR del nuevo
     // participante igual que al aprobar el pago (antes quedaba sin QR).
@@ -5670,13 +5705,22 @@ export class AppController implements OnModuleInit {
     }
 
     const isDevEmail = !process.env.MAIL_USER || process.env.MAIL_USER === 'tu_correo@gmail.com';
-    console.log('\n╔══════════════════════════════════════════════════════╗');
-    console.log('║   [PARTICIPANTE] CREDENCIALES GENERADAS              ║');
-    console.log(`║  Correo   : ${correoNorm}`);
-    console.log(`║  Contraseña: ${pwd}`);
-    console.log('╚══════════════════════════════════════════════════════╝\n');
+    console.warn(`[INFO] Participante ${correoNorm} creado; la contraseña temporal nunca se registra.`);
 
-    return { ok: true, participanteId: nuevoEu.id, correo: correoNorm, credencialesEnviadas: !isDevEmail };
+    let credencialesEnviadas = false;
+    if (!isDevEmail) {
+      try {
+        await createMailTransporter().sendMail({
+          from: process.env.MAIL_FROM, to: correoNorm,
+          subject: 'Tu acceso a la Rueda de Negocios',
+          html: `${EMAIL_LOGO_HTML}<div style="font-family:Arial;max-width:520px;margin:auto"><h2 style="color:#449D3A">Tu participante fue habilitado</h2><p>Correo: <strong>${correoNorm}</strong></p><p>Contraseña temporal: <strong>${pwd}</strong></p><p>Cámbiala al iniciar sesión.</p></div>`,
+        });
+        credencialesEnviadas = true;
+      } catch (error) {
+        console.warn(`[WARN] No se pudieron enviar las credenciales a ${correoNorm}:`, error instanceof Error ? error.message : error);
+      }
+    }
+    return { ok: true, participanteId: nuevoEu.id, correo: correoNorm, credencialesEnviadas };
   }
 
   @Put('empresa/participantes/:euId/desactivar')
@@ -5722,6 +5766,19 @@ export class AppController implements OnModuleInit {
     const regla = ee.evento.eventoreglaqr.find((r: any) => total >= r.rangoDesde && total <= r.rangoHasta)
       || ee.evento.eventoreglaqr.find((r: any) => nuevos >= r.rangoDesde && nuevos <= r.rangoHasta);
     return { cantidad: nuevos, total, urlQR: regla?.urlQR || ee.paquete?.urlQR || null, monto: Number(ee.evento.costoParticipanteExtra) * nuevos };
+  }
+
+  @Get('admin/auditoria')
+  async getAuditoria(@Query('page') page = '1', @Query('limit') limit = '50', @Query('usuarioId') usuarioId?: string) {
+    const take = Math.min(Math.max(Number(limit) || 50, 1), 200);
+    const offset = (Math.max(Number(page) || 1, 1) - 1) * take;
+    return this.prisma.$queryRaw`
+      SELECT a.id::text, a.usuario_id AS "usuarioId", a.rol, a.accion, a.ruta, a.metodo, a.ip,
+             a.detalles, a.fecha_creacion AS "fechaCreacion",
+             concat_ws(' ', u.nombres, u."apellidoPaterno") AS "actorNombre", u.correo AS "actorCorreo"
+      FROM auditoria a LEFT JOIN usuario u ON u.id = a.usuario_id
+      WHERE (${usuarioId ? Number(usuarioId) : null}::integer IS NULL OR a.usuario_id = ${usuarioId ? Number(usuarioId) : null})
+      ORDER BY a.fecha_creacion DESC LIMIT ${take} OFFSET ${offset}`;
   }
 
   @Post('empresa/pagos-adicionales')
@@ -5822,14 +5879,17 @@ export class AppController implements OnModuleInit {
     if (nuevoTotal > maxPermitidos)
       throw new BadRequestException(`Aprobar este pago superaría el máximo de ${maxPermitidos} participantes por empresa`);
 
-    await this.prisma.empresaeventocomprobantes.update({
-      where: { id: Number(id) },
-      data: { estadoPago: 'COMPLETADO' },
-    });
-    await this.prisma.empresaevento.update({
-      where: { id: ee.id },
-      data: { numeroParticipantes: nuevoTotal, creadoModificadoFecha: new Date() },
-    });
+    await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.empresaeventocomprobantes.updateMany({
+        where: { id: Number(id), tipoPago: 'ADICIONAL', estadoPago: 'PENDIENTE' },
+        data: { estadoPago: 'COMPLETADO' },
+      });
+      if (claimed.count !== 1) throw new BadRequestException('El pago ya fue procesado por otro usuario');
+      await tx.empresaevento.update({
+        where: { id: ee.id },
+        data: { numeroParticipantes: nuevoTotal, creadoModificadoFecha: new Date() },
+      });
+    }, { isolationLevel: 'Serializable' });
     await this.notificar(ee.id, 'pago-adicional:aprobado', 'Pago adicional aprobado',
       `Tu pago adicional fue aprobado. Ahora tienes ${nuevoTotal} cupos totales.`);
     return { ok: true, nuevoTotalSlots: nuevoTotal };
@@ -5932,6 +5992,7 @@ export class AppController implements OnModuleInit {
         throw new BadRequestException('La contraseña debe tener al menos 6 caracteres');
 
       // Obtener el usuario con token más reciente para ese correo
+      validarPasswordSegura(body.nuevaContrasenia);
       const candidatos = await this.prisma.usuario.findMany({
         where: { correo: body.correo, estaActivo: 1, resetToken: { not: null } },
         select: { id: true, resetToken: true, resetTokenExpiry: true },

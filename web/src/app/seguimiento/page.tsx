@@ -164,6 +164,7 @@ function TimelineStep({
 function SeguimientoContent() {
   const params = useSearchParams();
   const eeId = params.get('ee');
+  const token = params.get('t') || '';
 
   const [data, setData] = useState<SeguimientoData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -183,7 +184,7 @@ function SeguimientoContent() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API}/public/seguimiento?ee=${eeId}`);
+      const res = await fetch(`${API}/public/seguimiento?ee=${eeId}&t=${encodeURIComponent(token)}`);
       if (!res.ok) throw new Error('Registro no encontrado');
       setData(await res.json());
     } catch {
@@ -209,14 +210,14 @@ function SeguimientoContent() {
     try {
       const fd = new FormData();
       fd.append('file', file);
-      const upRes = await fetch(`${API}/admin/imagenes/upload`, { method: 'POST', body: fd });
+      const upRes = await fetch(`${API}/public/imagenes/upload`, { method: 'POST', body: fd });
       const upData = await upRes.json();
       if (!upData.url) throw new Error('No se obtuvo URL del archivo');
 
       const res = await fetch(`${API}/public/seguimiento/${eeId}/comprobante`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ urlComprobante: upData.url }),
+        body: JSON.stringify({ urlComprobante: upData.url, token }),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));

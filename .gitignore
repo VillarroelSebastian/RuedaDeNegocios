@@ -12,6 +12,10 @@ coverage/
 
 # Dump local de BD (transferir por scp, no commitear)
 deploy/rueda_dump.sql
+*.sql.gz
+*.dump
+*backup*.sql
+*respaldo*.sql
 
 # Binarios locales
 node.zip

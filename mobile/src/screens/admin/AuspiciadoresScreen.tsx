@@ -77,6 +77,11 @@ export default function AuspiciadoresScreen() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || 'No se pudo guardar');
       setVisible(false); await cargar();
+      const pendientes = [...(data.correosFallidos ?? []), ...(data.accesoPlataforma?.creado === false && data.accesoPlataforma?.motivo ? [data.accesoPlataforma.motivo] : [])];
+      if (!editId && pendientes.length) {
+        show({ type: 'warning', title: 'Registrado con envíos pendientes', message: pendientes.join(' · ') });
+        return;
+      }
       show({ type: 'success', title: editId ? 'Auspiciador actualizado' : 'Auspiciador registrado', message: editId ? 'Los cambios fueron guardados.' : 'Las credenciales fueron enviadas por correo.' });
     } catch (e: any) { show({ type: 'error', title: 'No se pudo guardar', message: e.message }); }
     finally { setSaving(false); }

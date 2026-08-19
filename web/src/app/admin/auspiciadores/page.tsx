@@ -143,6 +143,11 @@ export default function AuspiciadoresPage() {
       if (!res.ok) throw new Error(data?.message || "No se pudo guardar.");
       setAbierto(false);
       await cargar();
+      const pendientes = [...(data.correosFallidos ?? []), ...(data.accesoPlataforma?.creado === false && data.accesoPlataforma?.motivo ? [data.accesoPlataforma.motivo] : [])];
+      if (!editandoId && pendientes.length) {
+        showError("Auspiciador registrado con envíos pendientes", pendientes.join(" · "));
+        return;
+      }
       showSuccess(
         editandoId ? "Auspiciador actualizado" : "Auspiciador registrado",
         editandoId
