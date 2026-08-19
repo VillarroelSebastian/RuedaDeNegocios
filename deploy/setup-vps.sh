@@ -148,7 +148,7 @@ echo "════════ 8/8 Firewall + arranque automático ════�
 ufw allow 22/tcp
 ufw allow 80/tcp
 ufw allow 443/tcp
-ufw delete allow 3334/tcp 2>/dev/null || true
+ufw --force delete allow 3334/tcp 2>/dev/null || true
 ufw --force enable
 pm2 save
 pm2 startup systemd -u root --hp /root | tail -1 | bash || true
