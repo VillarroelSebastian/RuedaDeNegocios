@@ -327,6 +327,12 @@ export class ExtrasController {
     const eventoId = await this.eventoPrincipalId();
     const datos = this.datosAuspiciador(body);
     const personas = this.personasValidadas(body, datos.cantidadIngresos);
+    const cuentaExistente = await this.prisma.usuario.findFirst({
+      where: { correo: { equals: personas[0].correo, mode: 'insensitive' }, estaActivo: 1 },
+      select: { id: true },
+    });
+    if (cuentaExistente)
+      throw new BadRequestException('El correo de la primera persona ya pertenece a una cuenta. Usa otro correo para crear al encargado del auspiciador.');
 
     const ausp = await this.prisma.auspiciador.create({
       data: { ...datos, evento_id: eventoId, personas: { create: personas } },

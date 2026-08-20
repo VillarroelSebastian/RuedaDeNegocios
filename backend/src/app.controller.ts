@@ -565,6 +565,17 @@ export class AppController implements OnModuleInit {
     };
   }
 
+  @Get('tecnico/credenciales/verificar')
+  async verificarCredencialTecnico(@Query('euId') euId: string, @Query('token') token: string) {
+    const id = Number(euId);
+    if (!id || !token || token !== this.credencialToken(id))
+      throw new BadRequestException('El código QR no es válido.');
+    const credencial: any = await this.getCredencialPublica(String(id), token);
+    if (!credencial.habilitado)
+      throw new BadRequestException('El participante o su empresa no están habilitados para este evento.');
+    return credencial;
+  }
+
   @Get('tecnico/asistencias')
   async listarAsistencias(@Query('tecnicoId') tecnicoId?: string) {
     const eventoId = await this.getPrincipalEventoId();

@@ -12,6 +12,7 @@ export default function TecnicoAsistenciaScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [escaneando, setEscaneando] = useState(false);
   const [procesando, setProcesando] = useState(false);
+  const [pendiente, setPendiente] = useState<any>(null);
   const [asistencias, setAsistencias] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const { show, modal } = useModal();
@@ -38,19 +39,32 @@ export default function TecnicoAsistenciaScreen() {
     }
     setProcesando(true);
     try {
-      const res = await fetch(`${API_URL}/tecnico/asistencias`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tecnicoId, euId: Number(match[1]), token: match[2] }),
-      });
+      const res = await fetch(`${API_URL}/tecnico/credenciales/verificar?euId=${match[1]}&token=${match[2]}`);
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || 'No se pudo registrar la asistencia.');
+      if (!res.ok) throw new Error(data?.message || 'No se pudo verificar la credencial.');
       setEscaneando(false);
-      show({ type: data.yaRegistrada ? 'warning' : 'success', title: data.yaRegistrada ? 'Asistencia ya registrada' : 'Asistencia registrada', message: `${data.participante.nombre} · ${data.participante.empresa}` });
-      cargar();
+      setPendiente({ euId: Number(match[1]), token: match[2], ...data });
     } catch (e: any) {
       setEscaneando(false);
       show({ type: 'error', title: 'No se pudo registrar', message: e.message });
     } finally { setProcesando(false); }
+  };
+
+  const registrarAsistencia = async () => {
+    if (!pendiente || procesando) return;
+    setProcesando(true);
+    try {
+      const res = await fetch(`${API_URL}/tecnico/asistencias`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tecnicoId, euId: pendiente.euId, token: pendiente.token }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || 'No se pudo registrar la asistencia.');
+      setPendiente(null);
+      show({ type: data.yaRegistrada ? 'warning' : 'success', title: data.yaRegistrada ? 'Asistencia ya registrada' : 'Asistencia registrada', message: `${data.participante.nombre} · ${data.participante.empresa}` });
+      cargar();
+    } catch (e: any) { show({ type: 'error', title: 'No se pudo registrar', message: e.message }); }
+    finally { setProcesando(false); }
   };
 
   if (escaneando) {
@@ -72,10 +86,10 @@ export default function TecnicoAsistenciaScreen() {
   return <View style={{ flex: 1, backgroundColor: '#f8fafc' }}>
     <View style={{ padding: 18, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e5e7eb' }}>
       <Text style={{ fontSize: 22, fontWeight: '800', color: '#0f172a' }}>Control de asistencia</Text>
-      <Text style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>Escanea la credencial y registra la hora de llegada.</Text>
+      <Text style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>Solo el personal técnico puede verificar y registrar asistencias.</Text>
       <TouchableOpacity onPress={() => setEscaneando(true)} style={{ marginTop: 14, backgroundColor: GREEN, borderRadius: 14, padding: 14, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}><QrCode size={20} color="#fff" /><Text style={{ color: '#fff', fontWeight: '800' }}>Escanear QR</Text></TouchableOpacity>
     </View>
-    {loading ? <ActivityIndicator style={{ marginTop: 40 }} color={GREEN} /> : <FlatList data={asistencias} keyExtractor={(item) => String(item.id)} contentContainerStyle={{ padding: 16, gap: 10 }} ListEmptyComponent={<Text style={{ textAlign: 'center', color: '#94a3b8', marginTop: 50 }}>Todavia no registraste asistencias.</Text>} renderItem={({ item }) => <View style={{ backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, borderColor: '#e2e8f0', padding: 14, flexDirection: 'row', gap: 10 }}><CheckCircle2 size={20} color={GREEN} /><View style={{ flex: 1 }}><Text style={{ fontWeight: '800', color: '#0f172a' }}>{item.empresa_usuario?.usuario?.nombres} {item.empresa_usuario?.usuario?.apellidoPaterno}</Text><Text style={{ color: '#64748b', fontSize: 12 }}>{item.empresa_usuario?.empresa?.nombre}</Text><Text style={{ color: '#94a3b8', fontSize: 11, marginTop: 3 }}>{new Date(item.fechaHoraAsistencia).toLocaleString('es-BO')}</Text></View></View>} refreshing={loading} onRefresh={cargar} />}
+    {pendiente ? <View style={{ margin: 16, backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#bbf7d0', padding: 18 }}><CheckCircle2 size={42} color={GREEN} style={{ alignSelf: 'center' }}/><Text style={{ color: '#15803d', textAlign: 'center', fontSize: 11, fontWeight: '800', marginTop: 8 }}>CREDENCIAL VÁLIDA</Text><Text style={{ color: '#0f172a', textAlign: 'center', fontSize: 20, fontWeight: '800', marginTop: 4 }}>{pendiente.participante.nombre}</Text><Text style={{ color: '#475569', textAlign: 'center', marginTop: 6 }}>Empresa: {pendiente.empresa.nombre}</Text><Text style={{ color: '#64748b', textAlign: 'center', fontSize: 12 }}>Rubro: {pendiente.empresa.rubro || 'No indicado'} · Código: {pendiente.empresa.codigo || 'No indicado'}</Text><Text style={{ color: '#64748b', textAlign: 'center', fontSize: 12 }}>Cargo: {pendiente.participante.cargo || 'No indicado'} · Encargado: {pendiente.participante.esResponsable ? 'Sí' : 'No'}</Text><View style={{ flexDirection: 'row', gap: 8, marginTop: 18 }}><TouchableOpacity onPress={() => setPendiente(null)} style={{ flex: 1, borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 12, padding: 13, alignItems: 'center' }}><Text style={{ fontWeight: '800', color: '#475569' }}>Cancelar</Text></TouchableOpacity><TouchableOpacity onPress={registrarAsistencia} disabled={procesando} style={{ flex: 1, backgroundColor: GREEN, borderRadius: 12, padding: 13, alignItems: 'center', opacity: procesando ? .5 : 1 }}><Text style={{ fontWeight: '800', color: '#fff' }}>{procesando ? 'Registrando...' : 'Registrar asistencia'}</Text></TouchableOpacity></View></View> : loading ? <ActivityIndicator style={{ marginTop: 40 }} color={GREEN} /> : <FlatList data={asistencias} keyExtractor={(item) => String(item.id)} contentContainerStyle={{ padding: 16, gap: 10 }} ListEmptyComponent={<Text style={{ textAlign: 'center', color: '#94a3b8', marginTop: 50 }}>Todavía no registraste asistencias.</Text>} renderItem={({ item }) => <View style={{ backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, borderColor: '#e2e8f0', padding: 14, flexDirection: 'row', gap: 10 }}><CheckCircle2 size={20} color={GREEN} /><View style={{ flex: 1 }}><Text style={{ fontWeight: '800', color: '#0f172a' }}>{item.empresa_usuario?.usuario?.nombres} {item.empresa_usuario?.usuario?.apellidoPaterno}</Text><Text style={{ color: '#64748b', fontSize: 12 }}>{item.empresa_usuario?.empresa?.nombre}</Text><Text style={{ color: '#94a3b8', fontSize: 11, marginTop: 3 }}>{new Date(item.fechaHoraAsistencia).toLocaleString('es-BO')}</Text></View></View>} refreshing={loading} onRefresh={cargar} />}
     {modal}
   </View>;
 }

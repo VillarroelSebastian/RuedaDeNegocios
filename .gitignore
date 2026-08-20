@@ -21,3 +21,4 @@ deploy/rueda_dump.sql
 node.zip
 node_portable/
 deploy/secrets.env
+deploy/entrega-privada/

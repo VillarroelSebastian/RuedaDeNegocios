@@ -152,7 +152,7 @@ export default function AuspiciadoresPage() {
         editandoId ? "Auspiciador actualizado" : "Auspiciador registrado",
         editandoId
           ? "Los cambios se guardaron. Las personas que ya tenían credencial conservan su QR."
-          : `Se emitieron y enviaron por correo ${form.cantidadIngresos} credencial(es) de acceso.`,
+          : `Se enviaron ${form.cantidadIngresos} credencial(es) QR. La primera persona también recibió sus credenciales para ingresar como encargada de la empresa auspiciadora.`,
       );
     } catch (e: any) {
       showError("No se pudo guardar", e.message);
