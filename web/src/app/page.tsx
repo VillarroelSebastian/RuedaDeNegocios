@@ -417,10 +417,10 @@ export default function HomePage() {
             <span className="text-green-600 font-semibold text-sm uppercase tracking-wider">Recuerdos</span>
             <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mt-3">Galería del evento</h2>
             <p className="text-gray-500 mt-3">
-              Momentos compartidos por los participantes. Inicia sesión para subir las tuyas.
+              Momentos seleccionados por el equipo técnico del evento.
             </p>
           </div>
-          <GaleriaEvento />
+          <GaleriaEvento soloTecnicos />
         </div>
       </section>
 

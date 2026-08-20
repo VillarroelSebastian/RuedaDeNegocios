@@ -151,7 +151,7 @@ function TabEvento() {
 
 export default function ConfiguracionPage() {
   const router = useRouter();
-  const { showSuccess, showError, ModalComponent } = useModal();
+  const { showSuccess, showError, showConfirm, ModalComponent } = useModal();
 
   const [user, setUser] = useState<any>(null);
   const [form, setForm] = useState({ nombres: '', apellidoPaterno: '', apellidoMaterno: '', correo: '', telefono: '', urlFotoPerfil: '' });
@@ -192,14 +192,23 @@ export default function ConfiguracionPage() {
     finally { setUploading(false); }
   };
 
-  const handleSavePerfil = async () => {
+  const handleSavePerfil = async (confirmarResetCorreo = false) => {
     if (!user) return;
+    const correoCambio = form.correo.trim().toLowerCase() !== String(user.correo || '').trim().toLowerCase();
+    if (correoCambio && !confirmarResetCorreo) {
+      showConfirm(
+        '¿Cambiar el correo del administrador?',
+        'Por seguridad se reiniciará tu contraseña. Las nuevas credenciales se enviarán al correo nuevo y tendrás que volver a iniciar sesión.',
+        () => handleSavePerfil(true),
+      );
+      return;
+    }
     setSaving(true);
     try {
       const res = await fetch(`${API}/admin/perfil/${user.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, confirmarResetCorreo }),
       });
       const updated = await res.json();
       if (!res.ok) throw new Error(updated?.message || 'No se pudo actualizar el perfil.');
@@ -207,8 +216,11 @@ export default function ConfiguracionPage() {
       localStorage.setItem('adminUser', JSON.stringify(newUser));
       setUser(newUser);
       window.dispatchEvent(new CustomEvent('profileUpdated'));
-      showSuccess('Perfil actualizado', 'Los cambios se guardaron correctamente.');
-    } catch { showError('Error', 'No se pudo actualizar el perfil.'); }
+      if (updated.correoCambio) {
+        showSuccess('Correo actualizado', 'La contraseña fue reiniciada y las nuevas credenciales se enviaron al correo nuevo. Inicia sesión nuevamente.');
+        setTimeout(handleLogout, 1800);
+      } else showSuccess('Perfil actualizado', 'Los cambios se guardaron correctamente.');
+    } catch (e: any) { showError('Error', e.message || 'No se pudo actualizar el perfil.'); }
     finally { setSaving(false); }
   };
 
@@ -429,7 +441,7 @@ export default function ConfiguracionPage() {
               </div>
             </div>
             <div className="flex justify-end pt-2">
-              <button onClick={handleSavePerfil} disabled={saving}
+              <button onClick={() => handleSavePerfil()} disabled={saving}
                 className="flex items-center gap-2 bg-[#449D3A] text-white font-semibold px-6 py-2.5 rounded-xl hover:bg-[#367d2e] disabled:opacity-50 transition-colors shadow-sm">
                 <Save className="w-4 h-4" />
                 {saving ? 'Guardando...' : 'Guardar cambios'}

@@ -274,6 +274,19 @@ export default function RegistroPage() {
     finally { setCheckingCorreo(false); }
   };
 
+  const verificarTelefono = async (telefono: string, tipo: "empresa" | "participante", etiqueta: string): Promise<string | null> => {
+    if (!validTel(telefono)) return null;
+    try {
+      const params = new URLSearchParams({ telefono, tipo });
+      const res = await fetch(`${API}/public/verificar-empresa?${params}`);
+      const data = await res.json();
+      if (!data.existe) return null;
+      return tipo === "empresa"
+        ? `Este teléfono/WhatsApp ya está registrado por la empresa "${data.nombreEmpresa || "existente"}".`
+        : `El teléfono de ${etiqueta} ya está asociado a una cuenta.`;
+    } catch { return null; }
+  };
+
   /* ─── File upload ───────────────────────────────────────────── */
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -355,12 +368,20 @@ export default function RegistroPage() {
       // Always verify email against DB when clicking Continuar
       const emailErr = await verificarCorreo(empresa.correoCorporativo);
       if (emailErr) return; // error already shown inline below the email field
+      const telefonoErr = await verificarTelefono(empresa.telefonoWhatsapp, "empresa", "la empresa");
+      if (telefonoErr) { showModal("warning", "Teléfono ya registrado", telefonoErr); return; }
     } else if (step === 2) {
       const err = validateStep2();
       if (err) { showModal("warning", "Campos requeridos", err); return; }
     } else if (step === 3) {
       const err = validateStep3();
       if (err) { showModal("warning", "Campos requeridos", err); return; }
+      const responsableErr = await verificarTelefono(responsable.telefono, "participante", "el encargado");
+      if (responsableErr) { showModal("warning", "Teléfono del encargado ya registrado", responsableErr); return; }
+      for (let i = 0; i < adicionales.length; i++) {
+        const participanteErr = await verificarTelefono(adicionales[i].telefono, "participante", `el participante ${i + 2}`);
+        if (participanteErr) { showModal("warning", "Teléfono ya registrado", participanteErr); return; }
+      }
       handleSubmit();
       return;
     }

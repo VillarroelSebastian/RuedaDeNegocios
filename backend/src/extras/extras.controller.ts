@@ -619,6 +619,16 @@ export class ExtrasController {
     if (estado === 'FINALIZADA' && !actividad.horaFinReal) data.horaFinReal = ahora;
 
     await this.prisma.actividadprograma.update({ where: { id: actividadId }, data });
+    if (estado === 'EN_VIVO' && actividad.estadoEnVivo !== 'EN_VIVO') {
+      const subs = await this.prisma.suscripcionactividad.findMany({ where: { actividad_id: actividadId, estaActivo: 1 }, select: { empresaevento_id: true } });
+      if (subs.length) await this.prisma.notificacion.createMany({ data: subs.map((s) => ({
+        empresaevento_id: s.empresaevento_id,
+        tituloNotificacion: `Ya inició: ${actividad.nombreActividad}`,
+        mensajeNotificacion: 'La actividad a la que te suscribiste acaba de comenzar.',
+        tipoNotificacion: 'evento:inicio', referenciaId: actividadId,
+        referenciaNombreTabla: 'actividadprograma', haSidoLeida: 0, estaActivo: 1,
+      })) });
+    }
     return this.cronogramaVivo();
   }
 }

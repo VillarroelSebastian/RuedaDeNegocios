@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { CalendarDays, Clock, MapPin, Tag, AlertCircle } from "lucide-react";
+import { CalendarDays, Clock, MapPin, Tag, AlertCircle, Bell, BellOff } from "lucide-react";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
@@ -32,19 +32,38 @@ export default function EmpresaEventosPage() {
   const [actividades, setActividades] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [eeId, setEeId] = useState<number | null>(null);
+  const [savingSubscription, setSavingSubscription] = useState<number | null>(null);
 
   useEffect(() => {
+    let empresaEventoId: number | null = null;
+    try { empresaEventoId = JSON.parse(localStorage.getItem("empresaUser") || "null")?.empresaEventoId ?? null; } catch {}
+    setEeId(empresaEventoId);
     Promise.all([
       fetch(`${API}/empresa/evento`).then((r) => r.json()),
-      fetch(`${API}/empresa/actividades`).then((r) => r.json()),
+      fetch(`${API}/public/cronograma-vivo${empresaEventoId ? `?eeId=${empresaEventoId}` : ""}`).then((r) => r.json()),
     ])
       .then(([ev, acts]) => {
         setEvento(ev);
-        setActividades(Array.isArray(acts) ? acts : []);
+        setActividades(Array.isArray(acts?.actividades) ? acts.actividades : []);
       })
       .catch(() => setError("No se pudo cargar la información del evento."))
       .finally(() => setLoading(false));
   }, []);
+
+  const toggleSuscripcion = async (act: any) => {
+    if (!eeId || savingSubscription) return;
+    setSavingSubscription(act.id);
+    try {
+      const res = await fetch(`${API}/empresa/cronograma-vivo/${act.id}/suscripcion`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eeId, suscrito: !act.suscrito }),
+      });
+      if (!res.ok) throw new Error();
+      setActividades((prev) => prev.map((a) => a.id === act.id ? { ...a, suscrito: !a.suscrito } : a));
+    } catch { setError("No se pudo actualizar la suscripción."); }
+    finally { setSavingSubscription(null); }
+  };
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
@@ -152,6 +171,11 @@ export default function EmpresaEventosPage() {
                       <span>{act.nombreResponsableActividad}</span>
                     )}
                   </div>
+                  <button onClick={() => toggleSuscripcion(act)} disabled={!eeId || savingSubscription === act.id}
+                    className={`mt-3 inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition-colors disabled:opacity-50 ${act.suscrito ? "bg-green-100 text-green-700 hover:bg-green-200" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                    {act.suscrito ? <BellOff className="w-3.5 h-3.5" /> : <Bell className="w-3.5 h-3.5" />}
+                    {act.suscrito ? "Cancelar suscripción" : "Avisarme cuando inicie"}
+                  </button>
                 </div>
               </div>
             ))}

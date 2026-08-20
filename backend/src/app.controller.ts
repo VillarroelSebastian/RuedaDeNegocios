@@ -426,7 +426,18 @@ export class AppController implements OnModuleInit {
   }
 
   @Get('public/verificar-empresa')
-  async verificarEmpresa(@Query('correo') correo: string) {
+  async verificarEmpresa(@Query('correo') correo?: string, @Query('telefono') telefono?: string, @Query('tipo') tipo?: string) {
+    if (telefono) {
+      const buscado = normalizarTelefono(telefono);
+      if (buscado.length < 7) return { existe: false };
+      if (tipo === 'empresa') {
+        const empresas = await this.prisma.empresa.findMany({ where: { estaActivo: 1 }, select: { nombre: true, telefonoWhatsapp: true } });
+        const empresa = empresas.find((e) => normalizarTelefono(e.telefonoWhatsapp) === buscado);
+        return { existe: !!empresa, nombreEmpresa: empresa?.nombre };
+      }
+      const usuarios = await this.prisma.usuario.findMany({ where: { estaActivo: 1 }, select: { telefono: true } });
+      return { existe: usuarios.some((u) => normalizarTelefono(u.telefono) === buscado) };
+    }
     if (!correo) return { existe: false };
     const eventoId = await this.getPrincipalEventoId();
     if (!eventoId) return { existe: false };
@@ -2503,6 +2514,8 @@ export class AppController implements OnModuleInit {
   @Put('admin/perfil/:id')
   async updatePerfil(@Param('id') id: string, @Body() body: any) {
     try {
+      const actual = await this.prisma.usuario.findUnique({ where: { id: Number(id) } });
+      if (!actual) throw new BadRequestException('Usuario no encontrado');
       const correo = normalizarCorreo(body.correo);
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo))
         throw new BadRequestException('El correo no es valido');
@@ -2521,6 +2534,26 @@ export class AppController implements OnModuleInit {
         creadoModificadoFecha: new Date(),
       };
 
+      const correoCambio = normalizarCorreo(actual.correo) !== correo;
+      let credencialesEnviadas = false;
+      if (correoCambio) {
+        if (body.confirmarResetCorreo !== true)
+          throw new BadRequestException('Confirma que deseas cambiar el correo y reiniciar la contraseña por seguridad.');
+        const pwd = generarPasswordTemporal();
+        const isDevEmail = !process.env.MAIL_USER || process.env.MAIL_USER === 'tu_correo@gmail.com';
+        if (isDevEmail) throw new BadRequestException('No se puede cambiar el correo porque el servicio de correo no está configurado.');
+        await createMailTransporter().sendMail({
+          from: process.env.MAIL_FROM,
+          to: correo,
+          subject: 'Nuevas credenciales de administrador — Rueda de Negocios',
+          html: `${EMAIL_LOGO_HTML}<div style="font-family:Arial;max-width:520px;margin:auto"><h2 style="color:#449D3A">Tu correo fue actualizado</h2><p>Por seguridad reiniciamos tu contraseña.</p><p><strong>Correo:</strong> ${correo}</p><p><strong>Contraseña temporal:</strong> <code>${pwd}</code></p><p>Cambia esta contraseña después de iniciar sesión.</p></div>`,
+        });
+        data.contrasenia = await bcrypt.hash(pwd, 10);
+        data.resetToken = null;
+        data.resetTokenExpiry = null;
+        credencialesEnviadas = true;
+      }
+
       if (body.nuevaContrasenia) {
         const user = await this.prisma.usuario.findUnique({ where: { id: Number(id) } });
         if (!user) throw new BadRequestException('Usuario no encontrado');
@@ -2529,7 +2562,7 @@ export class AppController implements OnModuleInit {
         data.contrasenia = await bcrypt.hash(body.nuevaContrasenia, 10);
       }
 
-      return await this.prisma.usuario.update({
+      const actualizado = await this.prisma.usuario.update({
         where: { id: Number(id) },
         data,
         select: {
@@ -2537,6 +2570,7 @@ export class AppController implements OnModuleInit {
           correo: true, telefono: true, urlFotoPerfil: true, rolEvento: true,
         },
       });
+      return { ...actualizado, correoCambio, credencialesEnviadas };
     } catch (error) {
       throw new BadRequestException(error instanceof Error ? error.message : 'Error al actualizar perfil');
     }
@@ -2938,6 +2972,7 @@ export class AppController implements OnModuleInit {
         where: { reunion_id: reunionId, estaActivo: 1 },
         data: { estaOcupado: 0, estaActivo: 0, creadoModificadoFecha: new Date() },
       });
+      return actualizada;
     }
     return actualizada;
   }
@@ -3909,31 +3944,19 @@ export class AppController implements OnModuleInit {
     const presentarHorarios = async (receptoraEeId: number, receptoraNombre: string) => {
       const disp: any = await this.getHorariosDisponibles(String(eeId), String(receptoraEeId));
       const todos: any[] = disp.horarios ?? [];
-      // Sugerencias variadas: máximo una por hora (la disponibilidad ahora es cada
-      // 5 min, y ofrecer 08:00/08:05/08:10... no ayuda a elegir). Prefiere minutos
-      // redondos; el usuario igual puede escribir cualquier hora exacta disponible.
-      const porHora = new Map<string, any>();
-      for (const h of todos) {
-        const d = new Date(h.inicio);
-        const clave = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}-${d.getHours()}`;
-        const previa = porHora.get(clave);
-        if (!previa || (new Date(previa.inicio).getMinutes() !== 0 && d.getMinutes() === 0)) {
-          porHora.set(clave, h);
-        }
-      }
-      const slots: string[] = [...porHora.values()].slice(0, 6).map((h: any) => h.inicio);
+      const slots: string[] = todos.map((h: any) => h.inicio);
       if (slots.length === 0) {
         return {
           respuesta: `${receptoraNombre} no tiene horarios disponibles por ahora. Intenta más tarde o escribe el nombre de otra empresa.`,
           contexto: { flujo: 'agendar', paso: 'empresa' },
         };
       }
-      const horarioOpciones = slots.map((s) => this.fmtSlotAsistente(s));
-      const lista = horarioOpciones.map((o, i) => `${i + 1}. ${o}`).join('\n');
+      const primera = new Date(slots[0]);
+      const ultima = new Date(slots[slots.length - 1]);
+      const reloj = (d: Date) => d.toLocaleTimeString('es-BO', { hour: 'numeric', minute: '2-digit', hour12: true });
       return {
-        respuesta: `Estos son los horarios disponibles con ${receptoraNombre}:\n${lista}\n\nResponde con el número o toca una opción.`,
-        contexto: { flujo: 'agendar', paso: 'horario', receptoraEeId, receptoraNombre, slots, horarioOpciones, duracionMin: disp.duracionMinutos },
-        opciones: horarioOpciones,
+        respuesta: `El horario disponible con ${receptoraNombre} es de ${reloj(primera)} a ${reloj(ultima)}. ¿A qué hora querías la reunión? Puedes escribir, por ejemplo, "1" o "1 p. m.".`,
+        contexto: { flujo: 'agendar', paso: 'hora', receptoraEeId, receptoraNombre, slots, duracionMin: disp.duracionMinutos },
       };
     };
 
@@ -3990,6 +4013,34 @@ export class AppController implements OnModuleInit {
         return presentarHorarios(elegido.id, elegido.nombre);
       }
       return procesarBusqueda(msg.trim());
+    }
+
+    if (paso === 'hora') {
+      const slots: string[] = contexto.slots ?? [];
+      const m = msg.match(/\b(\d{1,2})(?:[:.](\d{2}))?\s*(a\.?\s*m\.?|p\.?\s*m\.?)?\b/i);
+      if (!m) return { respuesta: 'Indica una hora, por ejemplo "1", "9 a. m." o "3 p. m.".', contexto };
+      const pedida = Number(m[1]);
+      const periodo = m[3]?.toLowerCase().replace(/[.\s]/g, '');
+      const horas = periodo ? [periodo === 'pm' ? (pedida % 12) + 12 : pedida % 12] : [...new Set([pedida % 12, (pedida % 12) + 12])];
+      const disponibles = horas.filter((hora) => slots.some((s) => new Date(s).getHours() === hora));
+      if (!disponibles.length) return { respuesta: 'Esa hora no está disponible. Indica otra hora dentro del horario mostrado.', contexto };
+      if (disponibles.length > 1) {
+        const opciones = disponibles.map((hora) => new Date(slots.find((s) => new Date(s).getHours() === hora)!).toLocaleTimeString('es-BO', { hour: 'numeric', hour12: true }));
+        return { respuesta: `Hay disponibilidad en ambos horarios. ¿Cuál prefieres?\n${opciones.map((o, i) => `${i + 1}. ${o}`).join('\n')}`, contexto: { ...contexto, paso: 'periodo', horas: disponibles }, opciones };
+      }
+      const candidatos = slots.filter((s) => new Date(s).getHours() === disponibles[0]);
+      const opciones = candidatos.map((s) => new Date(s).toLocaleTimeString('es-BO', { hour: 'numeric', minute: '2-digit', hour12: true }));
+      return { respuesta: `Elige un intervalo disponible:\n${opciones.map((o, i) => `${i + 1}. ${o}`).join('\n')}`, contexto: { ...contexto, paso: 'horario', slots: candidatos, horarioOpciones: opciones }, opciones };
+    }
+
+    if (paso === 'periodo') {
+      const horas: number[] = contexto.horas ?? [];
+      const indice = Number(msg) - 1;
+      const hora = horas[indice] ?? (/p/.test(msg) ? horas.find((h) => h >= 12) : /a/.test(msg) ? horas.find((h) => h < 12) : undefined);
+      if (hora == null) return { respuesta: 'Elige la opción de la mañana o de la tarde.', contexto };
+      const candidatos = (contexto.slots ?? []).filter((s: string) => new Date(s).getHours() === hora);
+      const opciones = candidatos.map((s: string) => new Date(s).toLocaleTimeString('es-BO', { hour: 'numeric', minute: '2-digit', hour12: true }));
+      return { respuesta: `Elige un intervalo disponible:\n${opciones.map((o: string, i: number) => `${i + 1}. ${o}`).join('\n')}`, contexto: { ...contexto, paso: 'horario', slots: candidatos, horarioOpciones: opciones }, opciones };
     }
 
     if (paso === 'horario') {
@@ -4138,7 +4189,7 @@ export class AppController implements OnModuleInit {
           mensaje: 'Solicitud enviada desde el asistente virtual',
         });
         return {
-          respuesta: `✅ ¡Listo! Envié la solicitud de reunión a ${contexto.receptoraNombre} para el ${this.fmtSlotAsistente(contexto.inicio)}. Te avisaré cuando respondan; puedes ver el estado en la sección Solicitudes.`,
+          respuesta: `¡Listo! Envié la solicitud de reunión a ${contexto.receptoraNombre} para el ${this.fmtSlotAsistente(contexto.inicio)}. Te avisaré cuando respondan; puedes ver el estado en la sección Solicitudes.`,
           contexto: null,
         };
       } catch (e: any) {

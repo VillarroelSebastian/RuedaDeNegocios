@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, Pencil, Trash2, User, X, Upload, Eye, EyeOff } from 'lucide-react';
+import { Plus, Pencil, Trash2, User, X, Upload } from 'lucide-react';
 import { useModal } from '@/components/ui/Modal';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
@@ -11,7 +11,6 @@ const defaultForm = {
   apellidoMaterno: '',
   correo: '',
   telefono: '',
-  contrasenia: '',
   urlFotoPerfil: '',
   rolEvento: 'TECNICO',
 };
@@ -25,7 +24,6 @@ export default function TecnicosPage() {
   const [form, setForm] = useState({ ...defaultForm });
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [showPass, setShowPass] = useState(false);
 
   const fetch_ = useCallback(async () => {
     setLoading(true);
@@ -40,7 +38,7 @@ export default function TecnicosPage() {
 
   const openCreate = () => { setForm({ ...defaultForm }); setEditId(null); setShowForm(true); };
   const openEdit = (t: any) => {
-    setForm({ nombres: t.nombres, apellidoPaterno: t.apellidoPaterno, apellidoMaterno: t.apellidoMaterno || '', correo: t.correo, telefono: t.telefono, contrasenia: '', urlFotoPerfil: t.urlFotoPerfil || '', rolEvento: t.rolEvento || 'TECNICO' });
+    setForm({ nombres: t.nombres, apellidoPaterno: t.apellidoPaterno, apellidoMaterno: t.apellidoMaterno || '', correo: t.correo, telefono: t.telefono, urlFotoPerfil: t.urlFotoPerfil || '', rolEvento: t.rolEvento || 'TECNICO' });
     setEditId(t.id);
     setShowForm(true);
   };
@@ -213,19 +211,7 @@ export default function TecnicosPage() {
                     disabled={!!editId}
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A] disabled:bg-gray-50 disabled:text-gray-400" />
                 </div>
-                <div className="col-span-2">
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    {editId ? 'Nueva contraseña (dejar en blanco para no cambiar)' : 'La contraseña se genera y envía por correo'}
-                  </label>
-                  <div className="relative">
-                    <input type={showPass ? 'text' : 'password'} value={form.contrasenia} onChange={(e) => set('contrasenia', e.target.value)}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
-                    <button type="button" onClick={() => setShowPass(!showPass)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                      {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
+                {!editId && <p className="col-span-2 text-sm text-green-700 bg-green-50 border border-green-100 rounded-xl p-3">La contraseña temporal se generará automáticamente y llegará al correo del técnico.</p>}
               </div>
             </div>
             <div className="flex justify-end gap-3 p-6 border-t border-gray-100">
