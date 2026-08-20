@@ -1,6 +1,7 @@
 "use client";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { CheckCircle2, ScanLine, X } from "lucide-react";
+import { BrowserQRCodeReader } from "@zxing/browser";
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
 export default function TecnicoAsistenciaPage() {
@@ -8,11 +9,11 @@ export default function TecnicoAsistenciaPage() {
   const [camara, setCamara] = useState(false); const [procesando, setProcesando] = useState(false);
   const [pendiente, setPendiente] = useState<any>(null);
   const [modal, setModal] = useState<{ titulo: string; mensaje: string } | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null); const streamRef = useRef<MediaStream | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null); const controlesRef = useRef<any>(null);
   const tecnico = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("tecnicoUser") || "null") : null;
   const cargar = useCallback(() => { if (tecnico?.id) fetch(`${API}/tecnico/asistencias?tecnicoId=${tecnico.id}`).then(r => r.json()).then(d => setAsistencias(Array.isArray(d) ? d : [])).catch(() => {}); }, [tecnico?.id]);
   useEffect(() => { cargar(); }, [cargar]);
-  const cerrarCamara = () => { streamRef.current?.getTracks().forEach(t => t.stop()); streamRef.current = null; setCamara(false); };
+  const cerrarCamara = () => { controlesRef.current?.stop?.(); controlesRef.current = null; setCamara(false); };
   const revisar = async (contenido: string) => {
     if (procesando) return; const match = contenido.match(/\/credencial\/(\d+)\?t=([a-zA-Z0-9]+)/);
     if (!match) return setModal({ titulo: "QR no válido", mensaje: "Escanea o pega una credencial válida del evento." });
@@ -26,10 +27,25 @@ export default function TecnicoAsistenciaPage() {
     catch (e: any) { setModal({ titulo: "No se pudo registrar", mensaje: e.message }); } finally { setProcesando(false); }
   };
   const abrirCamara = async () => {
-    try { const Detector = (window as any).BarcodeDetector; if (!Detector) throw new Error("Este navegador no admite lectura QR. Puedes pegar el enlace de la credencial."); const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }); streamRef.current = stream; setCamara(true); setTimeout(async () => { const video = videoRef.current; if (!video) return; video.srcObject = stream; await video.play(); const detector = new Detector({ formats: ["qr_code"] }); const leer = async () => { if (!streamRef.current || !videoRef.current) return; const codigos = await detector.detect(videoRef.current).catch(() => []); if (codigos[0]?.rawValue) return revisar(codigos[0].rawValue); requestAnimationFrame(leer); }; leer(); }, 50); }
-    catch (e: any) { setModal({ titulo: "Cámara no disponible", mensaje: e.message }); }
+    if (!navigator.mediaDevices?.getUserMedia) return setModal({ titulo: "Cámara no disponible", mensaje: "El navegador no permite usar la cámara. Abre la página mediante HTTPS y concede el permiso de cámara." });
+    setCamara(true);
+    setTimeout(async () => {
+      try {
+        const video = videoRef.current;
+        if (!video) throw new Error("No se pudo iniciar la vista de cámara.");
+        const lector = new BrowserQRCodeReader();
+        controlesRef.current = await lector.decodeFromConstraints(
+          { audio: false, video: { facingMode: { ideal: "environment" } } }, video,
+          (resultado) => { if (resultado?.getText()) { controlesRef.current?.stop?.(); revisar(resultado.getText()); } },
+        );
+      } catch (e: any) {
+        cerrarCamara();
+        const denegado = e?.name === "NotAllowedError" || e?.name === "PermissionDeniedError";
+        setModal({ titulo: "Cámara no disponible", mensaje: denegado ? "Debes permitir el acceso a la cámara en la configuración del navegador y volver a intentarlo." : (e.message || "No se pudo abrir la cámara.") });
+      }
+    }, 100);
   };
-  useEffect(() => () => streamRef.current?.getTracks().forEach(t => t.stop()), []);
+  useEffect(() => () => controlesRef.current?.stop?.(), []);
   return <div className="p-4 sm:p-6 max-w-4xl mx-auto">
     {modal && <div className="fixed inset-0 z-[80] bg-black/50 flex items-center justify-center p-4"><div className="bg-white rounded-2xl p-6 w-full max-w-sm text-center"><h2 className="font-extrabold">{modal.titulo}</h2><p className="text-sm text-gray-600 mt-2 break-words">{modal.mensaje}</p><button onClick={() => setModal(null)} className="mt-5 w-full rounded-xl bg-[#449D3A] text-white font-bold py-3">Aceptar</button></div></div>}
     <h1 className="text-2xl font-extrabold">Control de asistencia</h1><p className="text-sm text-gray-500 mt-1">Solo el personal técnico puede verificar credenciales y registrar asistencias.</p>
