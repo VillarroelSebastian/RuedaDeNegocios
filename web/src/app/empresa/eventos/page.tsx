@@ -34,15 +34,22 @@ export default function EmpresaEventosPage() {
   const [error, setError] = useState<string | null>(null);
   const [eeId, setEeId] = useState<number | null>(null);
   const [savingSubscription, setSavingSubscription] = useState<number | null>(null);
+  const [subscriptionMessage, setSubscriptionMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    let empresaEventoId: number | null = null;
-    try { empresaEventoId = JSON.parse(localStorage.getItem("empresaUser") || "null")?.empresaEventoId ?? null; } catch {}
-    setEeId(empresaEventoId);
-    Promise.all([
-      fetch(`${API}/empresa/evento`).then((r) => r.json()),
-      fetch(`${API}/public/cronograma-vivo${empresaEventoId ? `?eeId=${empresaEventoId}` : ""}`).then((r) => r.json()),
-    ])
+    let usuarioId: number | null = null;
+    try { usuarioId = JSON.parse(localStorage.getItem("empresaUser") || "null")?.id ?? null; } catch {}
+    if (!usuarioId) { setError("No se pudo identificar tu empresa."); setLoading(false); return; }
+    fetch(`${API}/empresa/mi-empresa?usuarioId=${usuarioId}`)
+      .then((r) => r.json())
+      .then((ctx) => {
+        if (!ctx?.empresaeventoId) throw new Error("Empresa no encontrada");
+        setEeId(ctx.empresaeventoId);
+        return Promise.all([
+          fetch(`${API}/empresa/evento`).then((r) => r.json()),
+          fetch(`${API}/public/cronograma-vivo?eeId=${ctx.empresaeventoId}`).then((r) => r.json()),
+        ]);
+      })
       .then(([ev, acts]) => {
         setEvento(ev);
         setActividades(Array.isArray(acts?.actividades) ? acts.actividades : []);
@@ -61,7 +68,11 @@ export default function EmpresaEventosPage() {
       });
       if (!res.ok) throw new Error();
       setActividades((prev) => prev.map((a) => a.id === act.id ? { ...a, suscrito: !a.suscrito } : a));
-    } catch { setError("No se pudo actualizar la suscripción."); }
+      setSubscriptionMessage(act.suscrito
+        ? `Cancelaste el aviso de “${act.nombreActividad}”.`
+        : `Aviso activado. Te notificaremos cuando inicie “${act.nombreActividad}”.`);
+      setTimeout(() => setSubscriptionMessage(null), 5000);
+    } catch { setSubscriptionMessage("No se pudo actualizar la suscripción. Intenta nuevamente."); }
     finally { setSavingSubscription(null); }
   };
 
@@ -81,6 +92,11 @@ export default function EmpresaEventosPage() {
   return (
     <div className="p-6 space-y-6">
       <h1 className="text-2xl font-extrabold text-gray-900">Evento</h1>
+      {subscriptionMessage && (
+        <div role="status" className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-semibold text-green-800">
+          {subscriptionMessage}
+        </div>
+      )}
 
       {/* Evento info */}
       {evento && (

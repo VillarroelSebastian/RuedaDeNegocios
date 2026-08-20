@@ -6,7 +6,13 @@ import CronogramaVivo from "@/components/CronogramaVivo";
 
 export default function EmpresaCronogramaVivoPage() {
   const [eeId, setEeId] = useState<number | null>(null);
-  useEffect(() => { try { setEeId(JSON.parse(localStorage.getItem('empresaUser') || 'null')?.empresaEventoId ?? null); } catch {} }, []);
+  useEffect(() => {
+    let usuarioId: number | null = null;
+    try { usuarioId = JSON.parse(localStorage.getItem('empresaUser') || 'null')?.id ?? null; } catch {}
+    if (!usuarioId) return;
+    fetch(`${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334'}/empresa/mi-empresa?usuarioId=${usuarioId}`)
+      .then((r) => r.json()).then((ctx) => setEeId(ctx?.empresaeventoId ?? null)).catch(() => {});
+  }, []);
   return (
     <div className="p-4 sm:p-6 max-w-4xl mx-auto">
       <div className="mb-6">
