@@ -75,7 +75,10 @@ export default function TecnicoAsistenciaPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || "No se pudo registrar.");
-      setPendiente(null);
+      setPendiente((actual: any) => ({
+        ...actual,
+        asistencia: { registrada: true, fechaHoraAsistencia: data.fechaHoraAsistencia },
+      }));
       setValor("");
       cargar();
       setModal({
@@ -152,40 +155,36 @@ export default function TecnicoAsistenciaPage() {
       </p>
       <div className="mt-5 bg-white border rounded-2xl p-4 sm:p-6">
         {pendiente ? (
-          <div className="text-center">
+          <div>
             <CheckCircle2 className="w-12 h-12 text-green-600 mx-auto" />
-            <p className="text-xs font-bold text-green-700 uppercase mt-2">
-              Credencial válida
+            <p className="text-xs text-center font-bold text-green-700 uppercase mt-2">
+              {pendiente.asistencia?.registrada ? "Asistencia ya registrada" : "Credencial válida"}
             </p>
-            <h2 className="font-extrabold text-xl mt-1">
+            <h2 className="font-extrabold text-xl sm:text-2xl mt-1 text-center break-words">
               {pendiente.participante?.nombre || pendiente.nombreCompleto}
             </h2>
-            <p className="text-sm text-gray-600 mt-1">
-              <b>Empresa:</b> {pendiente.empresa?.nombre || pendiente.empresa}
-            </p>
-            <p className="text-sm text-gray-600">
-              <b>Tipo:</b> {pendiente.tipo === "AUSPICIADOR" ? "Auspiciador" : "Participante"}
-            </p>
-            <p className="text-sm text-gray-600">
-              <b>Cargo:</b> {pendiente.participante?.cargo || pendiente.cargo || "No indicado"}
-            </p>
-            <p className="text-sm text-gray-500">
-              <b>Lugar:</b> {pendiente.lugar || [pendiente.evento?.ciudad, pendiente.evento?.pais].filter(Boolean).join(", ") || "Lugar del evento"}
-            </p>
-            <div className="grid grid-cols-2 gap-2 mt-5">
+            <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+              <div className="rounded-xl bg-gray-50 p-3 min-w-0"><p className="text-xs text-gray-400">Empresa</p><p className="font-bold break-words">{pendiente.empresa?.nombre || pendiente.empresa}</p></div>
+              <div className="rounded-xl bg-gray-50 p-3"><p className="text-xs text-gray-400">Tipo de participante</p><p className="font-bold">{pendiente.tipo === "AUSPICIADOR" ? "Auspiciador" : pendiente.participante?.esResponsable ? "Encargado" : "Participante"}</p></div>
+              <div className="rounded-xl bg-gray-50 p-3"><p className="text-xs text-gray-400">Cargo</p><p className="font-bold break-words">{pendiente.participante?.cargo || pendiente.cargo || "No indicado"}</p></div>
+              <div className="rounded-xl bg-gray-50 p-3"><p className="text-xs text-gray-400">Lugar</p><p className="font-bold break-words">{pendiente.lugar || [pendiente.evento?.ciudad, pendiente.evento?.pais].filter(Boolean).join(", ") || "Lugar del evento"}</p></div>
+              {(pendiente.evento?.nombre || pendiente.evento) && <div className="rounded-xl bg-gray-50 p-3 sm:col-span-2"><p className="text-xs text-gray-400">Evento</p><p className="font-bold break-words">{pendiente.evento?.nombre || pendiente.evento} {pendiente.edicion || pendiente.evento?.edicion || ""}</p></div>}
+            </div>
+            {pendiente.asistencia?.registrada && <div className="mt-4 rounded-xl bg-green-50 border border-green-200 p-3 text-center text-sm font-semibold text-green-800">Registrada el {new Date(pendiente.asistencia.fechaHoraAsistencia).toLocaleString("es-BO")}</div>}
+            <div className="flex flex-col-reverse sm:grid sm:grid-cols-2 gap-2 mt-5">
               <button
                 onClick={() => setPendiente(null)}
-                className="border rounded-xl py-3 font-bold text-gray-600"
+                className="w-full border rounded-xl px-4 py-3 font-bold text-gray-600"
               >
-                Cancelar
+                {pendiente.asistencia?.registrada ? "Escanear otra credencial" : "Cancelar"}
               </button>
-              <button
+              {!pendiente.asistencia?.registrada && <button
                 onClick={registrar}
                 disabled={procesando}
-                className="rounded-xl bg-[#449D3A] text-white py-3 font-bold disabled:opacity-50"
+                className="w-full rounded-xl bg-[#449D3A] text-white px-4 py-3 font-bold disabled:opacity-50"
               >
                 {procesando ? "Registrando..." : "Registrar asistencia"}
-              </button>
+              </button>}
             </div>
           </div>
         ) : (

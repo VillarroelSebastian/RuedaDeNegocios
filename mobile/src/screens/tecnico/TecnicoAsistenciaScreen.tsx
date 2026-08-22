@@ -124,7 +124,10 @@ export default function TecnicoAsistenciaScreen() {
       const data = await res.json();
       if (!res.ok)
         throw new Error(data?.message || "No se pudo registrar la asistencia.");
-      setPendiente(null);
+      setPendiente((actual: any) => ({
+        ...actual,
+        asistencia: { registrada: true, fechaHoraAsistencia: data.fechaHoraAsistencia },
+      }));
       show({
         type: data.yaRegistrada ? "warning" : "success",
         title: data.yaRegistrada
@@ -284,7 +287,7 @@ export default function TecnicoAsistenciaScreen() {
               marginTop: 8,
             }}
           >
-            CREDENCIAL VÁLIDA
+            {pendiente.asistencia?.registrada ? "ASISTENCIA YA REGISTRADA" : "CREDENCIAL VÁLIDA"}
           </Text>
           <Text
             style={{
@@ -297,23 +300,28 @@ export default function TecnicoAsistenciaScreen() {
           >
             {pendiente.participante?.nombre || pendiente.nombreCompleto}
           </Text>
-          <Text style={{ color: "#475569", textAlign: "center", marginTop: 6 }}>
-            Empresa: {pendiente.empresa?.nombre || pendiente.empresa}
-          </Text>
-          <Text style={{ color: "#64748b", textAlign: "center", fontSize: 12 }}>
-            Tipo: {pendiente.tipo === "AUSPICIADOR" ? "Auspiciador" : "Participante"}
-          </Text>
-          <Text style={{ color: "#64748b", textAlign: "center", fontSize: 12 }}>
-            Cargo: {pendiente.participante?.cargo || pendiente.cargo || "No indicado"}
-          </Text>
-          <Text style={{ color: "#64748b", textAlign: "center", fontSize: 12 }}>
-            Lugar: {pendiente.lugar || [pendiente.evento?.ciudad, pendiente.evento?.pais].filter(Boolean).join(", ") || "Lugar del evento"}
-          </Text>
-          <View style={{ flexDirection: "row", gap: 8, marginTop: 18 }}>
+          <View style={{ marginTop: 14, gap: 8 }}>
+            {[
+              ["Empresa", pendiente.empresa?.nombre || pendiente.empresa],
+              ["Tipo", pendiente.tipo === "AUSPICIADOR" ? "Auspiciador" : pendiente.participante?.esResponsable ? "Encargado" : "Participante"],
+              ["Cargo", pendiente.participante?.cargo || pendiente.cargo || "No indicado"],
+              ["Lugar", pendiente.lugar || [pendiente.evento?.ciudad, pendiente.evento?.pais].filter(Boolean).join(", ") || "Lugar del evento"],
+              ["Evento", pendiente.evento?.nombre || pendiente.evento || "Evento actual"],
+            ].map(([etiqueta, valor]) => <View key={etiqueta} style={{ backgroundColor: "#f8fafc", borderRadius: 10, padding: 10 }}><Text style={{ color: "#94a3b8", fontSize: 10 }}>{etiqueta}</Text><Text style={{ color: "#334155", fontWeight: "700", fontSize: 13 }}>{valor}</Text></View>)}
+          </View>
+          {pendiente.asistencia?.registrada && <View style={{ marginTop: 12, padding: 11, borderRadius: 10, backgroundColor: "#f0fdf4", borderWidth: 1, borderColor: "#bbf7d0" }}><Text style={{ color: "#166534", fontWeight: "700", textAlign: "center", fontSize: 12 }}>Registrada el {new Date(pendiente.asistencia.fechaHoraAsistencia).toLocaleString("es-BO")}</Text></View>}
+          <View style={{ gap: 8, marginTop: 18 }}>
+            {!pendiente.asistencia?.registrada && <TouchableOpacity
+              onPress={registrarAsistencia}
+              disabled={procesando}
+              style={{ width: "100%", backgroundColor: GREEN, borderRadius: 12, padding: 14, alignItems: "center", opacity: procesando ? 0.5 : 1 }}
+            >
+              <Text style={{ fontWeight: "800", color: "#fff" }}>{procesando ? "Registrando..." : "Registrar asistencia"}</Text>
+            </TouchableOpacity>}
             <TouchableOpacity
               onPress={() => setPendiente(null)}
               style={{
-                flex: 1,
+                width: "100%",
                 borderWidth: 1,
                 borderColor: "#cbd5e1",
                 borderRadius: 12,
@@ -322,23 +330,7 @@ export default function TecnicoAsistenciaScreen() {
               }}
             >
               <Text style={{ fontWeight: "800", color: "#475569" }}>
-                Cancelar
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={registrarAsistencia}
-              disabled={procesando}
-              style={{
-                flex: 1,
-                backgroundColor: GREEN,
-                borderRadius: 12,
-                padding: 13,
-                alignItems: "center",
-                opacity: procesando ? 0.5 : 1,
-              }}
-            >
-              <Text style={{ fontWeight: "800", color: "#fff" }}>
-                {procesando ? "Registrando..." : "Registrar asistencia"}
+                {pendiente.asistencia?.registrada ? "Escanear otra credencial" : "Cancelar"}
               </Text>
             </TouchableOpacity>
           </View>

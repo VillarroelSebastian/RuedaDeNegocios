@@ -588,7 +588,12 @@ export class AppController implements OnModuleInit {
     const credencial: any = await this.getCredencialPublica(String(id), token);
     if (!credencial.habilitado)
       throw new BadRequestException('El participante o su empresa no están habilitados para este evento.');
-    return credencial;
+    const eventoId = await this.getPrincipalEventoId();
+    const asistencia = eventoId ? await this.prisma.asistenciaevento.findFirst({
+      where: { evento_id: eventoId, empresa_usuario_id: id, estaActivo: 1 },
+      select: { id: true, fechaHoraAsistencia: true },
+    }) : null;
+    return { ...credencial, asistencia: asistencia ? { registrada: true, ...asistencia } : { registrada: false } };
   }
 
   @Get('tecnico/asistencias')

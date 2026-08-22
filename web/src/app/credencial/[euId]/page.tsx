@@ -65,6 +65,7 @@ export default function CredencialPage() {
       });
       const respuesta = await res.json();
       if (!res.ok) throw new Error(respuesta?.message || "No se pudo registrar la asistencia.");
+      setData((actual: any) => ({ ...actual, asistencia: { registrada: true, fechaHoraAsistencia: respuesta.fechaHoraAsistencia } }));
       setResultado(respuesta.yaRegistrada
         ? `La asistencia ya estaba registrada: ${new Date(respuesta.fechaHoraAsistencia).toLocaleString("es-BO")}`
         : `Asistencia registrada: ${new Date(respuesta.fechaHoraAsistencia).toLocaleString("es-BO")}`);
@@ -125,7 +126,7 @@ export default function CredencialPage() {
           </div>
 
           {/* Participante */}
-          <div className="px-6 pt-6 pb-4 flex items-center gap-4 border-b border-gray-50">
+          <div className="px-4 sm:px-6 pt-6 pb-4 flex flex-wrap items-center gap-4 border-b border-gray-50">
             {participante.urlFotoPerfil ? (
               <img src={participante.urlFotoPerfil} alt={participante.nombre} className="w-16 h-16 rounded-2xl object-contain border border-gray-100 shrink-0" />
             ) : (
@@ -147,14 +148,14 @@ export default function CredencialPage() {
                 )}
               </div>
             </div>
-            {habilitado && (
+            {habilitado && !data.asistencia?.registrada && (
               <button onClick={registrarAsistencia} disabled={registrando}
-                className="mt-4 w-full rounded-xl bg-[#449D3A] text-white font-bold py-3 flex items-center justify-center gap-2 disabled:opacity-50">
+                className="basis-full w-full rounded-xl bg-[#449D3A] text-white font-bold px-4 py-3 flex items-center justify-center gap-2 disabled:opacity-50">
                 <CheckCircle2 className="w-5 h-5" />
                 {registrando ? "Registrando…" : "Registrar asistencia"}
               </button>
             )}
-            {resultado && <div className="mt-3 rounded-xl bg-green-50 text-green-800 text-sm font-semibold p-3 text-center break-words">{resultado}</div>}
+            {(resultado || data.asistencia?.registrada) && <div className="basis-full w-full rounded-xl bg-green-50 border border-green-200 text-green-800 text-sm font-semibold p-3 text-center break-words">{resultado || `Asistencia registrada el ${new Date(data.asistencia.fechaHoraAsistencia).toLocaleString("es-BO")}`}</div>}
           </div>
 
           {/* Empresa */}

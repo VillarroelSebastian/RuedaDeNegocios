@@ -477,7 +477,11 @@ export class ExtrasController {
     });
     if (!persona || (req.user?.eventoId && persona.auspiciador.evento_id !== req.user.eventoId))
       throw new BadRequestException('La credencial no corresponde al evento del técnico autenticado.');
-    return { ...data, personaId: id };
+    const asistencia = await this.prisma.asistenciaauspiciador.findFirst({
+      where: { evento_id: persona.auspiciador.evento_id, auspiciadorpersona_id: id, estaActivo: 1 },
+      select: { id: true, fechaHoraAsistencia: true },
+    });
+    return { ...data, personaId: id, asistencia: asistencia ? { registrada: true, ...asistencia } : { registrada: false } };
   }
 
   @Post('tecnico/asistencias-auspiciadores')
