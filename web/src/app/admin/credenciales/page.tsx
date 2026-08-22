@@ -21,7 +21,7 @@ export default function CredencialesPage() {
   };
   return <main className="p-4 sm:p-6 max-w-7xl mx-auto">
     <style jsx global>{`
-      @page { size: A4 portrait; margin: 10mm; }
+      @page { size: letter portrait; margin: 10mm; }
       @media print {
         aside, header, .no-print { display:none!important }
         main { margin:0!important; padding:0!important; max-width:none!important }
