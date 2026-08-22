@@ -7,6 +7,16 @@ import styles from './ConfiguracionEvento.module.css';
 import Modal, { useModal } from '@/components/ui/Modal';
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
+function fechaHoraBolivia(iso: string) {
+  if (!iso) return '';
+  const partes = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(new Date(iso));
+  const valor = (tipo: string) => partes.find((p) => p.type === tipo)?.value || '';
+  return `${valor('year')}-${valor('month')}-${valor('day')}T${valor('hour')}:${valor('minute')}`;
+}
+
 const SOUTH_AMERICA: Record<string, string[]> = {
   "Bolivia":   ["Trinidad","Beni","La Paz","Santa Cruz de la Sierra","Cochabamba","Sucre","Oruro","Potosí","Tarija","Cobija","Riberalta","Guayaramerín"],
   "Argentina": ["Buenos Aires","Córdoba","Rosario","Mendoza","Tucumán","La Plata","Mar del Plata","Salta","Santa Fe","San Juan"],
@@ -75,13 +85,17 @@ export default function ConfiguracionDeEventoPage() {
       .then(text => text ? JSON.parse(text) : {})
       .then(data => {
         if (data && data.id) {
+          const ini = new Date(data.fechaInicioEvento);
+          const fin = new Date(data.fechaFinEvento);
+          const legado = ini.getUTCHours() === 0 && ini.getUTCMinutes() === 0 && fin.getUTCHours() === 0 && fin.getTime() - ini.getTime() === 86400000;
+          const fechaLegada = data.fechaInicioEvento?.substring(0, 10);
           setFormData({
             id: data.id,
             nombre: data.nombre || '',
             edicion: data.edicion || '',
             descripcion: data.descripcion || '',
-            fechaInicioEvento: data.fechaInicioEvento ? data.fechaInicioEvento.substring(0, 16) : '',
-            fechaFinEvento: data.fechaFinEvento ? data.fechaFinEvento.substring(0, 16) : '',
+            fechaInicioEvento: legado ? `${fechaLegada}T08:00` : fechaHoraBolivia(data.fechaInicioEvento),
+            fechaFinEvento: legado ? `${fechaLegada}T18:00` : fechaHoraBolivia(data.fechaFinEvento),
             fechaInicioSolicitudes: data.fechaInicioSolicitudes ? data.fechaInicioSolicitudes.substring(0, 16) : '',
             fechaFinSolicitudes: data.fechaFinSolicitudes ? data.fechaFinSolicitudes.substring(0, 16) : '',
             duracionReunion: data.duracionReunion || 20,

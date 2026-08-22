@@ -237,13 +237,17 @@ export default function EventConfigScreen() {
       const res = await fetch(`${API_URL}/admin/eventos/${id}`);
       const data = await res.json();
       if (data?.id) {
+        const inicioEvento = new Date(data.fechaInicioEvento);
+        const finEvento = new Date(data.fechaFinEvento);
+        const legado = inicioEvento.getUTCHours() === 0 && inicioEvento.getUTCMinutes() === 0 && finEvento.getUTCHours() === 0 && finEvento.getTime() - inicioEvento.getTime() === 86400000;
+        const fechaLocal = (valor: string) => new Date(valor).toLocaleDateString('en-CA', { timeZone: 'America/La_Paz' });
         setFormData({
           id: data.id,
           nombre: data.nombre || '', edicion: data.edicion || '', descripcion: data.descripcion || '',
-          fechaInicioEvento: data.fechaInicioEvento ? data.fechaInicioEvento.substring(0, 10) : '',
-          fechaFinEvento: data.fechaFinEvento ? data.fechaFinEvento.substring(0, 10) : '',
-          horaInicioEvento: data.fechaInicioEvento ? data.fechaInicioEvento.substring(11, 16) : '08:00',
-          horaFinEvento: data.fechaFinEvento ? data.fechaFinEvento.substring(11, 16) : '18:00',
+          fechaInicioEvento: legado ? data.fechaInicioEvento.substring(0, 10) : fechaLocal(data.fechaInicioEvento),
+          fechaFinEvento: legado ? data.fechaInicioEvento.substring(0, 10) : fechaLocal(data.fechaFinEvento),
+          horaInicioEvento: legado ? '08:00' : inicioEvento.toLocaleTimeString('en-GB', { timeZone: 'America/La_Paz', hour: '2-digit', minute: '2-digit' }),
+          horaFinEvento: legado ? '18:00' : finEvento.toLocaleTimeString('en-GB', { timeZone: 'America/La_Paz', hour: '2-digit', minute: '2-digit' }),
           duracionReunion: String(data.duracionReunion || 20),
           tiempoEntreReuniones: String(data.tiempoEntreReuniones || 5),
           cantidadTotalMesasEvento: String(data.cantidadTotalMesasEvento || 50),

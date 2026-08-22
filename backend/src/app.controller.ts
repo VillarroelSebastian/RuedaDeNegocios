@@ -1209,12 +1209,19 @@ export class AppController implements OnModuleInit {
 
   private sanitizeEventoData(body: any) {
     const orNull = (v: any) => (v === '' || v === undefined ? null : v);
+    // Los controles datetime-local no incluyen zona horaria. El evento se realiza
+    // en Bolivia (UTC-4), por lo que no deben interpretarse con la zona del VPS.
+    const fechaBolivia = (v: any) => {
+      if (!v) return new Date();
+      const texto = String(v);
+      return new Date(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(texto) ? `${texto}-04:00` : texto);
+    };
     return {
       nombre: body.nombre,
       edicion: body.edicion || '',
       descripcion: orNull(body.descripcion),
-      fechaInicioEvento: body.fechaInicioEvento ? new Date(body.fechaInicioEvento) : new Date(),
-      fechaFinEvento: body.fechaFinEvento ? new Date(body.fechaFinEvento) : new Date(),
+      fechaInicioEvento: fechaBolivia(body.fechaInicioEvento),
+      fechaFinEvento: fechaBolivia(body.fechaFinEvento),
       fechaInicioSolicitudes: body.fechaInicioSolicitudes ? new Date(body.fechaInicioSolicitudes) : null,
       fechaFinSolicitudes: body.fechaFinSolicitudes ? new Date(body.fechaFinSolicitudes) : null,
       duracionReunion: Number(body.duracionReunion) || 20,
@@ -3432,13 +3439,26 @@ export class AppController implements OnModuleInit {
   }
 
   // Helper: genera franjas horarias del evento
+  private ventanaReunionesEvento(evento: any): { start: Date; end: Date } {
+    const originalStart = new Date(evento.fechaInicioEvento);
+    const originalEnd = new Date(evento.fechaFinEvento);
+    // Compatibilidad con eventos antiguos guardados solo como fechas (00:00 a
+    // 00:00 del día siguiente): usar la jornada predeterminada 08:00–18:00 BO.
+    const esDiaCompletoHeredado = originalStart.getUTCHours() === 0 && originalStart.getUTCMinutes() === 0 &&
+      originalEnd.getUTCHours() === 0 && originalEnd.getUTCMinutes() === 0 &&
+      originalEnd.getTime() - originalStart.getTime() === 24 * 60 * 60000;
+    if (!esDiaCompletoHeredado) return { start: originalStart, end: originalEnd };
+    const start = new Date(Date.UTC(originalStart.getUTCFullYear(), originalStart.getUTCMonth(), originalStart.getUTCDate(), 12, 0, 0));
+    const end = new Date(Date.UTC(originalStart.getUTCFullYear(), originalStart.getUTCMonth(), originalStart.getUTCDate(), 22, 0, 0));
+    return { start, end };
+  }
+
   private generarFranjas(evento: any): { inicio: Date; fin: Date }[] {
     const slots: { inicio: Date; fin: Date }[] = [];
     const durMs = evento.duracionReunion * 60000;
     const bufMs = evento.tiempoEntreReuniones * 60000;
     const intervalMs = durMs + bufMs;
-    const start = new Date(evento.fechaInicioEvento);
-    const end = new Date(evento.fechaFinEvento);
+    const { start, end } = this.ventanaReunionesEvento(evento);
     // Anclar la grilla a la medianoche local del día de inicio, no al timestamp
     // exacto de fechaInicioEvento: así los slots caen en minutos "redondos"
     // (ej. :00/:30 para reuniones de 30 min) en vez de heredar un minuto
@@ -3462,8 +3482,7 @@ export class AppController implements OnModuleInit {
   private generarCandidatosInicio(evento: any): { inicio: Date; fin: Date }[] {
     const PASO_MS = 5 * 60000;
     const durMs = evento.duracionReunion * 60000;
-    const start = new Date(evento.fechaInicioEvento);
-    const end = new Date(evento.fechaFinEvento);
+    const { start, end } = this.ventanaReunionesEvento(evento);
     const midnight = new Date(start);
     midnight.setHours(0, 0, 0, 0);
     const offsetMs = start.getTime() - midnight.getTime();
@@ -4535,7 +4554,10 @@ export class AppController implements OnModuleInit {
       r.fechaHoraInicioReunion.getTime() - bufMs < fin.getTime() &&
       r.fechaHoraFinReunion.getTime() + bufMs > ini.getTime();
 
-    const hhmmDe = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    const hhmmDe = (d: Date) => {
+      const bolivia = new Date(d.getTime() - 4 * 60 * 60000);
+      return `${String(bolivia.getUTCHours()).padStart(2, '0')}:${String(bolivia.getUTCMinutes()).padStart(2, '0')}`;
+    };
     const dentroDeRangoReceptora = (ini: Date, fin: Date) => {
       if (rangosReceptora.length === 0) return true;
       const iniHHMM = hhmmDe(ini);
