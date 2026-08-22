@@ -4565,6 +4565,16 @@ export class AppController implements OnModuleInit {
     };
   }
 
+  // El personal técnico usa el mismo cálculo de disponibilidad que las empresas,
+  // pero mediante una ruta de su rol (las rutas /empresa están protegidas).
+  @Get('tecnico/horarios')
+  async getHorariosDisponiblesTecnico(
+    @Query('eeId') eeId: string,
+    @Query('eeReceptoraId') eeReceptoraId: string,
+  ) {
+    return this.getHorariosDisponibles(eeId, eeReceptoraId);
+  }
+
   @Get('empresa/mesas-disponibles')
   async getMesasDisponiblesEmpresa(
     @Query('inicio') inicio: string,
@@ -4607,6 +4617,14 @@ export class AppController implements OnModuleInit {
     return mesasUnicas
       .filter((m) => !ocupadasIds.has(m.id))
       .map((m) => ({ id: m.id, numeroMesa: m.numeroMesa, capacidadPersonas: m.capacidadPersonas }));
+  }
+
+  @Get('tecnico/mesas-disponibles')
+  async getMesasDisponiblesTecnico(
+    @Query('inicio') inicio: string,
+    @Query('fin') fin: string,
+  ) {
+    return this.getMesasDisponiblesEmpresa(inicio, fin);
   }
 
   // ── Horarios disponibles (blocklist) ──────────────────────────────────────

@@ -90,7 +90,7 @@ export default function TecnicoAgendarScreen() {
     if (!empA || !empB) return;
     setCargandoH(true);
     setHorarios([]); setFechaSel(null); setHoraSel(null); setMinutosStr('');
-    fetch(`${API_URL}/empresa/horarios?eeId=${empA.eeId}&eeReceptoraId=${empB.eeId}`)
+    fetch(`${API_URL}/tecnico/horarios?eeId=${empA.eeId}&eeReceptoraId=${empB.eeId}`)
       .then((r) => r.json())
       .then((data) => {
         const hrs: any[] = Array.isArray(data?.horarios) ? data.horarios : [];
@@ -119,7 +119,7 @@ export default function TecnicoAgendarScreen() {
   const cargarMesas = (h: any) => {
     setCargandoM(true);
     setMesas([]); setMesa(null);
-    fetch(`${API_URL}/empresa/mesas-disponibles?inicio=${encodeURIComponent(h.inicio)}&fin=${encodeURIComponent(h.fin)}`)
+    fetch(`${API_URL}/tecnico/mesas-disponibles?inicio=${encodeURIComponent(h.inicio)}&fin=${encodeURIComponent(h.fin)}`)
       .then((r) => r.json())
       .then((d) => setMesas(Array.isArray(d) ? d : []))
       .catch(() => {})
