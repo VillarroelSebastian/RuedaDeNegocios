@@ -4493,6 +4493,7 @@ export class AppController implements OnModuleInit {
     @Query('eeReceptoraId') eeReceptoraIdRaw: string,
     @Query('excludeReunionId') excludeReunionId?: string,
     @Query('solicitudId') solicitudId?: string,
+    ignorarDisponibilidadPersonalizada = false,
   ) {
     if (!eeId || Number.isNaN(Number(eeId))) throw new BadRequestException('eeId requerido');
     let eeReceptoraId = eeReceptoraIdRaw;
@@ -4576,9 +4577,9 @@ export class AppController implements OnModuleInit {
       (f) =>
         !reunionesA.some((r) => solapaCon(r, f.inicio, f.fin)) &&
         !reunionesB.some((r) => solapaCon(r, f.inicio, f.fin)) &&
-        !chocaConBloqueo(bloqueosA as any, f.inicio, f.fin) &&
-        !chocaConBloqueo(bloqueosB as any, f.inicio, f.fin) &&
-        dentroDeRangoReceptora(f.inicio, f.fin),
+        (ignorarDisponibilidadPersonalizada || !chocaConBloqueo(bloqueosA as any, f.inicio, f.fin)) &&
+        (ignorarDisponibilidadPersonalizada || !chocaConBloqueo(bloqueosB as any, f.inicio, f.fin)) &&
+        (ignorarDisponibilidadPersonalizada || dentroDeRangoReceptora(f.inicio, f.fin)),
     );
 
     return {
@@ -4594,7 +4595,7 @@ export class AppController implements OnModuleInit {
     @Query('eeId') eeId: string,
     @Query('eeReceptoraId') eeReceptoraId: string,
   ) {
-    return this.getHorariosDisponibles(eeId, eeReceptoraId);
+    return this.getHorariosDisponibles(eeId, eeReceptoraId, undefined, undefined, true);
   }
 
   @Get('empresa/mesas-disponibles')
