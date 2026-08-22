@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   CheckCircle2, Building2, MapPin, Calendar, User, ShieldCheck,
   BadgeCheck, XCircle, Hash, Star,
@@ -22,23 +22,55 @@ function fmtFecha(iso: string | null) {
 
 export default function CredencialPage() {
   const params = useParams();
+  const router = useRouter();
   const search = useSearchParams();
   const euId = params?.euId;
   const t = search.get("t");
 
   const [data, setData] = useState<any>(null);
   const [estado, setEstado] = useState<"cargando" | "ok" | "error">("cargando");
+  const [registrando, setRegistrando] = useState(false);
+  const [resultado, setResultado] = useState("");
+  const [tecnico, setTecnico] = useState<any>(null);
 
   useEffect(() => {
+    let sesion: any = null;
+    try { sesion = JSON.parse(localStorage.getItem("tecnicoUser") || "null"); } catch {}
+    if (!sesion?.token || !["TECNICO", "TECNICO_EVENTOS"].includes(sesion.rolEvento)) {
+      const siguiente = `${window.location.pathname}${window.location.search}`;
+      router.replace(`/auth/login?next=${encodeURIComponent(siguiente)}`);
+      return;
+    }
+    setTecnico(sesion);
     if (!euId || !t) { setEstado("error"); return; }
-    fetch(`${API}/public/credencial/${euId}?t=${encodeURIComponent(t)}`)
+    fetch(`${API}/tecnico/credenciales/verificar?euId=${euId}&token=${encodeURIComponent(t)}`, {
+      headers: { Authorization: `Bearer ${sesion.token}` },
+    })
       .then(async (r) => {
         if (!r.ok) throw new Error();
         return r.json();
       })
       .then((d) => { setData(d); setEstado("ok"); })
       .catch(() => setEstado("error"));
-  }, [euId, t]);
+  }, [euId, t, router]);
+
+  const registrarAsistencia = async () => {
+    if (!tecnico?.token || registrando) return;
+    setRegistrando(true); setResultado("");
+    try {
+      const res = await fetch(`${API}/tecnico/asistencias`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${tecnico.token}` },
+        body: JSON.stringify({ euId: Number(euId), token: t }),
+      });
+      const respuesta = await res.json();
+      if (!res.ok) throw new Error(respuesta?.message || "No se pudo registrar la asistencia.");
+      setResultado(respuesta.yaRegistrada
+        ? `La asistencia ya estaba registrada: ${new Date(respuesta.fechaHoraAsistencia).toLocaleString("es-BO")}`
+        : `Asistencia registrada: ${new Date(respuesta.fechaHoraAsistencia).toLocaleString("es-BO")}`);
+    } catch (e: any) { setResultado(e.message); }
+    finally { setRegistrando(false); }
+  };
 
   if (estado === "cargando") {
     return (
@@ -83,11 +115,11 @@ export default function CredencialPage() {
               {habilitado ? <CheckCircle2 className="w-9 h-9 text-white" /> : <ShieldCheck className="w-9 h-9 text-white" />}
             </div>
             <h1 className="text-white font-extrabold text-lg leading-tight">
-              {habilitado ? "Registrado correctamente" : "Registro en proceso"}
+              {habilitado ? "Credencial válida" : "Registro en proceso"}
             </h1>
             <p className="text-white/85 text-xs mt-1">
               {habilitado
-                ? "Esta empresa participa oficialmente en la Rueda de Negocios"
+                ? "Verifica los datos y registra la asistencia del participante"
                 : "El pago o la habilitación aún están pendientes"}
             </p>
           </div>
@@ -115,6 +147,14 @@ export default function CredencialPage() {
                 )}
               </div>
             </div>
+            {habilitado && (
+              <button onClick={registrarAsistencia} disabled={registrando}
+                className="mt-4 w-full rounded-xl bg-[#449D3A] text-white font-bold py-3 flex items-center justify-center gap-2 disabled:opacity-50">
+                <CheckCircle2 className="w-5 h-5" />
+                {registrando ? "Registrando…" : "Registrar asistencia"}
+              </button>
+            )}
+            {resultado && <div className="mt-3 rounded-xl bg-green-50 text-green-800 text-sm font-semibold p-3 text-center break-words">{resultado}</div>}
           </div>
 
           {/* Empresa */}

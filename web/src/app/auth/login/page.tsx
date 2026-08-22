@@ -56,7 +56,8 @@ export default function LoginPage() {
         router.push("/admin/dashboard");
       } else if (["TECNICO", "TECNICO_EVENTOS"].includes(user.rolEvento)) {
         localStorage.setItem("tecnicoUser", JSON.stringify(user));
-        router.push("/tecnico/dashboard");
+        const siguiente = new URLSearchParams(window.location.search).get("next");
+        router.push(siguiente?.startsWith("/credencial/") ? siguiente : "/tecnico/dashboard");
       } else if (user.rolEvento === "EMPRESA") {
         localStorage.setItem("empresaUser", JSON.stringify(user));
         router.push("/empresa/dashboard");

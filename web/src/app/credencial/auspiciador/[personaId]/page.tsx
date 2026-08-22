@@ -1,23 +1,37 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { BadgeCheck, Building2, BriefcaseBusiness, CheckCircle2, MapPin } from "lucide-react";
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
 export default function CredencialAuspiciadorPage() {
   const { personaId } = useParams<{ personaId: string }>(); const query = useSearchParams();
+  const router = useRouter();
   const [data, setData] = useState<any>(null); const [error, setError] = useState("");
   const [registrando, setRegistrando] = useState(false); const [resultado, setResultado] = useState("");
-  const tecnico = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("tecnicoUser") || "null") : null;
-  const puedeRegistrar = ["TECNICO", "TECNICO_EVENTOS", "ADMINISTRADOR"].includes(tecnico?.rolEvento);
-  useEffect(() => { const token = query.get("t") || ""; fetch(`${API}/public/credencial-auspiciador/${personaId}?t=${encodeURIComponent(token)}`).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d?.message || "Credencial no válida"); return d; }).then(setData).catch(e => setError(e.message)); }, [personaId, query]);
+  const [tecnico, setTecnico] = useState<any>(null);
+  const puedeRegistrar = ["TECNICO", "TECNICO_EVENTOS"].includes(tecnico?.rolEvento);
+  useEffect(() => {
+    let sesion: any = null;
+    try { sesion = JSON.parse(localStorage.getItem("tecnicoUser") || "null"); } catch {}
+    if (!sesion?.token || !["TECNICO", "TECNICO_EVENTOS"].includes(sesion.rolEvento)) {
+      const siguiente = `${window.location.pathname}${window.location.search}`;
+      router.replace(`/auth/login?next=${encodeURIComponent(siguiente)}`);
+      return;
+    }
+    setTecnico(sesion);
+    const token = query.get("t") || "";
+    fetch(`${API}/tecnico/credenciales-auspiciador/verificar?personaId=${personaId}&token=${encodeURIComponent(token)}`, {
+      headers: { Authorization: `Bearer ${sesion.token}` },
+    }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d?.message || "Credencial no válida"); return d; }).then(setData).catch(e => setError(e.message));
+  }, [personaId, query, router]);
   const registrar = async () => {
     setRegistrando(true); setResultado("");
     try {
       const token = query.get("t") || "";
-      const ver = await fetch(`${API}/tecnico/credenciales-auspiciador/verificar?personaId=${personaId}&token=${encodeURIComponent(token)}`);
+      const ver = await fetch(`${API}/tecnico/credenciales-auspiciador/verificar?personaId=${personaId}&token=${encodeURIComponent(token)}`, { headers: { Authorization: `Bearer ${tecnico.token}` } });
       if (!ver.ok) throw new Error((await ver.json())?.message || "No se pudo verificar la credencial.");
-      const res = await fetch(`${API}/tecnico/asistencias-auspiciadores`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ personaId: Number(personaId), token }) });
+      const res = await fetch(`${API}/tecnico/asistencias-auspiciadores`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${tecnico.token}` }, body: JSON.stringify({ personaId: Number(personaId), token }) });
       const r = await res.json(); if (!res.ok) throw new Error(r?.message || "No se pudo registrar la asistencia.");
       setResultado(r.yaRegistrada ? `La asistencia ya estaba registrada: ${new Date(r.fechaHoraAsistencia).toLocaleString("es-BO")}` : `Asistencia registrada: ${new Date(r.fechaHoraAsistencia).toLocaleString("es-BO")}`);
     } catch (e: any) { setResultado(e.message); } finally { setRegistrando(false); }
