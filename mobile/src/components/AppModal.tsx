@@ -16,6 +16,7 @@ export interface ModalConfig {
   cancelText?: string;
   onConfirm?: () => void;
   onCancel?: () => void;
+  confirmColor?: string;
 }
 
 interface AppModalProps extends ModalConfig {
@@ -71,7 +72,7 @@ const TYPE_CONFIG: Record<ModalType, {
 // ─── Componente ───────────────────────────────────────────────────────────────
 export function AppModal({
   visible, type, title, message,
-  confirmText, cancelText, onConfirm, onCancel, onClose,
+  confirmText, cancelText, onConfirm, onCancel, confirmColor, onClose,
 }: AppModalProps) {
   const cfg   = TYPE_CONFIG[type];
   const Icon  = cfg.icon;
@@ -123,7 +124,7 @@ export function AppModal({
               </TouchableOpacity>
             )}
             <TouchableOpacity
-              style={[s.btn, { backgroundColor: cfg.confirmBg }]}
+              style={[s.btn, { backgroundColor: confirmColor || cfg.confirmBg }]}
               onPress={handleConfirm}
               activeOpacity={0.8}
             >
@@ -158,6 +159,7 @@ export function useModal() {
       cancelText={state.cancelText}
       onConfirm={state.onConfirm}
       onCancel={state.onCancel}
+      confirmColor={state.confirmColor}
       onClose={hide}
     />
   );

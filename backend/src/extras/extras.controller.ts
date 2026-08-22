@@ -319,7 +319,42 @@ export class ExtrasController {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.correo))
         throw new BadRequestException(`El correo "${p.correo}" no es válido.`);
     }
+    const repetido = limpias.find((p: any, i: number) =>
+      limpias.findIndex((otra: any) => otra.correo === p.correo) !== i);
+    if (repetido)
+      throw new BadRequestException(`El correo "${repetido.correo}" está repetido entre los representantes del auspiciador.`);
     return limpias;
+  }
+
+  private async validarCorreosAuspiciador(
+    personas: Array<{ correo: string | null }>, auspiciadorId?: number,
+  ) {
+    const correos = personas.map((p) => String(p.correo).trim().toLowerCase());
+    const propios = auspiciadorId
+      ? await this.prisma.auspiciadorpersona.findMany({
+          where: { auspiciador_id: auspiciadorId, estaActivo: 1 }, select: { correo: true },
+        })
+      : [];
+    const correosPropios = new Set(propios.map((p) => String(p.correo || '').toLowerCase()));
+    const [usuario, representante] = await Promise.all([
+      this.prisma.usuario.findFirst({
+        where: {
+          correo: { in: correos, mode: 'insensitive' }, estaActivo: 1,
+          ...(auspiciadorId ? { correo: { in: correos.filter((c) => !correosPropios.has(c)), mode: 'insensitive' } } : {}),
+        },
+        select: { correo: true },
+      }),
+      this.prisma.auspiciadorpersona.findFirst({
+        where: {
+          correo: { in: correos, mode: 'insensitive' }, estaActivo: 1,
+          ...(auspiciadorId ? { auspiciador_id: { not: auspiciadorId } } : {}),
+        },
+        select: { correo: true },
+      }),
+    ]);
+    const ocupado = usuario?.correo || representante?.correo;
+    if (ocupado)
+      throw new BadRequestException(`El correo "${ocupado}" ya está registrado como usuario o representante de otro auspiciador.`);
   }
 
   @Post('admin/auspiciadores')
@@ -327,12 +362,7 @@ export class ExtrasController {
     const eventoId = await this.eventoPrincipalId();
     const datos = this.datosAuspiciador(body);
     const personas = this.personasValidadas(body, datos.cantidadIngresos);
-    const cuentaExistente = await this.prisma.usuario.findFirst({
-      where: { correo: { equals: personas[0].correo, mode: 'insensitive' }, estaActivo: 1 },
-      select: { id: true },
-    });
-    if (cuentaExistente)
-      throw new BadRequestException('El correo de la primera persona ya pertenece a una cuenta. Usa otro correo para crear al encargado del auspiciador.');
+    await this.validarCorreosAuspiciador(personas);
 
     const ausp = await this.prisma.auspiciador.create({
       data: { ...datos, evento_id: eventoId, personas: { create: personas } },
@@ -362,6 +392,7 @@ export class ExtrasController {
     const auspId = Number(id);
     const datos = this.datosAuspiciador(body);
     const personas = this.personasValidadas(body, datos.cantidadIngresos);
+    await this.validarCorreosAuspiciador(personas, auspId);
 
     await this.prisma.auspiciador.update({
       where: { id: auspId },
@@ -418,7 +449,7 @@ export class ExtrasController {
 
     const persona = await this.prisma.auspiciadorpersona.findUnique({
       where: { id: personaId },
-      include: { auspiciador: { include: { evento: { select: { nombre: true, edicion: true } } } } },
+      include: { auspiciador: { include: { evento: { select: { id: true, nombre: true, edicion: true, ciudadEvento: true, paisEvento: true } } } } },
     });
     if (!persona || persona.estaActivo === 0 || persona.auspiciador.estaActivo === 0)
       throw new BadRequestException('Credencial no vigente');
@@ -430,8 +461,63 @@ export class ExtrasController {
       empresa: persona.auspiciador.nombreEmpresa,
       evento: persona.auspiciador.evento.nombre,
       edicion: persona.auspiciador.evento.edicion,
+      lugar: [persona.auspiciador.evento.ciudadEvento, persona.auspiciador.evento.paisEvento].filter(Boolean).join(', '),
       habilitado: true,
     };
+  }
+
+  @Get('tecnico/credenciales-auspiciador/verificar')
+  async verificarCredencialAuspiciador(
+    @Query('personaId') personaId: string, @Query('token') token: string, @Req() req: any,
+  ) {
+    const id = Number(personaId);
+    const data: any = await this.credencialAuspiciador(String(id), token);
+    const persona = await this.prisma.auspiciadorpersona.findUnique({
+      where: { id }, include: { auspiciador: { select: { evento_id: true } } },
+    });
+    if (!persona || (req.user?.eventoId && persona.auspiciador.evento_id !== req.user.eventoId))
+      throw new BadRequestException('La credencial no corresponde al evento del técnico autenticado.');
+    return { ...data, personaId: id };
+  }
+
+  @Post('tecnico/asistencias-auspiciadores')
+  async registrarAsistenciaAuspiciador(
+    @Body() body: { personaId: number; token: string }, @Req() req: any,
+  ) {
+    const personaId = Number(body.personaId);
+    if (!personaId || !body.token || body.token !== this.tokenAuspiciador(personaId))
+      throw new BadRequestException('El código QR del auspiciador no es válido.');
+    const tecnicoId = Number(req.user?.sub);
+    const persona = await this.prisma.auspiciadorpersona.findFirst({
+      where: { id: personaId, estaActivo: 1, auspiciador: { estaActivo: 1 } },
+      include: { auspiciador: { include: { evento: true } } },
+    });
+    if (!persona) throw new BadRequestException('La credencial del auspiciador no está vigente.');
+    if (req.user?.eventoId && persona.auspiciador.evento_id !== req.user.eventoId)
+      throw new BadRequestException('La credencial pertenece a otro evento.');
+    const existente = await this.prisma.asistenciaauspiciador.findFirst({
+      where: { evento_id: persona.auspiciador.evento_id, auspiciadorpersona_id: personaId, estaActivo: 1 },
+    });
+    const asistencia = existente ?? await this.prisma.asistenciaauspiciador.create({
+      data: { evento_id: persona.auspiciador.evento_id, auspiciadorpersona_id: personaId, tecnico_id: tecnicoId },
+    });
+    return {
+      ok: true, yaRegistrada: Boolean(existente), fechaHoraAsistencia: asistencia.fechaHoraAsistencia,
+      participante: { nombre: persona.nombreCompleto, empresa: persona.auspiciador.nombreEmpresa, cargo: persona.cargo },
+      lugar: [persona.auspiciador.evento.ciudadEvento, persona.auspiciador.evento.paisEvento].filter(Boolean).join(', '),
+    };
+  }
+
+  @Get('tecnico/asistencias-auspiciadores')
+  async listarAsistenciasAuspiciadores(@Req() req: any) {
+    return this.prisma.asistenciaauspiciador.findMany({
+      where: { evento_id: req.user?.eventoId, estaActivo: 1 },
+      orderBy: { fechaHoraAsistencia: 'desc' }, take: 200,
+      include: {
+        evento: { select: { ciudadEvento: true, paisEvento: true } },
+        auspiciadorpersona: { include: { auspiciador: { select: { nombreEmpresa: true } } } },
+      },
+    });
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

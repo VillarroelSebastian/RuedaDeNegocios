@@ -20,10 +20,12 @@ const SUGERENCIAS = [
   "¿Cuál es el estado de mi pago?",
 ];
 
+const BIENVENIDA = "¡Hola! Soy tu asistente virtual del evento. Puedes tocar una opción o escribir su número (1, 2, 3 o 4). También puedes escribir tu pregunta. Después de cada consulta volveré a mostrarte el menú principal.";
+
 export default function AsistenteChat({ eeId, euId }: { eeId: number | null; euId?: number | null }) {
   const [open, setOpen] = useState(false);
   const [msgs, setMsgs] = useState<Msg[]>([
-    { role: "bot", text: "¡Hola! Soy tu asistente virtual. ¿En qué te puedo ayudar hoy?" },
+    { role: "bot", text: BIENVENIDA, opciones: SUGERENCIAS },
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -51,7 +53,13 @@ export default function AsistenteChat({ eeId, euId }: { eeId: number | null; euI
       });
       const data = await res.json();
       setContexto(data.contexto ?? null);
-      setMsgs((prev) => [...prev, { role: "bot", text: data.respuesta, imageUrl: data.imageUrl, opciones: data.opciones }]);
+      const sigueFlujo = Boolean(data.contexto?.paso);
+      setMsgs((prev) => [...prev, {
+        role: "bot",
+        text: data.respuesta,
+        imageUrl: data.imageUrl,
+        opciones: data.opciones?.length ? data.opciones : (sigueFlujo ? undefined : SUGERENCIAS),
+      }]);
     } catch {
       setMsgs((prev) => [...prev, { role: "bot", text: "Lo siento, no pude conectarme al servidor. Intenta de nuevo." }]);
     } finally {
@@ -156,7 +164,7 @@ export default function AsistenteChat({ eeId, euId }: { eeId: number | null; euI
           </div>
 
           {/* Quick suggestions — shown only on first message */}
-          {msgs.length === 1 && (
+          {false && msgs.length === 1 && (
             <div className="px-4 py-2 border-t border-gray-100 shrink-0">
               <p className="text-[10px] text-gray-400 mb-2 font-semibold uppercase tracking-wide">Preguntas frecuentes</p>
               <div className="flex flex-wrap gap-1">

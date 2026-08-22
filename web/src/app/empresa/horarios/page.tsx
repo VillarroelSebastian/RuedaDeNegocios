@@ -8,27 +8,28 @@ const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
 interface Rango { desde: string; hasta: string }
 
-function horaActual00() {
-  return `${String(new Date().getHours()).padStart(2, "0")}:00`;
+function rangoEvento(evento?: any): Rango {
+  const hora = (iso?: string) => iso ? new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false }) : "";
+  return { desde: hora(evento?.fechaInicioEvento), hasta: hora(evento?.fechaFinEvento) };
 }
 
 export default function HorariosPage() {
   const router = useRouter();
   const [eeId, setEeId] = useState<number | null>(null);
-  const [rangos, setRangos] = useState<Rango[]>([{ desde: horaActual00(), hasta: "" }]);
+  const [rangos, setRangos] = useState<Rango[]>([{ desde: "", hasta: "" }]);
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [reseteando, setReseteando] = useState(false);
   const [modal, setModal] = useState<{ tipo: "ok" | "err" | "confirm"; msg: string; onOk?: () => void } | null>(null);
 
-  const cargarRangos = useCallback((id: number) => {
+  const cargarRangos = useCallback((id: number, evento?: any) => {
     fetch(`${API}/empresa/horarios-empresa/rangos?eeId=${id}`)
       .then((r) => r.json())
       .then((rs) => {
         if (Array.isArray(rs) && rs.length > 0) {
           setRangos(rs.map((r: any) => ({ desde: r.desde_hora, hasta: r.hasta_hora })));
         } else {
-          setRangos([{ desde: horaActual00(), hasta: "" }]);
+          setRangos([rangoEvento(evento)]);
         }
       })
       .catch(() => {})
@@ -46,7 +47,7 @@ export default function HorariosPage() {
       .then((ctx) => {
         if (!ctx?.esResponsable) { router.replace("/empresa/reuniones"); return; }
         setEeId(ctx.empresaeventoId);
-        cargarRangos(ctx.empresaeventoId);
+        cargarRangos(ctx.empresaeventoId, ctx.evento);
       })
       .catch(() => setLoading(false));
   }, [router, cargarRangos]);
@@ -66,8 +67,10 @@ export default function HorariosPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ eeId, rangos: rangosValidos.map((r) => ({ desde: r.desde, hasta: r.hasta })) }),
       });
-      if (!res.ok) throw new Error();
-      setModal({ tipo: "ok", msg: rangosValidos.length === 0 ? "Todos los horarios están disponibles." : "Horarios de disponibilidad guardados correctamente." });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || "No se pudieron guardar los horarios.");
+      if (Array.isArray(data.rangos)) setRangos(data.rangos);
+      setModal({ tipo: data.huboChoque ? "err" : "ok", msg: data.mensaje });
     } catch {
       setModal({ tipo: "err", msg: "Error al guardar los horarios. Inténtalo de nuevo." });
     } finally {
@@ -189,7 +192,7 @@ export default function HorariosPage() {
         </div>
 
         <button
-          onClick={() => setRangos((prev) => [...prev, { desde: horaActual00(), hasta: "" }])}
+          onClick={() => setRangos((prev) => [...prev, { desde: "", hasta: "" }])}
           className="flex items-center gap-2 text-sm text-[#449D3A] font-semibold hover:underline"
         >
           <Plus className="w-4 h-4" /> Agregar otro rango

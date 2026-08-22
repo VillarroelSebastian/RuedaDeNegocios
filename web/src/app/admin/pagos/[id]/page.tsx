@@ -43,7 +43,8 @@ export default function PagoDetailPage() {
           setTimeout(() => router.push('/admin/pagos'), 1500);
         } catch { showError('Error', 'No se pudo aprobar el pago.'); }
         finally { setSubmitting(false); }
-      }
+      },
+      'success'
     );
   };
 

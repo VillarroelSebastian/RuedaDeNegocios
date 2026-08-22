@@ -17,6 +17,8 @@ const SUGERENCIAS = [
   '¿Cuál es el estado de mi pago?',
 ];
 
+const BIENVENIDA = '¡Hola! Soy tu asistente virtual del evento. Puedes tocar una opción o escribir su número (1, 2, 3 o 4). También puedes escribir tu pregunta. Después de cada consulta volveré a mostrarte el menú principal.';
+
 interface Msg {
   role: 'user' | 'bot';
   text: string;
@@ -39,7 +41,7 @@ export function AsistenteChatButton({ onOpen }: { onOpen: () => void }) {
 
 export default function AsistenteChatModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const [msgs, setMsgs] = useState<Msg[]>([
-    { role: 'bot', text: '¡Hola! Soy tu asistente virtual. ¿En qué te puedo ayudar hoy?' },
+    { role: 'bot', text: BIENVENIDA, opciones: SUGERENCIAS },
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -93,7 +95,11 @@ export default function AsistenteChatModal({ visible, onClose }: { visible: bool
       });
       const data = await res.json();
       setContexto(data.contexto ?? null);
-      setMsgs((prev) => [...prev, { role: 'bot', text: data.respuesta, imageUrl: data.imageUrl, opciones: data.opciones }]);
+      const sigueFlujo = Boolean(data.contexto?.paso);
+      setMsgs((prev) => [...prev, {
+        role: 'bot', text: data.respuesta, imageUrl: data.imageUrl,
+        opciones: data.opciones?.length ? data.opciones : (sigueFlujo ? undefined : SUGERENCIAS),
+      }]);
     } catch {
       setMsgs((prev) => [...prev, { role: 'bot', text: 'Lo siento, no pude conectarme. Intenta de nuevo.' }]);
     } finally {
@@ -172,7 +178,7 @@ export default function AsistenteChatModal({ visible, onClose }: { visible: bool
             />
 
             {/* Suggestions */}
-            {msgs.length === 1 && (
+            {false && msgs.length === 1 && (
               <View style={s.sugsWrap}>
                 {SUGERENCIAS.map((sg) => (
                   <TouchableOpacity key={sg} style={s.sug} onPress={() => send(sg)} activeOpacity={0.7}>

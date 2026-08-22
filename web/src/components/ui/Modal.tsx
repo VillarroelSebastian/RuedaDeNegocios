@@ -15,6 +15,7 @@ interface ModalProps {
   onConfirm?: () => void;
   confirmText?: string;
   cancelText?: string;
+  confirmTone?: 'danger' | 'success';
 }
 
 const iconMap = {
@@ -34,6 +35,7 @@ export default function Modal({
   onConfirm,
   confirmText = 'Confirmar',
   cancelText = 'Cancelar',
+  confirmTone = 'danger',
 }: ModalProps) {
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.key === 'Escape') onClose();
@@ -72,7 +74,7 @@ export default function Modal({
                 {cancelText}
               </button>
               <button
-                className={modalStyles.btnConfirm}
+                className={confirmTone === 'success' ? modalStyles.btnSuccess : modalStyles.btnConfirm}
                 onClick={() => { onConfirm?.(); onClose(); }}
               >
                 {confirmText}
@@ -104,6 +106,7 @@ export interface ModalState {
   title: string;
   message: string;
   onConfirm?: () => void;
+  confirmTone?: 'danger' | 'success';
 }
 
 export function useModal() {
@@ -124,8 +127,8 @@ export function useModal() {
   const showError   = (title: string, message: string) => showModal('error',   title, message);
   const showWarning = (title: string, message: string) => showModal('warning', title, message);
   const showInfo    = (title: string, message: string) => showModal('info',    title, message);
-  const showConfirm = (title: string, message: string, onConfirm: () => void) =>
-    showModal('confirm', title, message, onConfirm);
+  const showConfirm = (title: string, message: string, onConfirm: () => void, confirmTone: 'danger' | 'success' = 'danger') =>
+    setModal({ isOpen: true, type: 'confirm', title, message, onConfirm, confirmTone });
 
   const ModalComponent = () => (
     <Modal
@@ -135,6 +138,7 @@ export function useModal() {
       title={modal.title}
       message={modal.message}
       onConfirm={modal.onConfirm}
+      confirmTone={modal.confirmTone}
     />
   );
 

@@ -23,6 +23,7 @@ import {
   Handshake,
   Images,
   Radio,
+  QrCode,
 } from 'lucide-react';
 
 const menuItems = [
@@ -42,6 +43,7 @@ const menuItems = [
   { name: 'Noticias', icon: Newspaper, href: '/admin/noticias' },
   { name: 'Técnicos', icon: Users, href: '/admin/tecnicos' },
   { name: 'Estadísticas', icon: BarChart3, href: '/admin/estadisticas' },
+  { name: 'Credenciales QR', icon: QrCode, href: '/admin/credenciales' },
   { name: 'Reportes', icon: FileText, href: '/admin/reportes' },
   { name: 'Configuración', icon: Settings, href: '/admin/configuracion' },
 ];
@@ -75,7 +77,7 @@ export default function Sidebar() {
           <X className="w-4 h-4 text-gray-500" />
         </button>
       {/* Logo */}
-      <div className="flex items-center px-5 h-16 border-b border-gray-100 shrink-0">
+      <Link href="/" aria-label="Ir al inicio público" className="flex items-center px-5 h-16 border-b border-gray-100 shrink-0">
         <div className="relative h-10 w-44">
           <Image
             src="/assets/iconos/logo.png"
@@ -86,7 +88,7 @@ export default function Sidebar() {
             priority
           />
         </div>
-      </div>
+      </Link>
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">

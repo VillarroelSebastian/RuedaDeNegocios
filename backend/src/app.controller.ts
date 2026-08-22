@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UnauthorizedException, BadRequestException, Query, OnModuleInit } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, UnauthorizedException, BadRequestException, Query, OnModuleInit, Req } from '@nestjs/common';
 import { AppService } from './app.service.js';
 import { PrismaService } from './prisma/prisma.service.js';
 import { NotificacionesGateway } from './notificaciones/notificaciones.gateway.js';
@@ -525,9 +525,24 @@ export class AppController implements OnModuleInit {
     return { ok: true, regeneradas: n };
   }
 
+  @Get('admin/credenciales-imprimibles')
+  async credencialesImprimibles(@Query('euId') euId?: string) {
+    const eventoId = await this.getPrincipalEventoId();
+    if (!eventoId) return { evento: null, credenciales: [] };
+    const evento = await this.prisma.evento.findUnique({ where: { id: eventoId }, select: { nombre: true, edicion: true, urlLogoEvento: true } });
+    const participantes = await this.prisma.empresa_usuario.findMany({
+      where: { ...(euId ? { id: Number(euId) } : {}), estaActivo: 1, empresaevento: { evento_id: eventoId, estaActivo: 1, estadoHabilitacionAcceso: 'HABILITADO' } },
+      orderBy: [{ empresa: { nombre: 'asc' } }, { usuario: { apellidoPaterno: 'asc' } }],
+      include: { usuario: { select: { nombres: true, apellidoPaterno: true, apellidoMaterno: true, urlFotoPerfil: true } }, empresa: { select: { nombre: true } } },
+    });
+    for (const p of participantes) if (!p.urlCredencialQR) await this.generarCredencialQR(p.id, '', `${p.usuario.nombres} ${p.usuario.apellidoPaterno}`);
+    const actualizados = await this.prisma.empresa_usuario.findMany({ where: { id: { in: participantes.map((p) => p.id) } }, include: { usuario: true, empresa: true }, orderBy: { id: 'asc' } });
+    return { evento, medidaMm: { ancho: 85.6, alto: 54 }, credenciales: actualizados.map((p) => ({ id: p.id, nombre: `${p.usuario.nombres} ${p.usuario.apellidoPaterno}${p.usuario.apellidoMaterno ? ` ${p.usuario.apellidoMaterno}` : ''}`, empresa: p.empresa.nombre, cargo: p.cargo, foto: p.usuario.urlFotoPerfil || null, qr: p.urlCredencialQR })) };
+  }
+
   @Post('tecnico/asistencias')
-  async registrarAsistencia(@Body() body: { tecnicoId: number; euId: number; token: string }) {
-    const tecnicoId = Number(body.tecnicoId);
+  async registrarAsistencia(@Body() body: { tecnicoId?: number; euId: number; token: string }, @Req() req: any) {
+    const tecnicoId = Number(req.user?.sub);
     const euId = Number(body.euId);
     if (!tecnicoId || !euId || !body.token || body.token !== this.credencialToken(euId))
       throw new BadRequestException('El codigo QR no es valido.');
@@ -577,15 +592,16 @@ export class AppController implements OnModuleInit {
   }
 
   @Get('tecnico/asistencias')
-  async listarAsistencias(@Query('tecnicoId') tecnicoId?: string) {
+  async listarAsistencias(@Req() req: any) {
     const eventoId = await this.getPrincipalEventoId();
     if (!eventoId) return [];
     return this.prisma.asistenciaevento.findMany({
-      where: { evento_id: eventoId, estaActivo: 1, ...(tecnicoId ? { tecnico_id: Number(tecnicoId) } : {}) },
+      where: { evento_id: eventoId, estaActivo: 1, tecnico_id: Number(req.user?.sub) },
       orderBy: { fechaHoraAsistencia: 'desc' },
       include: {
         empresa_usuario: { include: { usuario: { select: { nombres: true, apellidoPaterno: true } }, empresa: { select: { nombre: true } } } },
         tecnico: { select: { nombres: true, apellidoPaterno: true } },
+        evento: { select: { ciudadEvento: true, paisEvento: true } },
       },
       take: 200,
     });
@@ -2687,6 +2703,14 @@ export class AppController implements OnModuleInit {
         })
       : [];
 
+    const fechaBolivia = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    const inicioDia = new Date(`${fechaBolivia}T00:00:00-04:00`);
+    const finDia = new Date(`${fechaBolivia}T23:59:59.999-04:00`);
+    const [participantesHoy, auspiciadoresHoy] = eventoId ? await Promise.all([
+      this.prisma.asistenciaevento.count({ where: { evento_id: eventoId, estaActivo: 1, fechaHoraAsistencia: { gte: inicioDia, lte: finDia } } }),
+      this.prisma.asistenciaauspiciador.count({ where: { evento_id: eventoId, estaActivo: 1, fechaHoraAsistencia: { gte: inicioDia, lte: finDia } } }),
+    ]) : [0, 0];
+
     return {
       kpis: {
         empresasRegistradas: empresasTotal,
@@ -2700,6 +2724,7 @@ export class AppController implements OnModuleInit {
         pagosPendientes,
         mesasHabilitadas: mesasActivas,
         eventosInternos,
+        asistentesHoy: participantesHoy + auspiciadoresHoy,
       },
       reunionesPorEstado: {
         programadas: reunionesProgramadas,
@@ -4595,9 +4620,23 @@ export class AppController implements OnModuleInit {
     const { eeId, rangos = [] } = body;
     if (!eeId) throw new BadRequestException('eeId requerido');
 
+    const formatoHora = /^([01]\d|2[0-3]):[0-5]\d$/;
+    const normalizados: { desde: string; hasta: string }[] = [];
+    let huboChoque = false;
+    for (const rango of rangos) {
+      if (!formatoHora.test(rango.desde) || !formatoHora.test(rango.hasta) || rango.desde >= rango.hasta)
+        throw new BadRequestException('Cada rango debe tener horas válidas y la hora inicial debe ser menor a la final.');
+      const sinChoque = normalizados.filter((anterior) => {
+        const choca = rango.desde < anterior.hasta && rango.hasta > anterior.desde;
+        if (choca) huboChoque = true;
+        return !choca;
+      });
+      normalizados.splice(0, normalizados.length, ...sinChoque, rango);
+    }
+
     // Persist ranges
     await this.prisma.empresa_horario.updateMany({ where: { empresaevento_id: Number(eeId), estaActivo: 1 }, data: { estaActivo: 0 } });
-    for (const r of rangos) {
+    for (const r of normalizados) {
       await this.prisma.empresa_horario.create({
         data: { empresaevento_id: Number(eeId), desde_hora: r.desde, hasta_hora: r.hasta },
       });
@@ -4605,7 +4644,7 @@ export class AppController implements OnModuleInit {
 
     // Recompute blocks: block every franja outside any saved range
     await this.prisma.empresa_bloqueo.updateMany({ where: { empresaevento_id: Number(eeId), estaActivo: 1 }, data: { estaActivo: 0 } });
-    if (rangos.length > 0) {
+    if (normalizados.length > 0) {
       const eventoId = await this.getPrincipalEventoId();
       const evento = eventoId ? await this.prisma.evento.findUnique({ where: { id: eventoId } }) : null;
       if (evento) {
@@ -4614,7 +4653,7 @@ export class AppController implements OnModuleInit {
           const hh = String(f.inicio.getHours()).padStart(2, '0');
           const mm = String(f.inicio.getMinutes()).padStart(2, '0');
           const hhmm = `${hh}:${mm}`;
-          const dentroDeRango = rangos.some((r) => hhmm >= r.desde && hhmm < r.hasta);
+          const dentroDeRango = normalizados.some((r) => hhmm >= r.desde && hhmm < r.hasta);
           if (!dentroDeRango) {
             await this.prisma.empresa_bloqueo.create({
               data: { empresaevento_id: Number(eeId), inicio: f.inicio, fin: f.fin },
@@ -4623,7 +4662,7 @@ export class AppController implements OnModuleInit {
         }
       }
     }
-    return { ok: true };
+    return { ok: true, huboChoque, rangos: normalizados, mensaje: huboChoque ? 'Se detectó un choque de horarios. Se reemplazó el rango anterior por el nuevo.' : 'Horarios guardados correctamente.' };
   }
 
   @Get('empresa/horarios-empresa')

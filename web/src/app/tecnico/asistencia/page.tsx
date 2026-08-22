@@ -5,29 +5,98 @@ import { BrowserQRCodeReader } from "@zxing/browser";
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
 export default function TecnicoAsistenciaPage() {
-  const [valor, setValor] = useState(""); const [asistencias, setAsistencias] = useState<any[]>([]);
-  const [camara, setCamara] = useState(false); const [procesando, setProcesando] = useState(false);
+  const [valor, setValor] = useState("");
+  const [asistencias, setAsistencias] = useState<any[]>([]);
+  const [camara, setCamara] = useState(false);
+  const [procesando, setProcesando] = useState(false);
   const [pendiente, setPendiente] = useState<any>(null);
-  const [modal, setModal] = useState<{ titulo: string; mensaje: string } | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null); const controlesRef = useRef<any>(null);
-  const tecnico = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("tecnicoUser") || "null") : null;
-  const cargar = useCallback(() => { if (tecnico?.id) fetch(`${API}/tecnico/asistencias?tecnicoId=${tecnico.id}`).then(r => r.json()).then(d => setAsistencias(Array.isArray(d) ? d : [])).catch(() => {}); }, [tecnico?.id]);
-  useEffect(() => { cargar(); }, [cargar]);
-  const cerrarCamara = () => { controlesRef.current?.stop?.(); controlesRef.current = null; setCamara(false); };
+  const [modal, setModal] = useState<{
+    titulo: string;
+    mensaje: string;
+  } | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const controlesRef = useRef<any>(null);
+  const tecnico =
+    typeof window !== "undefined"
+      ? JSON.parse(localStorage.getItem("tecnicoUser") || "null")
+      : null;
+  const cargar = useCallback(() => {
+    if (tecnico?.id) Promise.all([
+      fetch(`${API}/tecnico/asistencias`).then((r) => r.json()),
+      fetch(`${API}/tecnico/asistencias-auspiciadores`).then((r) => r.json()),
+    ]).then(([personas, auspiciadores]) => setAsistencias([
+      ...(Array.isArray(personas) ? personas : []).map((a: any) => ({ ...a, tipo: "PARTICIPANTE" })),
+      ...(Array.isArray(auspiciadores) ? auspiciadores : []).map((a: any) => ({ ...a, tipo: "AUSPICIADOR" })),
+    ].sort((a, b) => +new Date(b.fechaHoraAsistencia) - +new Date(a.fechaHoraAsistencia)))).catch(() => {});
+  }, [tecnico?.id]);
+  useEffect(() => {
+    cargar();
+  }, [cargar]);
+  const cerrarCamara = () => {
+    controlesRef.current?.stop?.();
+    controlesRef.current = null;
+    setCamara(false);
+  };
   const revisar = async (contenido: string) => {
-    if (procesando) return; const match = contenido.match(/\/credencial\/(\d+)\?t=([a-zA-Z0-9]+)/);
-    if (!match) return setModal({ titulo: "QR no válido", mensaje: "Escanea o pega una credencial válida del evento." });
+    if (procesando) return;
+    const match = contenido.match(/\/credencial\/(\d+)\?t=([a-zA-Z0-9]+)/);
+    const matchAusp = contenido.match(/\/credencial\/auspiciador\/(\d+)\?t=([a-zA-Z0-9]+)/);
+    if (!match && !matchAusp)
+      return setModal({
+        titulo: "QR no válido",
+        mensaje: "Escanea o pega una credencial válida del evento.",
+      });
     setProcesando(true);
-    try { const res = await fetch(`${API}/tecnico/credenciales/verificar?euId=${match[1]}&token=${match[2]}`); const data = await res.json(); if (!res.ok) throw new Error(data?.message || "No se pudo verificar."); cerrarCamara(); setPendiente({ euId: Number(match[1]), token: match[2], ...data }); }
-    catch (e: any) { cerrarCamara(); setModal({ titulo: "No se pudo verificar", mensaje: e.message }); } finally { setProcesando(false); }
+    try {
+      const auspiciador = Boolean(matchAusp); const partes = matchAusp || match!;
+      const res = await fetch(auspiciador
+        ? `${API}/tecnico/credenciales-auspiciador/verificar?personaId=${partes[1]}&token=${partes[2]}`
+        : `${API}/tecnico/credenciales/verificar?euId=${partes[1]}&token=${partes[2]}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || "No se pudo verificar.");
+      cerrarCamara();
+      setPendiente({ ...(auspiciador ? { personaId: Number(partes[1]) } : { euId: Number(partes[1]) }), token: partes[2], tipo: auspiciador ? "AUSPICIADOR" : "PARTICIPANTE", ...data });
+    } catch (e: any) {
+      cerrarCamara();
+      setModal({ titulo: "No se pudo verificar", mensaje: e.message });
+    } finally {
+      setProcesando(false);
+    }
   };
   const registrar = async () => {
-    if (!pendiente || procesando) return; setProcesando(true);
-    try { const res = await fetch(`${API}/tecnico/asistencias`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tecnicoId: tecnico.id, euId: pendiente.euId, token: pendiente.token }) }); const data = await res.json(); if (!res.ok) throw new Error(data?.message || "No se pudo registrar."); setPendiente(null); setValor(""); cargar(); setModal({ titulo: data.yaRegistrada ? "Asistencia ya registrada" : "Asistencia registrada", mensaje: `${data.participante.nombre} · ${data.participante.empresa}` }); }
-    catch (e: any) { setModal({ titulo: "No se pudo registrar", mensaje: e.message }); } finally { setProcesando(false); }
+    if (!pendiente || procesando) return;
+    setProcesando(true);
+    try {
+      const esAuspiciador = pendiente.tipo === "AUSPICIADOR";
+      const res = await fetch(`${API}/${esAuspiciador ? "tecnico/asistencias-auspiciadores" : "tecnico/asistencias"}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(esAuspiciador ? { personaId: pendiente.personaId, token: pendiente.token } : { euId: pendiente.euId, token: pendiente.token }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || "No se pudo registrar.");
+      setPendiente(null);
+      setValor("");
+      cargar();
+      setModal({
+        titulo: data.yaRegistrada
+          ? "Asistencia ya registrada"
+          : "Asistencia registrada",
+        mensaje: `${data.participante.nombre} · ${data.participante.empresa} · ${data.lugar || "Lugar del evento"}`,
+      });
+    } catch (e: any) {
+      setModal({ titulo: "No se pudo registrar", mensaje: e.message });
+    } finally {
+      setProcesando(false);
+    }
   };
   const abrirCamara = async () => {
-    if (!navigator.mediaDevices?.getUserMedia) return setModal({ titulo: "Cámara no disponible", mensaje: "El navegador no permite usar la cámara. Abre la página mediante HTTPS y concede el permiso de cámara." });
+    if (!navigator.mediaDevices?.getUserMedia)
+      return setModal({
+        titulo: "Cámara no disponible",
+        mensaje:
+          "El navegador no permite usar la cámara. Abre la página mediante HTTPS y concede el permiso de cámara.",
+      });
     setCamara(true);
     setTimeout(async () => {
       try {
@@ -35,21 +104,155 @@ export default function TecnicoAsistenciaPage() {
         if (!video) throw new Error("No se pudo iniciar la vista de cámara.");
         const lector = new BrowserQRCodeReader();
         controlesRef.current = await lector.decodeFromConstraints(
-          { audio: false, video: { facingMode: { ideal: "environment" } } }, video,
-          (resultado) => { if (resultado?.getText()) { controlesRef.current?.stop?.(); revisar(resultado.getText()); } },
+          { audio: false, video: { facingMode: { ideal: "environment" } } },
+          video,
+          (resultado) => {
+            if (resultado?.getText()) {
+              controlesRef.current?.stop?.();
+              revisar(resultado.getText());
+            }
+          },
         );
       } catch (e: any) {
         cerrarCamara();
-        const denegado = e?.name === "NotAllowedError" || e?.name === "PermissionDeniedError";
-        setModal({ titulo: "Cámara no disponible", mensaje: denegado ? "Debes permitir el acceso a la cámara en la configuración del navegador y volver a intentarlo." : (e.message || "No se pudo abrir la cámara.") });
+        const denegado =
+          e?.name === "NotAllowedError" || e?.name === "PermissionDeniedError";
+        setModal({
+          titulo: "Cámara no disponible",
+          mensaje: denegado
+            ? "Debes permitir el acceso a la cámara en la configuración del navegador y volver a intentarlo."
+            : e.message || "No se pudo abrir la cámara.",
+        });
       }
     }, 100);
   };
   useEffect(() => () => controlesRef.current?.stop?.(), []);
-  return <div className="p-4 sm:p-6 max-w-4xl mx-auto">
-    {modal && <div className="fixed inset-0 z-[80] bg-black/50 flex items-center justify-center p-4"><div className="bg-white rounded-2xl p-6 w-full max-w-sm text-center"><h2 className="font-extrabold">{modal.titulo}</h2><p className="text-sm text-gray-600 mt-2 break-words">{modal.mensaje}</p><button onClick={() => setModal(null)} className="mt-5 w-full rounded-xl bg-[#449D3A] text-white font-bold py-3">Aceptar</button></div></div>}
-    <h1 className="text-2xl font-extrabold">Control de asistencia</h1><p className="text-sm text-gray-500 mt-1">Solo el personal técnico puede verificar credenciales y registrar asistencias.</p>
-    <div className="mt-5 bg-white border rounded-2xl p-4 sm:p-6">{pendiente ? <div className="text-center"><CheckCircle2 className="w-12 h-12 text-green-600 mx-auto"/><p className="text-xs font-bold text-green-700 uppercase mt-2">Credencial válida</p><h2 className="font-extrabold text-xl mt-1">{pendiente.participante.nombre}</h2><p className="text-sm text-gray-600 mt-1"><b>Empresa:</b> {pendiente.empresa.nombre}</p><p className="text-sm text-gray-600"><b>Rubro:</b> {pendiente.empresa.rubro || "No indicado"} · <b>Código:</b> {pendiente.empresa.codigo || "No indicado"}</p><p className="text-sm text-gray-600"><b>Cargo:</b> {pendiente.participante.cargo || "No indicado"} · <b>Encargado:</b> {pendiente.participante.esResponsable ? "Sí" : "No"}</p><p className="text-sm text-gray-500">{[pendiente.empresa.ciudad, pendiente.empresa.pais].filter(Boolean).join(", ")}</p><div className="grid grid-cols-2 gap-2 mt-5"><button onClick={() => setPendiente(null)} className="border rounded-xl py-3 font-bold text-gray-600">Cancelar</button><button onClick={registrar} disabled={procesando} className="rounded-xl bg-[#449D3A] text-white py-3 font-bold disabled:opacity-50">{procesando ? "Registrando..." : "Registrar asistencia"}</button></div></div> : <>{camara ? <div className="relative rounded-xl overflow-hidden bg-black aspect-video"><video ref={videoRef} className="w-full h-full object-contain" playsInline muted/><button onClick={cerrarCamara} className="absolute top-3 right-3 bg-white rounded-full p-2"><X className="w-5 h-5"/></button></div> : <button onClick={abrirCamara} className="w-full rounded-xl bg-[#449D3A] text-white font-bold py-3 flex justify-center gap-2"><ScanLine className="w-5 h-5"/>Escanear QR con la cámara</button>}<div className="flex flex-col sm:flex-row gap-2 mt-4"><input value={valor} onChange={e => setValor(e.target.value)} placeholder="O pega el enlace de la credencial" className="flex-1 min-w-0 border rounded-xl px-3 py-3 text-sm"/><button onClick={() => revisar(valor)} disabled={!valor.trim() || procesando} className="rounded-xl bg-gray-900 text-white px-5 py-3 font-bold disabled:opacity-40">Verificar QR</button></div></>}</div>
-    <h2 className="font-extrabold mt-7 mb-3">Asistencias ({asistencias.length})</h2><div className="space-y-2">{asistencias.map(a => <div key={a.id} className="bg-white border rounded-xl p-4 flex gap-3"><CheckCircle2 className="w-5 h-5 text-green-600 shrink-0"/><div className="min-w-0"><p className="font-bold break-words">{a.empresa_usuario?.usuario?.nombres} {a.empresa_usuario?.usuario?.apellidoPaterno}</p><p className="text-xs text-gray-500 break-words">{a.empresa_usuario?.empresa?.nombre}</p><p className="text-xs text-gray-400 mt-1">{new Date(a.fechaHoraAsistencia).toLocaleString("es-BO")}</p></div></div>)}</div>
-  </div>;
+  return (
+    <div className="p-4 sm:p-6 max-w-4xl mx-auto">
+      {modal && (
+        <div className="fixed inset-0 z-[80] bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm text-center">
+            <h2 className="font-extrabold">{modal.titulo}</h2>
+            <p className="text-sm text-gray-600 mt-2 break-words">
+              {modal.mensaje}
+            </p>
+            <button
+              onClick={() => setModal(null)}
+              className="mt-5 w-full rounded-xl bg-[#449D3A] text-white font-bold py-3"
+            >
+              Aceptar
+            </button>
+          </div>
+        </div>
+      )}
+      <h1 className="text-2xl font-extrabold">Control de asistencia</h1>
+      <p className="text-sm text-gray-500 mt-1">
+        Solo el personal técnico puede verificar credenciales y registrar
+        asistencias.
+      </p>
+      <div className="mt-5 bg-white border rounded-2xl p-4 sm:p-6">
+        {pendiente ? (
+          <div className="text-center">
+            <CheckCircle2 className="w-12 h-12 text-green-600 mx-auto" />
+            <p className="text-xs font-bold text-green-700 uppercase mt-2">
+              Credencial válida
+            </p>
+            <h2 className="font-extrabold text-xl mt-1">
+              {pendiente.participante?.nombre || pendiente.nombreCompleto}
+            </h2>
+            <p className="text-sm text-gray-600 mt-1">
+              <b>Empresa:</b> {pendiente.empresa?.nombre || pendiente.empresa}
+            </p>
+            <p className="text-sm text-gray-600">
+              <b>Tipo:</b> {pendiente.tipo === "AUSPICIADOR" ? "Auspiciador" : "Participante"}
+            </p>
+            <p className="text-sm text-gray-600">
+              <b>Cargo:</b> {pendiente.participante?.cargo || pendiente.cargo || "No indicado"}
+            </p>
+            <p className="text-sm text-gray-500">
+              <b>Lugar:</b> {pendiente.lugar || [pendiente.evento?.ciudad, pendiente.evento?.pais].filter(Boolean).join(", ") || "Lugar del evento"}
+            </p>
+            <div className="grid grid-cols-2 gap-2 mt-5">
+              <button
+                onClick={() => setPendiente(null)}
+                className="border rounded-xl py-3 font-bold text-gray-600"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={registrar}
+                disabled={procesando}
+                className="rounded-xl bg-[#449D3A] text-white py-3 font-bold disabled:opacity-50"
+              >
+                {procesando ? "Registrando..." : "Registrar asistencia"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {camara ? (
+              <div className="relative rounded-xl overflow-hidden bg-black aspect-video">
+                <video
+                  ref={videoRef}
+                  className="w-full h-full object-contain"
+                  playsInline
+                  muted
+                />
+                <button
+                  onClick={cerrarCamara}
+                  className="absolute top-3 right-3 bg-white rounded-full p-2"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={abrirCamara}
+                className="w-full rounded-xl bg-[#449D3A] text-white font-bold py-3 flex justify-center gap-2"
+              >
+                <ScanLine className="w-5 h-5" />
+                Escanear QR con la cámara
+              </button>
+            )}
+            <div className="flex flex-col sm:flex-row gap-2 mt-4">
+              <input
+                value={valor}
+                onChange={(e) => setValor(e.target.value)}
+                placeholder="O pega el enlace de la credencial"
+                className="flex-1 min-w-0 border rounded-xl px-3 py-3 text-sm"
+              />
+              <button
+                onClick={() => revisar(valor)}
+                disabled={!valor.trim() || procesando}
+                className="rounded-xl bg-gray-900 text-white px-5 py-3 font-bold disabled:opacity-40"
+              >
+                Verificar QR
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+      <h2 className="font-extrabold mt-7 mb-3">
+        Asistencias ({asistencias.length})
+      </h2>
+      <div className="space-y-2">
+        {asistencias.map((a) => (
+          <div key={a.id} className="bg-white border rounded-xl p-4 flex gap-3">
+            <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0" />
+            <div className="min-w-0">
+              <p className="font-bold break-words">
+                {a.tipo === "AUSPICIADOR" ? a.auspiciadorpersona?.nombreCompleto : `${a.empresa_usuario?.usuario?.nombres || ""} ${a.empresa_usuario?.usuario?.apellidoPaterno || ""}`}
+              </p>
+              <p className="text-xs text-gray-500 break-words">
+                {a.tipo === "AUSPICIADOR" ? a.auspiciadorpersona?.auspiciador?.nombreEmpresa : a.empresa_usuario?.empresa?.nombre}
+              </p>
+              <p className="text-xs text-gray-400 mt-1">
+                {new Date(a.fechaHoraAsistencia).toLocaleString("es-BO")} · {[a.evento?.ciudadEvento, a.evento?.paisEvento].filter(Boolean).join(", ") || "Lugar del evento"}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }

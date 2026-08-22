@@ -127,6 +127,7 @@ model auspiciadorpersona {
   estaActivo      Int         @default(1) @db.SmallInt
   fechaCreacion   DateTime    @default(now()) @db.Timestamp(6)
   auspiciador     auspiciador @relation(fields: [auspiciador_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  asistencias     asistenciaauspiciador[]
 
   @@index([auspiciador_id])
 }
@@ -332,6 +333,7 @@ model evento {
   auspiciador                    auspiciador[]
   fotoevento                     fotoevento[]
   asistenciaevento               asistenciaevento[]
+  asistenciaauspiciador          asistenciaauspiciador[]
 }
 
 model eventoreglaqr {
@@ -602,6 +604,7 @@ model usuario {
   noticia               noticia[]
   evento                evento?           @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_usuario_evento1")
   asistenciasRegistradas asistenciaevento[] @relation("TecnicoAsistencia")
+  asistenciasAuspiciadores asistenciaauspiciador[] @relation("TecnicoAsistenciaAuspiciador")
   anunciosActividad      anuncioactividad[]
 
   @@index([evento_id], map: "fk_usuario_evento1_idx")
@@ -619,6 +622,22 @@ model asistenciaevento {
   tecnico            usuario         @relation("TecnicoAsistencia", fields: [tecnico_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@unique([evento_id, empresa_usuario_id])
+  @@index([evento_id, fechaHoraAsistencia])
+  @@index([tecnico_id])
+}
+
+model asistenciaauspiciador {
+  id                    Int                 @id @default(autoincrement())
+  evento_id             Int
+  auspiciadorpersona_id Int
+  tecnico_id            Int
+  fechaHoraAsistencia   DateTime            @default(now()) @db.Timestamp(6)
+  estaActivo            Int                 @default(1) @db.SmallInt
+  evento                evento              @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  auspiciadorpersona     auspiciadorpersona  @relation(fields: [auspiciadorpersona_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tecnico               usuario             @relation("TecnicoAsistenciaAuspiciador", fields: [tecnico_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([evento_id, auspiciadorpersona_id])
   @@index([evento_id, fechaHoraAsistencia])
   @@index([tecnico_id])
 }

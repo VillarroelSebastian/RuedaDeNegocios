@@ -669,7 +669,7 @@ export default function EmpresaPerfilPage() {
                   </div>
                 )}
 
-                <div className="flex gap-3 pt-2">
+                <div className="flex flex-col sm:flex-row gap-3 pt-2">
                   <button onClick={() => { setEditando(false); setErrForm(null); }}
                     className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50">
                     Cancelar
@@ -1089,15 +1089,15 @@ export default function EmpresaPerfilPage() {
                 <Shield className="w-5 h-5 text-[#449D3A]" />
                 <h3 className="font-bold text-gray-900">Seguridad</h3>
               </div>
-              <div className="p-6 flex items-center justify-between">
-                <div>
+              <div className="p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="min-w-0">
                   <p className="text-sm font-semibold text-gray-900">Contraseña</p>
                   <p className="text-xs text-gray-400 mt-0.5">Te enviaremos un código a tu correo para verificar tu identidad.</p>
                 </div>
                 <button
                   onClick={handleEnviarCodigo}
                   disabled={resetStep === "sending"}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-[#449D3A] hover:bg-[#3a8531] text-white text-sm font-bold rounded-xl disabled:opacity-50 transition-colors shrink-0 ml-4"
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-[#449D3A] hover:bg-[#3a8531] text-white text-sm font-bold rounded-xl disabled:opacity-50 transition-colors sm:shrink-0"
                 >
                   {resetStep === "sending"
                     ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Enviando...</>

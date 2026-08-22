@@ -48,6 +48,7 @@ export default function EstadisticasPage() {
   const kpiCards = [
     { label: 'EMPRESAS REGISTRADAS', value: stats.kpis.empresasRegistradas, icon: Building2, color: 'text-green-600', bg: 'bg-green-50' },
     { label: 'PARTICIPANTES TOTALES', value: stats.kpis.participantesTotales, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
+    { label: 'ASISTENTES DEL DÍA', value: stats.kpis.asistentesHoy ?? 0, icon: CalendarCheck, color: 'text-green-700', bg: 'bg-green-50' },
     { label: 'REUNIONES PROGRAMADAS', value: stats.kpis.reunionesProgramadas, icon: CalendarCheck, color: 'text-indigo-600', bg: 'bg-indigo-50' },
     { label: 'REUNIONES REALIZADAS', value: stats.kpis.reunionesRealizadas, icon: Handshake, color: 'text-purple-600', bg: 'bg-purple-50' },
     { label: 'PAGOS VERIFICADOS', value: stats.kpis.pagosVerificados, icon: Shield, color: 'text-emerald-600', bg: 'bg-emerald-50' },

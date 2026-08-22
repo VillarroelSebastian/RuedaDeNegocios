@@ -33,6 +33,7 @@ export default function PagoDetailScreen({ route, navigation }: any) {
       title: 'Aprobar pago',
       message: 'Esto habilitará a la empresa y sus participantes en el sistema del evento.',
       confirmText: 'Aprobar',
+      confirmColor: '#449D3A',
       cancelText: 'Cancelar',
       onConfirm: async () => {
         setSubmitting(true);

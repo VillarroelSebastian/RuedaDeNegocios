@@ -84,7 +84,7 @@ export default function EmpresaSidebar({ esEncargado = false, eeId = null, mobil
         >
           <X className="w-4 h-4 text-gray-500" />
         </button>
-      <div className="flex items-center gap-2.5 px-5 h-16 border-b border-gray-100 shrink-0">
+      <Link href="/" aria-label="Ir al inicio público" className="flex items-center gap-2.5 px-5 h-16 border-b border-gray-100 shrink-0">
         {foto ? (
           <img src={foto} alt="Tu foto de perfil" className="w-9 h-9 rounded-full object-contain border border-gray-200 shrink-0" />
         ) : (
@@ -96,7 +96,7 @@ export default function EmpresaSidebar({ esEncargado = false, eeId = null, mobil
           <p className="text-xs font-bold text-gray-900 leading-tight truncate">{nombre || 'Panel Empresa'}</p>
           <p className="text-[10px] text-gray-400">{esEncargado ? 'Encargado' : 'Participante'}</p>
         </div>
-      </div>
+      </Link>
 
       {esEncargado && (
         <div className="px-4 py-2 border-b border-gray-100">

@@ -334,9 +334,9 @@ export default function TecnicoPerfilPage() {
                 <p className="text-xs text-gray-400 mt-1">El correo no se puede modificar.</p>
               </div>
             </div>
-            <div className="flex justify-end pt-2">
+            <div className="flex justify-stretch sm:justify-end pt-2">
               <button onClick={handleSavePerfil} disabled={saving}
-                className="flex items-center gap-2 bg-[#449D3A] text-white font-semibold px-6 py-2.5 rounded-xl hover:bg-[#367d2e] disabled:opacity-50 transition-colors shadow-sm">
+                className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#449D3A] text-white font-semibold px-6 py-2.5 rounded-xl hover:bg-[#367d2e] disabled:opacity-50 transition-colors shadow-sm">
                 <Save className="w-4 h-4" />
                 {saving ? 'Guardando...' : 'Guardar cambios'}
               </button>
