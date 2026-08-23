@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Armchair, Video, Search, Newspaper,
-  UserCircle, LogOut, Shield, Menu, X, CalendarPlus, Radio, QrCode, Images,
+  UserCircle, LogOut, Shield, Menu, X, CalendarPlus, Radio, QrCode, Images, Bell, CalendarDays,
 } from 'lucide-react';
 
 const menuItems = [
@@ -17,6 +17,8 @@ const menuItems = [
   { name: 'Cronograma en Vivo', icon: Radio,         href: '/tecnico/cronograma-vivo' },
   { name: 'Galería del evento', icon: Images,        href: '/tecnico/galeria' },
   { name: 'Asistencia QR',    icon: QrCode,          href: '/tecnico/asistencia' },
+  { name: 'Crear notificaciones', icon: Bell,         href: '/tecnico/notificaciones' },
+  { name: 'Crear eventos',    icon: CalendarDays,     href: '/tecnico/eventos' },
   { name: 'Contenido del evento', icon: Newspaper,   href: '/tecnico/contenido' },
   { name: 'Mi Perfil',        icon: UserCircle,      href: '/tecnico/perfil' },
 ];
@@ -92,7 +94,7 @@ export default function TecnicoSidebar() {
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-3 mb-2">Menú principal</p>
-        {menuItems.filter((item) => user?.rolEvento !== 'TECNICO_EVENTOS' || ['/tecnico/contenido', '/tecnico/cronograma-vivo', '/tecnico/galeria', '/tecnico/perfil'].includes(item.href)).map((item) => {
+        {menuItems.filter((item) => user?.rolEvento !== 'TECNICO_EVENTOS' || ['/tecnico/contenido', '/tecnico/notificaciones', '/tecnico/eventos', '/tecnico/cronograma-vivo', '/tecnico/galeria', '/tecnico/perfil'].includes(item.href)).map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
           return (
             <Link key={item.name} href={item.href}

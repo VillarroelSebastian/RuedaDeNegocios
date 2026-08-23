@@ -16,7 +16,7 @@ export default function TecnicoLayout({ children }: { children: React.ReactNode 
       const user = JSON.parse(raw);
       if (!['TECNICO', 'TECNICO_EVENTOS'].includes(user?.rolEvento)) {
         router.replace('/auth/login');
-      } else if (user.rolEvento === 'TECNICO_EVENTOS' && !['/tecnico/cronograma-vivo', '/tecnico/contenido', '/tecnico/galeria', '/tecnico/perfil'].some((p) => pathname.startsWith(p))) {
+      } else if (user.rolEvento === 'TECNICO_EVENTOS' && !['/tecnico/cronograma-vivo', '/tecnico/contenido', '/tecnico/notificaciones', '/tecnico/eventos', '/tecnico/galeria', '/tecnico/perfil'].some((p) => pathname.startsWith(p))) {
         router.replace('/tecnico/cronograma-vivo');
       }
     } catch {
