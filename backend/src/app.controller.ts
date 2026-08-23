@@ -3495,6 +3495,23 @@ export class AppController implements OnModuleInit {
     return slots;
   }
 
+  // Jornada operativa especial para el equipo técnico: puede crear reuniones
+  // desde las 08:00 hasta las 00:00 de Bolivia, aunque las empresas hayan
+  // declarado otros rangos. La última hora de inicio debe permitir que la
+  // reunión termine antes o exactamente a medianoche.
+  private generarCandidatosInicioTecnico(evento: any): { inicio: Date; fin: Date }[] {
+    const PASO_MS = 5 * 60000;
+    const durMs = evento.duracionReunion * 60000;
+    const fecha = new Date(evento.fechaInicioEvento);
+    const start = new Date(Date.UTC(fecha.getUTCFullYear(), fecha.getUTCMonth(), fecha.getUTCDate(), 12, 0, 0)); // 08:00 BO
+    const end = new Date(Date.UTC(fecha.getUTCFullYear(), fecha.getUTCMonth(), fecha.getUTCDate() + 1, 4, 0, 0)); // 00:00 BO
+    const slots: { inicio: Date; fin: Date }[] = [];
+    for (let current = start; current.getTime() + durMs <= end.getTime(); current = new Date(current.getTime() + PASO_MS)) {
+      slots.push({ inicio: new Date(current), fin: new Date(current.getTime() + durMs) });
+    }
+    return slots;
+  }
+
   // Helper: verifica que eeId es un empresaevento habilitado del evento principal
   private async verificarEE(eeId: number) {
     const ee = await this.prisma.empresaevento.findFirst({
@@ -4494,6 +4511,7 @@ export class AppController implements OnModuleInit {
     @Query('excludeReunionId') excludeReunionId?: string,
     @Query('solicitudId') solicitudId?: string,
     ignorarDisponibilidadPersonalizada = false,
+    usarJornadaTecnica = false,
   ) {
     if (!eeId || Number.isNaN(Number(eeId))) throw new BadRequestException('eeId requerido');
     let eeReceptoraId = eeReceptoraIdRaw;
@@ -4518,7 +4536,7 @@ export class AppController implements OnModuleInit {
     // Toda la disponibilidad real: candidatos de inicio cada 5 minutos dentro de la
     // ventana del evento (no la grilla fija duración+descanso, que solo daba 2 opciones
     // de minutos por hora). Lo ocupado se descarta por solapamiento más abajo.
-    const franjas = this.generarCandidatosInicio(evento);
+    const franjas = usarJornadaTecnica ? this.generarCandidatosInicioTecnico(evento) : this.generarCandidatosInicio(evento);
     if (franjas.length === 0) return { duracionMinutos: evento.duracionReunion, horarios: [] };
 
     const excludeId = excludeReunionId ? Number(excludeReunionId) : undefined;
@@ -4595,7 +4613,7 @@ export class AppController implements OnModuleInit {
     @Query('eeId') eeId: string,
     @Query('eeReceptoraId') eeReceptoraId: string,
   ) {
-    return this.getHorariosDisponibles(eeId, eeReceptoraId, undefined, undefined, true);
+    return this.getHorariosDisponibles(eeId, eeReceptoraId, undefined, undefined, true, true);
   }
 
   @Get('empresa/mesas-disponibles')
