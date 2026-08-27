@@ -3,9 +3,10 @@ import {
   View, Text, ScrollView, TouchableOpacity,
   TextInput, ActivityIndicator, Linking, Image
 } from 'react-native';
-import { CheckCircle, AlertCircle, FileText, Download, Info, XCircle } from 'lucide-react-native';
+import { CheckCircle, AlertCircle, FileText, Download, Eye, Info, XCircle } from 'lucide-react-native';
 import { API_URL } from '../../utils/userStore';
 import { useModal } from '../../components/AppModal';
+import FichaEmpresaModal from '../../components/FichaEmpresaModal';
 
 const GREEN = '#449D3A';
 
@@ -16,6 +17,7 @@ export default function PagoDetailScreen({ route, navigation }: any) {
   const [loading, setLoading] = useState(true);
   const [observacion, setObservacion] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [verFicha, setVerFicha] = useState(false);
 
   const fetchPago = async () => {
     try {
@@ -119,6 +121,7 @@ export default function PagoDetailScreen({ route, navigation }: any) {
   return (
     <>
     {modal}
+    {verFicha && pago.empresa?.id && <FichaEmpresaModal empresaId={pago.empresa.id} onClose={() => setVerFicha(false)} />}
     <ScrollView className="flex-1 bg-[#F9FAFB]">
       <View className="p-4 space-y-4">
         {/* Resumen */}
@@ -147,6 +150,15 @@ export default function PagoDetailScreen({ route, navigation }: any) {
               </Text>
             </View>
           </View>
+          {!!pago.empresa?.id && (
+            <TouchableOpacity
+              onPress={() => setVerFicha(true)}
+              style={{ marginTop: 14, borderWidth: 1.5, borderColor: GREEN, borderRadius: 12, paddingVertical: 11, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 }}
+            >
+              <Eye color={GREEN} size={16} />
+              <Text style={{ color: GREEN, fontSize: 13, fontWeight: '800' }}>Ver ficha completa de la empresa</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Comprobante */}

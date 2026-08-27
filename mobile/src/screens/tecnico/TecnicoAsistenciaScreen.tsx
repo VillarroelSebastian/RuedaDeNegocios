@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -21,6 +21,7 @@ export default function TecnicoAsistenciaScreen() {
   const [pendiente, setPendiente] = useState<any>(null);
   const [asistencias, setAsistencias] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const escaneoBloqueadoRef = useRef(false);
   const { show, modal } = useModal();
   const tecnicoId = userStore.get()?.id;
 
@@ -58,17 +59,19 @@ export default function TecnicoAsistenciaScreen() {
   );
 
   const procesarQR = async (contenido: string) => {
-    if (procesando) return;
+    if (procesando || escaneoBloqueadoRef.current) return;
+    escaneoBloqueadoRef.current = true;
     const match = contenido.match(/\/credencial\/(\d+)\?t=([a-zA-Z0-9]+)/);
     const matchAusp = contenido.match(
       /\/credencial\/auspiciador\/(\d+)\?t=([a-zA-Z0-9]+)/,
     );
     if (!match && !matchAusp) {
-      setEscaneando(false);
       show({
         type: "error",
         title: "QR no valido",
         message: "Este codigo no corresponde a una credencial del evento.",
+        onConfirm: () => { escaneoBloqueadoRef.current = false; },
+        onCancel: () => { escaneoBloqueadoRef.current = false; },
       });
       return;
     }
@@ -84,6 +87,7 @@ export default function TecnicoAsistenciaScreen() {
       if (!res.ok)
         throw new Error(data?.message || "No se pudo verificar la credencial.");
       setEscaneando(false);
+      escaneoBloqueadoRef.current = false;
       setPendiente({
         ...(auspiciador
           ? { personaId: Number(partes[1]) }
@@ -93,11 +97,12 @@ export default function TecnicoAsistenciaScreen() {
         ...data,
       });
     } catch (e: any) {
-      setEscaneando(false);
       show({
         type: "error",
         title: "No se pudo registrar",
         message: e.message,
+        onConfirm: () => { escaneoBloqueadoRef.current = false; },
+        onCancel: () => { escaneoBloqueadoRef.current = false; },
       });
     } finally {
       setProcesando(false);
@@ -126,14 +131,18 @@ export default function TecnicoAsistenciaScreen() {
         throw new Error(data?.message || "No se pudo registrar la asistencia.");
       setPendiente((actual: any) => ({
         ...actual,
-        asistencia: { registrada: true, fechaHoraAsistencia: data.fechaHoraAsistencia },
+        asistencia: {
+          registrada: data.usosRestantes === 0,
+          fechaHoraAsistencia: data.fechaHoraAsistencia,
+          usosHoy: data.usosHoy,
+          usosRestantes: data.usosRestantes,
+          limiteDiario: data.limiteDiario,
+        },
       }));
       show({
-        type: data.yaRegistrada ? "warning" : "success",
-        title: data.yaRegistrada
-          ? "Asistencia ya registrada"
-          : "Asistencia registrada",
-        message: `${data.participante.nombre} · ${data.participante.empresa}`,
+        type: "success",
+        title: "Asistencia registrada",
+        message: `${data.participante.nombre} · uso ${data.usosHoy} de ${data.limiteDiario}. ${data.usosRestantes ? `Queda ${data.usosRestantes} registro hoy.` : "Se alcanzó el límite diario."}`,
       });
       cargar();
     } catch (e: any) {
@@ -182,7 +191,10 @@ export default function TecnicoAsistenciaScreen() {
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            onPress={() => setEscaneando(false)}
+          onPress={() => {
+            escaneoBloqueadoRef.current = false;
+            setEscaneando(false);
+          }}
             style={{ padding: 16 }}
           >
             <Text style={{ color: "#64748b" }}>Volver</Text>
@@ -211,7 +223,10 @@ export default function TecnicoAsistenciaScreen() {
             {procesando ? "Registrando..." : "Apunta al QR de la credencial"}
           </Text>
           <TouchableOpacity
-            onPress={() => setEscaneando(false)}
+            onPress={() => {
+              escaneoBloqueadoRef.current = false;
+              setEscaneando(false);
+            }}
             style={{
               backgroundColor: "#fff",
               borderRadius: 12,
@@ -287,7 +302,9 @@ export default function TecnicoAsistenciaScreen() {
               marginTop: 8,
             }}
           >
-            {pendiente.asistencia?.registrada ? "ASISTENCIA YA REGISTRADA" : "CREDENCIAL VÁLIDA"}
+            {pendiente.asistencia?.registrada
+              ? "LÍMITE DIARIO ALCANZADO"
+              : `CREDENCIAL VÁLIDA · ${pendiente.asistencia?.usosHoy || 0} DE ${pendiente.asistencia?.limiteDiario || 2} USOS`}
           </Text>
           <Text
             style={{
@@ -309,7 +326,7 @@ export default function TecnicoAsistenciaScreen() {
               ["Evento", pendiente.evento?.nombre || pendiente.evento || "Evento actual"],
             ].map(([etiqueta, valor]) => <View key={etiqueta} style={{ backgroundColor: "#f8fafc", borderRadius: 10, padding: 10 }}><Text style={{ color: "#94a3b8", fontSize: 10 }}>{etiqueta}</Text><Text style={{ color: "#334155", fontWeight: "700", fontSize: 13 }}>{valor}</Text></View>)}
           </View>
-          {pendiente.asistencia?.registrada && <View style={{ marginTop: 12, padding: 11, borderRadius: 10, backgroundColor: "#f0fdf4", borderWidth: 1, borderColor: "#bbf7d0" }}><Text style={{ color: "#166534", fontWeight: "700", textAlign: "center", fontSize: 12 }}>Registrada el {new Date(pendiente.asistencia.fechaHoraAsistencia).toLocaleString("es-BO")}</Text></View>}
+          {pendiente.asistencia?.fechaHoraAsistencia && <View style={{ marginTop: 12, padding: 11, borderRadius: 10, backgroundColor: "#f0fdf4", borderWidth: 1, borderColor: "#bbf7d0" }}><Text style={{ color: "#166534", fontWeight: "700", textAlign: "center", fontSize: 12 }}>Último registro: {new Date(pendiente.asistencia.fechaHoraAsistencia).toLocaleString("es-BO", { timeZone: "America/La_Paz" })}. Usos de hoy: {pendiente.asistencia.usosHoy} de {pendiente.asistencia.limiteDiario || 2}.</Text></View>}
           <View style={{ gap: 8, marginTop: 18 }}>
             {!pendiente.asistencia?.registrada && <TouchableOpacity
               onPress={registrarAsistencia}

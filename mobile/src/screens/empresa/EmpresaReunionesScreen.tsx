@@ -305,6 +305,9 @@ function DetalleReunionModal({ reunion, eeId, esEncargado, navigation, onClose, 
   const [confirmandoFin, setConfirmandoFin] = useState(false);
   const [iniciando, setIniciando] = useState(false);
   const [msgIni, setMsgIni] = useState<string | null>(null);
+  const [confirmandoCancelacion, setConfirmandoCancelacion] = useState(false);
+  const [cancelandoReunion, setCancelandoReunion] = useState(false);
+  const [motivoCancelacion, setMotivoCancelacion] = useState('');
 
   const handleIniciar = async () => {
     setIniciando(true); setMsgIni(null);
@@ -331,6 +334,22 @@ function DetalleReunionModal({ reunion, eeId, esEncargado, navigation, onClose, 
       if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
       onFinalizado();
     } catch (e: any) { setErrFin(e.message || 'Error al finalizar'); setFinalizando(false); }
+  };
+
+  const handleCancelarReunion = async () => {
+    setCancelandoReunion(true); setErrFin(null);
+    try {
+      const res = await fetch(`${API_URL}/empresa/reuniones/${reunion.id}/cancelar`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eeId, motivo: motivoCancelacion }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || 'No se pudo cancelar la reunión.');
+      onFinalizado();
+    } catch (e: any) {
+      setErrFin(e.message || 'No se pudo cancelar la reunión.');
+      setCancelandoReunion(false);
+    }
   };
 
   const Row = ({ label, value }: { label: string; value: string | React.ReactNode }) => (
@@ -454,6 +473,32 @@ function DetalleReunionModal({ reunion, eeId, esEncargado, navigation, onClose, 
                   <Text style={dm.secondaryBtnText}>Cambiar horario</Text>
                 </TouchableOpacity>
               )}
+              {esEncargado && esProgramada && (confirmandoCancelacion ? (
+                <View style={dm.cancelMeetingBox}>
+                  <Text style={dm.cancelMeetingText}>La otra empresa y el equipo técnico verán esta cancelación.</Text>
+                  <TextInput
+                    value={motivoCancelacion}
+                    onChangeText={setMotivoCancelacion}
+                    maxLength={300}
+                    multiline
+                    placeholder="Motivo de la cancelación (opcional)"
+                    style={dm.cancelMeetingInput}
+                  />
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <TouchableOpacity onPress={() => setConfirmandoCancelacion(false)} disabled={cancelandoReunion} style={dm.confirmFinCancel}>
+                      <Text style={dm.confirmFinCancelText}>Volver</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={handleCancelarReunion} disabled={cancelandoReunion} style={[dm.cancelMeetingConfirm, cancelandoReunion && { opacity: 0.6 }]}>
+                      {cancelandoReunion ? <ActivityIndicator size="small" color="#fff" /> : <Text style={dm.finalizarBtnText}>Confirmar</Text>}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                <TouchableOpacity onPress={() => setConfirmandoCancelacion(true)} style={dm.cancelMeetingBtn} activeOpacity={0.8}>
+                  <AlertTriangle size={14} color="#b91c1c" style={{ marginRight: 8 }} />
+                  <Text style={dm.cancelMeetingBtnText}>Cancelar reunión</Text>
+                </TouchableOpacity>
+              ))}
               {puedeFinalizarEncargado && (
                 <>
                   {!!errFin && (
@@ -551,6 +596,12 @@ const dm = StyleSheet.create({
   confirmFinCancel: { flex: 1, height: 42, borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   confirmFinCancelText: { color: '#475569', fontSize: 13, fontWeight: '700' },
   confirmFinOk: { flex: 1, height: 42, borderRadius: 10, backgroundColor: '#f97316', alignItems: 'center', justifyContent: 'center' },
+  cancelMeetingBtn: { flexDirection: 'row', borderRadius: 14, height: 46, borderWidth: 1.5, borderColor: '#fecaca', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fef2f2' },
+  cancelMeetingBtnText: { fontSize: 14, fontWeight: '700', color: '#b91c1c' },
+  cancelMeetingBox: { backgroundColor: '#fef2f2', borderWidth: 1, borderColor: '#fecaca', borderRadius: 14, padding: 12, gap: 10 },
+  cancelMeetingText: { color: '#991b1b', fontSize: 13, fontWeight: '600', lineHeight: 18 },
+  cancelMeetingInput: { minHeight: 62, borderWidth: 1, borderColor: '#fecaca', borderRadius: 10, backgroundColor: '#fff', paddingHorizontal: 10, paddingVertical: 8, textAlignVertical: 'top', color: '#0f172a' },
+  cancelMeetingConfirm: { flex: 1, height: 42, borderRadius: 10, backgroundColor: '#dc2626', alignItems: 'center', justifyContent: 'center' },
 });
 
 // ── Main Screen ───────────────────────────────────────────────────────────────

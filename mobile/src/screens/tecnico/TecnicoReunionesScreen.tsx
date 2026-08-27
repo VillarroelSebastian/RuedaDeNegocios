@@ -5,17 +5,21 @@ import {
 } from 'react-native';
 import {
   Building2, Clock, Video, MapPin, CheckCircle, ChevronDown,
-  ChevronUp, Search, X, Armchair,
+  ChevronUp, Search, X, Armchair, AlertTriangle,
 } from 'lucide-react-native';
 import { API_URL } from '../../utils/userStore';
 
 const GREEN = '#449D3A';
 
 function fmtTime(iso: string) {
-  return new Date(iso).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return new Date(iso).toLocaleTimeString('es-BO', {
+    hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/La_Paz',
+  });
 }
 function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString('es-BO', { day: 'numeric', month: 'short' });
+  return new Date(iso).toLocaleDateString('es-BO', {
+    day: 'numeric', month: 'short', timeZone: 'America/La_Paz',
+  });
 }
 
 const ESTADO_CFG: Record<string, { color: string; bg: string; dot: string; label: string }> = {
@@ -63,6 +67,8 @@ function ReunionCard({ r, onCambiarEstado }: { r: any; onCambiarEstado: (id:numb
     ?? (sol?.direccionTexto ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(sol.direccionTexto)}` : null);
   const esVirtual   = r.tipoReunion === 'VIRTUAL'    || r.tipoReunion === 'MIXTA';
   const esPresencial= r.tipoReunion === 'PRESENCIAL' || r.tipoReunion === 'MIXTA';
+  const canceladaPorEmpresa = r.estadoReunion === 'CANCELADA'
+    && /^Cancelada por /i.test(r.observacionesReunion ?? '');
   const permitidos: Record<string, string[]> = {
     PROGRAMADA: ['EN_CURSO', 'FINALIZADA', 'CANCELADA'],
     REPROGRAMADA: ['EN_CURSO', 'FINALIZADA', 'CANCELADA'],
@@ -112,6 +118,13 @@ function ReunionCard({ r, onCambiarEstado }: { r: any; onCambiarEstado: (id:numb
 
       {expanded && (
         <View style={{ borderTopWidth:1, borderTopColor:'#f3f4f6', padding:14, gap:8 }}>
+          {canceladaPorEmpresa && (
+            <View style={{ flexDirection:'row', alignItems:'flex-start', gap:8, borderWidth:1,
+              borderColor:'#fecaca', backgroundColor:'#fef2f2', borderRadius:12, padding:10 }}>
+              <AlertTriangle color="#dc2626" size={16}/>
+              <Text style={{ flex:1, color:'#991b1b', fontSize:12, lineHeight:17 }}>{r.observacionesReunion}</Text>
+            </View>
+          )}
           {esVirtual && link && (
             <TouchableOpacity onPress={() => Linking.openURL(link)}
               style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:8, paddingVertical:10, borderRadius:12, backgroundColor:'#2563eb' }}>
@@ -198,6 +211,9 @@ export default function TecnicoReunionesScreen() {
 
   const estados = ['TODOS','PROGRAMADA','REPROGRAMADA','EN_CURSO','FINALIZADA','CANCELADA'];
   const tipos   = ['TODOS','PRESENCIAL','VIRTUAL','MIXTA'];
+  const canceladasPorEmpresa = reuniones.filter((r) =>
+    r.estadoReunion === 'CANCELADA' && /^Cancelada por /i.test(r.observacionesReunion ?? ''),
+  );
 
   return (
     <View style={{ flex:1, backgroundColor:'#f8fafc' }}>
@@ -263,6 +279,20 @@ export default function TecnicoReunionesScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchReuniones(); }} tintColor={GREEN} />}
           showsVerticalScrollIndicator={false}
         >
+          {canceladasPorEmpresa.length > 0 && (
+            <View style={{ flexDirection:'row', alignItems:'flex-start', gap:10, marginBottom:12,
+              borderWidth:1, borderColor:'#fecaca', backgroundColor:'#fef2f2', borderRadius:16, padding:14 }}>
+              <AlertTriangle color="#dc2626" size={19}/>
+              <View style={{ flex:1 }}>
+                <Text style={{ color:'#991b1b', fontSize:13, fontWeight:'800' }}>
+                  {canceladasPorEmpresa.length} reunión(es) cancelada(s) por empresas
+                </Text>
+                <Text style={{ color:'#b91c1c', fontSize:11, lineHeight:16, marginTop:3 }}>
+                  Abre las tarjetas canceladas para consultar quién canceló y el motivo.
+                </Text>
+              </View>
+            </View>
+          )}
           {reuniones.length === 0 ? (
             <View style={{ backgroundColor:'#fff', borderRadius:16, borderWidth:1, borderColor:'#f1f5f9', padding:40, alignItems:'center' }}>
               <CheckCircle color="#d1d5db" size={36}/>

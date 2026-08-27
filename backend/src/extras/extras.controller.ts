@@ -9,6 +9,23 @@ import * as QRCode from 'qrcode';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service.js';
 
+const EVENT_TIME_ZONE = 'America/La_Paz';
+const LIMITE_ASISTENCIAS_DIARIAS = 2;
+const EMAIL_LOGO_CID = 'rueda-logo@ruedadenegocios';
+
+function claveFechaBolivia(fecha: Date): string {
+  const partes = new Intl.DateTimeFormat('en-CA', {
+    timeZone: EVENT_TIME_ZONE,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(fecha);
+  const valor = (tipo: string) => partes.find((p) => p.type === tipo)?.value ?? '';
+  return `${valor('year')}-${valor('month')}-${valor('day')}`;
+}
+
+function claveFechaUtc(fecha: Date): string {
+  return `${fecha.getUTCFullYear()}-${String(fecha.getUTCMonth() + 1).padStart(2, '0')}-${String(fecha.getUTCDate()).padStart(2, '0')}`;
+}
+
 // Paquetes de inscripción, auspiciadores, repositorio de fotos y cronograma en
 // vivo. Van en su propio controlador para no seguir engrosando app.controller.
 @Controller()
@@ -16,8 +33,15 @@ export class ExtrasController {
   constructor(private readonly prisma: PrismaService) {}
 
   private cabeceraCorreo(): string {
-    const web = (process.env.WEB_URL || 'https://app.ruedadenegocios.univalle.edu').replace(/\/$/, '');
-    return `<div style="text-align:center;margin-bottom:18px"><img src="${web}/assets/iconos/logo.png" alt="Rueda de Negocios" width="190" style="display:inline-block;max-width:190px;max-height:90px;object-fit:contain" /></div>`;
+    return `<div style="text-align:center;margin-bottom:18px"><img src="cid:${EMAIL_LOGO_CID}" alt="Rueda de Negocios" width="190" style="display:inline-block;max-width:190px;max-height:90px;object-fit:contain" /></div>`;
+  }
+
+  private adjuntoLogoCorreo() {
+    return [{
+      filename: 'rueda-de-negocios.png',
+      path: join(process.cwd(), '..', 'web', 'public', 'assets', 'iconos', 'logo.png'),
+      cid: EMAIL_LOGO_CID,
+    }];
   }
 
   // ── Utilidades compartidas ────────────────────────────────────────────────
@@ -29,6 +53,26 @@ export class ExtrasController {
     });
     if (!ev) throw new BadRequestException('No hay un evento principal activo.');
     return ev.id;
+  }
+
+  private contextoAsistenciaEvento(evento: { fechaInicioEvento: Date; fechaFinEvento: Date }) {
+    const inicio = new Date(evento.fechaInicioEvento);
+    const fin = new Date(evento.fechaFinEvento);
+    const heredadoUnDia = inicio.getUTCHours() === 0 && inicio.getUTCMinutes() === 0 &&
+      fin.getUTCHours() === 0 && fin.getUTCMinutes() === 0 &&
+      fin.getTime() - inicio.getTime() === 24 * 60 * 60 * 1000;
+    const hoy = claveFechaBolivia(new Date());
+    const primerDia = heredadoUnDia ? claveFechaUtc(inicio) : claveFechaBolivia(inicio);
+    const horaFin = new Intl.DateTimeFormat('en-GB', {
+      timeZone: EVENT_TIME_ZONE, hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+    }).format(fin);
+    const finAjustado = !heredadoUnDia && fin > inicio && horaFin === '00:00'
+      ? new Date(fin.getTime() - 1)
+      : fin;
+    const ultimoDia = heredadoUnDia ? primerDia : claveFechaBolivia(finAjustado);
+    if (hoy < primerDia || hoy > ultimoDia)
+      throw new BadRequestException(`La asistencia solo puede registrarse durante el evento (${primerDia} al ${ultimoDia}).`);
+    return { fechaAsistencia: new Date(`${hoy}T00:00:00.000Z`) };
   }
 
   private uploadsBaseUrl(): string {
@@ -97,7 +141,7 @@ export class ExtrasController {
       return { empresa, ee, usuario };
     });
     const transporter = nodemailer.createTransport({ service: 'gmail', auth: { user: process.env.MAIL_USER, pass: process.env.MAIL_PASS } });
-    await transporter.sendMail({ from: process.env.MAIL_FROM || process.env.MAIL_USER, to: correo, subject: `Acceso a la plataforma — ${ausp.nombreEmpresa}`, html: `${this.cabeceraCorreo()}<div style="font-family:Arial;max-width:560px;margin:auto"><h2 style="color:#449D3A">Acceso de empresa auspiciadora</h2><p>Ya puedes ingresar como empresa y acceder a las funcionalidades del evento.</p><div style="padding:18px;background:#f0fdf4;border-radius:12px"><b>Correo:</b> ${correo}<br/><b>Contraseña temporal:</b> ${pwd}</div><p><a href="${(process.env.WEB_URL || 'http://localhost:3000').replace(/\/$/,'')}/auth/login">Ingresar a la plataforma</a></p></div>` });
+    await transporter.sendMail({ from: process.env.MAIL_FROM || process.env.MAIL_USER, to: correo, subject: `Acceso a la plataforma — ${ausp.nombreEmpresa}`, attachments: this.adjuntoLogoCorreo(), html: `${this.cabeceraCorreo()}<div style="font-family:Arial;max-width:560px;margin:auto"><h2 style="color:#449D3A">Acceso de empresa auspiciadora</h2><p>Ya puedes ingresar como empresa y acceder a las funcionalidades del evento.</p><div style="padding:18px;background:#f0fdf4;border-radius:12px"><b>Correo:</b> ${correo}<br/><b>Contraseña temporal:</b> ${pwd}</div><p><a href="${(process.env.WEB_URL || 'http://localhost:3000').replace(/\/$/,'')}/auth/login">Ingresar a la plataforma</a></p></div>` });
     return { creado: true, empresaEventoId: creado.ee.id };
   }
 
@@ -115,6 +159,7 @@ export class ExtrasController {
     await transporter.sendMail({
       from: process.env.MAIL_FROM,
       to: persona.correo,
+      attachments: this.adjuntoLogoCorreo(),
       subject: `Tu credencial para ${persona.auspiciador.evento.nombre}`,
       html: `${this.cabeceraCorreo()}<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;color:#1f2937">
         <h2 style="color:#449D3A">Hola, ${persona.nombreCompleto}</h2>
@@ -473,15 +518,31 @@ export class ExtrasController {
     const id = Number(personaId);
     const data: any = await this.credencialAuspiciador(String(id), token);
     const persona = await this.prisma.auspiciadorpersona.findUnique({
-      where: { id }, include: { auspiciador: { select: { evento_id: true } } },
+      where: { id }, include: { auspiciador: { include: { evento: true } } },
     });
     if (!persona || (req.user?.eventoId && persona.auspiciador.evento_id !== req.user.eventoId))
       throw new BadRequestException('La credencial no corresponde al evento del técnico autenticado.');
-    const asistencia = await this.prisma.asistenciaauspiciador.findFirst({
-      where: { evento_id: persona.auspiciador.evento_id, auspiciadorpersona_id: id, estaActivo: 1 },
-      select: { id: true, fechaHoraAsistencia: true },
-    });
-    return { ...data, personaId: id, asistencia: asistencia ? { registrada: true, ...asistencia } : { registrada: false } };
+    const { fechaAsistencia } = this.contextoAsistenciaEvento(persona.auspiciador.evento);
+    const [usosHoy, ultima] = await Promise.all([
+      this.prisma.asistenciaauspiciador.count({
+        where: { evento_id: persona.auspiciador.evento_id, auspiciadorpersona_id: id, fechaAsistencia, estaActivo: 1 },
+      }),
+      this.prisma.asistenciaauspiciador.findFirst({
+        where: { evento_id: persona.auspiciador.evento_id, auspiciadorpersona_id: id, fechaAsistencia, estaActivo: 1 },
+        orderBy: { fechaHoraAsistencia: 'desc' }, select: { id: true, fechaHoraAsistencia: true },
+      }),
+    ]);
+    return {
+      ...data,
+      personaId: id,
+      asistencia: {
+        registrada: usosHoy >= LIMITE_ASISTENCIAS_DIARIAS,
+        usosHoy,
+        usosRestantes: Math.max(0, LIMITE_ASISTENCIAS_DIARIAS - usosHoy),
+        limiteDiario: LIMITE_ASISTENCIAS_DIARIAS,
+        ...(ultima ?? {}),
+      },
+    };
   }
 
   @Post('tecnico/asistencias-auspiciadores')
@@ -499,14 +560,27 @@ export class ExtrasController {
     if (!persona) throw new BadRequestException('La credencial del auspiciador no está vigente.');
     if (req.user?.eventoId && persona.auspiciador.evento_id !== req.user.eventoId)
       throw new BadRequestException('La credencial pertenece a otro evento.');
-    const existente = await this.prisma.asistenciaauspiciador.findFirst({
-      where: { evento_id: persona.auspiciador.evento_id, auspiciadorpersona_id: personaId, estaActivo: 1 },
-    });
-    const asistencia = existente ?? await this.prisma.asistenciaauspiciador.create({
-      data: { evento_id: persona.auspiciador.evento_id, auspiciadorpersona_id: personaId, tecnico_id: tecnicoId },
+    const { fechaAsistencia } = this.contextoAsistenciaEvento(persona.auspiciador.evento);
+    const resultado = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRawUnsafe('SELECT 1 AS locked FROM pg_advisory_xact_lock($1, $2)', persona.auspiciador.evento_id, -personaId);
+      const usosHoy = await tx.asistenciaauspiciador.count({
+        where: { evento_id: persona.auspiciador.evento_id, auspiciadorpersona_id: personaId, fechaAsistencia, estaActivo: 1 },
+      });
+      if (usosHoy >= LIMITE_ASISTENCIAS_DIARIAS)
+        throw new BadRequestException('Esta credencial ya utilizó sus 2 registros de asistencia de hoy.');
+      const asistencia = await tx.asistenciaauspiciador.create({
+        data: {
+          evento_id: persona.auspiciador.evento_id, auspiciadorpersona_id: personaId,
+          tecnico_id: tecnicoId, fechaAsistencia, numeroUso: usosHoy + 1,
+        },
+      });
+      return { asistencia, usosHoy: usosHoy + 1 };
     });
     return {
-      ok: true, yaRegistrada: Boolean(existente), fechaHoraAsistencia: asistencia.fechaHoraAsistencia,
+      ok: true, yaRegistrada: false, fechaHoraAsistencia: resultado.asistencia.fechaHoraAsistencia,
+      usosHoy: resultado.usosHoy,
+      usosRestantes: LIMITE_ASISTENCIAS_DIARIAS - resultado.usosHoy,
+      limiteDiario: LIMITE_ASISTENCIAS_DIARIAS,
       participante: { nombre: persona.nombreCompleto, empresa: persona.auspiciador.nombreEmpresa, cargo: persona.cargo },
       lugar: [persona.auspiciador.evento.ciudadEvento, persona.auspiciador.evento.paisEvento].filter(Boolean).join(', '),
     };

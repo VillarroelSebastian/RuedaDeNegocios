@@ -9,8 +9,8 @@ const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 interface Rango { desde: string; hasta: string }
 
 function rangoEvento(evento?: any): Rango {
-  const hora = (iso?: string) => iso ? new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false }) : "";
-  return { desde: hora(evento?.fechaInicioEvento), hasta: hora(evento?.fechaFinEvento) };
+  const hora = (iso?: string) => iso ? new Date(iso).toLocaleTimeString("en-GB", { timeZone: "America/La_Paz", hour: "2-digit", minute: "2-digit", hour12: false }) : "";
+  return { desde: hora(evento?.fechaInicioReuniones || evento?.fechaInicioEvento), hasta: hora(evento?.fechaFinReuniones || evento?.fechaFinEvento) };
 }
 
 export default function HorariosPage() {

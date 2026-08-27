@@ -16,6 +16,7 @@ export default function TecnicoAsistenciaPage() {
   } | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const controlesRef = useRef<any>(null);
+  const escaneoBloqueadoRef = useRef(false);
   const tecnico =
     typeof window !== "undefined"
       ? JSON.parse(localStorage.getItem("tecnicoUser") || "null")
@@ -36,16 +37,20 @@ export default function TecnicoAsistenciaPage() {
     controlesRef.current?.stop?.();
     controlesRef.current = null;
     setCamara(false);
+    escaneoBloqueadoRef.current = false;
   };
   const revisar = async (contenido: string) => {
-    if (procesando) return;
+    if (procesando || escaneoBloqueadoRef.current) return;
+    escaneoBloqueadoRef.current = true;
     const match = contenido.match(/\/credencial\/(\d+)\?t=([a-zA-Z0-9]+)/);
     const matchAusp = contenido.match(/\/credencial\/auspiciador\/(\d+)\?t=([a-zA-Z0-9]+)/);
-    if (!match && !matchAusp)
-      return setModal({
+    if (!match && !matchAusp) {
+      setModal({
         titulo: "QR no válido",
         mensaje: "Escanea o pega una credencial válida del evento.",
       });
+      return;
+    }
     setProcesando(true);
     try {
       const auspiciador = Boolean(matchAusp); const partes = matchAusp || match!;
@@ -57,7 +62,6 @@ export default function TecnicoAsistenciaPage() {
       cerrarCamara();
       setPendiente({ ...(auspiciador ? { personaId: Number(partes[1]) } : { euId: Number(partes[1]) }), token: partes[2], tipo: auspiciador ? "AUSPICIADOR" : "PARTICIPANTE", ...data });
     } catch (e: any) {
-      cerrarCamara();
       setModal({ titulo: "No se pudo verificar", mensaje: e.message });
     } finally {
       setProcesando(false);
@@ -77,15 +81,19 @@ export default function TecnicoAsistenciaPage() {
       if (!res.ok) throw new Error(data?.message || "No se pudo registrar.");
       setPendiente((actual: any) => ({
         ...actual,
-        asistencia: { registrada: true, fechaHoraAsistencia: data.fechaHoraAsistencia },
+        asistencia: {
+          registrada: data.usosRestantes === 0,
+          fechaHoraAsistencia: data.fechaHoraAsistencia,
+          usosHoy: data.usosHoy,
+          usosRestantes: data.usosRestantes,
+          limiteDiario: data.limiteDiario,
+        },
       }));
       setValor("");
       cargar();
       setModal({
-        titulo: data.yaRegistrada
-          ? "Asistencia ya registrada"
-          : "Asistencia registrada",
-        mensaje: `${data.participante.nombre} · ${data.participante.empresa} · ${data.lugar || "Lugar del evento"}`,
+        titulo: "Asistencia registrada",
+        mensaje: `${data.participante.nombre} · uso ${data.usosHoy} de ${data.limiteDiario}. ${data.usosRestantes ? `Queda ${data.usosRestantes} registro hoy.` : "Se alcanzó el límite diario."}`,
       });
     } catch (e: any) {
       setModal({ titulo: "No se pudo registrar", mensaje: e.message });
@@ -100,6 +108,7 @@ export default function TecnicoAsistenciaPage() {
         mensaje:
           "El navegador no permite usar la cámara. Abre la página mediante HTTPS y concede el permiso de cámara.",
       });
+    escaneoBloqueadoRef.current = false;
     setCamara(true);
     setTimeout(async () => {
       try {
@@ -110,8 +119,7 @@ export default function TecnicoAsistenciaPage() {
           { audio: false, video: { facingMode: { ideal: "environment" } } },
           video,
           (resultado) => {
-            if (resultado?.getText()) {
-              controlesRef.current?.stop?.();
+            if (resultado?.getText() && !escaneoBloqueadoRef.current) {
               revisar(resultado.getText());
             }
           },
@@ -140,7 +148,10 @@ export default function TecnicoAsistenciaPage() {
               {modal.mensaje}
             </p>
             <button
-              onClick={() => setModal(null)}
+              onClick={() => {
+                setModal(null);
+                escaneoBloqueadoRef.current = false;
+              }}
               className="mt-5 w-full rounded-xl bg-[#449D3A] text-white font-bold py-3"
             >
               Aceptar
@@ -158,7 +169,9 @@ export default function TecnicoAsistenciaPage() {
           <div>
             <CheckCircle2 className="w-12 h-12 text-green-600 mx-auto" />
             <p className="text-xs text-center font-bold text-green-700 uppercase mt-2">
-              {pendiente.asistencia?.registrada ? "Asistencia ya registrada" : "Credencial válida"}
+              {pendiente.asistencia?.registrada
+                ? "Límite diario alcanzado"
+                : `Credencial válida · ${pendiente.asistencia?.usosHoy || 0} de ${pendiente.asistencia?.limiteDiario || 2} usos`}
             </p>
             <h2 className="font-extrabold text-xl sm:text-2xl mt-1 text-center break-words">
               {pendiente.participante?.nombre || pendiente.nombreCompleto}
@@ -170,7 +183,7 @@ export default function TecnicoAsistenciaPage() {
               <div className="rounded-xl bg-gray-50 p-3"><p className="text-xs text-gray-400">Lugar</p><p className="font-bold break-words">{pendiente.lugar || [pendiente.evento?.ciudad, pendiente.evento?.pais].filter(Boolean).join(", ") || "Lugar del evento"}</p></div>
               {(pendiente.evento?.nombre || pendiente.evento) && <div className="rounded-xl bg-gray-50 p-3 sm:col-span-2"><p className="text-xs text-gray-400">Evento</p><p className="font-bold break-words">{pendiente.evento?.nombre || pendiente.evento} {pendiente.edicion || pendiente.evento?.edicion || ""}</p></div>}
             </div>
-            {pendiente.asistencia?.registrada && <div className="mt-4 rounded-xl bg-green-50 border border-green-200 p-3 text-center text-sm font-semibold text-green-800">Registrada el {new Date(pendiente.asistencia.fechaHoraAsistencia).toLocaleString("es-BO")}</div>}
+            {pendiente.asistencia?.fechaHoraAsistencia && <div className="mt-4 rounded-xl bg-green-50 border border-green-200 p-3 text-center text-sm font-semibold text-green-800">Último registro: {new Date(pendiente.asistencia.fechaHoraAsistencia).toLocaleString("es-BO", { timeZone: "America/La_Paz" })}. Usos de hoy: {pendiente.asistencia.usosHoy} de {pendiente.asistencia.limiteDiario || 2}.</div>}
             <div className="flex flex-col-reverse sm:grid sm:grid-cols-2 gap-2 mt-5">
               <button
                 onClick={() => setPendiente(null)}

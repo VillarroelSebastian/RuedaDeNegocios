@@ -249,6 +249,9 @@ function DetalleReunionModal({ reunion, eeId, esEncargado, onClose, onCambiarHor
   const [confirmandoFin, setConfirmandoFin] = useState(false);
   const [iniciando, setIniciando] = useState(false);
   const [msgIni, setMsgIni] = useState<string | null>(null);
+  const [confirmandoCancelacion, setConfirmandoCancelacion] = useState(false);
+  const [cancelandoReunion, setCancelandoReunion] = useState(false);
+  const [motivoCancelacion, setMotivoCancelacion] = useState("");
 
   const handleIniciar = async () => {
     setIniciando(true); setMsgIni(null);
@@ -275,6 +278,22 @@ function DetalleReunionModal({ reunion, eeId, esEncargado, onClose, onCambiarHor
       if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
       onRefresh();
     } catch (e: any) { setErrFin(e.message || "Error al finalizar"); setFinalizando(false); }
+  };
+
+  const handleCancelarReunion = async () => {
+    setCancelandoReunion(true); setErrFin(null);
+    try {
+      const res = await fetch(`${API}/empresa/reuniones/${reunion.id}/cancelar`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eeId, motivo: motivoCancelacion }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || "No se pudo cancelar la reunión.");
+      onRefresh();
+    } catch (e: any) {
+      setErrFin(e.message || "No se pudo cancelar la reunión.");
+      setCancelandoReunion(false);
+    }
   };
 
   const Row = ({ label, value }: { label: string; value: React.ReactNode }) => (
@@ -368,6 +387,27 @@ function DetalleReunionModal({ reunion, eeId, esEncargado, onClose, onCambiarHor
                 Solicitar cambios
               </button>
             )}
+            {esEncargado && esProgramada && (confirmandoCancelacion ? (
+              <div className="rounded-xl border border-red-200 bg-red-50 p-4 space-y-3">
+                <p className="text-sm text-red-800 font-semibold">La otra empresa y el equipo técnico verán esta cancelación.</p>
+                <textarea value={motivoCancelacion} onChange={(e) => setMotivoCancelacion(e.target.value)} maxLength={300} rows={2}
+                  placeholder="Motivo de la cancelación (opcional)"
+                  className="w-full resize-none rounded-lg border border-red-200 bg-white px-3 py-2 text-sm focus:outline-none" />
+                <div className="flex gap-2">
+                  <button onClick={() => setConfirmandoCancelacion(false)} disabled={cancelandoReunion}
+                    className="flex-1 py-2 rounded-lg border border-gray-200 bg-white text-sm font-bold text-gray-600">Volver</button>
+                  <button onClick={handleCancelarReunion} disabled={cancelandoReunion}
+                    className="flex-1 py-2 rounded-lg bg-red-600 text-white text-sm font-bold disabled:opacity-50">
+                    {cancelandoReunion ? "Cancelando..." : "Confirmar cancelación"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button onClick={() => setConfirmandoCancelacion(true)}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-red-200 bg-red-50 text-sm font-bold text-red-700 hover:bg-red-100">
+                <AlertCircle className="w-4 h-4" />Cancelar reunión
+              </button>
+            ))}
             {puedeFinalizarEncargado && (
               <>
                 {errFin && <p className="text-xs text-red-600 text-center">{errFin}</p>}

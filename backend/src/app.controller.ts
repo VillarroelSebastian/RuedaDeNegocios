@@ -28,7 +28,13 @@ function generarPasswordTemporal(): string {
   return pwd;
 }
 
-const EMAIL_LOGO_HTML = `<div style="text-align:center;margin-bottom:18px"><img src="${(process.env.WEB_URL || 'https://app.ruedadenegocios.univalle.edu').replace(/\/$/, '')}/assets/iconos/logo.png" alt="Rueda de Negocios" width="190" style="display:inline-block;max-width:190px;max-height:90px;object-fit:contain" /></div>`;
+const EMAIL_LOGO_CID = 'rueda-logo@ruedadenegocios';
+const EMAIL_LOGO_HTML = `<div style="text-align:center;margin-bottom:18px"><img src="cid:${EMAIL_LOGO_CID}" alt="Rueda de Negocios" width="190" style="display:inline-block;max-width:190px;max-height:90px;object-fit:contain" /></div>`;
+const EMAIL_LOGO_ATTACHMENTS = [{
+  filename: 'rueda-de-negocios.png',
+  path: join(process.cwd(), '..', 'web', 'public', 'assets', 'iconos', 'logo.png'),
+  cid: EMAIL_LOGO_CID,
+}];
 
 function normalizarCorreo(valor: unknown): string {
   return String(valor ?? '').trim().toLowerCase();
@@ -43,6 +49,31 @@ function validarPasswordSegura(valor: unknown): string {
   if (password.length < 12 || !/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/\d/.test(password) || !/[^A-Za-z0-9]/.test(password))
     throw new BadRequestException('La contraseña debe tener al menos 12 caracteres, mayúscula, minúscula, número y símbolo.');
   return password;
+}
+
+const EVENT_TIME_ZONE = 'America/La_Paz';
+const LIMITE_ASISTENCIAS_DIARIAS = 2;
+
+function claveFechaBolivia(fecha: Date): string {
+  const partes = new Intl.DateTimeFormat('en-CA', {
+    timeZone: EVENT_TIME_ZONE,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(fecha);
+  const valor = (tipo: string) => partes.find((p) => p.type === tipo)?.value ?? '';
+  return `${valor('year')}-${valor('month')}-${valor('day')}`;
+}
+
+function claveFechaUtc(fecha: Date): string {
+  return `${fecha.getUTCFullYear()}-${String(fecha.getUTCMonth() + 1).padStart(2, '0')}-${String(fecha.getUTCDate()).padStart(2, '0')}`;
+}
+
+function horaMinutoBolivia(fecha: Date): { hora: number; minuto: number; hhmm: string } {
+  const partes = new Intl.DateTimeFormat('en-GB', {
+    timeZone: EVENT_TIME_ZONE, hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(fecha);
+  const hora = Number(partes.find((p) => p.type === 'hour')?.value ?? 0);
+  const minuto = Number(partes.find((p) => p.type === 'minute')?.value ?? 0);
+  return { hora, minuto, hhmm: `${String(hora).padStart(2, '0')}:${String(minuto).padStart(2, '0')}` };
 }
 
 @Controller()
@@ -546,8 +577,13 @@ export class AppController implements OnModuleInit {
     const euId = Number(body.euId);
     if (!tecnicoId || !euId || !body.token || body.token !== this.credencialToken(euId))
       throw new BadRequestException('El codigo QR no es valido.');
-    const eventoId = await this.getPrincipalEventoId();
-    if (!eventoId) throw new BadRequestException('No hay un evento activo.');
+    const evento = await this.prisma.evento.findFirst({
+      where: { esPrincipal: 1, estaActivo: { not: 0 } },
+      select: { id: true, fechaInicioEvento: true, fechaFinEvento: true },
+    });
+    if (!evento) throw new BadRequestException('No hay un evento activo.');
+    const eventoId = evento.id;
+    const { fechaAsistencia } = this.contextoAsistenciaEvento(evento);
     const tecnico = await this.prisma.usuario.findFirst({
       where: { id: tecnicoId, rolEvento: { in: ['TECNICO', 'TECNICO_EVENTOS', 'ADMINISTRADOR'] }, estaActivo: 1 },
       select: { id: true },
@@ -562,16 +598,28 @@ export class AppController implements OnModuleInit {
       include: { usuario: true, empresa: true },
     });
     if (!participante) throw new BadRequestException('El participante no esta habilitado para este evento.');
-    const existente = await this.prisma.asistenciaevento.findFirst({
-      where: { evento_id: eventoId, empresa_usuario_id: euId, estaActivo: 1 },
-    });
-    const asistencia = existente ?? await this.prisma.asistenciaevento.create({
-      data: { evento_id: eventoId, empresa_usuario_id: euId, tecnico_id: tecnicoId, estaActivo: 1 },
+    const resultado = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRawUnsafe('SELECT 1 AS locked FROM pg_advisory_xact_lock($1, $2)', eventoId, euId);
+      const usosHoy = await tx.asistenciaevento.count({
+        where: { evento_id: eventoId, empresa_usuario_id: euId, fechaAsistencia, estaActivo: 1 },
+      });
+      if (usosHoy >= LIMITE_ASISTENCIAS_DIARIAS)
+        throw new BadRequestException('Esta credencial ya utilizo sus 2 registros de asistencia de hoy.');
+      const asistencia = await tx.asistenciaevento.create({
+        data: {
+          evento_id: eventoId, empresa_usuario_id: euId, tecnico_id: tecnicoId,
+          fechaAsistencia, numeroUso: usosHoy + 1, estaActivo: 1,
+        },
+      });
+      return { asistencia, usosHoy: usosHoy + 1 };
     });
     return {
       ok: true,
-      yaRegistrada: !!existente,
-      fechaHoraAsistencia: asistencia.fechaHoraAsistencia,
+      yaRegistrada: false,
+      fechaHoraAsistencia: resultado.asistencia.fechaHoraAsistencia,
+      usosHoy: resultado.usosHoy,
+      usosRestantes: LIMITE_ASISTENCIAS_DIARIAS - resultado.usosHoy,
+      limiteDiario: LIMITE_ASISTENCIAS_DIARIAS,
       participante: {
         nombre: `${participante.usuario.nombres} ${participante.usuario.apellidoPaterno}`.trim(),
         empresa: participante.empresa.nombre,
@@ -588,12 +636,31 @@ export class AppController implements OnModuleInit {
     const credencial: any = await this.getCredencialPublica(String(id), token);
     if (!credencial.habilitado)
       throw new BadRequestException('El participante o su empresa no están habilitados para este evento.');
-    const eventoId = await this.getPrincipalEventoId();
-    const asistencia = eventoId ? await this.prisma.asistenciaevento.findFirst({
-      where: { evento_id: eventoId, empresa_usuario_id: id, estaActivo: 1 },
-      select: { id: true, fechaHoraAsistencia: true },
-    }) : null;
-    return { ...credencial, asistencia: asistencia ? { registrada: true, ...asistencia } : { registrada: false } };
+    const evento = await this.prisma.evento.findFirst({
+      where: { esPrincipal: 1, estaActivo: { not: 0 } },
+      select: { id: true, fechaInicioEvento: true, fechaFinEvento: true },
+    });
+    if (!evento) throw new BadRequestException('No hay un evento activo.');
+    const { fechaAsistencia } = this.contextoAsistenciaEvento(evento);
+    const [usosHoy, ultima] = await Promise.all([
+      this.prisma.asistenciaevento.count({
+        where: { evento_id: evento.id, empresa_usuario_id: id, fechaAsistencia, estaActivo: 1 },
+      }),
+      this.prisma.asistenciaevento.findFirst({
+        where: { evento_id: evento.id, empresa_usuario_id: id, fechaAsistencia, estaActivo: 1 },
+        orderBy: { fechaHoraAsistencia: 'desc' }, select: { id: true, fechaHoraAsistencia: true },
+      }),
+    ]);
+    return {
+      ...credencial,
+      asistencia: {
+        registrada: usosHoy >= LIMITE_ASISTENCIAS_DIARIAS,
+        usosHoy,
+        usosRestantes: Math.max(0, LIMITE_ASISTENCIAS_DIARIAS - usosHoy),
+        limiteDiario: LIMITE_ASISTENCIAS_DIARIAS,
+        ...(ultima ?? {}),
+      },
+    };
   }
 
   @Get('tecnico/asistencias')
@@ -988,6 +1055,7 @@ export class AppController implements OnModuleInit {
           from: process.env.MAIL_FROM,
           to: encargado.correo,
           subject: `Solicitud de inscripción recibida — ${evento.nombre ?? 'Rueda de Negocios'}`,
+          attachments: EMAIL_LOGO_ATTACHMENTS,
           html: `${EMAIL_LOGO_HTML}
             <div style="font-family:sans-serif;max-width:540px;margin:0 auto;padding:32px;background:#f9fafb;border-radius:12px">
               <h2 style="color:#449D3A;margin-bottom:4px">¡Solicitud recibida con éxito!</h2>
@@ -1051,6 +1119,23 @@ export class AppController implements OnModuleInit {
       where: { esPrincipal: 1, estaActivo: { not: 0 } },
     });
     return evento?.id ?? null;
+  }
+
+  private contextoAsistenciaEvento(evento: { fechaInicioEvento: Date; fechaFinEvento: Date }) {
+    const inicio = new Date(evento.fechaInicioEvento);
+    const fin = new Date(evento.fechaFinEvento);
+    const heredadoUnDia = inicio.getUTCHours() === 0 && inicio.getUTCMinutes() === 0 &&
+      fin.getUTCHours() === 0 && fin.getUTCMinutes() === 0 &&
+      fin.getTime() - inicio.getTime() === 24 * 60 * 60 * 1000;
+    const hoy = claveFechaBolivia(new Date());
+    const primerDia = heredadoUnDia ? claveFechaUtc(inicio) : claveFechaBolivia(inicio);
+    const finAjustado = !heredadoUnDia && fin > inicio && horaMinutoBolivia(fin).hhmm === '00:00'
+      ? new Date(fin.getTime() - 1)
+      : fin;
+    const ultimoDia = heredadoUnDia ? primerDia : claveFechaBolivia(finAjustado);
+    if (hoy < primerDia || hoy > ultimoDia)
+      throw new BadRequestException(`La asistencia solo puede registrarse durante el evento (${primerDia} al ${ultimoDia}).`);
+    return { hoy, fechaAsistencia: new Date(`${hoy}T00:00:00.000Z`) };
   }
 
   // Info pública del evento principal — usada por la web para el favicon y el título.
@@ -1671,9 +1756,10 @@ export class AppController implements OnModuleInit {
           from: process.env.MAIL_FROM,
           to: u.correo,
           subject: `¡Tu acceso ha sido aprobado! — ${(ee as any).evento?.nombre ?? 'Rueda de Negocios'}`,
+          attachments: EMAIL_LOGO_ATTACHMENTS,
           html: `
             <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px;background:#f9fafb;border-radius:12px">
-              ${(ee as any).evento?.urlLogoEvento ? `<div style="text-align:center;margin-bottom:18px"><img src="${(ee as any).evento.urlLogoEvento}" alt="Logo del evento" width="180" style="max-width:180px;max-height:80px;object-fit:contain" /></div>` : EMAIL_LOGO_HTML}
+              ${EMAIL_LOGO_HTML}
               <h2 style="color:#449D3A;margin-bottom:4px">¡Bienvenido/a a la Rueda de Negocios!</h2>
               <p style="color:#374151;margin-bottom:20px">
                 Hola <strong>${u.nombres} ${u.apellidoPaterno}</strong>, tu registro como parte de
@@ -1744,6 +1830,7 @@ export class AppController implements OnModuleInit {
           from: process.env.MAIL_FROM,
           to: encargado.correo,
           subject: `Comprobante con observaciones — ${ee.evento?.nombre ?? 'Rueda de Negocios'}`,
+          attachments: EMAIL_LOGO_ATTACHMENTS,
           html: `${EMAIL_LOGO_HTML}
             <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px;background:#f9fafb;border-radius:12px">
               <h2 style="color:#d97706;margin-bottom:4px">Comprobante con observaciones</h2>
@@ -1804,6 +1891,7 @@ export class AppController implements OnModuleInit {
           from: process.env.MAIL_FROM,
           to: encargado.correo,
           subject: `Comprobante de pago rechazado — ${ee.evento?.nombre ?? 'Rueda de Negocios'}`,
+          attachments: EMAIL_LOGO_ATTACHMENTS,
           html: `${EMAIL_LOGO_HTML}
             <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px;background:#f9fafb;border-radius:12px">
               <h2 style="color:#dc2626;margin-bottom:4px">Comprobante rechazado</h2>
@@ -2369,13 +2457,76 @@ export class AppController implements OnModuleInit {
   // ─── REUNIONES (admin) ───────────────────────────────────────────────────────
 
   @Put('admin/reuniones/:id/estado')
-  async updateAdminReunionEstado(@Param('id') id: string, @Body() body: { estadoReunion: string; asistentes?: number }) {
+  async updateAdminReunionEstado(@Param('id') id: string, @Body() body: { estadoReunion: string; asistentes?: number; observaciones?: string }) {
+    const reunionId = Number(id);
+    const actual = await this.prisma.reunion.findUnique({
+      where: { id: reunionId },
+      include: { solicitudreunion: true },
+    });
+    if (!actual || actual.estaActivo === 0) throw new BadRequestException('Reunión no encontrada');
     const data: any = { estadoReunion: body.estadoReunion, creadoModificadoFecha: new Date() };
     if (body.asistentes !== undefined) data.cantidadAsistentesRegistrados = Number(body.asistentes);
-    return await this.prisma.reunion.update({ where: { id: Number(id) }, data });
+    if (body.observaciones !== undefined) data.observacionesReunion = body.observaciones;
+    const actualizada = await this.prisma.reunion.update({ where: { id: reunionId }, data });
+    if (body.estadoReunion === 'FINALIZADA') await this.notificarParaCalificar(reunionId);
+    if (body.estadoReunion === 'CANCELADA') {
+      await this.prisma.mesabloque.updateMany({
+        where: { reunion_id: reunionId, estaActivo: 1 },
+        data: { estaOcupado: 0, estaActivo: 0, creadoModificadoFecha: new Date() },
+      });
+      const sol = actual.solicitudreunion;
+      if (sol) {
+        await this.prisma.solicitudreunion.update({
+          where: { id: sol.id },
+          data: { estadoSolicitud: 'CANCELADA', creadoModificadoFecha: new Date() },
+        });
+        const detalle = body.observaciones?.trim() ? ` Motivo: ${body.observaciones.trim()}` : '';
+        await Promise.all([
+          this.notificar(sol.empresaEvento_id, 'reunion:cancelada', 'Reunión cancelada por administración', `El equipo administrador canceló una reunión programada.${detalle}`, reunionId, 'reunion'),
+          this.notificar(sol.empresaEventorReceptora_id, 'reunion:cancelada', 'Reunión cancelada por administración', `El equipo administrador canceló una reunión programada.${detalle}`, reunionId, 'reunion'),
+        ]);
+      }
+    }
+    return actualizada;
   }
 
   // ─── TÉCNICOS ────────────────────────────────────────────────────────────────
+
+  private async enviarCredencialesTecnico(
+    tecnico: { correo: string; nombres: string; apellidoPaterno: string },
+    pwd: string,
+    evento: { nombre: string; edicion: string } | null,
+  ): Promise<{ ok: boolean; error: string | null }> {
+    const isDevEmail = !process.env.MAIL_USER || process.env.MAIL_USER === 'tu_correo@gmail.com';
+    if (isDevEmail) return { ok: false, error: 'El servicio de correo no está configurado.' };
+    try {
+      await createMailTransporter().sendMail({
+        from: process.env.MAIL_FROM,
+        to: tecnico.correo,
+        subject: `Tus credenciales de Técnico — ${evento?.nombre ?? 'Rueda de Negocios'}`,
+        attachments: EMAIL_LOGO_ATTACHMENTS,
+        html: `${EMAIL_LOGO_HTML}
+          <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px;background:#f9fafb;border-radius:12px">
+            <h2 style="color:#449D3A;margin-bottom:4px">¡Bienvenido/a al equipo técnico!</h2>
+            <p style="color:#374151;margin-bottom:20px">
+              Hola <strong>${tecnico.nombres} ${tecnico.apellidoPaterno}</strong>, estas son tus credenciales temporales
+              para el evento <strong>${evento?.nombre ?? 'Rueda de Negocios'} ${evento?.edicion ?? ''}</strong>.
+            </p>
+            <div style="background:#fff;border:2px solid #bbf7d0;border-radius:10px;padding:20px;margin-bottom:20px">
+              <p style="color:#166534;font-size:13px;margin:0 0 8px;font-weight:700;text-transform:uppercase">Tus credenciales de acceso:</p>
+              <p style="color:#374151;font-size:14px;margin:0 0 4px"><strong>Correo:</strong> ${tecnico.correo}</p>
+              <p style="color:#374151;font-size:14px;margin:0"><strong>Contraseña:</strong> <code style="background:#f0fdf4;padding:2px 8px;border-radius:6px;font-size:15px">${pwd}</code></p>
+            </div>
+            <p style="color:#6b7280;font-size:13px;margin:0">Esta contraseña reemplaza cualquier contraseña temporal anterior. Cámbiala después de iniciar sesión.</p>
+          </div>`,
+      });
+      return { ok: true, error: null };
+    } catch (error) {
+      const mensaje = error instanceof Error ? error.message : 'Error desconocido al enviar el correo.';
+      console.warn(`[WARN] No se pudo enviar credenciales a ${tecnico.correo}:`, mensaje);
+      return { ok: false, error: mensaje.slice(0, 500) };
+    }
+  }
 
   @Get('admin/tecnicos')
   async getTecnicos() {
@@ -2395,6 +2546,9 @@ export class AppController implements OnModuleInit {
         rolEvento: true,
         estaActivo: true,
         fechaCreacion: true,
+        ultimoEnvioCredenciales: true,
+        estadoUltimoEnvioCredenciales: true,
+        errorUltimoEnvioCredenciales: true,
         evento: { select: { id: true, nombre: true, edicion: true } },
       },
     });
@@ -2419,12 +2573,20 @@ export class AppController implements OnModuleInit {
       const eventoId = await this.getPrincipalEventoId();
       if (!eventoId) throw new BadRequestException('No hay un evento principal activo');
 
-      // Credenciales generadas por el sistema y enviadas al correo del técnico
+      // Si el mismo técnico fue eliminado lógicamente, se reactiva su registro
+      // para conservar historial y evitar cuentas duplicadas.
       const pwd = generarPasswordTemporal();
       const hashed = await bcrypt.hash(pwd, 10);
       const rolTecnico = body.rolEvento === 'TECNICO_EVENTOS' ? 'TECNICO_EVENTOS' : 'TECNICO';
-      const tecnico = await this.prisma.usuario.create({
-        data: {
+      const inactivo = await this.prisma.usuario.findFirst({
+        where: {
+          correo: { equals: correo, mode: 'insensitive' },
+          estaActivo: 0,
+          rolEvento: { in: ['TECNICO', 'TECNICO_EVENTOS'] },
+        },
+        orderBy: { fechaCreacion: 'desc' },
+      });
+      const dataTecnico = {
           nombres: body.nombres,
           apellidoPaterno: body.apellidoPaterno,
           apellidoMaterno: body.apellidoMaterno || null,
@@ -2435,52 +2597,41 @@ export class AppController implements OnModuleInit {
           rolEvento: rolTecnico,
           evento_id: eventoId,
           estaActivo: 1,
-        },
+          creadoModificadoFecha: new Date(),
+          ultimoEnvioCredenciales: new Date(),
+          estadoUltimoEnvioCredenciales: 'PENDIENTE',
+          errorUltimoEnvioCredenciales: null,
+      };
+      const selectTecnico = {
+        id: true, evento_id: true, nombres: true, apellidoPaterno: true, apellidoMaterno: true,
+        correo: true, telefono: true, urlFotoPerfil: true, rolEvento: true,
+        ultimoEnvioCredenciales: true, estadoUltimoEnvioCredenciales: true,
+        evento: { select: { id: true, nombre: true, edicion: true } },
+      } as const;
+      const tecnico = inactivo
+        ? await this.prisma.usuario.update({ where: { id: inactivo.id }, data: dataTecnico, select: selectTecnico })
+        : await this.prisma.usuario.create({
+        data: dataTecnico,
         select: {
           id: true, evento_id: true, nombres: true, apellidoPaterno: true, apellidoMaterno: true,
           correo: true, telefono: true, urlFotoPerfil: true, rolEvento: true,
+          ultimoEnvioCredenciales: true, estadoUltimoEnvioCredenciales: true,
           evento: { select: { id: true, nombre: true, edicion: true } },
         },
       });
 
       const evento = await this.prisma.evento.findUnique({ where: { id: eventoId }, select: { nombre: true, edicion: true } });
-      const isDevEmail = !process.env.MAIL_USER || process.env.MAIL_USER === 'tu_correo@gmail.com';
-      let correoEnviado = false;
-      if (!isDevEmail) {
-        try {
-          const transporter = createMailTransporter();
-          await transporter.sendMail({
-            from: process.env.MAIL_FROM,
-            to: correo,
-            subject: `Tus credenciales de Técnico — ${evento?.nombre ?? 'Rueda de Negocios'}`,
-            html: `${EMAIL_LOGO_HTML}
-              <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px;background:#f9fafb;border-radius:12px">
-                <h2 style="color:#449D3A;margin-bottom:4px">¡Bienvenido/a al equipo técnico!</h2>
-                <p style="color:#374151;margin-bottom:20px">
-                  Hola <strong>${body.nombres} ${body.apellidoPaterno}</strong>, fuiste registrado/a como técnico
-                  del evento <strong>${evento?.nombre ?? 'Rueda de Negocios'} ${evento?.edicion ?? ''}</strong>.
-                </p>
-                <div style="background:#fff;border:2px solid #bbf7d0;border-radius:10px;padding:20px;margin-bottom:20px">
-                  <p style="color:#166534;font-size:13px;margin:0 0 8px;font-weight:700;text-transform:uppercase">Tus credenciales de acceso:</p>
-                  <p style="color:#374151;font-size:14px;margin:0 0 4px"><strong>Correo:</strong> ${correo}</p>
-                  <p style="color:#374151;font-size:14px;margin:0"><strong>Contraseña:</strong> <code style="background:#f0fdf4;padding:2px 8px;border-radius:6px;font-size:15px">${pwd}</code></p>
-                </div>
-                <p style="color:#6b7280;font-size:13px;margin:0">
-                  Ingresa al sistema con estas credenciales. Por seguridad, te recomendamos cambiar tu contraseña desde tu perfil.
-                </p>
-              </div>
-            `,
-          });
-          correoEnviado = true;
-        } catch (emailErr) {
-          console.warn(`[WARN] No se pudo enviar credenciales a ${body.correo}:`, emailErr instanceof Error ? emailErr.message : emailErr);
-        }
-      }
-      if (!correoEnviado) {
-        console.warn(`[WARN] No se enviaron las credenciales de ${body.correo}; usa restablecimiento de contraseña.`);
-      }
+      const envio = await this.enviarCredencialesTecnico(tecnico, pwd, evento);
+      await this.prisma.usuario.update({
+        where: { id: tecnico.id },
+        data: {
+          ultimoEnvioCredenciales: new Date(),
+          estadoUltimoEnvioCredenciales: envio.ok ? 'ENVIADO' : 'FALLIDO',
+          errorUltimoEnvioCredenciales: envio.error,
+        },
+      });
 
-      return { ...tecnico, correoEnviado };
+      return { ...tecnico, correoEnviado: envio.ok, reactivado: Boolean(inactivo) };
     } catch (error) {
       throw new BadRequestException(error instanceof Error ? error.message : 'Error al crear técnico');
     }
@@ -2525,6 +2676,62 @@ export class AppController implements OnModuleInit {
     } catch (error) {
       throw new BadRequestException(error instanceof Error ? error.message : 'Error al actualizar técnico');
     }
+  }
+
+  @Post('admin/tecnicos/:id/reenviar-credenciales')
+  async reenviarCredencialesTecnico(@Param('id') id: string) {
+    const tecnico = await this.prisma.usuario.findFirst({
+      where: {
+        id: Number(id),
+        estaActivo: 1,
+        rolEvento: { in: ['TECNICO', 'TECNICO_EVENTOS'] },
+      },
+      select: {
+        id: true, correo: true, nombres: true, apellidoPaterno: true, contrasenia: true,
+        evento: { select: { nombre: true, edicion: true } },
+      },
+    });
+    if (!tecnico) throw new BadRequestException('Técnico activo no encontrado.');
+
+    const pwd = generarPasswordTemporal();
+    const hashed = await bcrypt.hash(pwd, 10);
+    await this.prisma.usuario.update({
+      where: { id: tecnico.id },
+      data: {
+        contrasenia: hashed,
+        ultimoEnvioCredenciales: new Date(),
+        estadoUltimoEnvioCredenciales: 'PENDIENTE',
+        errorUltimoEnvioCredenciales: null,
+        creadoModificadoFecha: new Date(),
+      },
+    });
+
+    const envio = await this.enviarCredencialesTecnico(tecnico, pwd, tecnico.evento);
+    if (!envio.ok) {
+      // Si el correo no salió, se conserva la contraseña anterior para no dejar
+      // al técnico sin acceso por un fallo temporal de correo.
+      await this.prisma.usuario.update({
+        where: { id: tecnico.id },
+        data: {
+          contrasenia: tecnico.contrasenia,
+          ultimoEnvioCredenciales: new Date(),
+          estadoUltimoEnvioCredenciales: 'FALLIDO',
+          errorUltimoEnvioCredenciales: envio.error,
+          creadoModificadoFecha: new Date(),
+        },
+      });
+      throw new BadRequestException('No se pudo enviar el correo. La contraseña anterior continúa vigente.');
+    }
+
+    await this.prisma.usuario.update({
+      where: { id: tecnico.id },
+      data: {
+        ultimoEnvioCredenciales: new Date(),
+        estadoUltimoEnvioCredenciales: 'ENVIADO',
+        errorUltimoEnvioCredenciales: null,
+      },
+    });
+    return { ok: true, correoEnviado: true };
   }
 
   @Delete('admin/tecnicos/:id')
@@ -2585,6 +2792,7 @@ export class AppController implements OnModuleInit {
           from: process.env.MAIL_FROM,
           to: correo,
           subject: 'Nuevas credenciales de administrador — Rueda de Negocios',
+          attachments: EMAIL_LOGO_ATTACHMENTS,
           html: `${EMAIL_LOGO_HTML}<div style="font-family:Arial;max-width:520px;margin:auto"><h2 style="color:#449D3A">Tu correo fue actualizado</h2><p>Por seguridad reiniciamos tu contraseña.</p><p><strong>Correo:</strong> ${correo}</p><p><strong>Contraseña temporal:</strong> <code>${pwd}</code></p><p>Cambia esta contraseña después de iniciar sesión.</p></div>`,
         });
         data.contrasenia = await bcrypt.hash(pwd, 10);
@@ -2991,7 +3199,10 @@ export class AppController implements OnModuleInit {
   @Put('tecnico/reuniones/:id/estado')
   async updateTecnicoReunionEstado(@Param('id') id: string, @Body() body: { estadoReunion: string; observaciones?: string }) {
     const reunionId = Number(id);
-    const actual = await this.prisma.reunion.findUnique({ where: { id: reunionId } });
+    const actual = await this.prisma.reunion.findUnique({
+      where: { id: reunionId },
+      include: { solicitudreunion: true },
+    });
     if (!actual || actual.estaActivo === 0) throw new BadRequestException('Reunión no encontrada');
     const transiciones: Record<string, string[]> = {
       PROGRAMADA: ['EN_CURSO', 'FINALIZADA', 'CANCELADA'],
@@ -3020,6 +3231,18 @@ export class AppController implements OnModuleInit {
         where: { reunion_id: reunionId, estaActivo: 1 },
         data: { estaOcupado: 0, estaActivo: 0, creadoModificadoFecha: new Date() },
       });
+      const sol = actual.solicitudreunion;
+      if (sol) {
+        await this.prisma.solicitudreunion.update({
+          where: { id: sol.id },
+          data: { estadoSolicitud: 'CANCELADA', creadoModificadoFecha: new Date() },
+        });
+        const detalle = body.observaciones?.trim() ? ` Motivo: ${body.observaciones.trim()}` : '';
+        await Promise.all([
+          this.notificar(sol.empresaEvento_id, 'reunion:cancelada', 'Reunión cancelada por el equipo técnico', `El equipo técnico canceló una reunión programada.${detalle}`, reunionId, 'reunion'),
+          this.notificar(sol.empresaEventorReceptora_id, 'reunion:cancelada', 'Reunión cancelada por el equipo técnico', `El equipo técnico canceló una reunión programada.${detalle}`, reunionId, 'reunion'),
+        ]);
+      }
       return actualizada;
     }
     return actualizada;
@@ -3188,6 +3411,7 @@ export class AppController implements OnModuleInit {
       from: process.env.MAIL_FROM,
       to: usuario.correo,
       subject: 'Mensaje del técnico — Rueda de Negocios',
+      attachments: EMAIL_LOGO_ATTACHMENTS,
       html: `${EMAIL_LOGO_HTML}
         <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#f9fafb;border-radius:12px">
           <h2 style="color:#449D3A;margin-bottom:8px">Mensaje del Técnico</h2>
@@ -3398,6 +3622,7 @@ export class AppController implements OnModuleInit {
         from: process.env.MAIL_FROM,
         to: u.correo,
         subject: 'Código para restablecer tu contraseña — Rueda de Negocios',
+        attachments: EMAIL_LOGO_ATTACHMENTS,
         html: `${EMAIL_LOGO_HTML}
           <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#f9fafb;border-radius:12px">
             <h2 style="color:#449D3A;margin-bottom:8px">Restablece tu contraseña</h2>
@@ -3525,6 +3750,8 @@ export class AppController implements OnModuleInit {
   async getEmpresaInfo(@Query('usuarioId') usuarioId: string) {
     if (!usuarioId) throw new BadRequestException('usuarioId requerido');
     const eu = await this.getEmpresaCtx(Number(usuarioId));
+    const evento = eu.empresaevento?.evento ?? null;
+    const ventana = evento ? this.ventanaReunionesEvento(evento) : null;
     return {
       empresaUsuarioId: eu.id,
       empresaeventoId: eu.empresaevento_id,
@@ -3538,7 +3765,11 @@ export class AppController implements OnModuleInit {
       },
       esResponsable: eu.esResponsable === 1,
       urlCredencialQR: (eu as any).urlCredencialQR ?? null,
-      evento: eu.empresaevento?.evento ?? null,
+      evento: evento ? {
+        ...evento,
+        fechaInicioReuniones: ventana?.start ?? evento.fechaInicioEvento,
+        fechaFinReuniones: ventana?.end ?? evento.fechaFinEvento,
+      } : null,
       estadoPago: eu.empresaevento?.estadoVerificacionPago ?? 'PENDIENTE',
       estadoAcceso: eu.empresaevento?.estadoHabilitacionAcceso ?? 'PENDIENTE',
       tipoParticipacion: eu.empresaevento?.tipoParticipacion ?? null,
@@ -3550,7 +3781,10 @@ export class AppController implements OnModuleInit {
   async getEmpresaEvento() {
     const eventoId = await this.getPrincipalEventoId();
     if (!eventoId) throw new BadRequestException('No hay evento activo');
-    return this.prisma.evento.findUnique({ where: { id: eventoId } });
+    const evento = await this.prisma.evento.findUnique({ where: { id: eventoId } });
+    if (!evento) throw new BadRequestException('No hay evento activo');
+    const ventana = this.ventanaReunionesEvento(evento);
+    return { ...evento, fechaInicioReuniones: ventana.start, fechaFinReuniones: ventana.end };
   }
 
   @Get('empresa/actividades')
@@ -3831,16 +4065,45 @@ export class AppController implements OnModuleInit {
     if (!evento) return { respuesta: 'No hay un evento activo en este momento.' };
 
     const fmtFecha = (d: Date | null) =>
-      d ? new Date(d).toLocaleDateString('es-BO', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }) : '—';
+      d ? new Date(d).toLocaleDateString('es-BO', { timeZone: EVENT_TIME_ZONE, weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }) : '—';
     const fmtHora = (d: Date | null) =>
-      d ? new Date(d).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' }) : '—';
+      d ? new Date(d).toLocaleTimeString('es-BO', { timeZone: EVENT_TIME_ZONE, hour: '2-digit', minute: '2-digit' }) : '—';
 
     // ── agendar reunión (flujo multi-paso) ───────────────────────────────────
     const respAgendar = await this.asistenteAgendarReunion(Number(eeId), body.euId, msg, body.contexto, eventoId);
     if (respAgendar) return respAgendar;
 
+    // Listado y total: una reunión existe únicamente después de aceptar la solicitud.
+    if (/(todas|total|lista|listar|cuantas|cuántas|mis)\s+(las\s+)?reuniones|reuniones\s+(aceptadas|agendadas|confirmadas)/i.test(msg)) {
+      const reuniones = await this.prisma.reunion.findMany({
+        where: {
+          evento_id: eventoId, estaActivo: 1,
+          estadoReunion: { in: ['PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO'] },
+          solicitudreunion: { OR: [{ empresaEvento_id: eeId }, { empresaEventorReceptora_id: eeId }] },
+        },
+        orderBy: { fechaHoraInicioReunion: 'asc' },
+        include: {
+          mesa: true,
+          solicitudreunion: { include: {
+            empresaevento_solicitudreunion_empresaEvento_idToempresaevento: { include: { empresa: true } },
+            empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento: { include: { empresa: true } },
+          } },
+        },
+      });
+      if (!reuniones.length) return { respuesta: 'No tienes reuniones aceptadas para este evento.' };
+      const lineas = reuniones.map((reunion: any, i) => {
+        const sr = reunion.solicitudreunion;
+        const otra = sr.empresaEvento_id === eeId
+          ? sr.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento?.empresa?.nombre
+          : sr.empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa?.nombre;
+        const ubicacion = reunion.tipoReunion === 'VIRTUAL' ? 'Virtual' : reunion.mesa ? `Mesa ${reunion.mesa.numeroMesa}` : 'Mesa por confirmar';
+        return `${i + 1}. ${fmtFecha(reunion.fechaHoraInicioReunion)}, ${fmtHora(reunion.fechaHoraInicioReunion)} · ${otra || 'Empresa'} · ${ubicacion}`;
+      });
+      return { respuesta: `Tienes ${reuniones.length} reunión(es) aceptada(s):\n${lineas.join('\n')}` };
+    }
+
     // ── próxima reunión ──────────────────────────────────────────────────────
-    if (/reunion|reunione|siguiente|proxim|cuando me reun/i.test(msg)) {
+    if (/reunion|reunione|cuando me reun/i.test(msg)) {
       const ahora = new Date();
       const reunion = await this.prisma.reunion.findFirst({
         where: {
@@ -3873,20 +4136,45 @@ export class AppController implements OnModuleInit {
     }
 
     // ── mesa asignada ────────────────────────────────────────────────────────
-    if (/mesa|donde|lugar/i.test(msg)) {
-      const reuniones = await this.prisma.reunion.findMany({
+    if (/mesa|donde.*(reunion|me toca)|lugar.*reunion/i.test(msg)) {
+      const reunion = await this.prisma.reunion.findFirst({
         where: {
           evento_id: eventoId, estaActivo: 1,
           estadoReunion: { in: ['PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO'] },
           solicitudreunion: { OR: [{ empresaEvento_id: eeId }, { empresaEventorReceptora_id: eeId }] },
           mesa_id: { gt: 0 },
+          fechaHoraFinReunion: { gte: new Date() },
         },
         include: { mesa: true },
         orderBy: { fechaHoraInicioReunion: 'asc' },
       });
-      if (reuniones.length === 0) return { respuesta: 'Aún no tienes mesas asignadas para reuniones próximas.' };
-      const mesas = [...new Set(reuniones.map((r) => (r as any).mesa ? `Mesa ${(r as any).mesa.numeroMesa}` : null).filter(Boolean))];
-      return { respuesta: `Tus reuniones próximas se llevarán a cabo en: ${mesas.join(', ')}.` };
+      if (!reunion) return { respuesta: 'Aún no tienes una mesa asignada para una reunión próxima.' };
+      return { respuesta: `Tu próxima mesa es la Mesa ${(reunion as any).mesa.numeroMesa}, el ${fmtFecha(reunion.fechaHoraInicioReunion)} a las ${fmtHora(reunion.fechaHoraInicioReunion)}.` };
+    }
+
+    if (/actividad|actividades|eventos|que va a haber|qué va a haber/i.test(msg)) {
+      const actividades = await this.prisma.actividadprograma.findMany({
+        where: { evento_id: eventoId, estaActivo: 1 },
+        orderBy: [{ fechaActividad: 'asc' }, { horaInicioActividad: 'asc' }],
+        take: 12,
+      });
+      if (!actividades.length) return { respuesta: 'Todavía no hay actividades publicadas para este evento.' };
+      const horaLocal = (d: Date) => `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
+      const fechaCalendario = (d: Date) => new Date(d).toLocaleDateString('es-BO', {
+        timeZone: 'UTC', weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
+      });
+      return {
+        respuesta: `Estas son las actividades del evento:\n${actividades.map((a, i) => `${i + 1}. ${a.nombreActividad} · ${fechaCalendario(a.fechaActividad)} ${horaLocal(a.horaInicioActividad)} · ${a.nombreSalaEspacio}`).join('\n')}`,
+      };
+    }
+
+    if (/comunicado|comunicados|noticia|noticias|aviso|avisos/i.test(msg)) {
+      const noticias = await this.prisma.noticia.findMany({
+        where: { evento_id: eventoId, estaActivo: 1, estadoPublicacion: 'PUBLICADO' },
+        orderBy: { fechaHoraPublicacion: 'desc' }, take: 10,
+      });
+      if (!noticias.length) return { respuesta: 'No hay comunicados publicados para este evento.' };
+      return { respuesta: `Comunicados recientes:\n${noticias.map((n, i) => `${i + 1}. ${n.tituloNoticia}: ${n.contenidoNoticia}`).join('\n')}` };
     }
 
     // ── mapa / recinto ───────────────────────────────────────────────────────
@@ -3907,16 +4195,18 @@ export class AppController implements OnModuleInit {
 
     // ── fecha / horario del evento ───────────────────────────────────────────
     if (/fecha|cuando|horario|inicio|fin del evento/i.test(msg)) {
-      const ini = fmtFecha(evento.fechaInicioEvento);
-      const fin = fmtFecha(evento.fechaFinEvento);
-      return { respuesta: `El evento "${evento.nombre}" se realiza desde el ${ini} hasta el ${fin}.` };
+      const ventana = this.ventanaReunionesEvento(evento);
+      const ini = fmtFecha(ventana.start);
+      const fin = fmtFecha(ventana.end);
+      return { respuesta: `El evento "${evento.nombre}" se realiza desde el ${ini} a las ${fmtHora(ventana.start)} hasta el ${fin} a las ${fmtHora(ventana.end)}.` };
     }
 
     // ── estado de pago / monto ───────────────────────────────────────────────
     if (/pago|monto|inscripcion|precio|cuanto cuesta|cuanto es/i.test(msg)) {
-      const ee = await this.prisma.empresaevento.findUnique({ where: { id: eeId } });
+      const ee = await this.prisma.empresaevento.findUnique({
+        where: { id: eeId }, include: { paquete: { select: { nombre: true, costo: true } } },
+      });
       const estado = ee?.estadoVerificacionPago ?? 'PENDIENTE';
-      const monto = (evento as any).montoBaseIncripcionBolivianos;
       const estadoTexto: Record<string, string> = {
         COMPLETADO: 'aprobado',
         PENDIENTE: 'pendiente de verificación',
@@ -3924,7 +4214,7 @@ export class AppController implements OnModuleInit {
         OBSERVADO: 'observado — revisar comentarios',
       };
       return {
-        respuesta: `Estado de tu pago de inscripción: ${estadoTexto[estado] ?? estado}. Monto base: Bs. ${monto ?? '—'}.`,
+        respuesta: `Tu inscripción corresponde al paquete ${ee?.paquete?.nombre ?? 'sin paquete identificado'}. Estado: ${estadoTexto[estado] ?? estado}.${ee?.montoPagado != null ? ` Monto registrado: Bs. ${ee.montoPagado}.` : ''}`,
       };
     }
 
@@ -3960,14 +4250,14 @@ export class AppController implements OnModuleInit {
 
     // ── ayuda / comando no reconocido ────────────────────────────────────────
     return {
-      respuesta: `Hola! Puedo ayudarte con:\n• Agendar una reunión con otra empresa\n• Tu próxima reunión\n• Mesa asignada\n• Fecha y horario del evento\n• Estado de tu pago\n• Mapa del recinto\n• Cronograma de charlas\n• Solicitudes pendientes\n• Cupos disponibles\n\n¿Sobre qué te puedo informar?`,
+      respuesta: `Elige una opción:\n1. Agendar una reunión\n2. Mi próxima reunión\n3. Todas mis reuniones aceptadas\n4. Mi próxima mesa\n5. Eventos y actividades\n6. Comunicados\n7. Fecha y horario del evento\n8. Solicitudes pendientes\n9. Cupos disponibles`,
     };
   }
 
   private fmtSlotAsistente(iso: string) {
     const d = new Date(iso);
-    const fecha = d.toLocaleDateString('es-BO', { weekday: 'short', day: '2-digit', month: '2-digit' });
-    const hora = d.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' });
+    const fecha = d.toLocaleDateString('es-BO', { timeZone: EVENT_TIME_ZONE, weekday: 'short', day: '2-digit', month: '2-digit' });
+    const hora = d.toLocaleTimeString('es-BO', { timeZone: EVENT_TIME_ZONE, hour: '2-digit', minute: '2-digit' });
     return `${fecha} ${hora}`;
   }
 
@@ -4028,12 +4318,12 @@ export class AppController implements OnModuleInit {
           contexto: { flujo: 'agendar', paso: 'empresa' },
         };
       }
-      const primera = new Date(slots[0]);
-      const ultima = new Date(slots[slots.length - 1]);
-      const reloj = (d: Date) => d.toLocaleTimeString('es-BO', { hour: 'numeric', minute: '2-digit', hour12: true });
+      const slotsMostrados = slots.slice(0, 12);
+      const opciones = slotsMostrados.map((slot) => this.fmtSlotAsistente(slot));
       return {
-        respuesta: `El horario disponible con ${receptoraNombre} es de ${reloj(primera)} a ${reloj(ultima)}. ¿A qué hora querías la reunión? Puedes escribir, por ejemplo, "1" o "1 p. m.".`,
-        contexto: { flujo: 'agendar', paso: 'hora', receptoraEeId, receptoraNombre, slots, duracionMin: disp.duracionMinutos },
+        respuesta: `Estos son los próximos horarios realmente disponibles con ${receptoraNombre}:\n${opciones.map((opcion, i) => `${i + 1}. ${opcion}`).join('\n')}\n\nElige un número.${slots.length > slotsMostrados.length ? ` Hay ${slots.length - slotsMostrados.length} horarios posteriores que podrás consultar si estos no te sirven.` : ''}`,
+        contexto: { flujo: 'agendar', paso: 'horario', receptoraEeId, receptoraNombre, slots: slotsMostrados, horarioOpciones: opciones, duracionMin: disp.duracionMinutos },
+        opciones,
       };
     };
 
@@ -4063,9 +4353,22 @@ export class AppController implements OnModuleInit {
       const matchCon = msg.match(/reunion con\s+(.+)$/);
       const term = matchCon?.[1]?.trim();
       if (!term) {
+        const sugeridas: any[] = await buscarEmpresas('');
+        if (sugeridas.length > 0) {
+          const opciones = sugeridas.map((e) => e.empresa.nombre);
+          return {
+            respuesta: `Elige una empresa:\n${opciones.map((opcion, i) => `${i + 1}. ${opcion}`).join('\n')}\n\nTambién puedes escribir el nombre de otra empresa o "cancelar".`,
+            contexto: {
+              flujo: 'agendar', paso: 'empresa',
+              candidatos: sugeridas.map((e) => ({ id: e.id, nombre: e.empresa.nombre })),
+            },
+            opciones,
+          };
+        }
         return {
-          respuesta: '¡Claro! ¿Con qué empresa quieres agendar la reunión? Escribe su nombre (o "cancelar" para salir).',
+          respuesta: 'No hay otras empresas habilitadas para agendar en este evento.',
           contexto: { flujo: 'agendar', paso: 'empresa' },
+          opciones: ['Cancelar agendamiento'],
         };
       }
       return procesarBusqueda(term);
@@ -4081,6 +4384,7 @@ export class AppController implements OnModuleInit {
         let elegido = !isNaN(idx) ? candidatos[idx - 1] : undefined;
         if (!elegido) elegido = candidatos.find((c) => msg.includes(norm(c.nombre)) || norm(c.nombre).includes(msg.trim()));
         if (!elegido) {
+          if (isNaN(idx) && msg.trim()) return procesarBusqueda(msg.trim());
           return {
             respuesta: 'No entendí cuál empresa. Responde con el número de la lista, el nombre exacto, o "cancelar".',
             contexto,
@@ -4099,14 +4403,14 @@ export class AppController implements OnModuleInit {
       const pedida = Number(m[1]);
       const periodo = m[3]?.toLowerCase().replace(/[.\s]/g, '');
       const horas = periodo ? [periodo === 'pm' ? (pedida % 12) + 12 : pedida % 12] : [...new Set([pedida % 12, (pedida % 12) + 12])];
-      const disponibles = horas.filter((hora) => slots.some((s) => new Date(s).getHours() === hora));
+      const disponibles = horas.filter((hora) => slots.some((s) => horaMinutoBolivia(new Date(s)).hora === hora));
       if (!disponibles.length) return { respuesta: 'Esa hora no está disponible. Indica otra hora dentro del horario mostrado.', contexto };
       if (disponibles.length > 1) {
-        const opciones = disponibles.map((hora) => new Date(slots.find((s) => new Date(s).getHours() === hora)!).toLocaleTimeString('es-BO', { hour: 'numeric', hour12: true }));
+        const opciones = disponibles.map((hora) => new Date(slots.find((s) => horaMinutoBolivia(new Date(s)).hora === hora)!).toLocaleTimeString('es-BO', { timeZone: EVENT_TIME_ZONE, hour: 'numeric', hour12: true }));
         return { respuesta: `Hay disponibilidad en ambos horarios. ¿Cuál prefieres?\n${opciones.map((o, i) => `${i + 1}. ${o}`).join('\n')}`, contexto: { ...contexto, paso: 'periodo', horas: disponibles }, opciones };
       }
-      const candidatos = slots.filter((s) => new Date(s).getHours() === disponibles[0]);
-      const opciones = candidatos.map((s) => new Date(s).toLocaleTimeString('es-BO', { hour: 'numeric', minute: '2-digit', hour12: true }));
+      const candidatos = slots.filter((s) => horaMinutoBolivia(new Date(s)).hora === disponibles[0]);
+      const opciones = candidatos.map((s) => new Date(s).toLocaleTimeString('es-BO', { timeZone: EVENT_TIME_ZONE, hour: 'numeric', minute: '2-digit', hour12: true }));
       return { respuesta: `Elige un intervalo disponible:\n${opciones.map((o, i) => `${i + 1}. ${o}`).join('\n')}`, contexto: { ...contexto, paso: 'horario', slots: candidatos, horarioOpciones: opciones }, opciones };
     }
 
@@ -4115,8 +4419,8 @@ export class AppController implements OnModuleInit {
       const indice = Number(msg) - 1;
       const hora = horas[indice] ?? (/p/.test(msg) ? horas.find((h) => h >= 12) : /a/.test(msg) ? horas.find((h) => h < 12) : undefined);
       if (hora == null) return { respuesta: 'Elige la opción de la mañana o de la tarde.', contexto };
-      const candidatos = (contexto.slots ?? []).filter((s: string) => new Date(s).getHours() === hora);
-      const opciones = candidatos.map((s: string) => new Date(s).toLocaleTimeString('es-BO', { hour: 'numeric', minute: '2-digit', hour12: true }));
+      const candidatos = (contexto.slots ?? []).filter((s: string) => horaMinutoBolivia(new Date(s)).hora === hora);
+      const opciones = candidatos.map((s: string) => new Date(s).toLocaleTimeString('es-BO', { timeZone: EVENT_TIME_ZONE, hour: 'numeric', minute: '2-digit', hour12: true }));
       return { respuesta: `Elige un intervalo disponible:\n${opciones.map((o: string, i: number) => `${i + 1}. ${o}`).join('\n')}`, contexto: { ...contexto, paso: 'horario', slots: candidatos, horarioOpciones: opciones }, opciones };
     }
 
@@ -4147,10 +4451,7 @@ export class AppController implements OnModuleInit {
           if (ampm === 'pm' && hh < 12) hh += 12;
           if (ampm === 'am' && hh === 12) hh = 0;
           const hhmm = `${String(hh).padStart(2, '0')}:${mm}`;
-          iso = slots.find((s) => {
-            const d = new Date(s);
-            return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` === hhmm;
-          });
+          iso = slots.find((s) => horaMinutoBolivia(new Date(s)).hhmm === hhmm);
         }
       }
 
@@ -4714,9 +5015,7 @@ export class AppController implements OnModuleInit {
       if (evento) {
         const franjas = this.generarFranjas(evento);
         for (const f of franjas) {
-          const hh = String(f.inicio.getHours()).padStart(2, '0');
-          const mm = String(f.inicio.getMinutes()).padStart(2, '0');
-          const hhmm = `${hh}:${mm}`;
+          const { hhmm } = horaMinutoBolivia(f.inicio);
           const dentroDeRango = normalizados.some((r) => hhmm >= r.desde && hhmm < r.hasta);
           if (!dentroDeRango) {
             await this.prisma.empresa_bloqueo.create({
@@ -5150,6 +5449,60 @@ export class AppController implements OnModuleInit {
       where: { id: Number(id) },
       data: { estadoSolicitud: 'CANCELADA', creadoModificadoFecha: new Date() },
     });
+    await this.notificar(sol.empresaEventorReceptora_id, 'solicitud:cancelada', 'Solicitud cancelada',
+      'La empresa solicitante canceló la solicitud de reunión antes de que fuera aceptada.', sol.id, 'solicitudreunion');
+    return { ok: true };
+  }
+
+  @Put('empresa/reuniones/:id/cancelar')
+  async cancelarReunionEmpresa(
+    @Param('id') id: string,
+    @Body() body: { eeId: number; motivo?: string },
+  ) {
+    const eeId = Number(body.eeId);
+    if (!eeId) throw new BadRequestException('eeId requerido');
+    const reunion = await this.prisma.reunion.findFirst({
+      where: {
+        id: Number(id), estaActivo: 1,
+        estadoReunion: { in: ['PROGRAMADA', 'REPROGRAMADA'] },
+      },
+      include: {
+        solicitudreunion: {
+          include: {
+            empresaevento_solicitudreunion_empresaEvento_idToempresaevento: { include: { empresa: { select: { nombre: true } } } },
+            empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento: { include: { empresa: { select: { nombre: true } } } },
+          },
+        },
+      },
+    });
+    if (!reunion?.solicitudreunion)
+      throw new BadRequestException('Reunión no encontrada o ya no se puede cancelar');
+    const sol = reunion.solicitudreunion as any;
+    if (![sol.empresaEvento_id, sol.empresaEventorReceptora_id].includes(eeId))
+      throw new BadRequestException('No tienes permiso para cancelar esta reunión');
+    const contraparteId = sol.empresaEvento_id === eeId ? sol.empresaEventorReceptora_id : sol.empresaEvento_id;
+    const cancela = sol.empresaEvento_id === eeId
+      ? sol.empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa?.nombre
+      : sol.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento?.empresa?.nombre;
+    const motivo = String(body.motivo ?? '').trim().slice(0, 300);
+    const observacion = `Cancelada por ${cancela || 'una empresa'}.${motivo ? ` Motivo: ${motivo}` : ''}`;
+    await this.prisma.$transaction(async (tx) => {
+      await tx.reunion.update({
+        where: { id: reunion.id },
+        data: { estadoReunion: 'CANCELADA', observacionesReunion: observacion, creadoModificadoFecha: new Date() },
+      });
+      await tx.solicitudreunion.update({
+        where: { id: sol.id },
+        data: { estadoSolicitud: 'CANCELADA', creadoModificadoFecha: new Date() },
+      });
+      await tx.mesabloque.updateMany({
+        where: { reunion_id: reunion.id, estaActivo: 1 },
+        data: { estaOcupado: 0, estaActivo: 0, creadoModificadoFecha: new Date() },
+      });
+    });
+    await this.notificar(contraparteId, 'reunion:cancelada', 'Reunión cancelada',
+      `${cancela || 'La otra empresa'} canceló la reunión.${motivo ? ` Motivo: ${motivo}` : ''} El equipo técnico puede ver la cancelación y ayudarte si es necesario.`,
+      reunion.id, 'reunion');
     return { ok: true };
   }
 
@@ -5878,6 +6231,7 @@ export class AppController implements OnModuleInit {
         await createMailTransporter().sendMail({
           from: process.env.MAIL_FROM, to: correoNorm,
           subject: 'Tu acceso a la Rueda de Negocios',
+          attachments: EMAIL_LOGO_ATTACHMENTS,
           html: `${EMAIL_LOGO_HTML}<div style="font-family:Arial;max-width:520px;margin:auto"><h2 style="color:#449D3A">Tu participante fue habilitado</h2><p>Correo: <strong>${correoNorm}</strong></p><p>Contraseña temporal: <strong>${pwd}</strong></p><p>Cámbiala al iniciar sesión.</p></div>`,
         });
         credencialesEnviadas = true;

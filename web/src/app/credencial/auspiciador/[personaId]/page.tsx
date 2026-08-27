@@ -33,8 +33,8 @@ export default function CredencialAuspiciadorPage() {
       if (!ver.ok) throw new Error((await ver.json())?.message || "No se pudo verificar la credencial.");
       const res = await fetch(`${API}/tecnico/asistencias-auspiciadores`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${tecnico.token}` }, body: JSON.stringify({ personaId: Number(personaId), token }) });
       const r = await res.json(); if (!res.ok) throw new Error(r?.message || "No se pudo registrar la asistencia.");
-      setData((actual: any) => ({ ...actual, asistencia: { registrada: true, fechaHoraAsistencia: r.fechaHoraAsistencia } }));
-      setResultado(r.yaRegistrada ? `La asistencia ya estaba registrada: ${new Date(r.fechaHoraAsistencia).toLocaleString("es-BO")}` : `Asistencia registrada: ${new Date(r.fechaHoraAsistencia).toLocaleString("es-BO")}`);
+      setData((actual: any) => ({ ...actual, asistencia: { registrada: r.usosRestantes === 0, fechaHoraAsistencia: r.fechaHoraAsistencia, usosHoy: r.usosHoy, usosRestantes: r.usosRestantes, limiteDiario: r.limiteDiario } }));
+      setResultado(`Asistencia registrada. Uso ${r.usosHoy} de ${r.limiteDiario}; ${r.usosRestantes ? `queda ${r.usosRestantes} registro hoy` : "límite diario alcanzado"}.`);
     } catch (e: any) { setResultado(e.message); } finally { setRegistrando(false); }
   };
   return <main className="min-h-screen bg-gradient-to-br from-green-50 to-white flex items-center justify-center p-4">
@@ -45,7 +45,7 @@ export default function CredencialAuspiciadorPage() {
         <p className="text-sm font-semibold text-gray-700 mt-5">{data.evento} {data.edicion}</p>
         {data.lugar && <p className="text-xs text-gray-500 mt-2 flex items-center justify-center gap-1"><MapPin className="w-4 h-4"/>{data.lugar}</p>}
         {puedeRegistrar && !data.asistencia?.registrada && <button onClick={registrar} disabled={registrando} className="mt-5 w-full rounded-xl bg-[#449D3A] text-white font-bold px-4 py-3 flex items-center justify-center gap-2 disabled:opacity-50"><CheckCircle2 className="w-5 h-5"/>{registrando ? "Registrando…" : "Registrar asistencia"}</button>}
-        {(resultado || data.asistencia?.registrada) && <div className="mt-3 rounded-xl bg-green-50 border border-green-200 text-green-800 text-sm font-semibold p-3 break-words">{resultado || `Asistencia registrada el ${new Date(data.asistencia.fechaHoraAsistencia).toLocaleString("es-BO")}`}</div>}
+        {(resultado || data.asistencia?.fechaHoraAsistencia) && <div className="mt-3 rounded-xl bg-green-50 border border-green-200 text-green-800 text-sm font-semibold p-3 break-words">{resultado || `Último registro: ${new Date(data.asistencia.fechaHoraAsistencia).toLocaleString("es-BO", { timeZone: "America/La_Paz" })}. Usos de hoy: ${data.asistencia.usosHoy} de ${data.asistencia.limiteDiario || 2}.`}</div>}
       </>}
     </div>
   </main>;

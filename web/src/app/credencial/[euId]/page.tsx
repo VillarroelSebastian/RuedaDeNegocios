@@ -65,10 +65,14 @@ export default function CredencialPage() {
       });
       const respuesta = await res.json();
       if (!res.ok) throw new Error(respuesta?.message || "No se pudo registrar la asistencia.");
-      setData((actual: any) => ({ ...actual, asistencia: { registrada: true, fechaHoraAsistencia: respuesta.fechaHoraAsistencia } }));
-      setResultado(respuesta.yaRegistrada
-        ? `La asistencia ya estaba registrada: ${new Date(respuesta.fechaHoraAsistencia).toLocaleString("es-BO")}`
-        : `Asistencia registrada: ${new Date(respuesta.fechaHoraAsistencia).toLocaleString("es-BO")}`);
+      setData((actual: any) => ({ ...actual, asistencia: {
+        registrada: respuesta.usosRestantes === 0,
+        fechaHoraAsistencia: respuesta.fechaHoraAsistencia,
+        usosHoy: respuesta.usosHoy,
+        usosRestantes: respuesta.usosRestantes,
+        limiteDiario: respuesta.limiteDiario,
+      } }));
+      setResultado(`Asistencia registrada. Uso ${respuesta.usosHoy} de ${respuesta.limiteDiario}; ${respuesta.usosRestantes ? `queda ${respuesta.usosRestantes} registro hoy` : "límite diario alcanzado"}.`);
     } catch (e: any) { setResultado(e.message); }
     finally { setRegistrando(false); }
   };
@@ -155,7 +159,7 @@ export default function CredencialPage() {
                 {registrando ? "Registrando…" : "Registrar asistencia"}
               </button>
             )}
-            {(resultado || data.asistencia?.registrada) && <div className="basis-full w-full rounded-xl bg-green-50 border border-green-200 text-green-800 text-sm font-semibold p-3 text-center break-words">{resultado || `Asistencia registrada el ${new Date(data.asistencia.fechaHoraAsistencia).toLocaleString("es-BO")}`}</div>}
+            {(resultado || data.asistencia?.fechaHoraAsistencia) && <div className="basis-full w-full rounded-xl bg-green-50 border border-green-200 text-green-800 text-sm font-semibold p-3 text-center break-words">{resultado || `Último registro: ${new Date(data.asistencia.fechaHoraAsistencia).toLocaleString("es-BO", { timeZone: "America/La_Paz" })}. Usos de hoy: ${data.asistencia.usosHoy} de ${data.asistencia.limiteDiario || 2}.`}</div>}
           </div>
 
           {/* Empresa */}

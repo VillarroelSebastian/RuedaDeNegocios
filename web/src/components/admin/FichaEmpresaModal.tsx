@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import {
   Building2, X, Mail, Phone, Globe, MapPin, Package, Users, CreditCard,
   FileText, Download, QrCode, Tag, Armchair, Star, Handshake, Search,
+  ExternalLink,
 } from "lucide-react";
 import ImagenLightbox from "@/components/ui/ImagenLightbox";
 
@@ -246,7 +247,14 @@ export default function FichaEmpresaModal({
                       <li key={c.id} className="flex items-center gap-3 border border-gray-100 rounded-xl p-2.5">
                         {c.url && (
                           <div className="w-14 h-14 rounded-lg overflow-hidden bg-gray-50 flex-shrink-0">
-                            <ImagenLightbox src={c.url} className="w-full h-full" />
+                            {c.url.toLowerCase().includes(".pdf") ? (
+                              <a href={c.url} target="_blank" rel="noopener noreferrer" title="Abrir PDF"
+                                className="w-full h-full flex items-center justify-center text-[#449D3A]">
+                                <ExternalLink className="w-5 h-5" />
+                              </a>
+                            ) : (
+                              <ImagenLightbox src={c.url} className="w-full h-full" />
+                            )}
                           </div>
                         )}
                         <div className="min-w-0 flex-1">

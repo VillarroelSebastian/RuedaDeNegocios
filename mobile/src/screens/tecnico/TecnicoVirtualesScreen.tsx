@@ -4,17 +4,17 @@ import {
   RefreshControl, Image, TextInput, Linking, Modal,
 } from 'react-native';
 import {
-  Building2, Clock, Video, Armchair, Search, Link2, X, CheckCircle2,
+  AlertTriangle, Building2, Clock, Video, Armchair, Search, Link2, X, CheckCircle2,
 } from 'lucide-react-native';
 import { API_URL } from '../../utils/userStore';
 
 const GREEN = '#449D3A';
 
 function fmtTime(iso: string) {
-  return new Date(iso).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return new Date(iso).toLocaleTimeString('es-BO', { timeZone: 'America/La_Paz', hour: '2-digit', minute: '2-digit', hour12: false });
 }
 function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString('es-BO', { day: 'numeric', month: 'short' });
+  return new Date(iso).toLocaleDateString('es-BO', { timeZone: 'America/La_Paz', day: 'numeric', month: 'short' });
 }
 
 const ESTADO_CFG: Record<string, { color: string; bg: string; dot: string; label: string }> = {
@@ -34,6 +34,7 @@ const FILTROS = [
   { key: 'EN_CURSO',   label: 'En curso'    },
   { key: 'PROGRAMADA', label: 'Programadas' },
   { key: 'FINALIZADA', label: 'Finalizadas' },
+  { key: 'CANCELADA',  label: 'Canceladas'  },
 ];
 
 function VirtualCard({ r, onEditLink }: { r: any; onEditLink: (r: any) => void }) {
@@ -43,6 +44,8 @@ function VirtualCard({ r, onEditLink }: { r: any; onEditLink: (r: any) => void }
   const est = ESTADO_CFG[r.estadoReunion] ?? ESTADO_CFG.PROGRAMADA;
   const tip = TIPO_CFG[r.tipoReunion]    ?? TIPO_CFG.VIRTUAL;
   const link = sol?.enlaceReunionVirtual;
+  const cancelada = r.estadoReunion === 'CANCELADA';
+  const canceladaPorEmpresa = cancelada && /^Cancelada por /i.test(r.observacionesReunion ?? '');
 
   return (
     <View style={{
@@ -96,7 +99,15 @@ function VirtualCard({ r, onEditLink }: { r: any; onEditLink: (r: any) => void }
         </View>
 
         {/* Enlace virtual */}
-        {link ? (
+        {canceladaPorEmpresa && (
+          <View style={{ flexDirection:'row', alignItems:'flex-start', gap:8, marginTop:12,
+            borderWidth:1, borderColor:'#fecaca', backgroundColor:'#fef2f2', borderRadius:12, padding:10 }}>
+            <AlertTriangle color="#dc2626" size={16}/>
+            <Text style={{ flex:1, color:'#991b1b', fontSize:12, lineHeight:17 }}>{r.observacionesReunion}</Text>
+          </View>
+        )}
+
+        {!cancelada && (link ? (
           <TouchableOpacity
             onPress={() => Linking.openURL(link)}
             style={{
@@ -115,10 +126,10 @@ function VirtualCard({ r, onEditLink }: { r: any; onEditLink: (r: any) => void }
           }}>
             <Text style={{ fontSize: 12, color: '#9ca3af' }}>Sin enlace disponible</Text>
           </View>
-        )}
+        ))}
 
         {/* Cambiar / agregar enlace */}
-        <TouchableOpacity
+        {!cancelada && <TouchableOpacity
           onPress={() => onEditLink(r)}
           style={{
             flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
@@ -130,7 +141,7 @@ function VirtualCard({ r, onEditLink }: { r: any; onEditLink: (r: any) => void }
           <Text style={{ color: GREEN, fontWeight: '700', fontSize: 12 }}>
             {link ? 'Cambiar enlace' : 'Agregar enlace'}
           </Text>
-        </TouchableOpacity>
+        </TouchableOpacity>}
       </View>
     </View>
   );
@@ -246,6 +257,9 @@ export default function TecnicoVirtualesScreen() {
     const matchSearch = search.trim() === '' || empresa.toLowerCase().includes(search.trim().toLowerCase());
     return matchEst && matchSearch;
   });
+  const canceladasPorEmpresa = reuniones.filter((r) =>
+    r.estadoReunion === 'CANCELADA' && /^Cancelada por /i.test(r.observacionesReunion ?? ''),
+  );
 
   return (
     <View style={{ flex: 1, backgroundColor: '#f8fafc' }}>
@@ -320,6 +334,20 @@ export default function TecnicoVirtualesScreen() {
           }
           showsVerticalScrollIndicator={false}
         >
+          {canceladasPorEmpresa.length > 0 && (
+            <View style={{ flexDirection:'row', alignItems:'flex-start', gap:10, marginBottom:12,
+              borderWidth:1, borderColor:'#fecaca', backgroundColor:'#fef2f2', borderRadius:16, padding:14 }}>
+              <AlertTriangle color="#dc2626" size={19}/>
+              <View style={{ flex:1 }}>
+                <Text style={{ color:'#991b1b', fontSize:13, fontWeight:'800' }}>
+                  {canceladasPorEmpresa.length} reunión(es) virtual(es) cancelada(s) por empresas
+                </Text>
+                <Text style={{ color:'#b91c1c', fontSize:11, lineHeight:16, marginTop:3 }}>
+                  El motivo aparece directamente en la reunión cancelada.
+                </Text>
+              </View>
+            </View>
+          )}
           {filtered.length === 0 ? (
             <View style={{
               backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#f1f5f9',

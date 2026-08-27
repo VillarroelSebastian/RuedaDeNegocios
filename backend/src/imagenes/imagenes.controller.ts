@@ -6,6 +6,8 @@ import { randomBytes } from 'crypto';
 
 @Controller()
 export class ImagenesController {
+  private static readonly MAX_FILE_SIZE = 10 * 1024 * 1024;
+
   private validarDimensiones(mime: string, b: Buffer) {
     let width = 0, height = 0;
     if (mime === 'image/png' && b.length >= 24) { width = b.readUInt32BE(16); height = b.readUInt32BE(20); }
@@ -37,17 +39,26 @@ export class ImagenesController {
       throw new BadRequestException('La imagen tiene dimensiones inválidas o excesivas.');
   }
   @Post(['admin/imagenes/upload', 'public/imagenes/upload'])
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 5 * 1024 * 1024 } }))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: ImagenesController.MAX_FILE_SIZE } }))
   async uploadImage(
     @UploadedFile() file: Express.Multer.File,
     @Req() req: any,
   ) {
     if (!file) throw new BadRequestException('No se proporcionó ningún archivo');
+    const pdfHeaderOffset = file.buffer.subarray(0, 1024).indexOf(Buffer.from('%PDF-'));
+    const esPdfPorContenido = pdfHeaderOffset >= 0;
+    const mimeOriginal = String(file.mimetype || '').toLowerCase();
+    // Algunos navegadores y selectores móviles entregan PDFs como
+    // application/octet-stream. Solo se normaliza si el contenido realmente
+    // contiene la cabecera PDF dentro de los primeros 1024 bytes.
+    const mime = esPdfPorContenido && ['application/pdf', 'application/x-pdf', 'application/octet-stream', ''].includes(mimeOriginal)
+      ? 'application/pdf'
+      : mimeOriginal;
     const permitidos = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
-    if (!permitidos.includes(file.mimetype))
-      throw new BadRequestException('Formato no permitido. Usa JPG, PNG, WEBP, GIF o PDF.');
-    if (file.size > 5 * 1024 * 1024)
-      throw new BadRequestException('El archivo no debe superar 5 MB.');
+    if (!permitidos.includes(mime))
+      throw new BadRequestException('Formato no permitido. Usa JPG, PNG, WEBP o PDF.');
+    if (file.size > ImagenesController.MAX_FILE_SIZE)
+      throw new BadRequestException('El archivo no debe superar 10 MB.');
 
     const uploadsDir = join(process.cwd(), 'uploads');
     mkdirSync(uploadsDir, { recursive: true });
@@ -56,12 +67,12 @@ export class ImagenesController {
       'image/jpeg': (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
       'image/png': (b) => b.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10])),
       'image/webp': (b) => b.subarray(0,4).toString() === 'RIFF' && b.subarray(8,12).toString() === 'WEBP',
-      'application/pdf': (b) => b.subarray(0,5).toString() === '%PDF-',
+      'application/pdf': () => esPdfPorContenido,
     };
-    if (!signatures[file.mimetype]?.(file.buffer)) throw new BadRequestException('El contenido del archivo no coincide con su formato.');
-    this.validarDimensiones(file.mimetype, file.buffer);
+    if (!signatures[mime]?.(file.buffer)) throw new BadRequestException('El contenido del archivo no coincide con su formato.');
+    this.validarDimensiones(mime, file.buffer);
     const extensions: Record<string, string> = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp', 'application/pdf': '.pdf' };
-    const ext = extensions[file.mimetype];
+    const ext = extensions[mime];
     const filename = `${Date.now()}-${randomBytes(8).toString('hex')}${ext}`;
     writeFileSync(join(uploadsDir, filename), file.buffer);
 

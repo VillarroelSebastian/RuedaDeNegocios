@@ -291,17 +291,17 @@ export default function RegistroPage() {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) { showModal("error", "Archivo muy grande", "El archivo no debe superar los 5 MB."); return; }
+    if (file.size > 10 * 1024 * 1024) { showModal("error", "Archivo muy grande", "El archivo no debe superar los 10 MB."); return; }
     setUploadingFile(true);
     try {
       const fd = new FormData();
       fd.append("file", file);
       const res = await fetch(`${API}/public/imagenes/upload`, { method: "POST", body: fd });
       const data = await res.json();
-      if (data.url) setUrlComprobante(data.url);
-      else throw new Error("Sin URL");
-    } catch {
-      showModal("error", "Error al subir", "No se pudo subir el comprobante. Intenta de nuevo.");
+      if (!res.ok || !data.url) throw new Error(data?.message || "No se pudo guardar el archivo.");
+      setUrlComprobante(data.url);
+    } catch (error) {
+      showModal("error", "Error al subir", error instanceof Error ? error.message : "No se pudo subir el comprobante. Intenta de nuevo.");
     } finally {
       setUploadingFile(false);
       e.target.value = "";
@@ -820,8 +820,10 @@ export default function RegistroPage() {
                   <div>
                     <div
                       className="w-full h-40 rounded-xl border-2 border-[#449D3A] overflow-hidden bg-gray-50 flex items-center justify-center cursor-pointer"
-                      onClick={() => setLightboxUrl(urlComprobante)}
-                      title="Click para ampliar"
+                      onClick={() => urlComprobante.includes(".pdf") || urlComprobante.includes("/raw/upload/")
+                        ? window.open(urlComprobante, "_blank", "noopener,noreferrer")
+                        : setLightboxUrl(urlComprobante)}
+                      title={urlComprobante.includes(".pdf") ? "Abrir PDF" : "Clic para ampliar"}
                     >
                       {urlComprobante.includes(".pdf") || urlComprobante.includes("/raw/upload/")
                         ? <div className="text-center"><FileText className="w-10 h-10 text-[#449D3A] mx-auto mb-1" /><p className="text-sm text-gray-600 font-semibold">PDF subido — clic para ver</p></div>
@@ -829,7 +831,7 @@ export default function RegistroPage() {
                       }
                     </div>
                     <div className="flex items-center justify-between mt-2">
-                      <p className="text-[10px] text-gray-400">Clic en la imagen para ampliar</p>
+                      <p className="text-[10px] text-gray-400">{urlComprobante.includes(".pdf") ? "Clic para abrir el PDF" : "Clic en la imagen para ampliar"}</p>
                       <label className="flex items-center gap-1.5 text-xs font-semibold text-[#449D3A] cursor-pointer hover:text-[#367d2e] transition-colors">
                         <RefreshCw className="w-3.5 h-3.5" />
                         Cambiar comprobante
@@ -844,7 +846,7 @@ export default function RegistroPage() {
                     <p className={`text-sm font-semibold ${uploadingFile ? "text-[#449D3A]" : "text-gray-600"}`}>
                       {uploadingFile ? "Subiendo..." : "Haga clic para subir"}
                     </p>
-                    <p className="text-xs text-gray-400 mt-1">Imagen o PDF — Máximo 10MB</p>
+                    <p className="text-xs text-gray-400 mt-1">JPG, PNG, WEBP o PDF — Máximo 10 MB</p>
                   </label>
                 )}
                 <label className="flex items-start gap-2 mt-4 cursor-pointer">

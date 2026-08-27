@@ -15,12 +15,17 @@ interface Msg {
 
 const SUGERENCIAS = [
   "Agendar una reunión",
-  "¿Cuándo es mi próxima reunión?",
-  "¿En qué mesa me toca?",
-  "¿Cuál es el estado de mi pago?",
+  "Mi próxima reunión",
+  "Todas mis reuniones aceptadas",
+  "Mi próxima mesa",
+  "Eventos y actividades",
+  "Comunicados",
+  "Fecha y horario del evento",
+  "Solicitudes pendientes",
+  "Cupos disponibles",
 ];
 
-const BIENVENIDA = "¡Hola! Soy tu asistente virtual del evento. Puedes tocar una opción o escribir su número (1, 2, 3 o 4). También puedes escribir tu pregunta. Después de cada consulta volveré a mostrarte el menú principal.";
+const BIENVENIDA = "¡Hola! Soy tu asistente virtual del evento. Elige una opción del 1 al 9 o escribe tu pregunta. Después de cada consulta volveré a mostrarte el menú principal.";
 
 export default function AsistenteChat({ eeId, euId }: { eeId: number | null; euId?: number | null }) {
   const [open, setOpen] = useState(false);
@@ -38,7 +43,8 @@ export default function AsistenteChat({ eeId, euId }: { eeId: number | null; euI
 
   const send = async (texto: string) => {
     const escrito = texto.trim();
-    const ultimasOpciones = [...msgs].reverse().find((m) => m.role === 'bot' && m.opciones?.length)?.opciones;
+    const ultimoMensaje = msgs[msgs.length - 1];
+    const ultimasOpciones = ultimoMensaje?.role === "bot" ? ultimoMensaje.opciones : undefined;
     const indice = /^\d+$/.test(escrito) ? Number(escrito) - 1 : -1;
     const t = indice >= 0 && ultimasOpciones?.[indice] ? ultimasOpciones[indice] : escrito;
     if (!t || loading || !eeId) return;

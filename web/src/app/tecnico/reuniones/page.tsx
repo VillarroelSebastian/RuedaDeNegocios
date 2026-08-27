@@ -18,10 +18,14 @@ const TIPO_CFG: Record<string, { badge: string; label: string }> = {
 };
 
 function fmtTime(iso: string) {
-  return new Date(iso).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return new Date(iso).toLocaleTimeString('es-BO', {
+    hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/La_Paz',
+  });
 }
 function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString('es-BO', { day: 'numeric', month: 'short' });
+  return new Date(iso).toLocaleDateString('es-BO', {
+    day: 'numeric', month: 'short', timeZone: 'America/La_Paz',
+  });
 }
 
 function Modal({ visible, type, title, message, onClose }: any) {
@@ -106,6 +110,8 @@ function ReunionRow({ r, onChange }: { r: any; onChange: (id: number, estado: st
   const mapsUrl    = getMapsUrl(sol);
   const esVirtual  = r.tipoReunion === 'VIRTUAL'    || r.tipoReunion === 'MIXTA';
   const esPresencial= r.tipoReunion === 'PRESENCIAL' || r.tipoReunion === 'MIXTA';
+  const canceladaPorEmpresa = r.estadoReunion === 'CANCELADA'
+    && /^Cancelada por /i.test(r.observacionesReunion ?? '');
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
@@ -140,7 +146,7 @@ function ReunionRow({ r, onChange }: { r: any; onChange: (id: number, estado: st
         </div>
 
         {/* Expand */}
-        {((esVirtual && link) || (esPresencial && mapsUrl)) && (
+        {((esVirtual && link) || (esPresencial && mapsUrl) || canceladaPorEmpresa) && (
           <button onClick={() => setExpanded(!expanded)} className="shrink-0 text-gray-400 hover:text-gray-600">
             <ChevronDown className={`w-4 h-4 transition-transform ${expanded ? 'rotate-180' : ''}`} />
           </button>
@@ -149,6 +155,12 @@ function ReunionRow({ r, onChange }: { r: any; onChange: (id: number, estado: st
 
       {expanded && (
         <div className="border-t border-gray-50 px-4 pb-3 pt-2 flex flex-wrap gap-2">
+          {canceladaPorEmpresa && (
+            <div className="w-full flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{r.observacionesReunion}</span>
+            </div>
+          )}
           {esVirtual && link && (
             <a href={link} target="_blank" rel="noreferrer"
               className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition-colors">
@@ -205,6 +217,9 @@ export default function TecnicoReunionesPage() {
 
   const estados = ['TODOS', 'PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO', 'FINALIZADA', 'CANCELADA'];
   const tipos   = ['TODOS', 'PRESENCIAL', 'VIRTUAL', 'MIXTA'];
+  const canceladasPorEmpresa = reuniones.filter((r) =>
+    r.estadoReunion === 'CANCELADA' && /^Cancelada por /i.test(r.observacionesReunion ?? ''),
+  );
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
@@ -215,6 +230,20 @@ export default function TecnicoReunionesPage() {
         <h1 className="text-2xl font-extrabold text-gray-900">Reuniones</h1>
         <p className="text-sm text-gray-500 mt-1">{reuniones.length} resultado(s)</p>
       </div>
+
+      {canceladasPorEmpresa.length > 0 && (
+        <div className="mb-6 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-900">
+          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+          <div>
+            <p className="text-sm font-bold">
+              {canceladasPorEmpresa.length} reunión(es) cancelada(s) por empresas
+            </p>
+            <p className="mt-1 text-xs text-red-700">
+              Revisa las tarjetas canceladas para consultar quién canceló y el motivo comunicado.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-col gap-3 mb-6">

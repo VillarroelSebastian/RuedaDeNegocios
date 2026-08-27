@@ -113,8 +113,8 @@ export function AppModal({
           <Text style={s.message}>{message}</Text>
 
           {/* Botones */}
-          <View style={[s.btns, onConfirm && s.btnsRow]}>
-            {onConfirm && (
+          <View style={[s.btns, type === 'confirm' && s.btnsRow]}>
+            {type === 'confirm' && (
               <TouchableOpacity
                 style={[s.btn, s.btnOutline]}
                 onPress={handleCancel}

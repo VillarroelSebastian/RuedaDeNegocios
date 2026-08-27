@@ -2,9 +2,9 @@ import React, { useEffect, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
   SafeAreaView, KeyboardAvoidingView, Platform, ActivityIndicator,
-  Image, Modal as RNModal,
+  Image, Linking, Modal as RNModal,
 } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { StatusBar } from 'expo-status-bar';
 import { API_URL } from '../utils/userStore';
 import { LIMITES, correoValido, validarNombreEmpresa, limpiarEspacios } from '../utils/validaciones';
@@ -199,6 +199,8 @@ export default function RegistroScreen({ navigation }: any) {
   // Step 2
   const [comprobanteUrl, setComprobanteUrl] = useState('');
   const [comprobanteUri, setComprobanteUri] = useState('');
+  const [comprobanteNombre, setComprobanteNombre] = useState('');
+  const [comprobanteEsPdf, setComprobanteEsPdf] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [confirmadoPago, setConfirmadoPago] = useState(false);
 
@@ -227,20 +229,28 @@ export default function RegistroScreen({ navigation }: any) {
 
   // File upload
   const pickAndUpload = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') { showModal('warning', 'Permiso requerido', 'Se necesita acceso a la galería.'); return; }
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.All, quality: 0.85 });
+    const result = await DocumentPicker.getDocumentAsync({
+      type: ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
+      copyToCacheDirectory: true,
+      multiple: false,
+    });
     if (result.canceled || !result.assets?.length) return;
     const asset = result.assets[0];
+    if (asset.size && asset.size > 10 * 1024 * 1024) {
+      showModal('warning', 'Archivo muy grande', 'El archivo no debe superar los 10 MB.');
+      return;
+    }
     setUploadingFile(true);
     try {
       const formData = new FormData();
-      formData.append('file', { uri: asset.uri, type: asset.mimeType ?? 'image/jpeg', name: asset.fileName ?? 'comprobante.jpg' } as any);
-      const res = await fetch(`${API_URL}/admin/imagenes/upload`, { method: 'POST', body: formData });
+      formData.append('file', { uri: asset.uri, type: asset.mimeType ?? 'application/octet-stream', name: asset.name ?? 'comprobante' } as any);
+      const res = await fetch(`${API_URL}/public/imagenes/upload`, { method: 'POST', body: formData });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message ?? 'Error al subir');
       setComprobanteUrl(data.url);
       setComprobanteUri(asset.uri);
+      setComprobanteNombre(asset.name ?? 'Comprobante');
+      setComprobanteEsPdf(asset.mimeType === 'application/pdf' || Boolean(asset.name?.toLowerCase().endsWith('.pdf')));
     } catch (err: any) {
       showModal('error', 'Error al subir', err.message ?? 'No se pudo subir el comprobante.');
     } finally { setUploadingFile(false); }
@@ -598,11 +608,22 @@ export default function RegistroScreen({ navigation }: any) {
                 <Text style={{ fontSize: 13, fontWeight: '700', color: '#111827', marginBottom: 12 }}>Comprobante de pago *</Text>
                 {comprobanteUrl ? (
                   <View style={{ alignItems: 'center' }}>
-                    <TouchableOpacity onPress={() => setLightboxUrl(comprobanteUri || comprobanteUrl)}>
-                      <Image source={{ uri: comprobanteUri || comprobanteUrl }} style={{ width: '100%', height: 200, borderRadius: 12 }} resizeMode="contain" />
-                      <Text style={{ fontSize: 11, color: '#9ca3af', textAlign: 'center', marginTop: 6 }}>Toca para ampliar</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={{ marginTop: 10 }} onPress={() => { setComprobanteUrl(''); setComprobanteUri(''); }}>
+                    {comprobanteEsPdf ? (
+                      <TouchableOpacity
+                        onPress={() => Linking.openURL(comprobanteUrl)}
+                        style={{ width: '100%', minHeight: 150, borderRadius: 12, backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+                      >
+                        <Text style={{ fontSize: 38, marginBottom: 8 }}>📄</Text>
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: '#334155', textAlign: 'center' }}>{comprobanteNombre || 'Comprobante PDF'}</Text>
+                        <Text style={{ fontSize: 11, color: '#64748b', marginTop: 6 }}>Toca para abrir el documento completo</Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <TouchableOpacity onPress={() => setLightboxUrl(comprobanteUri || comprobanteUrl)} style={{ width: '100%' }}>
+                        <Image source={{ uri: comprobanteUri || comprobanteUrl }} style={{ width: '100%', height: 200, borderRadius: 12 }} resizeMode="contain" />
+                        <Text style={{ fontSize: 11, color: '#9ca3af', textAlign: 'center', marginTop: 6 }}>Toca para ampliar</Text>
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity style={{ marginTop: 10 }} onPress={() => { setComprobanteUrl(''); setComprobanteUri(''); setComprobanteNombre(''); setComprobanteEsPdf(false); }}>
                       <Text style={{ color: '#ef4444', fontSize: 13, fontWeight: '600' }}>Quitar archivo</Text>
                     </TouchableOpacity>
                   </View>
@@ -615,8 +636,8 @@ export default function RegistroScreen({ navigation }: any) {
                     {uploadingFile ? <ActivityIndicator color="#5B9A27" /> : (
                       <>
                         <Text style={{ fontSize: 28, marginBottom: 8 }}>📎</Text>
-                        <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151' }}>Seleccionar imagen</Text>
-                        <Text style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>JPG, PNG</Text>
+                        <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151' }}>Seleccionar comprobante</Text>
+                        <Text style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>JPG, PNG, WEBP o PDF · Máximo 10 MB</Text>
                       </>
                     )}
                   </TouchableOpacity>

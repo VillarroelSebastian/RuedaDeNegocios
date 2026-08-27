@@ -3,7 +3,7 @@ import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   ActivityIndicator, RefreshControl, Modal, Image
 } from 'react-native';
-import { Plus, Pencil, Trash2, X, User } from 'lucide-react-native';
+import { Mail, Plus, Pencil, Trash2, X, User } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { API_URL } from '../../utils/userStore';
 import { useModal } from '../../components/AppModal';
@@ -16,7 +16,6 @@ const defaultForm = {
   apellidoMaterno: '',
   correo: '',
   telefono: '',
-  contrasenia: '',
   urlFotoPerfil: '',
   rolEvento: 'TECNICO',
 };
@@ -31,6 +30,7 @@ export default function TecnicosScreen() {
   const [form, setForm] = useState({ ...defaultForm });
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [resendingId, setResendingId] = useState<number | null>(null);
 
   const fetchTecnicos = useCallback(async () => {
     try {
@@ -73,7 +73,7 @@ export default function TecnicosScreen() {
       if (!res.ok) throw new Error(data.message || 'Error al guardar');
       show(data.correoEnviado === false && !editId
         ? { type: 'warning', title: 'Técnico creado', message: 'La cuenta se creó, pero no se pudieron enviar las credenciales. Revisa la configuración de correo.' }
-        : { type: 'success', title: '¡Listo!', message: editId ? 'Técnico actualizado.' : 'Técnico creado y credenciales enviadas por correo.' });
+        : { type: 'success', title: '¡Listo!', message: editId ? 'Técnico actualizado.' : data.reactivado ? 'Técnico reactivado y credenciales enviadas por correo.' : 'Técnico creado y credenciales enviadas por correo.' });
       setShowForm(false);
       fetchTecnicos();
     } catch (e: any) { show({ type: 'error', title: 'Error', message: e.message || 'No se pudo guardar.' }); }
@@ -88,6 +88,30 @@ export default function TecnicosScreen() {
       confirmText: 'Eliminar',
       cancelText: 'Cancelar',
       onConfirm: async () => { await fetch(`${API_URL}/admin/tecnicos/${id}`, { method: 'DELETE' }); fetchTecnicos(); },
+    });
+  };
+
+  const handleResend = (id: number, nombre: string) => {
+    show({
+      type: 'confirm',
+      title: 'Reenviar credenciales',
+      message: `Se generará una contraseña temporal nueva para ${nombre}. La anterior solo se reemplazará si el correo se envía correctamente.`,
+      confirmText: 'Reenviar',
+      cancelText: 'Cancelar',
+      onConfirm: async () => {
+        setResendingId(id);
+        try {
+          const res = await fetch(`${API_URL}/admin/tecnicos/${id}/reenviar-credenciales`, { method: 'POST' });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data?.message || 'No se pudieron reenviar las credenciales.');
+          show({ type: 'success', title: 'Credenciales reenviadas', message: 'La nueva contraseña temporal fue enviada al correo del técnico.' });
+          fetchTecnicos();
+        } catch (error: any) {
+          show({ type: 'error', title: 'No se pudo reenviar', message: error.message || 'Intenta nuevamente.' });
+        } finally {
+          setResendingId(null);
+        }
+      },
     });
   };
 
@@ -123,7 +147,7 @@ export default function TecnicosScreen() {
               <View key={t.id} className="mx-4 mt-3 bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex-row items-center gap-4">
                 <View className="w-14 h-14 rounded-full bg-gray-100 items-center justify-center overflow-hidden shrink-0">
                   {t.urlFotoPerfil
-                    ? <Image source={{ uri: t.urlFotoPerfil }} className="w-full h-full" />
+                    ? <Image source={{ uri: t.urlFotoPerfil }} className="w-full h-full" resizeMode="contain" />
                     : <User color="#9ca3af" size={24} />
                   }
                 </View>
@@ -133,7 +157,7 @@ export default function TecnicosScreen() {
                   <Text className="text-xs text-gray-400">{t.telefono}</Text>
                   <View className="flex-row flex-wrap gap-1 mt-1">
                     <View style={{ backgroundColor: '#dcfce7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999 }}>
-                      <Text style={{ color: GREEN, fontSize: 9, fontWeight: '700' }}>TÉCNICO</Text>
+                      <Text style={{ color: GREEN, fontSize: 9, fontWeight: '700' }}>{t.rolEvento === 'TECNICO_EVENTOS' ? 'EVENTOS EN VIVO' : 'TÉCNICO'}</Text>
                     </View>
                     {t.evento && (
                       <View style={{ backgroundColor: '#eff6ff', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999 }}>
@@ -142,11 +166,25 @@ export default function TecnicosScreen() {
                         </Text>
                       </View>
                     )}
+                    {t.estadoUltimoEnvioCredenciales && (
+                      <View style={{ backgroundColor: t.estadoUltimoEnvioCredenciales === 'ENVIADO' ? '#f0fdf4' : t.estadoUltimoEnvioCredenciales === 'FALLIDO' ? '#fef2f2' : '#fffbeb', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999 }}>
+                        <Text style={{ color: t.estadoUltimoEnvioCredenciales === 'ENVIADO' ? '#166534' : t.estadoUltimoEnvioCredenciales === 'FALLIDO' ? '#b91c1c' : '#92400e', fontSize: 9, fontWeight: '600' }}>
+                          Correo {t.estadoUltimoEnvioCredenciales === 'ENVIADO' ? 'enviado' : t.estadoUltimoEnvioCredenciales === 'FALLIDO' ? 'fallido' : 'pendiente'}
+                        </Text>
+                      </View>
+                    )}
                   </View>
                 </View>
                 <View className="gap-2">
+                  <TouchableOpacity
+                    onPress={() => handleResend(t.id, `${t.nombres} ${t.apellidoPaterno}`)}
+                    disabled={resendingId === t.id}
+                    className="p-2 bg-blue-50 rounded-xl"
+                  >
+                    <Mail color="#2563eb" size={16} />
+                  </TouchableOpacity>
                   <TouchableOpacity onPress={() => {
-                    setForm({ nombres: t.nombres, apellidoPaterno: t.apellidoPaterno, apellidoMaterno: t.apellidoMaterno || '', correo: t.correo, telefono: t.telefono, contrasenia: '', urlFotoPerfil: t.urlFotoPerfil || '', rolEvento: t.rolEvento || 'TECNICO' });
+                    setForm({ nombres: t.nombres, apellidoPaterno: t.apellidoPaterno, apellidoMaterno: t.apellidoMaterno || '', correo: t.correo, telefono: t.telefono, urlFotoPerfil: t.urlFotoPerfil || '', rolEvento: t.rolEvento || 'TECNICO' });
                     setEditId(t.id); setShowForm(true);
                   }} className="p-2 bg-green-50 rounded-xl">
                     <Pencil color={GREEN} size={16} />
@@ -181,7 +219,7 @@ export default function TecnicosScreen() {
                 <TouchableOpacity onPress={handlePickPhoto}>
                   <View className="w-20 h-20 rounded-full bg-gray-100 items-center justify-center overflow-hidden">
                     {form.urlFotoPerfil
-                      ? <Image source={{ uri: form.urlFotoPerfil }} className="w-full h-full" />
+                      ? <Image source={{ uri: form.urlFotoPerfil }} className="w-full h-full" resizeMode="contain" />
                       : <User color="#9ca3af" size={32} />
                     }
                   </View>
@@ -194,21 +232,24 @@ export default function TecnicosScreen() {
                 { label: 'Apellido materno', key: 'apellidoMaterno' },
                 { label: 'Teléfono *', key: 'telefono', keyboardType: 'phone-pad' },
                 { label: 'Correo electrónico *', key: 'correo', keyboardType: 'email-address' },
-                { label: editId ? 'Nueva contraseña (dejar en blanco para no cambiar)' : 'Contraseña (se generará y enviará por correo)', key: 'contrasenia', secureTextEntry: true },
-              ].map(({ label, key, keyboardType, secureTextEntry }: any) => (
+              ].map(({ label, key, keyboardType }: any) => (
                 <View key={key} className="mb-3">
                   <Text className="text-sm font-semibold text-gray-700 mb-1">{label}</Text>
                   <TextInput
                     value={(form as any)[key]}
                     onChangeText={(v) => set(key, v)}
                     keyboardType={keyboardType || 'default'}
-                    secureTextEntry={secureTextEntry}
                     editable={key !== 'correo' || !editId}
                     placeholderTextColor="#9ca3af"
                     className={`border border-gray-200 rounded-xl px-3 py-2.5 text-sm ${key === 'correo' && editId ? 'bg-gray-50 text-gray-400' : ''}`}
                   />
                 </View>
               ))}
+              {!editId && (
+                <View className="mb-3 rounded-xl border border-green-100 bg-green-50 p-3">
+                  <Text className="text-sm text-green-700">La contraseña temporal se generará automáticamente y llegará al correo del técnico.</Text>
+                </View>
+              )}
             </ScrollView>
             <View className="flex-row gap-3 mt-4">
               <TouchableOpacity onPress={() => setShowForm(false)}

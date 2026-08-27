@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, Pencil, Trash2, User, X, Upload } from 'lucide-react';
+import { Mail, Plus, Pencil, Trash2, User, X, Upload } from 'lucide-react';
 import { useModal } from '@/components/ui/Modal';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
@@ -24,6 +24,7 @@ export default function TecnicosPage() {
   const [form, setForm] = useState({ ...defaultForm });
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [resendingId, setResendingId] = useState<number | null>(null);
 
   const fetch_ = useCallback(async () => {
     setLoading(true);
@@ -69,7 +70,10 @@ export default function TecnicosPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || 'No se pudo guardar.');
       if (!editId && data.correoEnviado === false) showWarning('Técnico creado', 'La cuenta se creó, pero no se pudieron enviar las credenciales. Revisa la configuración de correo.');
-      else showSuccess(editId ? 'Técnico actualizado' : 'Técnico creado', editId ? 'Los datos se guardaron correctamente.' : 'La contraseña temporal fue enviada al correo del técnico.');
+      else showSuccess(
+        editId ? 'Técnico actualizado' : data.reactivado ? 'Técnico reactivado' : 'Técnico creado',
+        editId ? 'Los datos se guardaron correctamente.' : 'La contraseña temporal fue enviada al correo del técnico.',
+      );
       setShowForm(false);
       fetch_();
     } catch (e: any) {
@@ -85,6 +89,27 @@ export default function TecnicosPage() {
         fetch_();
       } catch { showError('Error', 'No se pudo eliminar.'); }
     });
+  };
+
+  const handleResend = (id: number, nombre: string) => {
+    showConfirm(
+      `¿Reenviar credenciales a ${nombre}?`,
+      'Se generará una contraseña temporal nueva. La anterior dejará de funcionar únicamente si el correo se envía correctamente.',
+      async () => {
+        setResendingId(id);
+        try {
+          const res = await fetch(`${API}/admin/tecnicos/${id}/reenviar-credenciales`, { method: 'POST' });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data?.message || 'No se pudieron reenviar las credenciales.');
+          showSuccess('Credenciales reenviadas', 'La nueva contraseña temporal fue enviada al correo del técnico.');
+          fetch_();
+        } catch (error) {
+          showError('No se pudo reenviar', error instanceof Error ? error.message : 'Intenta nuevamente.');
+        } finally {
+          setResendingId(null);
+        }
+      },
+    );
   };
 
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
@@ -137,9 +162,22 @@ export default function TecnicosPage() {
                       {t.evento.nombre} {t.evento.edicion}
                     </span>
                   )}
+                  {t.estadoUltimoEnvioCredenciales && (
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${t.estadoUltimoEnvioCredenciales === 'ENVIADO' ? 'bg-green-50 text-green-700' : t.estadoUltimoEnvioCredenciales === 'FALLIDO' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>
+                      Correo {t.estadoUltimoEnvioCredenciales === 'ENVIADO' ? 'enviado' : t.estadoUltimoEnvioCredenciales === 'FALLIDO' ? 'fallido' : 'pendiente'}
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="flex flex-col gap-1 shrink-0">
+                <button
+                  onClick={() => handleResend(t.id, `${t.nombres} ${t.apellidoPaterno}`)}
+                  disabled={resendingId === t.id}
+                  title="Reenviar credenciales"
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-40"
+                >
+                  <Mail className="w-4 h-4" />
+                </button>
                 <button onClick={() => openEdit(t)}
                   className="p-1.5 rounded-lg text-gray-400 hover:text-[#449D3A] hover:bg-green-50 transition-colors">
                   <Pencil className="w-4 h-4" />

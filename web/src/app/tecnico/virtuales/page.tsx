@@ -25,13 +25,14 @@ const FILTER_TABS = [
   { key: 'EN_CURSO',   label: 'En curso' },
   { key: 'PROGRAMADA', label: 'Programadas' },
   { key: 'FINALIZADA', label: 'Finalizadas' },
+  { key: 'CANCELADA',  label: 'Canceladas' },
 ];
 
 function fmtTime(iso: string) {
-  return new Date(iso).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return new Date(iso).toLocaleTimeString('es-BO', { timeZone: 'America/La_Paz', hour: '2-digit', minute: '2-digit', hour12: false });
 }
 function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString('es-BO', { day: 'numeric', month: 'short', year: 'numeric' });
+  return new Date(iso).toLocaleDateString('es-BO', { timeZone: 'America/La_Paz', day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 function CompanyChip({ empresa, colorClass }: { empresa: any; colorClass: string }) {
@@ -90,6 +91,9 @@ export default function TecnicoVirtualesPage() {
     const matchFiltro = filtro === 'TODOS' || r.estadoReunion === filtro;
     return matchSearch && matchFiltro;
   });
+  const canceladasPorEmpresa = reuniones.filter((r) =>
+    r.estadoReunion === 'CANCELADA' && /^Cancelada por /i.test(r.observacionesReunion ?? ''),
+  );
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
@@ -106,6 +110,16 @@ export default function TecnicoVirtualesPage() {
         </p>
       </div>
 
+      {canceladasPorEmpresa.length > 0 && (
+        <div className="mb-5 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-900">
+          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+          <div>
+            <p className="text-sm font-bold">{canceladasPorEmpresa.length} reunión(es) virtual(es) cancelada(s) por empresas</p>
+            <p className="mt-1 text-xs text-red-700">El motivo aparece directamente en la reunión cancelada.</p>
+          </div>
+        </div>
+      )}
+
       {/* Search + Tabs */}
       <div className="flex flex-col sm:flex-row gap-3 mb-5">
         <div className="relative flex-1">
@@ -117,7 +131,7 @@ export default function TecnicoVirtualesPage() {
             className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A]"
           />
         </div>
-        <div className="flex gap-1.5 bg-gray-100 p-1 rounded-xl">
+        <div className="flex max-w-full gap-1.5 overflow-x-auto bg-gray-100 p-1 rounded-xl">
           {FILTER_TABS.map((tab) => (
             <button
               key={tab.key}
@@ -154,6 +168,8 @@ export default function TecnicoVirtualesPage() {
             const est = ESTADO_CFG[r.estadoReunion] ?? ESTADO_CFG.PROGRAMADA;
             const tip = TIPO_CFG[r.tipoReunion] ?? TIPO_CFG.VIRTUAL;
             const link = sol?.enlaceReunionVirtual;
+            const cancelada = r.estadoReunion === 'CANCELADA';
+            const canceladaPorEmpresa = cancelada && /^Cancelada por /i.test(r.observacionesReunion ?? '');
 
             return (
               <div key={r.id} className="bg-white rounded-2xl border border-gray-100 p-4 hover:shadow-sm transition-shadow">
@@ -195,7 +211,7 @@ export default function TecnicoVirtualesPage() {
                     >
                       Ver detalles
                     </Link>
-                    {link && (
+                    {link && !cancelada && (
                       <a
                         href={link}
                         target="_blank"
@@ -208,6 +224,12 @@ export default function TecnicoVirtualesPage() {
                     )}
                   </div>
                 </div>
+                {canceladaPorEmpresa && (
+                  <div className="mt-3 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>{r.observacionesReunion}</span>
+                  </div>
+                )}
               </div>
             );
           })}

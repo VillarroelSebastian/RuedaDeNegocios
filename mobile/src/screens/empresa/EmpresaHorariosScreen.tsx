@@ -36,6 +36,7 @@ interface AppModal {
 function horaEvento(iso?: string) {
   if (!iso) return "";
   return new Date(iso).toLocaleTimeString("en-GB", {
+    timeZone: "America/La_Paz",
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
@@ -68,8 +69,8 @@ export default function EmpresaHorariosScreen() {
       } else {
         setRangos([
           {
-            desde: horaEvento(evento.fechaInicioEvento),
-            hasta: horaEvento(evento.fechaFinEvento),
+            desde: horaEvento(evento.fechaInicioReuniones || evento.fechaInicioEvento),
+            hasta: horaEvento(evento.fechaFinReuniones || evento.fechaFinEvento),
           },
         ]);
       }

@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { ArrowLeft, CheckCircle, AlertCircle, XCircle, Download, FileText, Info, Eye, Users } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { useModal } from '@/components/ui/Modal';
+import FichaEmpresaModal from '@/components/admin/FichaEmpresaModal';
 import Link from 'next/link';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
@@ -17,6 +18,7 @@ export default function PagoDetailPage() {
   const [motivo, setMotivo] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [lightbox, setLightbox] = useState<string | null>(null);
+  const [verFicha, setVerFicha] = useState(false);
 
   useEffect(() => {
     fetch(`${API}/admin/pagos/${id}`)
@@ -140,6 +142,9 @@ export default function PagoDetailPage() {
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <ModalComponent />
+      {verFicha && pago.empresa?.id && (
+        <FichaEmpresaModal empresaId={pago.empresa.id} onClose={() => setVerFicha(false)} />
+      )}
 
       {/* Lightbox */}
       {lightbox && (
@@ -183,6 +188,16 @@ export default function PagoDetailPage() {
               </div>
             ))}
           </div>
+
+          {pago.empresa?.id && (
+            <button
+              type="button"
+              onClick={() => setVerFicha(true)}
+              className="mt-4 w-full rounded-xl border border-[#449D3A] px-4 py-2.5 text-sm font-bold text-[#449D3A] hover:bg-green-50 transition-colors flex items-center justify-center gap-2"
+            >
+              <Eye className="w-4 h-4" /> Ver ficha completa de la empresa
+            </button>
+          )}
 
           {/* Última observación — persiste incluso si subieron nuevo comprobante */}
           {pago.observacionSobreComprobante && (
