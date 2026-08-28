@@ -289,7 +289,9 @@ export default function TecnicoVirtualesScreen() {
         borderBottomWidth: 1, borderBottomColor: '#f1f5f9',
       }}>
         <Text style={{ fontSize: 22, fontWeight: '800', color: '#0f172a' }}>Reuniones Virtuales</Text>
-        <Text style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>{filtered.length} resultado(s)</Text>
+        <Text style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
+          {filtered.length} reunión(es) virtual(es) o mixta(s)
+        </Text>
 
         {/* Filtros */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 10 }}>

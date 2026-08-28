@@ -38,7 +38,9 @@ export async function generateMetadata(): Promise<Metadata> {
   };
   try {
     const api = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
-    const res = await fetch(`${api}/evento-principal`, { next: { revalidate: 300 } });
+    // El evento principal puede cambiar durante la operacion. No conservar su
+    // titulo anterior en la pestana durante los primeros minutos de la sesion.
+    const res = await fetch(`${api}/evento-principal`, { cache: "no-store" });
     if (res.ok) {
       const ev = await res.json();
       if (ev?.urlLogoEvento) {

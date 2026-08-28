@@ -124,7 +124,7 @@ export default function TecnicoVirtualesPage() {
           <h1 className="text-2xl font-extrabold text-gray-900">Reuniones Virtuales</h1>
         </div>
         <p className="text-sm text-gray-500 ml-12">
-          {filtered.length} reunión(es) con enlace virtual · tipos: Virtual y Mixta
+          {filtered.length} reunión(es) virtual(es) o mixta(s)
         </p>
         </div>
         <button onClick={() => load()} className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">

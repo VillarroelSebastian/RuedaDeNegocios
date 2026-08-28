@@ -3718,7 +3718,7 @@ export class AppController implements OnModuleInit {
     try {
       resultado = await this.prisma.$transaction(async (tx) => {
       if (mesaAsignada) {
-        await tx.$queryRaw`SELECT pg_advisory_xact_lock(78421, ${mesaAsignada})`;
+        await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(78421, ${mesaAsignada})`;
         const reservaPendiente = await tx.solicitudreunion.findFirst({
           where: {
             mesa_id: mesaAsignada, estaActivo: 1, estadoSolicitud: 'PENDIENTE', tipoReunion: 'PRESENCIAL',
@@ -3879,14 +3879,16 @@ export class AppController implements OnModuleInit {
   private ventanaReunionesEvento(evento: any): { start: Date; end: Date } {
     const originalStart = new Date(evento.fechaInicioEvento);
     const originalEnd = new Date(evento.fechaFinEvento);
-    // Compatibilidad con eventos antiguos guardados solo como fechas (00:00 a
-    // 00:00 del día siguiente): usar la jornada predeterminada 08:00–18:00 BO.
+    // Compatibilidad con eventos guardados solo como fechas (00:00 a 00:00):
+    // las fechas inicial y final son inclusivas, tal como se muestran en la
+    // portada. Cada día usa la jornada predeterminada 08:00–18:00 BO.
     const esDiaCompletoHeredado = originalStart.getUTCHours() === 0 && originalStart.getUTCMinutes() === 0 &&
       originalEnd.getUTCHours() === 0 && originalEnd.getUTCMinutes() === 0 &&
-      originalEnd.getTime() - originalStart.getTime() === 24 * 60 * 60000;
+      originalEnd.getTime() > originalStart.getTime() &&
+      (originalEnd.getTime() - originalStart.getTime()) % (24 * 60 * 60000) === 0;
     if (!esDiaCompletoHeredado) return { start: originalStart, end: originalEnd };
     const start = new Date(Date.UTC(originalStart.getUTCFullYear(), originalStart.getUTCMonth(), originalStart.getUTCDate(), 12, 0, 0));
-    const end = new Date(Date.UTC(originalStart.getUTCFullYear(), originalStart.getUTCMonth(), originalStart.getUTCDate(), 22, 0, 0));
+    const end = new Date(Date.UTC(originalEnd.getUTCFullYear(), originalEnd.getUTCMonth(), originalEnd.getUTCDate(), 22, 0, 0));
     return { start, end };
   }
 
@@ -5510,7 +5512,7 @@ export class AppController implements OnModuleInit {
     try {
       sol = await this.prisma.$transaction(async (tx) => {
         if (mesaAsignada) {
-          await tx.$queryRaw`SELECT pg_advisory_xact_lock(78421, ${mesaAsignada})`;
+          await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(78421, ${mesaAsignada})`;
           const [reunionOcupada, solicitudOcupada] = await Promise.all([
             tx.reunion.findFirst({
               where: {
@@ -5667,7 +5669,7 @@ export class AppController implements OnModuleInit {
     try {
       actualizada = await this.prisma.$transaction(async (tx) => {
         if (mesaAsignada) {
-          await tx.$queryRaw`SELECT pg_advisory_xact_lock(78421, ${mesaAsignada})`;
+          await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(78421, ${mesaAsignada})`;
           const [reunionOcupada, solicitudOcupada] = await Promise.all([
             tx.reunion.findFirst({ where: {
               mesa_id: mesaAsignada, estaActivo: 1, estadoReunion: { not: 'CANCELADA' },
@@ -5759,7 +5761,7 @@ export class AppController implements OnModuleInit {
     try {
       reunion = await this.prisma.$transaction(async (tx) => {
         if (mesaId) {
-          await tx.$queryRaw`SELECT pg_advisory_xact_lock(78421, ${mesaId})`;
+          await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(78421, ${mesaId})`;
           const [mesaOcupada, otraReserva] = await Promise.all([
             tx.reunion.findFirst({
               where: {
@@ -6149,7 +6151,7 @@ export class AppController implements OnModuleInit {
 
     try {
       await this.prisma.$transaction(async (tx) => {
-      if (mesaId) await tx.$queryRaw`SELECT pg_advisory_xact_lock(78421, ${mesaId})`;
+      if (mesaId) await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(78421, ${mesaId})`;
       await tx.mesabloque.updateMany({
         where: { reunion_id: cambio.reunion_id, estaActivo: 1 },
         data: { estaOcupado: 0, estaActivo: 0, creadoModificadoFecha: new Date() },
@@ -6293,7 +6295,7 @@ export class AppController implements OnModuleInit {
       const inicioReal = new Date();
       try {
         await this.prisma.$transaction(async (tx) => {
-          await tx.$queryRaw`SELECT pg_advisory_xact_lock(78422, ${Number(id)})`;
+          await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(78422, ${Number(id)})`;
           const actual = await tx.reunion.findFirst({
             where: { id: Number(id), estaActivo: 1, estadoReunion: { in: ['PROGRAMADA', 'REPROGRAMADA'] } },
           });
