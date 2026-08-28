@@ -322,8 +322,35 @@ export class AppController implements OnModuleInit {
     setInterval(() => { this.enviarRecordatoriosReuniones().catch(() => {}); }, 30_000);
     // Cierre automático: una reunión en curso dura lo que definió el admin; al
     // pasar su hora de fin se marca FINALIZADA y se pide calificar a ambos.
+    await this.alertarReunionesVirtualesSinEnlace().catch(() => {});
     await this.sincronizarEstadosReuniones().catch(() => {});
     setInterval(() => { this.sincronizarEstadosReuniones().catch(() => {}); }, 15_000);
+  }
+
+  private async alertarReunionesVirtualesSinEnlace() {
+    const reuniones = await this.prisma.reunion.findMany({
+      where: {
+        estaActivo: 1,
+        estadoReunion: { in: ['PROGRAMADA', 'REPROGRAMADA'] },
+        tipoReunion: { in: ['VIRTUAL', 'MIXTA'] },
+        fechaHoraFinReunion: { gt: new Date() },
+        solicitudreunion: {
+          OR: [{ enlaceReunionVirtual: null }, { enlaceReunionVirtual: '' }],
+        },
+      },
+      select: { id: true, evento_id: true },
+    });
+    for (const reunion of reuniones) {
+      await this.notificarStaff(
+        reunion.evento_id,
+        'staff:reunion-sin-enlace',
+        'Reunión virtual sin enlace',
+        'Hay una reunión virtual programada sin enlace. El equipo técnico debe agregarlo antes del inicio.',
+        reunion.id,
+        false,
+        525_600,
+      );
+    }
   }
 
   private seguimientoToken(eeId: number): string {
@@ -338,9 +365,22 @@ export class AppController implements OnModuleInit {
         estaActivo: 1, estadoReunion: { in: ['PROGRAMADA', 'REPROGRAMADA'] },
         fechaHoraInicioReunion: { lte: ahora }, fechaHoraFinReunion: { gt: ahora },
       },
-      include: { solicitudreunion: { select: { empresaEvento_id: true, empresaEventorReceptora_id: true } } },
+      include: { solicitudreunion: { select: { empresaEvento_id: true, empresaEventorReceptora_id: true, enlaceReunionVirtual: true } } },
     });
     for (const r of porIniciar) {
+      const sol = (r as any).solicitudreunion;
+      if (['VIRTUAL', 'MIXTA'].includes(r.tipoReunion) && !sol?.enlaceReunionVirtual) {
+        await this.notificarStaff(
+          r.evento_id,
+          'staff:reunion-sin-enlace-urgente',
+          'URGENTE: reunión virtual sin enlace',
+          'La reunión ya llegó a su hora de inicio y todavía no tiene enlace. Debe agregarse para poder iniciarla.',
+          r.id,
+          true,
+          ALERTA_URGENTE_ENLACE_COOLDOWN_MINUTOS,
+        );
+        continue;
+      }
       await this.prisma.reunion.update({
         where: { id: r.id },
         data: {
@@ -349,7 +389,6 @@ export class AppController implements OnModuleInit {
           creadoModificadoFecha: ahora,
         },
       });
-      const sol = (r as any).solicitudreunion;
       for (const ee of [sol?.empresaEvento_id, sol?.empresaEventorReceptora_id].filter(Boolean)) {
         await this.notificar(ee, 'reunion:iniciada', 'Reunión iniciada',
           'La hora acordada llegó y tu reunión comenzó automáticamente.', r.id, 'reunion');
@@ -471,22 +510,30 @@ export class AppController implements OnModuleInit {
     }
 
     if (['TECNICO', 'TECNICO_EVENTOS'].includes(user.rolEvento)) {
-      const eventoId = await this.getPrincipalEventoId();
-      if (user.evento_id == null && eventoId) {
-        await this.prisma.usuario.update({ where: { id: user.id }, data: { evento_id: eventoId } });
-        user.evento_id = eventoId;
-      } else if (user.evento_id !== eventoId) {
-        throw new UnauthorizedException('Tu cuenta no está habilitada para el evento activo actualmente.');
+      // El equipo técnico es global: el evento que administra se resuelve
+      // siempre desde el evento principal, no desde una asignación persistida.
+      if (user.evento_id !== null) {
+        await this.prisma.usuario.update({ where: { id: user.id }, data: { evento_id: null } });
+        user.evento_id = null;
       }
     }
 
     let esResponsable: boolean | undefined;
+    let empresaeventoId: number | undefined;
+    let empresaUsuarioId: number | undefined;
     if (user.rolEvento === 'EMPRESA') {
       const eventoId = await this.getPrincipalEventoId();
       const eu = await this.prisma.empresa_usuario.findFirst({
-        where: { usuario_id: user.id, estaActivo: 1, empresaevento: { evento_id: eventoId ?? undefined } },
+        where: {
+          usuario_id: user.id,
+          estaActivo: 1,
+          empresaevento: { evento_id: eventoId ?? undefined, estaActivo: 1 },
+        },
       });
+      if (!eu) throw new UnauthorizedException('Tu cuenta no está registrada para el evento activo actualmente.');
       esResponsable = eu?.esResponsable === 1;
+      empresaeventoId = eu.empresaevento_id;
+      empresaUsuarioId = eu.id;
     }
 
     const memberships = await this.prisma.empresa_usuario.findMany({ where: { usuario_id: user.id, estaActivo: 1 }, select: { id: true, empresaevento_id: true } });
@@ -504,6 +551,7 @@ export class AppController implements OnModuleInit {
       urlFotoPerfil: user.urlFotoPerfil,
       evento_id: user.evento_id,
       ...(esResponsable !== undefined && { esResponsable }),
+      ...(empresaeventoId !== undefined && { empresaeventoId, empresaUsuarioId }),
     };
   }
 
@@ -523,7 +571,7 @@ export class AppController implements OnModuleInit {
       this.prisma.empresaevento.count({ where: { evento_id: evento.id, estaActivo: 1 } }),
       this.prisma.mesa.count({ where: { evento_id: evento.id, estaActivo: 1 } }),
       this.prisma.actividadprograma.count({ where: { evento_id: evento.id, estaActivo: 1 } }),
-      this.prisma.usuario.count({ where: { evento_id: evento.id, estaActivo: 1, rolEvento: 'TECNICO' } }),
+      this.prisma.usuario.count({ where: { estaActivo: 1, rolEvento: { in: ['TECNICO', 'TECNICO_EVENTOS'] } } }),
     ]);
 
     return { ...evento, stats: { empresasCount, mesasCount, actividadesCount, tecnicosCount } };
@@ -539,8 +587,13 @@ export class AppController implements OnModuleInit {
         const empresa = empresas.find((e) => normalizarTelefono(e.telefonoWhatsapp) === buscado);
         return { existe: !!empresa, nombreEmpresa: empresa?.nombre };
       }
-      const usuarios = await this.prisma.usuario.findMany({ where: { estaActivo: 1 }, select: { telefono: true } });
-      return { existe: usuarios.some((u) => normalizarTelefono(u.telefono) === buscado) };
+      const usuarios = await this.prisma.usuario.findMany({ where: { estaActivo: 1 }, select: { correo: true, telefono: true } });
+      const correoNorm = normalizarCorreo(correo);
+      return {
+        existe: usuarios.some((u) =>
+          normalizarTelefono(u.telefono) === buscado && normalizarCorreo(u.correo) !== correoNorm,
+        ),
+      };
     }
     if (!correo) return { existe: false };
     const eventoId = await this.getPrincipalEventoId();
@@ -919,20 +972,42 @@ export class AppController implements OnModuleInit {
     }
     const usuariosConCorreo = await this.prisma.usuario.findMany({
       where: {
-        estaActivo: 1,
         OR: [...correosParticipantes].map((correo) => ({ correo: { equals: correo, mode: 'insensitive' as const } })),
       },
-      select: { correo: true },
+      select: {
+        id: true, correo: true, rolEvento: true,
+        empresa_usuario: {
+          where: { estaActivo: 1, empresaevento: { evento_id: eventoId, estaActivo: 1 } },
+          select: { id: true },
+        },
+      },
+      orderBy: [{ estaActivo: 'desc' }, { id: 'desc' }],
     });
-    if (usuariosConCorreo.length > 0)
-      throw new BadRequestException(`El correo ${usuariosConCorreo[0].correo} ya esta asociado a una cuenta.`);
+    const usuarioPorCorreo = new Map<string, (typeof usuariosConCorreo)[number]>();
+    for (const usuario of usuariosConCorreo) {
+      const correo = normalizarCorreo(usuario.correo);
+      if (!usuarioPorCorreo.has(correo)) usuarioPorCorreo.set(correo, usuario);
+    }
+    for (const usuario of usuarioPorCorreo.values()) {
+      if (['ADMINISTRADOR', 'TECNICO', 'TECNICO_EVENTOS'].includes(usuario.rolEvento))
+        throw new BadRequestException(`El correo ${usuario.correo} pertenece a una cuenta interna y no puede registrarse como participante.`);
+      if (usuario.empresa_usuario.length > 0)
+        throw new BadRequestException(`El correo ${usuario.correo} ya esta registrado en el evento actual.`);
+    }
     const usuariosConTelefono = await this.prisma.usuario.findMany({
       where: { estaActivo: 1 },
-      select: { telefono: true },
+      select: { id: true, telefono: true },
     });
-    const telefonosRegistrados = new Set(usuariosConTelefono.map((u) => normalizarTelefono(u.telefono)).filter(Boolean));
-    if ([...telefonosParticipantes].some((telefono) => telefonosRegistrados.has(telefono)))
-      throw new BadRequestException('Uno de los telefonos de los participantes ya esta asociado a una cuenta.');
+    for (const participante of participantesEntrada) {
+      const correo = normalizarCorreo(participante?.correo);
+      const telefono = normalizarTelefono(participante?.telefono);
+      const usuarioReutilizable = usuarioPorCorreo.get(correo);
+      const usadoPorOtro = usuariosConTelefono.some((u) =>
+        normalizarTelefono(u.telefono) === telefono && u.id !== usuarioReutilizable?.id,
+      );
+      if (usadoPorOtro)
+        throw new BadRequestException(`El telefono del participante con correo ${correo} ya esta asociado a otra cuenta.`);
+    }
 
     const paqueteIdSolicitado = body.participacion?.paquete_id
       ? Number(body.participacion.paquete_id)
@@ -1052,45 +1127,34 @@ export class AppController implements OnModuleInit {
       }
       correosVistos.add(correoNorm);
 
-      // Verificar si el email ya existe en la base de datos
+      // La cuenta es global y la inscripción es por evento. Si el correo ya
+      // perteneció a otro evento se conserva su contraseña y se crea solamente
+      // la nueva membresía empresa_usuario para esta inscripción.
       const existente = await tx.usuario.findFirst({
-        where: { correo: correoNorm, estaActivo: 1 },
-        select: { id: true, rolEvento: true, empresa_usuario: { select: { empresa_id: true } } },
+        where: { correo: { equals: correoNorm, mode: 'insensitive' } },
+        orderBy: [{ estaActivo: 'desc' }, { id: 'desc' }],
       });
+      if (existente && ['ADMINISTRADOR', 'TECNICO', 'TECNICO_EVENTOS'].includes(existente.rolEvento))
+        throw new BadRequestException(`El correo ${correoNorm} pertenece a una cuenta interna.`);
 
-      if (existente) {
-        const rol = existente.rolEvento;
-        if (rol === 'ADMINISTRADOR' || rol === 'TECNICO') {
-          console.warn(`[REGISTRO] Email ${correoNorm} pertenece a un usuario interno (${rol}). Se omite.`);
-          participantesOmitidos.push({ correo: correoNorm, motivo: `Email ya en uso por rol interno (${rol})` });
-          continue;
-        }
-        if (rol === 'EMPRESA') {
-          const mismaEmpresa = existente.empresa_usuario?.some((eu: any) => eu.empresa_id === empresa.id);
-          if (mismaEmpresa) {
-            console.warn(`[REGISTRO] Email ${correoNorm} ya está vinculado a esta empresa. Se omite.`);
-            participantesOmitidos.push({ correo: correoNorm, motivo: 'Email ya registrado para esta empresa' });
-          } else {
-            console.warn(`[REGISTRO] Email ${correoNorm} ya pertenece a otra empresa. Se omite.`);
-            participantesOmitidos.push({ correo: correoNorm, motivo: 'Email ya en uso por otra empresa' });
-          }
-          continue;
-        }
-      }
-
-      const usuario = await tx.usuario.create({
-        data: {
-          nombres,
-          apellidoPaterno,
-          apellidoMaterno,
-          correo: correoNorm,
-          contrasenia: defaultPass,
-          telefono: p.telefono || '',
-          urlFotoPerfil: '',
-          rolEvento: 'EMPRESA',
-          estaActivo: 1,
-        },
-      });
+      const usuario = existente
+        ? await tx.usuario.update({
+            where: { id: existente.id },
+            data: { estaActivo: 1, creadoModificadoFecha: new Date() },
+          })
+        : await tx.usuario.create({
+            data: {
+              nombres,
+              apellidoPaterno,
+              apellidoMaterno,
+              correo: correoNorm,
+              contrasenia: defaultPass,
+              telefono: p.telefono || '',
+              urlFotoPerfil: '',
+              rolEvento: 'EMPRESA',
+              estaActivo: 1,
+            },
+          });
 
       await tx.empresa_usuario.create({
         data: {
@@ -1109,6 +1173,7 @@ export class AppController implements OnModuleInit {
         correo: usuario.correo,
         cargo: p.cargo,
         esResponsable: p.esResponsable,
+        reutilizado: Boolean(existente),
       });
     }
 
@@ -1797,8 +1862,12 @@ export class AppController implements OnModuleInit {
 
     for (const eu of (ee as any).empresa_usuario.filter((e: any) => e.estaActivo !== 0)) {
       const u = eu.usuario;
-      const pwd = generarPasswordTemporal();
-      const hashed = await bcrypt.hash(pwd, 10);
+      const otrasInscripciones = await this.prisma.empresa_usuario.count({
+        where: { usuario_id: u.id, id: { not: eu.id } },
+      });
+      const usuarioReutilizado = otrasInscripciones > 0;
+      const pwd = usuarioReutilizado ? null : generarPasswordTemporal();
+      const hashed = pwd ? await bcrypt.hash(pwd, 10) : null;
 
       let qrUrl = '';
       try {
@@ -1844,7 +1913,9 @@ export class AppController implements OnModuleInit {
                 <table style="width:100%;border-collapse:collapse">
                   <tr><td style="padding:6px 0;color:#6b7280;font-size:13px;width:110px">Código empresa</td><td style="padding:6px 0;font-weight:700;color:#111827">${codigoEmpresa}</td></tr>
                   <tr><td style="padding:6px 0;color:#6b7280;font-size:13px">Correo</td><td style="padding:6px 0;font-weight:700;color:#111827;overflow-wrap:anywhere;word-break:break-word">${u.correo}</td></tr>
-                  <tr><td style="padding:6px 0;color:#6b7280;font-size:13px">Contraseña</td><td style="padding:6px 0;font-weight:700;color:#111827;font-size:18px;letter-spacing:2px">${pwd}</td></tr>
+                  ${pwd
+                    ? `<tr><td style="padding:6px 0;color:#6b7280;font-size:13px">Contraseña</td><td style="padding:6px 0;font-weight:700;color:#111827;font-size:18px;letter-spacing:2px">${pwd}</td></tr>`
+                    : '<tr><td colspan="2" style="padding:6px 0;color:#166534;font-size:13px;font-weight:700">Usa la misma contraseña de tu cuenta existente.</td></tr>'}
                 </table>
               </div>
               ${qrUrl ? `
@@ -1853,14 +1924,16 @@ export class AppController implements OnModuleInit {
                 <img src="${qrUrl}" alt="Código QR de acceso" width="180" height="180" style="border-radius:8px" />
                 <p style="color:#9ca3af;font-size:11px;margin:10px 0 0">Preséntala en el evento. También la encontrarás en tu perfil.</p>
               </div>` : ''}
-              <p style="color:#9ca3af;font-size:12px;margin:0">Por seguridad, te recomendamos cambiar tu contraseña después del primer inicio de sesión.</p>
+              <p style="color:#9ca3af;font-size:12px;margin:0">${usuarioReutilizado ? 'Tu cuenta ahora también tiene acceso a este evento.' : 'Por seguridad, te recomendamos cambiar tu contraseña después del primer inicio de sesión.'}</p>
             </div>
           `,
         });
-        await this.prisma.usuario.update({
-          where: { id: u.id },
-          data: { contrasenia: hashed, creadoModificadoFecha: new Date() },
-        });
+        if (hashed) {
+          await this.prisma.usuario.update({
+            where: { id: u.id },
+            data: { contrasenia: hashed, creadoModificadoFecha: new Date() },
+          });
+        }
       } catch (emailErr) {
         console.warn(`[WARN] No se pudo enviar email a ${u.correo}:`, emailErr instanceof Error ? emailErr.message : emailErr);
         correosFallidos.push(u.correo);
@@ -2603,9 +2676,8 @@ export class AppController implements OnModuleInit {
 
   @Get('admin/tecnicos')
   async getTecnicos() {
-    const eventoId = await this.getPrincipalEventoId();
     return await this.prisma.usuario.findMany({
-      where: { rolEvento: { in: ['TECNICO', 'TECNICO_EVENTOS'] }, estaActivo: 1, evento_id: eventoId ?? undefined },
+      where: { rolEvento: { in: ['TECNICO', 'TECNICO_EVENTOS'] }, estaActivo: 1 },
       orderBy: { fechaCreacion: 'desc' },
       select: {
         id: true,
@@ -2668,7 +2740,7 @@ export class AppController implements OnModuleInit {
           telefono: String(body.telefono).trim(),
           urlFotoPerfil: body.urlFotoPerfil || '',
           rolEvento: rolTecnico,
-          evento_id: eventoId,
+          evento_id: null,
           estaActivo: 1,
           creadoModificadoFecha: new Date(),
           ultimoEnvioCredenciales: new Date(),
@@ -2731,6 +2803,7 @@ export class AppController implements OnModuleInit {
         urlFotoPerfil: body.urlFotoPerfil || undefined,
         creadoModificadoFecha: new Date(),
         rolEvento: body.rolEvento === 'TECNICO_EVENTOS' ? 'TECNICO_EVENTOS' : 'TECNICO',
+        evento_id: null,
       };
 
       if (body.contrasenia) {
@@ -2761,7 +2834,6 @@ export class AppController implements OnModuleInit {
       },
       select: {
         id: true, correo: true, nombres: true, apellidoPaterno: true, contrasenia: true,
-        evento: { select: { nombre: true, edicion: true } },
       },
     });
     if (!tecnico) throw new BadRequestException('Técnico activo no encontrado.');
@@ -2779,7 +2851,11 @@ export class AppController implements OnModuleInit {
       },
     });
 
-    const envio = await this.enviarCredencialesTecnico(tecnico, pwd, tecnico.evento);
+    const eventoId = await this.getPrincipalEventoId();
+    const evento = eventoId
+      ? await this.prisma.evento.findUnique({ where: { id: eventoId }, select: { nombre: true, edicion: true } })
+      : null;
+    const envio = await this.enviarCredencialesTecnico(tecnico, pwd, evento);
     if (!envio.ok) {
       // Si el correo no salió, se conserva la contraseña anterior para no dejar
       // al técnico sin acceso por un fallo temporal de correo.
@@ -3278,8 +3354,8 @@ export class AppController implements OnModuleInit {
     });
     if (!actual || actual.estaActivo === 0) throw new BadRequestException('Reunión no encontrada');
     const transiciones: Record<string, string[]> = {
-      PROGRAMADA: ['EN_CURSO', 'FINALIZADA', 'CANCELADA'],
-      REPROGRAMADA: ['EN_CURSO', 'FINALIZADA', 'CANCELADA'],
+      PROGRAMADA: ['EN_CURSO', 'CANCELADA'],
+      REPROGRAMADA: ['EN_CURSO', 'CANCELADA'],
       EN_CURSO: ['FINALIZADA'],
       FINALIZADA: [], CANCELADA: [],
     };
@@ -3589,6 +3665,9 @@ export class AppController implements OnModuleInit {
 
     const iniDate = new Date(inicio);
     const finDate = new Date(iniDate.getTime() + evento.duracionReunion * 60000);
+    if (Number.isNaN(iniDate.getTime()) || iniDate <= new Date() ||
+        !this.horarioDentroDe(this.generarCandidatosInicioTecnico(evento), iniDate, finDate))
+      throw new BadRequestException('El horario debe ser futuro y pertenecer a la jornada técnica del evento.');
     const tipoNormalizado = String(tipo).toUpperCase();
     if (!['PRESENCIAL', 'VIRTUAL'].includes(tipoNormalizado))
       throw new BadRequestException('El tipo de reunión debe ser PRESENCIAL o VIRTUAL');
@@ -3783,7 +3862,8 @@ export class AppController implements OnModuleInit {
     const eu = await this.prisma.empresa_usuario.findFirst({
       where: {
         usuario_id: usuarioId,
-        ...(eventoId ? { empresaevento: { evento_id: eventoId } } : {}),
+        estaActivo: 1,
+        ...(eventoId ? { empresaevento: { evento_id: eventoId, estaActivo: 1 } } : {}),
       },
       include: {
         empresa: true,
@@ -3810,23 +3890,67 @@ export class AppController implements OnModuleInit {
     return { start, end };
   }
 
+  private fechaHoraBolivia(fecha: string, hora: number, minuto: number): Date {
+    const [year, month, day] = fecha.split('-').map(Number);
+    return new Date(Date.UTC(year, month - 1, day, hora + 4, minuto, 0, 0));
+  }
+
+  private fechasEvento(evento: any): string[] {
+    const { start, end } = this.ventanaReunionesEvento(evento);
+    const primera = claveFechaBolivia(start);
+    const ultima = claveFechaBolivia(new Date(end.getTime() - 1));
+    const [year, month, day] = primera.split('-').map(Number);
+    const cursor = new Date(Date.UTC(year, month - 1, day));
+    const fechas: string[] = [];
+    while (claveFechaUtc(cursor) <= ultima) {
+      fechas.push(claveFechaUtc(cursor));
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+    return fechas;
+  }
+
+  // En eventos de varios días, cada fecha usa la misma hora diaria de inicio
+  // y fin configurada por el administrador. No se ofrecen horarios nocturnos
+  // solo porque el evento termina en una fecha posterior.
+  private ventanasDiariasReunionesEvento(evento: any): { start: Date; end: Date }[] {
+    const ventana = this.ventanaReunionesEvento(evento);
+    const inicioHora = horaMinutoBolivia(ventana.start);
+    const finHora = horaMinutoBolivia(ventana.end);
+    const finEsMedianoche = finHora.hora === 0 && finHora.minuto === 0;
+    return this.fechasEvento(evento)
+      .map((fecha) => {
+        const start = this.fechaHoraBolivia(fecha, inicioHora.hora, inicioHora.minuto);
+        const end = this.fechaHoraBolivia(fecha, finEsMedianoche ? 24 : finHora.hora, finHora.minuto);
+        return {
+          start: start < ventana.start ? ventana.start : start,
+          end: end > ventana.end ? ventana.end : end,
+        };
+      })
+      .filter((rango) => rango.end > rango.start);
+  }
+
+  private redondearInicio(inicio: Date, intervaloMs: number): Date {
+    const fecha = claveFechaBolivia(inicio);
+    const medianoche = this.fechaHoraBolivia(fecha, 0, 0);
+    const offsetMs = inicio.getTime() - medianoche.getTime();
+    return new Date(medianoche.getTime() + Math.ceil(offsetMs / intervaloMs) * intervaloMs);
+  }
+
+  private horarioDentroDe(horarios: { inicio: Date; fin: Date }[], inicio: Date, fin: Date): boolean {
+    return horarios.some((slot) => slot.inicio.getTime() === inicio.getTime() && slot.fin.getTime() === fin.getTime());
+  }
+
   private generarFranjas(evento: any): { inicio: Date; fin: Date }[] {
     const slots: { inicio: Date; fin: Date }[] = [];
     const durMs = evento.duracionReunion * 60000;
     const bufMs = evento.tiempoEntreReuniones * 60000;
     const intervalMs = durMs + bufMs;
-    const { start, end } = this.ventanaReunionesEvento(evento);
-    // Anclar la grilla a la medianoche local del día de inicio, no al timestamp
-    // exacto de fechaInicioEvento: así los slots caen en minutos "redondos"
-    // (ej. :00/:30 para reuniones de 30 min) en vez de heredar un minuto
-    // arbitrario del evento (ej. :42/:12), que confundía al elegir horario.
-    const midnight = new Date(start);
-    midnight.setHours(0, 0, 0, 0);
-    const offsetMs = start.getTime() - midnight.getTime();
-    let current = new Date(midnight.getTime() + Math.ceil(offsetMs / intervalMs) * intervalMs);
-    while (current.getTime() + durMs <= end.getTime()) {
-      slots.push({ inicio: new Date(current), fin: new Date(current.getTime() + durMs) });
-      current = new Date(current.getTime() + intervalMs);
+    for (const { start, end } of this.ventanasDiariasReunionesEvento(evento)) {
+      let current = this.redondearInicio(start, intervalMs);
+      while (current.getTime() + durMs <= end.getTime()) {
+        slots.push({ inicio: new Date(current), fin: new Date(current.getTime() + durMs) });
+        current = new Date(current.getTime() + intervalMs);
+      }
     }
     return slots;
   }
@@ -3839,15 +3963,13 @@ export class AppController implements OnModuleInit {
   private generarCandidatosInicio(evento: any): { inicio: Date; fin: Date }[] {
     const PASO_MS = 5 * 60000;
     const durMs = evento.duracionReunion * 60000;
-    const { start, end } = this.ventanaReunionesEvento(evento);
-    const midnight = new Date(start);
-    midnight.setHours(0, 0, 0, 0);
-    const offsetMs = start.getTime() - midnight.getTime();
-    let current = new Date(midnight.getTime() + Math.ceil(offsetMs / PASO_MS) * PASO_MS);
     const slots: { inicio: Date; fin: Date }[] = [];
-    while (current.getTime() + durMs <= end.getTime()) {
-      slots.push({ inicio: new Date(current), fin: new Date(current.getTime() + durMs) });
-      current = new Date(current.getTime() + PASO_MS);
+    for (const { start, end } of this.ventanasDiariasReunionesEvento(evento)) {
+      let current = this.redondearInicio(start, PASO_MS);
+      while (current.getTime() + durMs <= end.getTime()) {
+        slots.push({ inicio: new Date(current), fin: new Date(current.getTime() + durMs) });
+        current = new Date(current.getTime() + PASO_MS);
+      }
     }
     return slots;
   }
@@ -3859,12 +3981,13 @@ export class AppController implements OnModuleInit {
   private generarCandidatosInicioTecnico(evento: any): { inicio: Date; fin: Date }[] {
     const PASO_MS = 5 * 60000;
     const durMs = evento.duracionReunion * 60000;
-    const fecha = new Date(evento.fechaInicioEvento);
-    const start = new Date(Date.UTC(fecha.getUTCFullYear(), fecha.getUTCMonth(), fecha.getUTCDate(), 12, 0, 0)); // 08:00 BO
-    const end = new Date(Date.UTC(fecha.getUTCFullYear(), fecha.getUTCMonth(), fecha.getUTCDate() + 1, 4, 0, 0)); // 00:00 BO
     const slots: { inicio: Date; fin: Date }[] = [];
-    for (let current = start; current.getTime() + durMs <= end.getTime(); current = new Date(current.getTime() + PASO_MS)) {
-      slots.push({ inicio: new Date(current), fin: new Date(current.getTime() + durMs) });
+    for (const fecha of this.fechasEvento(evento)) {
+      const start = this.fechaHoraBolivia(fecha, 8, 0);
+      const end = this.fechaHoraBolivia(fecha, 24, 0);
+      for (let current = start; current.getTime() + durMs <= end.getTime(); current = new Date(current.getTime() + PASO_MS)) {
+        slots.push({ inicio: new Date(current), fin: new Date(current.getTime() + durMs) });
+      }
     }
     return slots;
   }
@@ -5047,8 +5170,10 @@ export class AppController implements OnModuleInit {
     const chocaConBloqueo = (bloqueos: { inicio: Date; fin: Date }[], ini: Date, fin: Date) =>
       bloqueos.some((b) => new Date(b.inicio) < fin && new Date(b.fin) > ini);
 
+    const ahora = new Date();
     const disponibles = franjas.filter(
       (f) =>
+        f.inicio > ahora &&
         !reunionesA.some((r) => solapaCon(r, f.inicio, f.fin)) &&
         !reunionesB.some((r) => solapaCon(r, f.inicio, f.fin)) &&
         !solicitudesPendientesA.some((s) => solapaSolicitud(s, f.inicio, f.fin)) &&
@@ -5341,10 +5466,18 @@ export class AppController implements OnModuleInit {
     const eventoCfg = eventoId
       ? await this.prisma.evento.findUnique({
           where: { id: eventoId },
-          select: { fechaInicioSolicitudes: true, fechaFinSolicitudes: true },
+          select: {
+            fechaInicioSolicitudes: true, fechaFinSolicitudes: true,
+            fechaInicioEvento: true, fechaFinEvento: true,
+            duracionReunion: true, tiempoEntreReuniones: true,
+          },
         })
       : null;
     const ahora = new Date();
+    if (!eventoCfg || Number.isNaN(iniDate.getTime()) || Number.isNaN(finDate.getTime()) || iniDate <= ahora)
+      throw new BadRequestException('El horario de la reunión debe ser futuro y pertenecer al evento activo.');
+    if (!this.horarioDentroDe(this.generarCandidatosInicio(eventoCfg), iniDate, finDate))
+      throw new BadRequestException('El horario o la duración no corresponden a la jornada configurada del evento.');
     if (eventoCfg?.fechaInicioSolicitudes && ahora < new Date(eventoCfg.fechaInicioSolicitudes)) {
       throw new BadRequestException(
         `Las solicitudes de reunión abren el ${new Date(eventoCfg.fechaInicioSolicitudes).toLocaleString('es-BO')}`,
@@ -5511,6 +5644,11 @@ export class AppController implements OnModuleInit {
     const finDate = new Date(fin);
     const eventoId = await this.getPrincipalEventoId();
     if (!eventoId) throw new BadRequestException('No hay un evento activo');
+    const evento = await this.prisma.evento.findUnique({ where: { id: eventoId } });
+    if (!evento || Number.isNaN(iniDate.getTime()) || Number.isNaN(finDate.getTime()) || iniDate <= new Date())
+      throw new BadRequestException('El horario de la reunión debe ser futuro y pertenecer al evento activo.');
+    if (!this.horarioDentroDe(this.generarCandidatosInicio(evento), iniDate, finDate))
+      throw new BadRequestException('El horario o la duración no corresponden a la jornada configurada del evento.');
     await this.verificarEE(sol.empresaEvento_id, eventoId);
     await this.verificarEE(sol.empresaEventorReceptora_id, eventoId);
     const tipoNormalizado = String(tipo).toUpperCase();
@@ -5577,6 +5715,8 @@ export class AppController implements OnModuleInit {
     await this.verificarEE(sol.empresaEventorReceptora_id, eventoId);
     const iniDate = sol.fechaHoraInicioPropuesta;
     const finDate = sol.fechaHoraFinPropuesta;
+    if (iniDate <= new Date())
+      throw new BadRequestException('El horario propuesto ya pasó. La empresa solicitante debe editar la solicitud.');
 
     // Las reuniones virtuales no consumen una mesa fisica.
     let mesaId: number | null = sol.tipoReunion === 'PRESENCIAL' ? sol.mesa_id ?? null : null;
@@ -5888,6 +6028,9 @@ export class AppController implements OnModuleInit {
 
     const iniDate = new Date(inicio);
     const finDate = new Date(iniDate.getTime() + evento.duracionReunion * 60000);
+    if (Number.isNaN(iniDate.getTime()) || iniDate <= new Date() ||
+        !this.horarioDentroDe(this.generarCandidatosInicio(evento), iniDate, finDate))
+      throw new BadRequestException('El nuevo horario debe ser futuro y pertenecer a la jornada del evento.');
     const sol = (reunion as any).solicitudreunion;
     const tipoPropuesto = String(body.tipoReunion ?? reunion.tipoReunion).toUpperCase();
     if (!['PRESENCIAL', 'VIRTUAL'].includes(tipoPropuesto))
@@ -6133,7 +6276,7 @@ export class AppController implements OnModuleInit {
     const miNombre = soyA
       ? sol.empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa?.nombre
       : sol.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento?.empresa?.nombre;
-    if (reunion.tipoReunion === 'VIRTUAL' && !sol.enlaceReunionVirtual) {
+    if (['VIRTUAL', 'MIXTA'].includes(reunion.tipoReunion) && !sol.enlaceReunionVirtual) {
       await this.notificarStaff(
         reunion.evento_id,
         'staff:reunion-sin-enlace-urgente',
@@ -6506,24 +6649,46 @@ export class AppController implements OnModuleInit {
     }
 
     const correoNorm = correo.trim().toLowerCase();
-    // Verificar email único
-    const existeUser = await this.prisma.usuario.findFirst({ where: { correo: correoNorm } });
-    if (existeUser) throw new BadRequestException('Ya existe un usuario con ese correo');
+    const existeUser = await this.prisma.usuario.findFirst({
+      where: { correo: { equals: correoNorm, mode: 'insensitive' } },
+      include: {
+        empresa_usuario: {
+          where: { estaActivo: 1, empresaevento: { evento_id: ee.evento_id, estaActivo: 1 } },
+          select: { id: true },
+        },
+      },
+      orderBy: [{ estaActivo: 'desc' }, { id: 'desc' }],
+    });
+    if (existeUser && ['ADMINISTRADOR', 'TECNICO', 'TECNICO_EVENTOS'].includes(existeUser.rolEvento))
+      throw new BadRequestException('Ese correo pertenece a una cuenta interna');
+    if (existeUser?.empresa_usuario.length)
+      throw new BadRequestException('Ese correo ya tiene una inscripción en el evento actual');
+    const telefonoNorm = normalizarTelefono(body.telefono);
+    if (telefonoNorm) {
+      const usuarios = await this.prisma.usuario.findMany({ where: { estaActivo: 1 }, select: { id: true, telefono: true } });
+      if (usuarios.some((u) => u.id !== existeUser?.id && normalizarTelefono(u.telefono) === telefonoNorm))
+        throw new BadRequestException('Ese teléfono ya pertenece a otra cuenta');
+    }
 
-    const pwd = generarPasswordTemporal();
-    const hashed = await bcrypt.hash(pwd, 10);
+    const pwd = existeUser ? null : generarPasswordTemporal();
+    const hashed = pwd ? await bcrypt.hash(pwd, 10) : null;
 
     const { nuevoUsuario, nuevoEu } = await this.prisma.$transaction(async (tx) => {
       const usadosActuales = await tx.empresa_usuario.count({ where: { empresaevento_id: Number(eeId), estaActivo: 1 } });
       if (usadosActuales >= slotsPagados || usadosActuales >= maxPermitidos)
         throw new BadRequestException('No quedan cupos disponibles para agregar otro participante.');
-      const nuevoUsuario = await tx.usuario.create({ data: {
-        nombres: nombres.trim(), apellidoPaterno: apellidoPaterno.trim(),
-        correo: correoNorm, contrasenia: hashed,
-        telefono: body.telefono?.trim() ?? '+591',
-        urlFotoPerfil: `https://ui-avatars.com/api/?name=${encodeURIComponent(nombres)}+${encodeURIComponent(apellidoPaterno)}&background=449D3A&color=fff&size=128`,
-        rolEvento: 'EMPRESA', estaActivo: 1,
-      }});
+      const nuevoUsuario = existeUser
+        ? await tx.usuario.update({
+            where: { id: existeUser.id },
+            data: { estaActivo: 1, creadoModificadoFecha: new Date() },
+          })
+        : await tx.usuario.create({ data: {
+            nombres: nombres.trim(), apellidoPaterno: apellidoPaterno.trim(),
+            correo: correoNorm, contrasenia: hashed!,
+            telefono: body.telefono?.trim() ?? '+591',
+            urlFotoPerfil: `https://ui-avatars.com/api/?name=${encodeURIComponent(nombres)}+${encodeURIComponent(apellidoPaterno)}&background=449D3A&color=fff&size=128`,
+            rolEvento: 'EMPRESA', estaActivo: 1,
+          }});
       const nuevoEu = await tx.empresa_usuario.create({ data: {
         empresa_id: ee.empresa_id, usuario_id: nuevoUsuario.id,
         empresaevento_id: Number(eeId), cargo: cargo?.trim() ?? 'Participante',
@@ -6541,7 +6706,7 @@ export class AppController implements OnModuleInit {
     }
 
     const isDevEmail = !process.env.MAIL_USER || process.env.MAIL_USER === 'tu_correo@gmail.com';
-    console.warn(`[INFO] Participante ${correoNorm} creado; la contraseña temporal nunca se registra.`);
+    console.warn(`[INFO] Participante ${correoNorm} ${existeUser ? 'vinculado al nuevo evento' : 'creado'}; las contraseñas nunca se registran.`);
 
     let credencialesEnviadas = false;
     if (!isDevEmail) {
@@ -6550,14 +6715,14 @@ export class AppController implements OnModuleInit {
           from: process.env.MAIL_FROM, to: correoNorm,
           subject: 'Tu acceso a la Rueda de Negocios',
           attachments: EMAIL_LOGO_ATTACHMENTS,
-          html: `${EMAIL_LOGO_HTML}<div style="font-family:Arial;max-width:520px;margin:auto"><h2 style="color:#449D3A">Tu participante fue habilitado</h2><p>Correo: <strong>${correoNorm}</strong></p><p>Contraseña temporal: <strong>${pwd}</strong></p><p>Cámbiala al iniciar sesión.</p></div>`,
+          html: `${EMAIL_LOGO_HTML}<div style="font-family:Arial;max-width:520px;margin:auto"><h2 style="color:#449D3A">Tu participante fue habilitado</h2><p>Correo: <strong>${correoNorm}</strong></p>${pwd ? `<p>Contraseña temporal: <strong>${pwd}</strong></p><p>Cámbiala al iniciar sesión.</p>` : '<p>Usa la misma contraseña de tu cuenta existente para ingresar a este evento.</p>'}</div>`,
         });
         credencialesEnviadas = true;
       } catch (error) {
         console.warn(`[WARN] No se pudieron enviar las credenciales a ${correoNorm}:`, error instanceof Error ? error.message : error);
       }
     }
-    return { ok: true, participanteId: nuevoEu.id, correo: correoNorm, credencialesEnviadas };
+    return { ok: true, participanteId: nuevoEu.id, correo: correoNorm, credencialesEnviadas, reutilizado: Boolean(existeUser) };
   }
 
   @Put('empresa/participantes/:euId/desactivar')

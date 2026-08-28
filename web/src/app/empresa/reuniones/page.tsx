@@ -45,6 +45,7 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
 }) {
   const [horarios, setHorarios] = useState<any[]>([]);
   const [duracionMin, setDuracionMin] = useState(0);
+  const [fechaSelec, setFechaSelec] = useState<string>("");
   const [horaSelec, setHoraSelec] = useState<string>("");
   const [minutosStr, setMinutosStr] = useState("00");
   const [tipoReunion, setTipoReunion] = useState(reunion?.tipo ?? "PRESENCIAL");
@@ -53,25 +54,33 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
   const [guardando, setGuardando] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const horasDisponibles = useMemo(() =>
-    [...new Set(horarios.map((h: any) => partesFechaEvento(h.inicio).hour))].sort((a, b) => a - b),
+  const fechasDisponibles = useMemo(() =>
+    [...new Set(horarios.map((h: any) => partesFechaEvento(h.inicio).dateKey))],
     [horarios]
+  );
+  const horariosDelDia = useMemo(() =>
+    horarios.filter((h: any) => partesFechaEvento(h.inicio).dateKey === fechaSelec),
+    [horarios, fechaSelec]
+  );
+  const horasDisponibles = useMemo(() =>
+    [...new Set(horariosDelDia.map((h: any) => partesFechaEvento(h.inicio).hour))].sort((a, b) => a - b),
+    [horariosDelDia]
   );
   const minutosParaHora = useMemo(() => {
     if (!horaSelec) return [];
-    return horarios
+    return horariosDelDia
       .filter((h: any) => partesFechaEvento(h.inicio).hour === parseInt(horaSelec))
       .map((h: any) => partesFechaEvento(h.inicio).minute)
       .sort((a, b) => a - b);
-  }, [horarios, horaSelec]);
+  }, [horariosDelDia, horaSelec]);
   const seleccionado = useMemo(() => {
     if (!horaSelec) return null;
     const mins = parseInt(minutosStr) || 0;
-    return horarios.find((h: any) => {
+    return horariosDelDia.find((h: any) => {
       const p = partesFechaEvento(h.inicio);
       return p.hour === parseInt(horaSelec) && p.minute === mins;
     }) ?? null;
-  }, [horarios, horaSelec, minutosStr]);
+  }, [horariosDelDia, horaSelec, minutosStr]);
   const minutosInvalidos = horaSelec !== "" && minutosStr !== "" && !seleccionado;
 
   useEffect(() => {
@@ -83,12 +92,12 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
         const hrs: any[] = Array.isArray(data?.horarios) ? data.horarios : [];
         setHorarios(hrs);
         setDuracionMin(data?.duracionMinutos ?? 0);
-        const available = [...new Set(hrs.map((h: any) => partesFechaEvento(h.inicio).hour))].sort((a, b) => a - b) as number[];
-        const cur = partesFechaEvento(new Date()).hour;
-        const auto = available.find((h) => h >= cur) ?? available[0];
-        if (auto !== undefined) {
-          setHoraSelec(String(auto));
-          const primerMinuto = hrs.find((h: any) => partesFechaEvento(h.inicio).hour === auto);
+        const primerSlot = hrs[0];
+        if (primerSlot) {
+          const partes = partesFechaEvento(primerSlot.inicio);
+          setFechaSelec(partes.dateKey);
+          setHoraSelec(String(partes.hour));
+          const primerMinuto = hrs.find((h: any) => partesFechaEvento(h.inicio).dateKey === partes.dateKey && partesFechaEvento(h.inicio).hour === partes.hour);
           setMinutosStr(primerMinuto ? String(partesFechaEvento(primerMinuto.inicio).minute).padStart(2, "0") : "00");
         }
       })
@@ -168,14 +177,32 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
               </p>
             ) : (
               <>
+                <div>
+                  <label className="text-[10px] font-bold text-gray-500 uppercase mb-1 block">Fecha</label>
+                  <select value={fechaSelec} onChange={(e) => {
+                    const nuevaFecha = e.target.value;
+                    setFechaSelec(nuevaFecha);
+                    const primerSlot = horarios.find((h: any) => partesFechaEvento(h.inicio).dateKey === nuevaFecha);
+                    if (primerSlot) {
+                      const partes = partesFechaEvento(primerSlot.inicio);
+                      setHoraSelec(String(partes.hour));
+                      setMinutosStr(String(partes.minute).padStart(2, "0"));
+                    }
+                  }} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A] bg-white">
+                    {fechasDisponibles.map((fecha) => {
+                      const ejemplo = horarios.find((h: any) => partesFechaEvento(h.inicio).dateKey === fecha);
+                      return <option key={fecha} value={fecha}>{ejemplo ? fmtDate(ejemplo.inicio) : fecha}</option>;
+                    })}
+                  </select>
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-[10px] font-bold text-gray-500 uppercase mb-1 block">Hora</label>
                     <select value={horaSelec} onChange={(e) => {
                       const nuevaHora = e.target.value;
                       setHoraSelec(nuevaHora);
-                      const primera = horarios.find((h: any) => new Date(h.inicio).getHours() === Number(nuevaHora));
-                      setMinutosStr(primera ? String(new Date(primera.inicio).getMinutes()).padStart(2, "0") : "");
+                      const primera = horariosDelDia.find((h: any) => partesFechaEvento(h.inicio).hour === Number(nuevaHora));
+                      setMinutosStr(primera ? String(partesFechaEvento(primera.inicio).minute).padStart(2, "0") : "");
                     }}
                       className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A] bg-white">
                       <option value="">-- Hora --</option>
@@ -383,7 +410,7 @@ function DetalleReunionModal({ reunion, eeId, esEncargado, onClose, onCambiarHor
                     Esperando que la otra empresa confirme el inicio…
                   </div>
                 ) : (
-                  <button onClick={handleIniciar} disabled={iniciando || (reunion.tipo === "VIRTUAL" && !reunion.enlace)}
+                  <button onClick={handleIniciar} disabled={iniciando}
                     className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#449D3A] hover:bg-[#3a8531] text-white text-sm font-bold disabled:opacity-50">
                     {otraPidioIniciar ? "Confirmar inicio (la otra empresa quiere iniciar)" : "Iniciar reunión"}
                   </button>

@@ -609,7 +609,7 @@ export class ExtrasController {
     let usuariosTecnicos: number[] | undefined;
     if (soloTecnicos === '1' || soloTecnicos === 'true') {
       const tecnicos = await this.prisma.usuario.findMany({
-        where: { evento_id: eventoId, rolEvento: { in: ['TECNICO', 'TECNICO_EVENTOS'] }, estaActivo: 1 },
+        where: { rolEvento: { in: ['TECNICO', 'TECNICO_EVENTOS'] }, estaActivo: 1 },
         select: { id: true },
       });
       usuariosTecnicos = tecnicos.map((u) => u.id);
@@ -628,7 +628,7 @@ export class ExtrasController {
     const take = Math.min(Number(limit) || 60, 200);
     let usuariosTecnicos: number[] | undefined;
     if (soloTecnicos === '1' || soloTecnicos === 'true') {
-      const tecnicos = await this.prisma.usuario.findMany({ where: { evento_id: eventoId, rolEvento: { in: ['TECNICO', 'TECNICO_EVENTOS'] }, estaActivo: 1 }, select: { id: true } });
+      const tecnicos = await this.prisma.usuario.findMany({ where: { rolEvento: { in: ['TECNICO', 'TECNICO_EVENTOS'] }, estaActivo: 1 }, select: { id: true } });
       usuariosTecnicos = tecnicos.map((u) => u.id);
     }
     return this.prisma.fotoevento.findMany({ where: { evento_id: eventoId, estaActivo: 1, ...(usuariosTecnicos ? { usuario_id: { in: usuariosTecnicos } } : {}) }, orderBy: { fechaCreacion: 'desc' }, take });

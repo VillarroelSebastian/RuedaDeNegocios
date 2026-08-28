@@ -8,7 +8,10 @@ const user = { id: 7, rolEvento: 'EMPRESA', evento_id: 1,
 
 describe('AuthGuard', () => {
   const jwt = { verifyAsync: jest.fn(async () => ({ sub: 7, role: 'EMPRESA' })) } as any;
-  const prisma = { usuario: { findFirst: jest.fn(async () => user) } } as any;
+  const prisma = {
+    usuario: { findFirst: jest.fn(async () => user) },
+    evento: { findFirst: jest.fn(async () => ({ id: 1 })) },
+  } as any;
   const guard = new AuthGuard(jwt, prisma);
 
   it('rechaza rutas privadas sin token', async () => {

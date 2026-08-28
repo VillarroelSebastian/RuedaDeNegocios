@@ -11,6 +11,7 @@ const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
 const ESTADO_CFG: Record<string, { color: string; bg: string; dot: string; badge: string; label: string }> = {
   PROGRAMADA: { color:'text-blue-700',   bg:'bg-blue-50',    dot:'bg-blue-400',   badge:'bg-blue-100 text-blue-700',    label:'Programada' },
+  REPROGRAMADA: { color:'text-amber-700', bg:'bg-amber-50', dot:'bg-amber-400', badge:'bg-amber-100 text-amber-700', label:'Reprogramada' },
   EN_CURSO:   { color:'text-orange-700', bg:'bg-orange-50',  dot:'bg-orange-400', badge:'bg-orange-100 text-orange-700', label:'En curso' },
   FINALIZADA: { color:'text-green-700',  bg:'bg-green-50',   dot:'bg-green-400',  badge:'bg-green-100 text-green-700',  label:'Finalizada' },
   CANCELADA:  { color:'text-gray-500',   bg:'bg-gray-50',    dot:'bg-gray-400',   badge:'bg-gray-100 text-gray-500',    label:'Cancelada' },
@@ -65,6 +66,11 @@ function EstadoModal({ visible, reunion, onClose, onSave }: any) {
   const [selected, setSelected] = useState(reunion?.estadoReunion ?? '');
   useEffect(() => { setSelected(reunion?.estadoReunion ?? ''); }, [reunion]);
   if (!visible || !reunion) return null;
+  const permitidos: Record<string, string[]> = {
+    PROGRAMADA: ['EN_CURSO', 'CANCELADA'], REPROGRAMADA: ['EN_CURSO', 'CANCELADA'],
+    EN_CURSO: ['FINALIZADA'], FINALIZADA: [], CANCELADA: [],
+  };
+  const opciones = permitidos[reunion.estadoReunion] ?? [];
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl p-6 w-full max-w-sm">
@@ -73,7 +79,9 @@ function EstadoModal({ visible, reunion, onClose, onSave }: any) {
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
         </div>
         <div className="space-y-2">
-          {Object.entries(ESTADO_CFG).map(([key, cfg]) => (
+          {opciones.map((key) => {
+            const cfg = ESTADO_CFG[key];
+            return (
             <button key={key} onClick={() => setSelected(key)}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-sm font-semibold transition-colors ${
                 selected === key ? `${cfg.bg} ${cfg.color} border-current` : 'bg-gray-50 text-gray-700 border-transparent hover:bg-gray-100'
@@ -82,12 +90,12 @@ function EstadoModal({ visible, reunion, onClose, onSave }: any) {
               {cfg.label}
               {selected === key && <CheckCircle className="w-4 h-4 ml-auto" />}
             </button>
-          ))}
+          );})}
         </div>
         <div className="flex gap-3 mt-5">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50">Cancelar</button>
-          <button onClick={() => onSave(reunion.id, selected)}
-            className="flex-1 py-2.5 rounded-xl bg-[#449D3A] text-white text-sm font-bold hover:bg-[#3a8530] transition-colors">Guardar</button>
+          <button onClick={() => onSave(reunion.id, selected)} disabled={!opciones.includes(selected)}
+            className="flex-1 py-2.5 rounded-xl bg-[#449D3A] text-white text-sm font-bold hover:bg-[#3a8530] transition-colors disabled:opacity-50">Guardar</button>
         </div>
       </div>
     </div>

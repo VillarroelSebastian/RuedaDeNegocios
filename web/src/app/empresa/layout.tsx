@@ -29,16 +29,26 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
       return;
     }
 
-    // Load mi-empresa to check esResponsable
+    // Resolver siempre la membresía del evento principal. Así una sesión
+    // existente cambia de evento sin conservar los IDs de la edición anterior.
     fetch(`${API}/empresa/mi-empresa?usuarioId=${user.id}`)
-      .then((r) => r.json())
+      .then(async (r) => {
+        if (!r.ok) throw new Error('Sin acceso al evento activo');
+        return r.json();
+      })
       .then((ctx) => {
-        if (ctx?.esResponsable) setEsEncargado(true);
+        setEsEncargado(Boolean(ctx?.esResponsable));
         if (ctx?.empresaeventoId) setEeId(ctx.empresaeventoId);
         if (ctx?.empresaUsuarioId) setEuId(ctx.empresaUsuarioId);
+        localStorage.setItem('empresaUser', JSON.stringify({
+          ...user,
+          empresaeventoId: ctx.empresaeventoId,
+          empresaUsuarioId: ctx.empresaUsuarioId,
+          esResponsable: Boolean(ctx.esResponsable),
+        }));
       })
       .catch(() => {
-        // silently ignore — sidebar defaults to no encargado items
+        router.replace('/auth/login');
       });
   }, [router]);
 

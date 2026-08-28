@@ -52,8 +52,8 @@ function EstadoDropdown({ reunion, onChange }: { reunion: any; onChange: (id: nu
   const [open, setOpen] = useState(false);
   const est = ESTADO_CFG[reunion.estadoReunion] ?? ESTADO_CFG.PROGRAMADA;
   const permitidos: Record<string, string[]> = {
-    PROGRAMADA: ['EN_CURSO', 'FINALIZADA', 'CANCELADA'],
-    REPROGRAMADA: ['EN_CURSO', 'FINALIZADA', 'CANCELADA'],
+    PROGRAMADA: ['EN_CURSO', 'CANCELADA'],
+    REPROGRAMADA: ['EN_CURSO', 'CANCELADA'],
     EN_CURSO: ['FINALIZADA'], FINALIZADA: [], CANCELADA: [],
   };
   const opciones = permitidos[reunion.estadoReunion] ?? [];

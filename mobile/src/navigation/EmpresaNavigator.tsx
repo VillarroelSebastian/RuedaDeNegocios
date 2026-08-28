@@ -189,7 +189,7 @@ function ParticipanteTabs() {
 }
 
 export default function EmpresaNavigator() {
-  const esEncargado = !!userStore.get()?.esResponsable;
+  const [esEncargado, setEsEncargado] = useState(!!userStore.get()?.esResponsable);
   const [chatOpen, setChatOpen] = useState(false);
   const [eeId, setEeId] = useState<number | null>(userStore.get()?.empresaeventoId ?? null);
   const { notifs, dismiss } = useNotificacionesMobile(eeId);
@@ -198,7 +198,6 @@ export default function EmpresaNavigator() {
   // Resolver el contexto empresa (eeId, euId) apenas se monta el navigator,
   // sin depender de que el Dashboard cargue primero.
   useEffect(() => {
-    if (eeId) return;
     const usuarioId = userStore.get()?.id;
     if (!usuarioId) return;
     fetch(`${API_URL}/empresa/mi-empresa?usuarioId=${usuarioId}`)
@@ -211,11 +210,12 @@ export default function EmpresaNavigator() {
             empresaUsuarioId: ctx.empresaUsuarioId,
             esResponsable: ctx.esResponsable,
           });
+          setEsEncargado(Boolean(ctx.esResponsable));
           setEeId(ctx.empresaeventoId);
         }
       })
       .catch(() => {});
-  }, [eeId]);
+  }, []);
 
   return (
     <>

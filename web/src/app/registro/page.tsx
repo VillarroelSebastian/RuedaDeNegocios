@@ -274,10 +274,10 @@ export default function RegistroPage() {
     finally { setCheckingCorreo(false); }
   };
 
-  const verificarTelefono = async (telefono: string, tipo: "empresa" | "participante", etiqueta: string): Promise<string | null> => {
+  const verificarTelefono = async (telefono: string, tipo: "empresa" | "participante", etiqueta: string, correo?: string): Promise<string | null> => {
     if (!validTel(telefono)) return null;
     try {
-      const params = new URLSearchParams({ telefono, tipo });
+      const params = new URLSearchParams({ telefono, tipo, ...(correo ? { correo } : {}) });
       const res = await fetch(`${API}/public/verificar-empresa?${params}`);
       const data = await res.json();
       if (!data.existe) return null;
@@ -376,10 +376,10 @@ export default function RegistroPage() {
     } else if (step === 3) {
       const err = validateStep3();
       if (err) { showModal("warning", "Campos requeridos", err); return; }
-      const responsableErr = await verificarTelefono(responsable.telefono, "participante", "el encargado");
+      const responsableErr = await verificarTelefono(responsable.telefono, "participante", "el encargado", responsable.correo);
       if (responsableErr) { showModal("warning", "Teléfono del encargado ya registrado", responsableErr); return; }
       for (let i = 0; i < adicionales.length; i++) {
-        const participanteErr = await verificarTelefono(adicionales[i].telefono, "participante", `el participante ${i + 2}`);
+        const participanteErr = await verificarTelefono(adicionales[i].telefono, "participante", `el participante ${i + 2}`, adicionales[i].correo);
         if (participanteErr) { showModal("warning", "Teléfono ya registrado", participanteErr); return; }
       }
       handleSubmit();

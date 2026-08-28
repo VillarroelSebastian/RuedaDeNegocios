@@ -70,8 +70,8 @@ function ReunionCard({ r, onCambiarEstado }: { r: any; onCambiarEstado: (id:numb
   const canceladaPorEmpresa = r.estadoReunion === 'CANCELADA'
     && /^Cancelada por /i.test(r.observacionesReunion ?? '');
   const permitidos: Record<string, string[]> = {
-    PROGRAMADA: ['EN_CURSO', 'FINALIZADA', 'CANCELADA'],
-    REPROGRAMADA: ['EN_CURSO', 'FINALIZADA', 'CANCELADA'],
+    PROGRAMADA: ['EN_CURSO', 'CANCELADA'],
+    REPROGRAMADA: ['EN_CURSO', 'CANCELADA'],
     EN_CURSO: ['FINALIZADA'], FINALIZADA: [], CANCELADA: [],
   };
   const opcionesEstado = permitidos[r.estadoReunion] ?? [];

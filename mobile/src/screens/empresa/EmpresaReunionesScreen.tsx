@@ -45,6 +45,7 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
 }) {
   const [horarios, setHorarios] = useState<any[]>([]);
   const [duracionMin, setDuracionMin] = useState(0);
+  const [fechaSel, setFechaSel] = useState('');
   const [horaSel, setHoraSel] = useState<number | null>(null);
   const [minutosStr, setMinutosStr] = useState('00');
   const [tipoReunion, setTipoReunion] = useState(reunion?.tipo ?? 'PRESENCIAL');
@@ -53,25 +54,33 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
   const [guardando, setGuardando] = useState(false);
   const [appModal, setAppModal] = useState<AppModal | null>(null);
 
-  const horasDisponibles = useMemo(() =>
-    [...new Set(horarios.map((h: any) => partesFechaEvento(h.inicio).hour))].sort((a: any, b: any) => a - b) as number[],
+  const fechasDisponibles = useMemo(() =>
+    [...new Set(horarios.map((h: any) => partesFechaEvento(h.inicio).dateKey))] as string[],
     [horarios]
+  );
+  const horariosDelDia = useMemo(() =>
+    horarios.filter((h: any) => partesFechaEvento(h.inicio).dateKey === fechaSel),
+    [horarios, fechaSel]
+  );
+  const horasDisponibles = useMemo(() =>
+    [...new Set(horariosDelDia.map((h: any) => partesFechaEvento(h.inicio).hour))].sort((a: any, b: any) => a - b) as number[],
+    [horariosDelDia]
   );
   const minutosParaHora = useMemo(() => {
     if (horaSel === null) return [];
-    return horarios
+    return horariosDelDia
       .filter((h: any) => partesFechaEvento(h.inicio).hour === horaSel)
       .map((h: any) => partesFechaEvento(h.inicio).minute)
       .sort((a: any, b: any) => a - b);
-  }, [horarios, horaSel]);
+  }, [horariosDelDia, horaSel]);
   const horarioMatch = useMemo(() => {
     if (horaSel === null) return null;
     const mins = parseInt(minutosStr) || 0;
-    return horarios.find((h: any) => {
+    return horariosDelDia.find((h: any) => {
       const p = partesFechaEvento(h.inicio);
       return p.hour === horaSel && p.minute === mins;
     }) ?? null;
-  }, [horarios, horaSel, minutosStr]);
+  }, [horariosDelDia, horaSel, minutosStr]);
   const minutosInvalidos = horaSel !== null && minutosStr !== '' && !horarioMatch;
 
   useEffect(() => {
@@ -83,15 +92,15 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
         const hrs: any[] = Array.isArray(data?.horarios) ? data.horarios : [];
         setHorarios(hrs);
         setDuracionMin(data?.duracionMinutos ?? 0);
-        const available = [...new Set(hrs.map((h: any) => partesFechaEvento(h.inicio).hour))].sort((a: any, b: any) => a - b) as number[];
-        const cur = partesFechaEvento(new Date()).hour;
-        const auto = available.find((h) => h >= cur) ?? available[0];
-        if (auto !== undefined) {
+        const primerSlot = hrs[0];
+        if (primerSlot) {
+          const partes = partesFechaEvento(primerSlot.inicio);
           const primerMinuto = hrs
-            .filter((slot: any) => partesFechaEvento(slot.inicio).hour === auto)
+            .filter((slot: any) => partesFechaEvento(slot.inicio).dateKey === partes.dateKey && partesFechaEvento(slot.inicio).hour === partes.hour)
             .map((slot: any) => partesFechaEvento(slot.inicio).minute)
             .sort((a: number, b: number) => a - b)[0];
-          setHoraSel(auto);
+          setFechaSel(partes.dateKey);
+          setHoraSel(partes.hour);
           setMinutosStr(String(primerMinuto ?? 0).padStart(2, '0'));
         }
       })
@@ -175,13 +184,32 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
               <Text style={cm.emptyText}>No hay otros horarios disponibles para ambas empresas.</Text>
             ) : (
               <>
+                <Text style={cm.sectionLabel}>Fecha</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+                  <View style={{ flexDirection: 'row', gap: 8, paddingRight: 16 }}>
+                    {fechasDisponibles.map((fecha) => {
+                      const ejemplo = horarios.find((slot: any) => partesFechaEvento(slot.inicio).dateKey === fecha);
+                      return <TouchableOpacity key={fecha} onPress={() => {
+                        setFechaSel(fecha);
+                        const primerSlot = horarios.find((slot: any) => partesFechaEvento(slot.inicio).dateKey === fecha);
+                        if (primerSlot) {
+                          const partes = partesFechaEvento(primerSlot.inicio);
+                          setHoraSel(partes.hour);
+                          setMinutosStr(String(partes.minute).padStart(2, '0'));
+                        }
+                      }} style={[cm.horaBtn, fechaSel === fecha && cm.horaBtnActive]}>
+                        <Text style={[cm.horaBtnText, fechaSel === fecha && cm.horaBtnTextActive]}>{ejemplo ? fmtDateShort(ejemplo.inicio) : fecha}</Text>
+                      </TouchableOpacity>;
+                    })}
+                  </View>
+                </ScrollView>
                 <Text style={cm.sectionLabel}>Hora</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }} contentContainerStyle={{ paddingRight: 16 }}>
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, maxWidth: 680 }}>
                     {horasDisponibles.map((h: number) => (
                       <TouchableOpacity key={h} onPress={() => {
                         setHoraSel(h);
-                        const disponibles = horarios
+                        const disponibles = horariosDelDia
                           .filter((slot: any) => partesFechaEvento(slot.inicio).hour === h)
                           .map((slot: any) => partesFechaEvento(slot.inicio).minute)
                           .sort((a: number, b: number) => a - b);
@@ -468,7 +496,7 @@ function DetalleReunionModal({ reunion, eeId, esEncargado, navigation, onClose, 
                       <Text style={{ color: GREEN, fontSize: 13, fontWeight: '700', textAlign: 'center' }}>Esperando que la otra empresa confirme el inicio…</Text>
                     </View>
                   ) : (
-                    <TouchableOpacity onPress={handleIniciar} disabled={iniciando || (isVirtual && !reunion.enlace)} style={[dm.iniciarBtn, (iniciando || (isVirtual && !reunion.enlace)) && { opacity: 0.6 }]} activeOpacity={0.8}>
+                    <TouchableOpacity onPress={handleIniciar} disabled={iniciando} style={[dm.iniciarBtn, iniciando && { opacity: 0.6 }]} activeOpacity={0.8}>
                       {iniciando ? <ActivityIndicator size="small" color="#fff" /> : (
                         <Text style={dm.finalizarBtnText}>{otraPidioIniciar ? 'Confirmar inicio (la otra quiere iniciar)' : 'Iniciar reunión'}</Text>
                       )}

@@ -37,7 +37,15 @@ export class AuthGuard implements CanActivate {
     if (!dbUser || dbUser.rolEvento !== payload.role) throw new UnauthorizedException('La cuenta ya no está habilitada.');
     const eeIds = dbUser.empresa_usuario.map((x) => x.empresaevento_id);
     const euIds = dbUser.empresa_usuario.map((x) => x.id);
-    req.user = { sub: dbUser.id, role: dbUser.rolEvento, eventoId: dbUser.evento_id, eeIds, euIds } satisfies AuthUser;
+    let eventoId = dbUser.evento_id;
+    if (['TECNICO', 'TECNICO_EVENTOS'].includes(dbUser.rolEvento)) {
+      const principal = await this.prisma.evento.findFirst({
+        where: { esPrincipal: 1, estaActivo: { not: 0 } },
+        select: { id: true },
+      });
+      eventoId = principal?.id ?? null;
+    }
+    req.user = { sub: dbUser.id, role: dbUser.rolEvento, eventoId, eeIds, euIds } satisfies AuthUser;
 
     if (path.startsWith('/admin/') && dbUser.rolEvento !== 'ADMINISTRADOR') {
       const tecnicoPuedeGestionarContenido = ['/admin/noticias', '/admin/actividades', '/admin/eventos', '/admin/imagenes', '/admin/perfil']

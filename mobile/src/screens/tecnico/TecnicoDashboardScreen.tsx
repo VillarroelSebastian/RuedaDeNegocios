@@ -22,6 +22,7 @@ function fmtDate(iso: string) {
 
 const ESTADO_CFG: Record<string, { color: string; bg: string; dot: string; label: string }> = {
   PROGRAMADA: { color: '#1d4ed8', bg: '#dbeafe', dot: '#60a5fa', label: 'Programada' },
+  REPROGRAMADA: { color: '#b45309', bg: '#fef3c7', dot: '#f59e0b', label: 'Reprogramada' },
   EN_CURSO:   { color: '#c2410c', bg: '#ffedd5', dot: '#f97316', label: 'En curso' },
   FINALIZADA: { color: '#15803d', bg: '#dcfce7', dot: '#22c55e', label: 'Finalizada' },
   CANCELADA:  { color: '#6b7280', bg: '#f3f4f6', dot: '#9ca3af', label: 'Cancelada' },
@@ -69,7 +70,11 @@ function ReunionCard({ r, onEstadoChange }: { r: any; onEstadoChange: (id: numbe
   const esVirtual   = r.tipoReunion === 'VIRTUAL'    || r.tipoReunion === 'MIXTA';
   const esPresencial= r.tipoReunion === 'PRESENCIAL' || r.tipoReunion === 'MIXTA';
   const [menuVisible, setMenuVisible] = useState(false);
-  const estados = ['PROGRAMADA', 'EN_CURSO', 'FINALIZADA', 'CANCELADA'];
+  const permitidos: Record<string, string[]> = {
+    PROGRAMADA: ['EN_CURSO', 'CANCELADA'], REPROGRAMADA: ['EN_CURSO', 'CANCELADA'],
+    EN_CURSO: ['FINALIZADA'], FINALIZADA: [], CANCELADA: [],
+  };
+  const estados = permitidos[r.estadoReunion] ?? [];
 
   return (
     <View style={{ backgroundColor:'#fff', borderRadius:16, borderWidth:1, borderColor:'#f1f5f9', marginBottom:12, overflow:'hidden', shadowColor:'#000', shadowOpacity:0.04, shadowRadius:4, elevation:1 }}>
