@@ -6,19 +6,20 @@ import Link from "next/link";
 import {
   Users, Calendar, MapPin, Monitor, Table2,
   CheckCircle2, Clock, AlertCircle, Star, ArrowRight, Edit2, X,
-  ChevronRight, AlertTriangle, ExternalLink,
+  ChevronRight, AlertTriangle, ExternalLink, RefreshCw,
 } from "lucide-react";
+import { fechaEvento, horaEvento, partesFechaEvento } from "@/lib/fechaEvento";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
 function fmtDate(dt: string) {
-  return new Date(dt).toLocaleDateString("es-BO", { weekday: "long", day: "2-digit", month: "long" });
+  return fechaEvento(dt, { weekday: "long", day: "2-digit", month: "long" });
 }
 function fmtTime(dt: string) {
-  return new Date(dt).toLocaleTimeString("es-BO", { hour: "2-digit", minute: "2-digit" });
+  return horaEvento(dt);
 }
 function fmtOnlyDate(dt: string) {
-  return new Date(dt).toLocaleDateString("es-BO", { weekday: "short", day: "2-digit", month: "short" });
+  return fechaEvento(dt, { weekday: "short", day: "2-digit", month: "short" });
 }
 
 function estadoBadge(estado: string, small = false) {
@@ -53,22 +54,22 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
   const [err, setErr] = useState<string | null>(null);
 
   const horasDisponibles = useMemo(() =>
-    [...new Set(horarios.map((h: any) => new Date(h.inicio).getHours()))].sort((a, b) => a - b),
+    [...new Set(horarios.map((h: any) => partesFechaEvento(h.inicio).hour))].sort((a, b) => a - b),
     [horarios]
   );
   const minutosParaHora = useMemo(() => {
     if (!horaSelec) return [];
     return horarios
-      .filter((h: any) => new Date(h.inicio).getHours() === parseInt(horaSelec))
-      .map((h: any) => new Date(h.inicio).getMinutes())
+      .filter((h: any) => partesFechaEvento(h.inicio).hour === parseInt(horaSelec))
+      .map((h: any) => partesFechaEvento(h.inicio).minute)
       .sort((a, b) => a - b);
   }, [horarios, horaSelec]);
   const seleccionado = useMemo(() => {
     if (!horaSelec) return null;
     const mins = parseInt(minutosStr) || 0;
     return horarios.find((h: any) => {
-      const d = new Date(h.inicio);
-      return d.getHours() === parseInt(horaSelec) && d.getMinutes() === mins;
+      const p = partesFechaEvento(h.inicio);
+      return p.hour === parseInt(horaSelec) && p.minute === mins;
     }) ?? null;
   }, [horarios, horaSelec, minutosStr]);
   const minutosInvalidos = horaSelec !== "" && minutosStr !== "" && !seleccionado;
@@ -82,13 +83,13 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
         const hrs: any[] = Array.isArray(data?.horarios) ? data.horarios : [];
         setHorarios(hrs);
         setDuracionMin(data?.duracionMinutos ?? 0);
-        const available = [...new Set(hrs.map((h: any) => new Date(h.inicio).getHours()))].sort((a, b) => a - b) as number[];
-        const cur = new Date().getHours();
+        const available = [...new Set(hrs.map((h: any) => partesFechaEvento(h.inicio).hour))].sort((a, b) => a - b) as number[];
+        const cur = partesFechaEvento(new Date()).hour;
         const auto = available.find((h) => h >= cur) ?? available[0];
         if (auto !== undefined) {
           setHoraSelec(String(auto));
-          const primerMinuto = hrs.find((h: any) => new Date(h.inicio).getHours() === auto);
-          setMinutosStr(primerMinuto ? String(new Date(primerMinuto.inicio).getMinutes()).padStart(2, "0") : "00");
+          const primerMinuto = hrs.find((h: any) => partesFechaEvento(h.inicio).hour === auto);
+          setMinutosStr(primerMinuto ? String(partesFechaEvento(primerMinuto.inicio).minute).padStart(2, "0") : "00");
         }
       })
       .catch(() => setHorarios([]))
@@ -240,7 +241,9 @@ function DetalleReunionModal({ reunion, eeId, esEncargado, onClose, onCambiarHor
   const ahora = new Date();
   const esProgramada = (reunion.estado === "PROGRAMADA" || reunion.estado === "REPROGRAMADA") && new Date(reunion.fin) > ahora;
   const esFinalizada = reunion.estado === "FINALIZADA" || new Date(reunion.fin) <= ahora;
-  const puedeFinalizarEncargado = esEncargado && ["PROGRAMADA", "REPROGRAMADA", "EN_CURSO"].includes(reunion.estado);
+  // El cierre es automático al finalizar el bloque. Una reunión iniciada no
+  // permite editar, cancelar ni finalizar manualmente.
+  const puedeFinalizarEncargado = false;
   const puedeIniciar = esEncargado && ["PROGRAMADA", "REPROGRAMADA"].includes(reunion.estado);
   const otraPidioIniciar = reunion.inicioAnticipadoPor && reunion.inicioAnticipadoPor !== eeId;
   const yoPediIniciar = reunion.inicioAnticipadoPor && reunion.inicioAnticipadoPor === eeId;
@@ -349,6 +352,13 @@ function DetalleReunionModal({ reunion, eeId, esEncargado, onClose, onCambiarHor
             {reunion.mensaje && <Row label="Mensaje" value={<em className="text-gray-600 font-normal">{reunion.mensaje}</em>} />}
           </div>
 
+          {reunion.tipo === "VIRTUAL" && !reunion.enlace && (
+            <div className="mb-4 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>Esta reunión todavía no tiene enlace. Puedes esperar a que el equipo técnico lo agregue; al intentar iniciar se les enviará una alerta urgente.</span>
+            </div>
+          )}
+
           {/* Result */}
           {reunion.miResultado && (
             <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 mb-4">
@@ -373,7 +383,7 @@ function DetalleReunionModal({ reunion, eeId, esEncargado, onClose, onCambiarHor
                     Esperando que la otra empresa confirme el inicio…
                   </div>
                 ) : (
-                  <button onClick={handleIniciar} disabled={iniciando}
+                  <button onClick={handleIniciar} disabled={iniciando || (reunion.tipo === "VIRTUAL" && !reunion.enlace)}
                     className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#449D3A] hover:bg-[#3a8531] text-white text-sm font-bold disabled:opacity-50">
                     {otraPidioIniciar ? "Confirmar inicio (la otra empresa quiere iniciar)" : "Iniciar reunión"}
                   </button>
@@ -472,7 +482,7 @@ export default function ReunionesPage() {
   const [cambiarModal, setCambiarModal] = useState<any>(null);
 
   const cargarReuniones = useCallback((id: number) => {
-    fetch(`${API}/empresa/reuniones?eeId=${id}`)
+    fetch(`${API}/empresa/reuniones?eeId=${id}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => setReuniones(Array.isArray(data) ? data : []))
       .catch(() => setError("No se pudo cargar las reuniones."))
@@ -494,6 +504,26 @@ export default function ReunionesPage() {
       })
       .catch(() => setError("No se pudo cargar el contexto."));
   }, [router, cargarReuniones]);
+
+  useEffect(() => {
+    if (!eeId) return;
+    const refrescar = () => cargarReuniones(eeId);
+    const alNotificar = (event: Event) => {
+      const tipo = (event as CustomEvent)?.detail?.evento ?? "";
+      if (tipo.startsWith("reunion") || tipo.startsWith("solicitud")) refrescar();
+    };
+    const alVolver = () => { if (document.visibilityState === "visible") refrescar(); };
+    const iv = window.setInterval(refrescar, 15_000);
+    window.addEventListener("rueda:notificacion", alNotificar);
+    window.addEventListener("focus", refrescar);
+    document.addEventListener("visibilitychange", alVolver);
+    return () => {
+      window.clearInterval(iv);
+      window.removeEventListener("rueda:notificacion", alNotificar);
+      window.removeEventListener("focus", refrescar);
+      document.removeEventListener("visibilitychange", alVolver);
+    };
+  }, [eeId, cargarReuniones]);
 
   const ahora = new Date();
   const filtradas = reuniones.filter((r) => {
@@ -558,6 +588,11 @@ export default function ReunionesPage() {
             <h1 className="text-2xl font-extrabold text-gray-900">Mis reuniones</h1>
             <p className="text-sm text-gray-400 mt-0.5">{reuniones.length} reuniones confirmadas</p>
           </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => eeId && cargarReuniones(eeId)}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-600 hover:bg-gray-50">
+              <RefreshCw className="h-3.5 w-3.5" /> Actualizar
+            </button>
           <div className="flex bg-gray-100 rounded-xl p-1">
             {(["todas", "proximas", "finalizadas"] as const).map((f) => (
               <button key={f} onClick={() => setFiltro(f)}
@@ -567,6 +602,7 @@ export default function ReunionesPage() {
                 {f === "todas" ? "Todas" : f === "proximas" ? "Próximas" : "Finalizadas"}
               </button>
             ))}
+          </div>
           </div>
         </div>
 

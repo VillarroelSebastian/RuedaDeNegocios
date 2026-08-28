@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   Send, AlertCircle, AlertTriangle, Monitor, Users, X, Table2, CheckCircle2,
 } from "lucide-react";
+import { fechaEvento, horaEvento, partesFechaEvento } from "@/lib/fechaEvento";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 const POLL_MS = 5000; // tabla polling cada 5 s
@@ -85,10 +86,10 @@ function MesaPicker({ inicio, fin, value, onChange, onUnavailable }: MesaPickerP
 // ── Modal nueva solicitud ───────────────────────────────────────────────────
 
 function fmtTime(iso: string) {
-  return new Date(iso).toLocaleTimeString("es-BO", { hour: "2-digit", minute: "2-digit" });
+  return horaEvento(iso);
 }
 function fmtOnlyDate(iso: string) {
-  return new Date(iso).toLocaleDateString("es-BO", { weekday: "short", day: "2-digit", month: "short" });
+  return fechaEvento(iso, { weekday: "short", day: "2-digit", month: "short" });
 }
 
 export function NuevaSolicitudModal({ ctx, receptoraId, receptoraNombre, onClose, onCreada, solicitud }: {
@@ -111,8 +112,7 @@ export function NuevaSolicitudModal({ ctx, receptoraId, receptoraNombre, onClose
 
   // Fecha ISO (YYYY-MM-DD, en horario local) del slot — usada para agrupar horarios por día.
   const fechaISO = (iso: string) => {
-    const d = new Date(iso);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    return partesFechaEvento(iso).dateKey;
   };
 
   const fechasDisponibles = useMemo(() =>
@@ -124,22 +124,22 @@ export function NuevaSolicitudModal({ ctx, receptoraId, receptoraNombre, onClose
     [horarios, fechaSelec]
   );
   const horasDisponibles = useMemo(() =>
-    [...new Set(horariosDelDia.map((h: any) => new Date(h.inicio).getHours()))].sort((a, b) => a - b),
+    [...new Set(horariosDelDia.map((h: any) => partesFechaEvento(h.inicio).hour))].sort((a, b) => a - b),
     [horariosDelDia]
   );
   const minutosParaHora = useMemo(() => {
     if (horaSelec === "") return [];
     return horariosDelDia
-      .filter((h: any) => new Date(h.inicio).getHours() === parseInt(horaSelec))
-      .map((h: any) => new Date(h.inicio).getMinutes())
+      .filter((h: any) => partesFechaEvento(h.inicio).hour === parseInt(horaSelec))
+      .map((h: any) => partesFechaEvento(h.inicio).minute)
       .sort((a, b) => a - b);
   }, [horariosDelDia, horaSelec]);
   const horarioMatch = useMemo(() => {
     if (horaSelec === "" || minutosStr === "") return null;
     const mins = parseInt(minutosStr);
     return horariosDelDia.find((h: any) => {
-      const d = new Date(h.inicio);
-      return d.getHours() === parseInt(horaSelec) && d.getMinutes() === mins;
+      const p = partesFechaEvento(h.inicio);
+      return p.hour === parseInt(horaSelec) && p.minute === mins;
     }) ?? null;
   }, [horariosDelDia, horaSelec, minutosStr]);
 
@@ -158,7 +158,7 @@ export function NuevaSolicitudModal({ ctx, receptoraId, receptoraNombre, onClose
   useEffect(() => {
     setHoraSelec("");
     if (horasDisponibles.length > 0) {
-      const cur = fechaSelec === fechaISO(new Date().toISOString()) ? new Date().getHours() : 0;
+      const cur = fechaSelec === fechaISO(new Date().toISOString()) ? partesFechaEvento(new Date()).hour : 0;
       const auto = horasDisponibles.find((h) => h >= cur) ?? horasDisponibles[0];
       setHoraSelec(String(auto));
     }
@@ -200,6 +200,15 @@ export function NuevaSolicitudModal({ ctx, receptoraId, receptoraNombre, onClose
     setErr(null);
     if (!horario) { setErr("Selecciona un horario disponible."); return; }
     if (tipo === "PRESENCIAL" && !mesa) { setErr("Selecciona una mesa."); return; }
+    if (tipo === "VIRTUAL" && enlace.trim()) {
+      try {
+        const url = new URL(enlace.trim());
+        if (url.protocol !== "https:") throw new Error();
+      } catch {
+        setErr("El enlace virtual debe ser una URL segura que comience con https://");
+        return;
+      }
+    }
     setEnviando(true);
     try {
       const res = await fetch(solicitud ? `${API}/empresa/solicitudes/${solicitud.id}/editar` : `${API}/empresa/solicitudes`, {
@@ -280,7 +289,7 @@ export function NuevaSolicitudModal({ ctx, receptoraId, receptoraNombre, onClose
                   >
                     {fechasDisponibles.map((f) => (
                       <option key={f} value={f}>
-                        {new Date(f + "T00:00:00").toLocaleDateString("es-BO", { weekday: "long", day: "2-digit", month: "long" })}
+                        {fechaEvento(`${f}T12:00:00-04:00`, { weekday: "long", day: "2-digit", month: "long" })}
                       </option>
                     ))}
                   </select>

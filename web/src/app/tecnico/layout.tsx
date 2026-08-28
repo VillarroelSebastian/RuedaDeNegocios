@@ -4,6 +4,7 @@ import React, { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import TecnicoSidebar from '@/components/tecnico/TecnicoSidebar';
 import TecnicoHeader from '@/components/tecnico/TecnicoHeader';
+import StaffReunionAlerts from '@/components/tecnico/StaffReunionAlerts';
 
 export default function TecnicoLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -31,6 +32,7 @@ export default function TecnicoLayout({ children }: { children: React.ReactNode 
         <TecnicoHeader />
         <main className="flex-1">{children}</main>
       </div>
+      <StaffReunionAlerts />
     </div>
   );
 }

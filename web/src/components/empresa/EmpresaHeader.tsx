@@ -1,13 +1,13 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { LogOut, ChevronDown, Bell, Menu, Clock, Newspaper } from 'lucide-react';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
 function fmtNotifFecha(f: string) {
-  return new Date(f).toLocaleDateString('es-BO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return new Date(f).toLocaleDateString('es-BO', { timeZone: 'America/La_Paz', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
 // Ruta destino según el tipo de notificación, para llevar directo a su sección.
@@ -40,7 +40,7 @@ export default function EmpresaHeader({ onMenuClick, eeId }: { onMenuClick?: () 
   }, []);
 
   // Historial de notificaciones persistentes (campanita)
-  const cargarNotifs = async () => {
+  const cargarNotifs = useCallback(async () => {
     if (!eeId) return;
     try {
       const res = await fetch(`${API}/empresa/notificaciones?eeId=${eeId}`);
@@ -49,18 +49,28 @@ export default function EmpresaHeader({ onMenuClick, eeId }: { onMenuClick?: () 
       setNotifs(data.notificaciones ?? []);
       setUnread(data.noLeidas ?? 0);
     } catch {}
-  };
+  }, [eeId]);
 
   useEffect(() => {
     cargarNotifs();
-    const iv = setInterval(cargarNotifs, 60_000);
-    return () => clearInterval(iv);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eeId]);
+    const iv = setInterval(cargarNotifs, 15_000);
+    const actualizar = () => cargarNotifs();
+    const alVolver = () => { if (document.visibilityState === 'visible') cargarNotifs(); };
+    window.addEventListener('rueda:notificacion', actualizar);
+    window.addEventListener('focus', actualizar);
+    document.addEventListener('visibilitychange', alVolver);
+    return () => {
+      clearInterval(iv);
+      window.removeEventListener('rueda:notificacion', actualizar);
+      window.removeEventListener('focus', actualizar);
+      document.removeEventListener('visibilitychange', alVolver);
+    };
+  }, [cargarNotifs]);
 
   const abrirNotifs = async () => {
     const abriendo = !showNotifs;
     setShowNotifs(abriendo);
+    if (abriendo) await cargarNotifs();
     if (abriendo && unread > 0 && eeId) {
       try {
         await fetch(`${API}/empresa/notificaciones/leidas`, {

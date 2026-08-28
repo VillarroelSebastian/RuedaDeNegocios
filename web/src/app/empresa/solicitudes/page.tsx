@@ -1,14 +1,16 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, useEffect, Suspense, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Send, Clock, CheckCircle2, XCircle, AlertCircle, AlertTriangle,
   Monitor, Users, Calendar, X, Table2, Ban, Building2, MapPin, Search, ArrowRight, Edit2,
+  RefreshCw,
 } from "lucide-react";
 import { paisConBandera } from "@/lib/pais";
 import { NuevaSolicitudModal } from "@/components/empresa/NuevaSolicitudModal";
 import { ModalExito } from "@/components/empresa/ModalExito";
+import { fechaEvento } from "@/lib/fechaEvento";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 const POLL_MS = 5000; // tabla polling cada 5 s
@@ -29,7 +31,7 @@ function estadoBadge(estado: string) {
 }
 
 function formatDT(dt: string) {
-  return new Date(dt).toLocaleString("es-BO", {
+  return fechaEvento(dt, {
     weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
   });
 }
@@ -327,10 +329,10 @@ function SolicitudesContent() {
   const [toastMsg, setToastMsg] = useState<{ tipo: "ok" | "err"; msg: string } | null>(null);
   const [exitoMsg, setExitoMsg] = useState<string | null>(null);
 
-  const cargarSolicitudes = (eeId: number) =>
-    fetch(`${API}/empresa/solicitudes?eeId=${eeId}`)
+  const cargarSolicitudes = useCallback((eeId: number) =>
+    fetch(`${API}/empresa/solicitudes?eeId=${eeId}`, { cache: "no-store" })
       .then((r) => r.json())
-      .then((d) => setSolicitudes(Array.isArray(d) ? d : []));
+      .then((d) => setSolicitudes(Array.isArray(d) ? d : [])), []);
 
   const cargarEmpresas = (eeId: number) =>
     fetch(`${API}/empresa/directorio?eeId=${eeId}`)
@@ -359,7 +361,27 @@ function SolicitudesContent() {
       })
       .catch(() => setError("No se pudo cargar las solicitudes."))
       .finally(() => setLoading(false));
-  }, [router]);
+  }, [router, cargarSolicitudes]);
+
+  useEffect(() => {
+    if (!ctx?.empresaeventoId) return;
+    const refrescar = () => cargarSolicitudes(ctx.empresaeventoId).catch(() => {});
+    const alNotificar = (event: Event) => {
+      const tipo = (event as CustomEvent)?.detail?.evento ?? "";
+      if (tipo.startsWith("solicitud") || tipo.startsWith("reunion")) refrescar();
+    };
+    const alVolver = () => { if (document.visibilityState === "visible") refrescar(); };
+    const iv = window.setInterval(refrescar, 15_000);
+    window.addEventListener("rueda:notificacion", alNotificar);
+    window.addEventListener("focus", refrescar);
+    document.addEventListener("visibilitychange", alVolver);
+    return () => {
+      window.clearInterval(iv);
+      window.removeEventListener("rueda:notificacion", alNotificar);
+      window.removeEventListener("focus", refrescar);
+      document.removeEventListener("visibilitychange", alVolver);
+    };
+  }, [ctx?.empresaeventoId, cargarSolicitudes]);
 
   useEffect(() => {
     const nueva = searchParams.get("nueva");
@@ -454,6 +476,10 @@ function SolicitudesContent() {
             <h1 className="text-2xl font-extrabold text-gray-900">Solicitudes de reunión</h1>
             <p className="text-sm text-gray-400 mt-0.5">{solicitudes.length} solicitudes en total</p>
           </div>
+          <button onClick={recargar}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-600 hover:bg-gray-50">
+            <RefreshCw className="h-3.5 w-3.5" /> Actualizar
+          </button>
         </div>
 
         {/* Toast */}

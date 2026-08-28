@@ -1,9 +1,9 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
   Building2, Clock, Video, Search, ExternalLink,
-  Wifi, CheckCircle, AlertCircle, X,
+  Wifi, AlertCircle, RefreshCw,
 } from 'lucide-react';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
@@ -57,13 +57,12 @@ export default function TecnicoVirtualesPage() {
   const [search, setSearch] = useState('');
   const [filtro, setFiltro] = useState('TODOS');
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
+  const load = useCallback(async (mostrarCarga = false) => {
+      if (mostrarCarga) setLoading(true);
       try {
         const [resV, resM] = await Promise.all([
-          fetch(`${API}/tecnico/reuniones?tipo=VIRTUAL`),
-          fetch(`${API}/tecnico/reuniones?tipo=MIXTA`),
+          fetch(`${API}/tecnico/reuniones?tipo=VIRTUAL`, { cache: 'no-store' }),
+          fetch(`${API}/tecnico/reuniones?tipo=MIXTA`, { cache: 'no-store' }),
         ]);
         const dataV = await resV.json();
         const dataM = await resM.json();
@@ -77,9 +76,23 @@ export default function TecnicoVirtualesPage() {
       } finally {
         setLoading(false);
       }
-    };
-    load();
   }, []);
+
+  useEffect(() => {
+    load(true);
+    const timer = window.setInterval(() => load(), 15_000);
+    const actualizar = () => load();
+    window.addEventListener('rueda:notificacion', actualizar);
+    window.addEventListener('focus', actualizar);
+    const alCambiarVisibilidad = () => { if (!document.hidden) load(); };
+    document.addEventListener('visibilitychange', alCambiarVisibilidad);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('rueda:notificacion', actualizar);
+      window.removeEventListener('focus', actualizar);
+      document.removeEventListener('visibilitychange', alCambiarVisibilidad);
+    };
+  }, [load]);
 
   const filtered = reuniones.filter((r) => {
     const sol = r.solicitudreunion;
@@ -94,11 +107,16 @@ export default function TecnicoVirtualesPage() {
   const canceladasPorEmpresa = reuniones.filter((r) =>
     r.estadoReunion === 'CANCELADA' && /^Cancelada por /i.test(r.observacionesReunion ?? ''),
   );
+  const sinEnlace = reuniones.filter((r) =>
+    ['PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO'].includes(r.estadoReunion) &&
+    !r.solicitudreunion?.enlaceReunionVirtual,
+  );
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
       {/* Header */}
-      <div className="mb-6">
+      <div className="mb-6 flex items-start justify-between gap-3">
+        <div>
         <div className="flex items-center gap-3 mb-1">
           <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center">
             <Wifi className="w-5 h-5 text-blue-600" />
@@ -108,7 +126,21 @@ export default function TecnicoVirtualesPage() {
         <p className="text-sm text-gray-500 ml-12">
           {filtered.length} reunión(es) con enlace virtual · tipos: Virtual y Mixta
         </p>
+        </div>
+        <button onClick={() => load()} className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+          <RefreshCw className="h-4 w-4" /> Actualizar
+        </button>
       </div>
+
+      {sinEnlace.length > 0 && (
+        <div className="mb-5 flex items-start gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-950">
+          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+          <div>
+            <p className="text-sm font-bold">{sinEnlace.length} reunión(es) pendiente(s) de enlace virtual</p>
+            <p className="mt-1 text-xs text-amber-800">Abre sus detalles y agrega un enlace HTTPS antes de la hora programada.</p>
+          </div>
+        </div>
+      )}
 
       {canceladasPorEmpresa.length > 0 && (
         <div className="mb-5 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-900">

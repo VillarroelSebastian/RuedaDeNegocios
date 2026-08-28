@@ -80,10 +80,12 @@ function VirtualCard({ r, onEditLink }: { r: any; onEditLink: (r: any) => void }
 
         {/* Mesa + hora + badges */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, flexWrap: 'wrap', marginLeft: 14 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-            <Armchair color="#9ca3af" size={11} />
-            <Text style={{ fontSize: 10, color: '#6b7280', fontWeight: '600' }}>Mesa {r.mesa?.numeroMesa}</Text>
-          </View>
+          {!!r.mesa?.numeroMesa && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+              <Armchair color="#9ca3af" size={11} />
+              <Text style={{ fontSize: 10, color: '#6b7280', fontWeight: '600' }}>Mesa {r.mesa.numeroMesa}</Text>
+            </View>
+          )}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
             <Clock color="#9ca3af" size={11} />
             <Text style={{ fontSize: 10, color: '#6b7280' }}>
@@ -154,18 +156,27 @@ function LinkModal({ reunion, onClose, onGuardado }: { reunion: any; onClose: ()
   const [err, setErr] = useState('');
 
   const guardar = async () => {
-    setGuardando(true);
     setErr('');
+    const limpio = enlace.trim();
+    try {
+      const url = new URL(limpio);
+      if (url.protocol !== 'https:') throw new Error();
+    } catch {
+      setErr('El enlace debe ser una URL segura que comience con https://');
+      return;
+    }
+    setGuardando(true);
     try {
       const res = await fetch(`${API_URL}/tecnico/reuniones/${reunion.id}/link`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enlace: enlace.trim() }),
+        body: JSON.stringify({ enlace: limpio }),
       });
-      if (!res.ok) throw new Error();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || 'No se pudo guardar el enlace.');
       onGuardado();
-    } catch {
-      setErr('No se pudo guardar el enlace.');
+    } catch (error) {
+      setErr(error instanceof Error ? error.message : 'No se pudo guardar el enlace.');
     } finally {
       setGuardando(false);
     }
@@ -247,7 +258,12 @@ export default function TecnicoVirtualesScreen() {
     }
   }, []);
 
-  useEffect(() => { setLoading(true); fetchReuniones(); }, []);
+  useEffect(() => {
+    setLoading(true);
+    fetchReuniones();
+    const timer = setInterval(fetchReuniones, 15_000);
+    return () => clearInterval(timer);
+  }, [fetchReuniones]);
 
   const filtered = reuniones.filter((r) => {
     const matchEst = filtroEst === 'TODOS' || r.estadoReunion === filtroEst;
@@ -259,6 +275,10 @@ export default function TecnicoVirtualesScreen() {
   });
   const canceladasPorEmpresa = reuniones.filter((r) =>
     r.estadoReunion === 'CANCELADA' && /^Cancelada por /i.test(r.observacionesReunion ?? ''),
+  );
+  const sinEnlace = reuniones.filter((r) =>
+    ['PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO'].includes(r.estadoReunion) &&
+    !r.solicitudreunion?.enlaceReunionVirtual,
   );
 
   return (
@@ -334,6 +354,20 @@ export default function TecnicoVirtualesScreen() {
           }
           showsVerticalScrollIndicator={false}
         >
+          {sinEnlace.length > 0 && (
+            <View style={{ flexDirection:'row', alignItems:'flex-start', gap:10, marginBottom:12,
+              borderWidth:1, borderColor:'#fcd34d', backgroundColor:'#fffbeb', borderRadius:16, padding:14 }}>
+              <AlertTriangle color="#d97706" size={19}/>
+              <View style={{ flex:1 }}>
+                <Text style={{ color:'#92400e', fontSize:13, fontWeight:'800' }}>
+                  {sinEnlace.length} reunión(es) pendiente(s) de enlace
+                </Text>
+                <Text style={{ color:'#a16207', fontSize:11, lineHeight:16, marginTop:3 }}>
+                  Abre la reunión y agrega un enlace HTTPS antes de su hora programada.
+                </Text>
+              </View>
+            </View>
+          )}
           {canceladasPorEmpresa.length > 0 && (
             <View style={{ flexDirection:'row', alignItems:'flex-start', gap:10, marginBottom:12,
               borderWidth:1, borderColor:'#fecaca', backgroundColor:'#fef2f2', borderRadius:16, padding:14 }}>

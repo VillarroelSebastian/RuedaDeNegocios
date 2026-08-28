@@ -44,6 +44,10 @@ export class NotificacionesGateway {
     this.server.to(`ee-${eeId}`).emit(evento, payload);
   }
 
+  emitirParaStaff(evento: string, payload: object) {
+    this.server.to('staff').emit(evento, payload);
+  }
+
   emitirGlobal(evento: string, payload: object) {
     this.server.emit(evento, payload);
   }

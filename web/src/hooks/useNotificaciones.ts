@@ -28,6 +28,7 @@ export function useNotificaciones(eeId: number | null) {
       timestamp: Date.now(),
     };
     setNotifs((prev) => [notif, ...prev].slice(0, 20));
+    window.dispatchEvent(new CustomEvent("rueda:notificacion", { detail: { evento, payload } }));
     // Auto-dismiss after 6 seconds
     setTimeout(() => {
       setNotifs((prev) => prev.filter((n) => n.id !== notif.id));
@@ -50,7 +51,9 @@ export function useNotificaciones(eeId: number | null) {
       "pago:aprobado", "pago:rechazado",
       "pago-adicional:aprobado", "pago-adicional:rechazado",
       "solicitud:nueva", "solicitud:aceptada", "solicitud:rechazada", "solicitud:editada",
-      "reunion:reprogramada", "reunion:recordatorio",
+      "solicitud:cancelada", "solicitud:mesa-no-disponible",
+      "reunion:agendada", "reunion:cancelada", "reunion:iniciada", "reunion:inicio-solicitado",
+      "reunion:enlace-actualizado", "reunion:reprogramada", "reunion:recordatorio",
       "reunion:cambio-solicitado", "reunion:cambio-aceptado", "reunion:cambio-rechazado",
       "reunion:calificar", "mensaje:staff", "mensaje:empresa",
       "comunicado:nuevo",

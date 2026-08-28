@@ -22,10 +22,10 @@ const TIPO_CFG: Record<string, { badge: string; label: string }> = {
 };
 
 function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString('es-BO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  return new Date(iso).toLocaleDateString('es-BO', { timeZone: 'America/La_Paz', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 }
 function fmtTime(iso: string) {
-  return new Date(iso).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return new Date(iso).toLocaleTimeString('es-BO', { timeZone: 'America/La_Paz', hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
 function Modal({ visible, type, title, message, onClose }: {
@@ -98,12 +98,13 @@ export default function VirtualDetailPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enlace: nuevoLink.trim() }),
       });
-      if (!res.ok) throw new Error();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || 'No se pudo guardar el enlace.');
       setEditandoLink(false);
       setModal({ visible: true, type: 'success', title: 'Enlace guardado', message: 'El enlace de la reunión fue actualizado correctamente.' });
       fetchReunion();
-    } catch {
-      setModal({ visible: true, type: 'error', title: 'Error', message: 'No se pudo guardar el enlace.' });
+    } catch (error) {
+      setModal({ visible: true, type: 'error', title: 'Error', message: error instanceof Error ? error.message : 'No se pudo guardar el enlace.' });
     } finally {
       setGuardandoLink(false);
     }
@@ -113,7 +114,7 @@ export default function VirtualDetailPage() {
     if (!id) return;
     setLoading(true);
     try {
-      const res = await fetch(`${API}/tecnico/reuniones/${id}`);
+      const res = await fetch(`${API}/tecnico/reuniones/${id}`, { cache: 'no-store' });
       const data = await res.json();
       setReunion(data);
     } catch {
@@ -123,7 +124,11 @@ export default function VirtualDetailPage() {
     }
   }, [id]);
 
-  useEffect(() => { fetchReunion(); }, [fetchReunion]);
+  useEffect(() => {
+    fetchReunion();
+    const timer = window.setInterval(fetchReunion, 15_000);
+    return () => window.clearInterval(timer);
+  }, [fetchReunion]);
 
   const handleCopy = async () => {
     const link = reunion?.solicitudreunion?.enlaceReunionVirtual;

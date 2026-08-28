@@ -327,6 +327,7 @@ model evento {
   eventoreglaqr                  eventoreglaqr[]
   mesa                           mesa[]
   noticia                        noticia[]
+  notificacionstaff              notificacionstaff[]
   reunion                        reunion[]
   usuario                        usuario[]
   paquete                        paquete[]
@@ -422,6 +423,25 @@ model notificacion {
   @@index([empresaevento_id], map: "fk_notificacion_empresaevento2_idx")
 }
 
+// Alertas operativas persistentes para administradores y tecnicos del evento.
+// Se usan, entre otros casos, para reuniones virtuales sin enlace.
+model notificacionstaff {
+  id                    Int      @id @default(autoincrement())
+  evento_id             Int
+  tituloNotificacion    String   @db.VarChar(300)
+  mensajeNotificacion   String   @db.VarChar(500)
+  tipoNotificacion      String   @db.VarChar(55)
+  referenciaId          Int
+  referenciaNombreTabla String   @db.VarChar(65)
+  urgente               Int      @default(0) @db.SmallInt
+  estaActivo            Int      @default(1) @db.SmallInt
+  fechaCreacion         DateTime @default(now()) @db.Timestamp(6)
+  evento                evento   @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([evento_id, estaActivo, fechaCreacion])
+  @@index([tipoNotificacion, referenciaId])
+}
+
 // Mensajería directa entre empresas de un mismo evento.
 // emisorEe/receptorEe son empresaevento (la conversación es empresa↔empresa);
 // empresa_usuario_id registra qué usuario concreto escribió el mensaje.
@@ -506,11 +526,13 @@ model resultadoreunion {
 model reunion {
   id                            Int                @id @default(autoincrement())
   solicitudReunion_id           Int
-  mesa_id                       Int
+  mesa_id                       Int?
   evento_id                     Int
   tipoReunion                   String             @db.VarChar(45)
   fechaHoraInicioReunion        DateTime           @db.Timestamp(6)
   fechaHoraFinReunion           DateTime           @db.Timestamp(6)
+  fechaHoraInicioReal           DateTime?          @db.Timestamp(6)
+  fechaHoraFinReal              DateTime?          @db.Timestamp(6)
   estadoReunion                 String             @db.VarChar(45)
   observacionesReunion          String?            @db.VarChar(505)
   seEnvioNotificacionDeRetraso  Int                @db.SmallInt
@@ -522,7 +544,7 @@ model reunion {
   mesabloque                    mesabloque[]
   resultadoreunion              resultadoreunion[]
   evento                        evento             @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_reunion_evento1")
-  mesa                          mesa               @relation(fields: [mesa_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_reunion_mesa1")
+  mesa                          mesa?              @relation(fields: [mesa_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_reunion_mesa1")
   solicitudreunion              solicitudreunion   @relation(fields: [solicitudReunion_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_reunion_solicitudreunion1")
   cambioreunion                 cambioreunion[]
 

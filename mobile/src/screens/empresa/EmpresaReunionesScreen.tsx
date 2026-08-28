@@ -11,20 +11,21 @@ import {
   Edit2, X, CheckCircle2, ChevronRight, Star, AlertTriangle,
 } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
+import { fechaEvento, horaEvento, partesFechaEvento } from '../../utils/fechaEvento';
 
 const GREEN = '#449D3A';
 
 function fmtDate(iso: string) {
   if (!iso) return '';
-  return new Date(iso).toLocaleDateString('es-BO', { weekday: 'long', day: '2-digit', month: 'long' });
+  return fechaEvento(iso, { weekday: 'long', day: '2-digit', month: 'long' });
 }
 function fmtDateShort(iso: string) {
   if (!iso) return '';
-  return new Date(iso).toLocaleDateString('es-BO', { day: '2-digit', month: 'short', year: 'numeric' });
+  return fechaEvento(iso, { day: '2-digit', month: 'short', year: 'numeric' });
 }
 function fmtTime(iso: string) {
   if (!iso) return '';
-  return new Date(iso).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' });
+  return horaEvento(iso);
 }
 
 const STATUS_STYLE: Record<string, { bg: string; text: string; label: string }> = {
@@ -53,22 +54,22 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
   const [appModal, setAppModal] = useState<AppModal | null>(null);
 
   const horasDisponibles = useMemo(() =>
-    [...new Set(horarios.map((h: any) => new Date(h.inicio).getHours()))].sort((a: any, b: any) => a - b) as number[],
+    [...new Set(horarios.map((h: any) => partesFechaEvento(h.inicio).hour))].sort((a: any, b: any) => a - b) as number[],
     [horarios]
   );
   const minutosParaHora = useMemo(() => {
     if (horaSel === null) return [];
     return horarios
-      .filter((h: any) => new Date(h.inicio).getHours() === horaSel)
-      .map((h: any) => new Date(h.inicio).getMinutes())
+      .filter((h: any) => partesFechaEvento(h.inicio).hour === horaSel)
+      .map((h: any) => partesFechaEvento(h.inicio).minute)
       .sort((a: any, b: any) => a - b);
   }, [horarios, horaSel]);
   const horarioMatch = useMemo(() => {
     if (horaSel === null) return null;
     const mins = parseInt(minutosStr) || 0;
     return horarios.find((h: any) => {
-      const d = new Date(h.inicio);
-      return d.getHours() === horaSel && d.getMinutes() === mins;
+      const p = partesFechaEvento(h.inicio);
+      return p.hour === horaSel && p.minute === mins;
     }) ?? null;
   }, [horarios, horaSel, minutosStr]);
   const minutosInvalidos = horaSel !== null && minutosStr !== '' && !horarioMatch;
@@ -82,13 +83,13 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
         const hrs: any[] = Array.isArray(data?.horarios) ? data.horarios : [];
         setHorarios(hrs);
         setDuracionMin(data?.duracionMinutos ?? 0);
-        const available = [...new Set(hrs.map((h: any) => new Date(h.inicio).getHours()))].sort((a: any, b: any) => a - b) as number[];
-        const cur = new Date().getHours();
+        const available = [...new Set(hrs.map((h: any) => partesFechaEvento(h.inicio).hour))].sort((a: any, b: any) => a - b) as number[];
+        const cur = partesFechaEvento(new Date()).hour;
         const auto = available.find((h) => h >= cur) ?? available[0];
         if (auto !== undefined) {
           const primerMinuto = hrs
-            .filter((slot: any) => new Date(slot.inicio).getHours() === auto)
-            .map((slot: any) => new Date(slot.inicio).getMinutes())
+            .filter((slot: any) => partesFechaEvento(slot.inicio).hour === auto)
+            .map((slot: any) => partesFechaEvento(slot.inicio).minute)
             .sort((a: number, b: number) => a - b)[0];
           setHoraSel(auto);
           setMinutosStr(String(primerMinuto ?? 0).padStart(2, '0'));
@@ -181,8 +182,8 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
                       <TouchableOpacity key={h} onPress={() => {
                         setHoraSel(h);
                         const disponibles = horarios
-                          .filter((slot: any) => new Date(slot.inicio).getHours() === h)
-                          .map((slot: any) => new Date(slot.inicio).getMinutes())
+                          .filter((slot: any) => partesFechaEvento(slot.inicio).hour === h)
+                          .map((slot: any) => partesFechaEvento(slot.inicio).minute)
                           .sort((a: number, b: number) => a - b);
                         setMinutosStr(String(disponibles[0] ?? 0).padStart(2, '0'));
                       }}
@@ -294,7 +295,7 @@ function DetalleReunionModal({ reunion, eeId, esEncargado, navigation, onClose, 
   const ahora = new Date();
   const esProgramada = (reunion.estado === 'PROGRAMADA' || reunion.estado === 'REPROGRAMADA') && new Date(reunion.fin) > ahora;
   const esFinalizada = reunion.estado === 'FINALIZADA' || new Date(reunion.fin) <= ahora;
-  const puedeFinalizarEncargado = esEncargado && ['PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO'].includes(reunion.estado);
+  const puedeFinalizarEncargado = false;
   const puedeIniciar = esEncargado && ['PROGRAMADA', 'REPROGRAMADA'].includes(reunion.estado);
   const otraPidioIniciar = reunion.inicioAnticipadoPor && reunion.inicioAnticipadoPor !== eeId;
   const yoPediIniciar = reunion.inicioAnticipadoPor && reunion.inicioAnticipadoPor === eeId;
@@ -422,6 +423,14 @@ function DetalleReunionModal({ reunion, eeId, esEncargado, navigation, onClose, 
                   <Text style={[dm.metaText, { color: '#2563eb', textDecorationLine: 'underline', flex: 1 }]} numberOfLines={1}>{reunion.enlace}</Text>
                 </TouchableOpacity>
               )}
+              {isVirtual && !reunion.enlace && (
+                <View style={{ marginTop: 10, borderRadius: 10, backgroundColor: '#fffbeb', padding: 10, flexDirection: 'row', gap: 8 }}>
+                  <AlertTriangle size={15} color="#92400e" />
+                  <Text style={{ color: '#92400e', fontSize: 12, flex: 1 }}>
+                    Esta reunión todavía no tiene enlace. El equipo técnico recibirá una alerta urgente si intentas iniciarla.
+                  </Text>
+                </View>
+              )}
               {reunion.mensaje && (
                 <>
                   <View style={dm.divider} />
@@ -459,7 +468,7 @@ function DetalleReunionModal({ reunion, eeId, esEncargado, navigation, onClose, 
                       <Text style={{ color: GREEN, fontSize: 13, fontWeight: '700', textAlign: 'center' }}>Esperando que la otra empresa confirme el inicio…</Text>
                     </View>
                   ) : (
-                    <TouchableOpacity onPress={handleIniciar} disabled={iniciando} style={[dm.iniciarBtn, iniciando && { opacity: 0.6 }]} activeOpacity={0.8}>
+                    <TouchableOpacity onPress={handleIniciar} disabled={iniciando || (isVirtual && !reunion.enlace)} style={[dm.iniciarBtn, (iniciando || (isVirtual && !reunion.enlace)) && { opacity: 0.6 }]} activeOpacity={0.8}>
                       {iniciando ? <ActivityIndicator size="small" color="#fff" /> : (
                         <Text style={dm.finalizarBtnText}>{otraPidioIniciar ? 'Confirmar inicio (la otra quiere iniciar)' : 'Iniciar reunión'}</Text>
                       )}
@@ -638,7 +647,11 @@ export default function EmpresaReunionesScreen({ navigation }: any) {
     }
   }, [user?.empresaeventoId, user?.esResponsable]);
 
-  useFocusEffect(useCallback(() => { fetchData(); }, [fetchData]));
+  useFocusEffect(useCallback(() => {
+    fetchData();
+    const iv = setInterval(fetchData, 15_000);
+    return () => clearInterval(iv);
+  }, [fetchData]));
 
   const responderCambio = async (cambioId: number, aceptar: boolean) => {
     if (!eeId) return;

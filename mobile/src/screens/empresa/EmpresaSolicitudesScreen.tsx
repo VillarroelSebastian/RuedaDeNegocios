@@ -11,17 +11,18 @@ import {
   Edit2,
 } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
+import { fechaEvento, horaEvento } from '../../utils/fechaEvento';
 import EmpresaEmpresasScreen from './EmpresaEmpresasScreen';
 
 const GREEN = '#449D3A';
 
 function fmtDate(iso: string) {
   if (!iso) return '';
-  return new Date(iso).toLocaleDateString('es-BO', { weekday: 'short', day: '2-digit', month: 'short' });
+  return fechaEvento(iso, { weekday: 'short', day: '2-digit', month: 'short' });
 }
 function fmtTime(iso: string) {
   if (!iso) return '';
-  return new Date(iso).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' });
+  return horaEvento(iso);
 }
 
 const STATUS_CFG: Record<string, { bg: string; text: string; border: string; label: string; Icon: any }> = {
@@ -405,7 +406,11 @@ export default function EmpresaSolicitudesScreen() {
     }
   }, [user?.empresaeventoId]);
 
-  useFocusEffect(useCallback(() => { fetchData(); }, [fetchData]));
+  useFocusEffect(useCallback(() => {
+    fetchData();
+    const iv = setInterval(fetchData, 15_000);
+    return () => clearInterval(iv);
+  }, [fetchData]));
 
   const currentList = tab === 'enviadas' ? enviadas : recibidas;
 

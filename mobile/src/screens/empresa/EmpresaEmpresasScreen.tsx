@@ -13,6 +13,7 @@ import {
   Filter, Mail, Phone, FileText, Hash,
 } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
+import { fechaEvento, horaEvento, partesFechaEvento } from '../../utils/fechaEvento';
 import { paisConBandera } from '../../utils/pais';
 
 const GREEN = '#449D3A';
@@ -22,32 +23,31 @@ const POLL_MS = 3000;
 
 function fmtDate(iso: string) {
   if (!iso) return '';
-  return new Date(iso).toLocaleDateString('es-BO', {
+  return fechaEvento(iso, {
     weekday: 'short', day: '2-digit', month: 'short',
   });
 }
 function fmtTime(iso: string) {
   if (!iso) return '';
-  return new Date(iso).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' });
+  return horaEvento(iso);
 }
 // Fecha ISO (YYYY-MM-DD, hora local) de un slot — usada para agrupar horarios por día.
 function fechaISO(iso: string) {
-  const d = new Date(iso);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return partesFechaEvento(iso).dateKey;
 }
 function fmtSoloFecha(iso: string) {
-  return new Date(iso + 'T00:00:00').toLocaleDateString('es-BO', { weekday: 'long', day: '2-digit', month: 'long' });
+  return fechaEvento(`${iso}T12:00:00-04:00`, { weekday: 'long', day: '2-digit', month: 'long' });
 }
 function fmtUpdateTime(d: Date) {
-  return d.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  return fechaEvento(d, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 // Minutos realmente disponibles para una fecha+hora dadas — nunca permitir elegir
 // uno que no exista en la lista de horarios devuelta por el backend.
 function minutosDeHora(horarios: any[], fecha: string | null, hora: number | null): number[] {
   if (fecha === null || hora === null) return [];
   return horarios
-    .filter((h: any) => fechaISO(h.inicio) === fecha && new Date(h.inicio).getHours() === hora)
-    .map((h: any) => new Date(h.inicio).getMinutes())
+    .filter((h: any) => fechaISO(h.inicio) === fecha && partesFechaEvento(h.inicio).hour === hora)
+    .map((h: any) => partesFechaEvento(h.inicio).minute)
     .sort((a: number, b: number) => a - b);
 }
 
@@ -200,8 +200,8 @@ export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?:
       const fechaAuto = fechas.find((f) => f >= hoy) ?? fechas[0] ?? null;
       setFechaSel(fechaAuto);
       const delDia = fechaAuto ? hrs.filter((h: any) => fechaISO(h.inicio) === fechaAuto) : [];
-      const available = [...new Set(delDia.map((h: any) => new Date(h.inicio).getHours()))].sort((a: any, b: any) => a - b) as number[];
-      const cur = new Date().getHours();
+      const available = [...new Set(delDia.map((h: any) => partesFechaEvento(h.inicio).hour))].sort((a: any, b: any) => a - b) as number[];
+      const cur = partesFechaEvento(new Date()).hour;
       const auto = available.find((h) => h >= cur) ?? available[0];
       if (auto !== undefined) {
         setHoraSel(auto);
@@ -320,6 +320,15 @@ export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?:
     if (modalidad === 'PRESENCIAL' && !mesaSel) {
       setSendError('Selecciona una mesa para continuar.');
       return;
+    }
+    if (modalidad === 'VIRTUAL' && enlace.trim()) {
+      try {
+        const url = new URL(enlace.trim());
+        if (url.protocol !== 'https:') throw new Error();
+      } catch {
+        setSendError('El enlace virtual debe ser una URL segura que comience con https://');
+        return;
+      }
     }
     setSendError('');
     setSending(true);
@@ -754,14 +763,14 @@ export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?:
                       onFechaChange={(f) => {
                         setFechaSel(f);
                         const delDia = horarios.filter((h: any) => fechaISO(h.inicio) === f);
-                        const available = [...new Set(delDia.map((h: any) => new Date(h.inicio).getHours()))].sort((a: any, b: any) => a - b) as number[];
+        const available = [...new Set(delDia.map((h: any) => partesFechaEvento(h.inicio).hour))].sort((a: any, b: any) => a - b) as number[];
                         const auto = available[0] ?? null;
                         const minutos = minutosDeHora(horarios, f, auto);
                         const primerMinuto = minutos[0];
                         setHoraSel(auto);
                         setMinutosStr(primerMinuto !== undefined ? String(primerMinuto).padStart(2, '0') : '');
                         const match = (auto !== null && primerMinuto !== undefined)
-                          ? delDia.find((h: any) => new Date(h.inicio).getHours() === auto && new Date(h.inicio).getMinutes() === primerMinuto) ?? null
+                          ? delDia.find((h: any) => partesFechaEvento(h.inicio).hour === auto && partesFechaEvento(h.inicio).minute === primerMinuto) ?? null
                           : null;
                         setHorarioSel(match);
                         horarioSelRef.current = match;
@@ -773,7 +782,7 @@ export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?:
                         setMinutosStr(primerMinuto !== undefined ? String(primerMinuto).padStart(2, '0') : '');
                         const delDia = fechaSel ? horarios.filter((hr: any) => fechaISO(hr.inicio) === fechaSel) : [];
                         const match = primerMinuto !== undefined
-                          ? delDia.find((hr: any) => new Date(hr.inicio).getHours() === h && new Date(hr.inicio).getMinutes() === primerMinuto) ?? null
+                          ? delDia.find((hr: any) => partesFechaEvento(hr.inicio).hour === h && partesFechaEvento(hr.inicio).minute === primerMinuto) ?? null
                           : null;
                         setHorarioSel(match);
                         horarioSelRef.current = match;
@@ -782,9 +791,9 @@ export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?:
                         setMinutosStr(m);
                         const mins = parseInt(m) || 0;
                         const match = horarios.find((h: any) => {
-                          const d = new Date(h.inicio);
+                          const d = partesFechaEvento(h.inicio);
                           return horaSel !== null && fechaSel !== null && fechaISO(h.inicio) === fechaSel
-                            && d.getHours() === horaSel && d.getMinutes() === mins;
+                            && d.hour === horaSel && d.minute === mins;
                         }) ?? null;
                         setHorarioSel(match);
                         horarioSelRef.current = match;
@@ -967,15 +976,15 @@ function HorarioPicker({ horarios, duracionMin, loadingH, fechaSel, horaSel, min
   const GREEN = '#449D3A';
   const fechasDisponibles = [...new Set(horarios.map((h: any) => fechaISO(h.inicio)))].sort() as string[];
   const horariosDelDia = fechaSel ? horarios.filter((h: any) => fechaISO(h.inicio) === fechaSel) : [];
-  const horasDisponibles = [...new Set(horariosDelDia.map((h: any) => new Date(h.inicio).getHours()))].sort((a: any, b: any) => a - b) as number[];
+  const horasDisponibles = [...new Set(horariosDelDia.map((h: any) => partesFechaEvento(h.inicio).hour))].sort((a: any, b: any) => a - b) as number[];
   const minutosParaHora = horaSel !== null
-    ? horariosDelDia.filter((h: any) => new Date(h.inicio).getHours() === horaSel).map((h: any) => new Date(h.inicio).getMinutes()).sort((a: any, b: any) => a - b)
+    ? horariosDelDia.filter((h: any) => partesFechaEvento(h.inicio).hour === horaSel).map((h: any) => partesFechaEvento(h.inicio).minute).sort((a: any, b: any) => a - b)
     : [];
   const mins = parseInt(minutosStr) || 0;
   const horarioMatch = horaSel !== null && minutosStr !== ''
     ? horariosDelDia.find((h: any) => {
-        const d = new Date(h.inicio);
-        return d.getHours() === horaSel && d.getMinutes() === mins;
+        const d = partesFechaEvento(h.inicio);
+        return d.hour === horaSel && d.minute === mins;
       }) ?? null
     : null;
 
