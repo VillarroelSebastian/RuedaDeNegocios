@@ -7,6 +7,20 @@ import styles from './ConfiguracionEvento.module.css';
 import Modal, { useModal } from '@/components/ui/Modal';
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
+type DiaReunion = { fecha: string; habilitado: boolean; rangos: { desde: string; hasta: string }[] };
+
+function fechasEntre(inicio: string, fin: string): string[] {
+  const desde = inicio.slice(0, 10), hasta = fin.slice(0, 10);
+  if (!desde || !hasta || desde > hasta) return [];
+  const cursor = new Date(`${desde}T12:00:00Z`);
+  const resultado: string[] = [];
+  while (cursor.toISOString().slice(0, 10) <= hasta) {
+    resultado.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return resultado;
+}
+
 function fechaHoraBolivia(iso: string) {
   if (!iso) return '';
   const partes = new Intl.DateTimeFormat('en-CA', {
@@ -72,6 +86,7 @@ export default function ConfiguracionDeEventoPage() {
   const [reglasQR, setReglasQR] = useState([
     { rangoDesde: 1, rangoHasta: 2, monto: 500, urlQR: '' }
   ]);
+  const [horariosReunion, setHorariosReunion] = useState<DiaReunion[]>([]);
 
   const [uploadingField, setUploadingField] = useState<string | null>(null);
   const [previewImg, setPreviewImg] = useState<string | null>(null);
@@ -120,6 +135,10 @@ export default function ConfiguracionDeEventoPage() {
             ciudadEvento: data.ciudadEvento || '',
             paisEvento: data.paisEvento || '',
           });
+          try {
+            const guardados = JSON.parse(data.horariosReunionJson || '[]');
+            if (Array.isArray(guardados)) setHorariosReunion(guardados);
+          } catch { setHorariosReunion([]); }
           if (data.eventoreglaqr && data.eventoreglaqr.length > 0) {
             setReglasQR(data.eventoreglaqr.map((r: any) => ({
               rangoDesde: r.rangoDesde,
@@ -209,6 +228,17 @@ export default function ConfiguracionDeEventoPage() {
       return;
     }
 
+    const fechasEvento = fechasEntre(formData.fechaInicioEvento, formData.fechaFinEvento);
+    const desdeDefault = formData.fechaInicioEvento.slice(11, 16) || '08:00';
+    const hastaDefault = formData.fechaFinEvento.slice(11, 16) || '18:00';
+    const porFecha = new Map(horariosReunion.map((dia) => [dia.fecha, dia]));
+    const horariosNormalizados = fechasEvento.map((fecha) => porFecha.get(fecha) ?? {
+      fecha, habilitado: true, rangos: [{ desde: desdeDefault, hasta: hastaDefault }],
+    });
+    if (horariosNormalizados.some((dia) => !dia.rangos.length || dia.rangos.some((r) => !r.desde || !r.hasta || r.desde >= r.hasta))) {
+      showModal('warning', 'Horarios incompletos', 'Todos los días del evento deben tener al menos un rango de reuniones válido.');
+      return;
+    }
     setSaving(true);
     
     // Helper: convert empty strings to null for optional fields
@@ -224,6 +254,7 @@ export default function ConfiguracionDeEventoPage() {
       fechaFinSolicitudes: formData.fechaFinSolicitudes || null,
       duracionReunion: Number(formData.duracionReunion),
       tiempoEntreReuniones: Number(formData.tiempoEntreReuniones),
+      horariosReunion: horariosNormalizados,
       cantidadTotalMesasEvento: Number(formData.cantidadTotalMesasEvento),
       capacidadPersonasPorMesa: Number(formData.capacidadPersonasPorMesa),
       montoBaseIncripcionBolivianos: Number(formData.montoBaseIncripcionBolivianos),
@@ -274,6 +305,26 @@ export default function ConfiguracionDeEventoPage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const diasReunion: DiaReunion[] = fechasEntre(formData.fechaInicioEvento, formData.fechaFinEvento).map((fecha) => {
+    const existente = horariosReunion.find((dia) => dia.fecha === fecha);
+    return existente ?? {
+      fecha,
+      habilitado: true,
+      rangos: [{ desde: formData.fechaInicioEvento.slice(11, 16) || '08:00', hasta: formData.fechaFinEvento.slice(11, 16) || '18:00' }],
+    };
+  });
+
+  const guardarDiasEnEstado = (dias: DiaReunion[]) => setHorariosReunion(dias.map((dia) => ({
+    ...dia, rangos: dia.rangos.map((r) => ({ ...r })),
+  })));
+
+  const copiarPrimerDia = () => {
+    if (!diasReunion.length) return;
+    const rangos = diasReunion[0].rangos.map((r) => ({ ...r }));
+    guardarDiasEnEstado(diasReunion.map((dia) => ({ ...dia, habilitado: true, rangos })));
+    showModal('success', 'Horarios copiados', 'El horario del primer día se copió a todos los días. Puedes modificar cada fecha por separado.');
   };
 
   if (loading) {
@@ -482,6 +533,41 @@ export default function ConfiguracionDeEventoPage() {
           <div className={styles.sectionHeader}>
             <LayoutGrid className={styles.icon} />
             <h2 className={styles.sectionTitle}>Logística de Reuniones</h2>
+          </div>
+          <div style={{ marginBottom: '1.25rem', padding: '1rem', border: '1px solid #dcfce7', borderRadius: '12px', background: '#f0fdf4' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+              <div>
+                <p style={{ fontWeight: 700, color: '#166534', fontSize: '0.875rem' }}>Horarios disponibles para reuniones *</p>
+                <p style={{ color: '#4b5563', fontSize: '0.75rem', marginTop: '0.2rem' }}>Son independientes de la duración total del evento. Todos los días deben tener al menos un rango.</p>
+              </div>
+              <button type="button" onClick={copiarPrimerDia} className={styles.uploadButton} style={{ marginTop: 0 }}>Copiar primer día a todos</button>
+            </div>
+            <div style={{ display: 'grid', gap: '0.75rem' }}>
+              {diasReunion.map((dia, diaIndex) => (
+                <div key={dia.fecha} style={{ background: '#fff', border: '1px solid #d1fae5', borderRadius: '10px', padding: '0.75rem' }}>
+                  <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#374151', marginBottom: '0.5rem', textTransform: 'capitalize' }}>
+                    {new Date(`${dia.fecha}T12:00:00`).toLocaleDateString('es-BO', { weekday: 'long', day: '2-digit', month: 'long' })}
+                  </p>
+                  <div style={{ display: 'grid', gap: '0.5rem' }}>
+                    {dia.rangos.map((rango, rangoIndex) => (
+                      <div key={`${dia.fecha}-${rangoIndex}`} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <input type="time" value={rango.desde} className={styles.input} style={{ flex: '1 1 130px' }}
+                          onChange={(e) => guardarDiasEnEstado(diasReunion.map((d, i) => i === diaIndex ? { ...d, rangos: d.rangos.map((r, j) => j === rangoIndex ? { ...r, desde: e.target.value } : r) } : d))} />
+                        <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>hasta</span>
+                        <input type="time" value={rango.hasta} className={styles.input} style={{ flex: '1 1 130px' }}
+                          onChange={(e) => guardarDiasEnEstado(diasReunion.map((d, i) => i === diaIndex ? { ...d, rangos: d.rangos.map((r, j) => j === rangoIndex ? { ...r, hasta: e.target.value } : r) } : d))} />
+                        {dia.rangos.length > 1 && (
+                          <button type="button" onClick={() => guardarDiasEnEstado(diasReunion.map((d, i) => i === diaIndex ? { ...d, rangos: d.rangos.filter((_, j) => j !== rangoIndex) } : d))}
+                            style={{ color: '#dc2626', padding: '0.4rem' }} aria-label="Eliminar rango"><Trash2 size={16} /></button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <button type="button" onClick={() => guardarDiasEnEstado(diasReunion.map((d, i) => i === diaIndex ? { ...d, rangos: [...d.rangos, { desde: '', hasta: '' }] } : d))}
+                    style={{ color: '#449D3A', fontSize: '0.75rem', fontWeight: 700, marginTop: '0.6rem' }}>+ Agregar rango</button>
+                </div>
+              ))}
+            </div>
           </div>
           <div className={styles.grid + " " + styles.grid4Lg}>
             <div>

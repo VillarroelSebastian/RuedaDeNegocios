@@ -233,6 +233,7 @@ function DetalleSolicitudModal({ sol, tab, eeId, onClose, onAceptar, onRechazar,
                   {(empresa?.nombre ?? "E")[0].toUpperCase()}
                 </span>
                 {empresa?.nombre ?? "—"}
+                {empresa?.codigo && <span className="text-xs font-bold text-gray-400">{empresa.codigo}</span>}
               </span>
             </Row>
             <Row label="Fecha y hora">
@@ -371,7 +372,7 @@ function SolicitudesContent() {
       if (tipo.startsWith("solicitud") || tipo.startsWith("reunion")) refrescar();
     };
     const alVolver = () => { if (document.visibilityState === "visible") refrescar(); };
-    const iv = window.setInterval(refrescar, 15_000);
+    const iv = window.setInterval(refrescar, POLL_MS);
     window.addEventListener("rueda:notificacion", alNotificar);
     window.addEventListener("focus", refrescar);
     document.addEventListener("visibilitychange", alVolver);
@@ -393,7 +394,14 @@ function SolicitudesContent() {
     }
   }, [searchParams]);
 
-  const recargar = () => { if (ctx) cargarSolicitudes(ctx.empresaeventoId).catch(() => {}); };
+  const recargar = () => {
+    if (ctx) cargarSolicitudes(ctx.empresaeventoId).catch(() => {});
+    // La campana consulta el historial persistente. Al responder una solicitud,
+    // fuerza su recarga para retirar de inmediato la notificacion pendiente.
+    window.dispatchEvent(new CustomEvent("rueda:notificacion", {
+      detail: { evento: "solicitud:actualizada" },
+    }));
+  };
 
   const handleCancelar = async (solId: number) => {
     if (!ctx) return;
@@ -606,7 +614,10 @@ function SolicitudesContent() {
                         )}
                       </div>
 
-                      <p className="font-bold text-gray-900 text-sm truncate">{empresa?.nombre ?? "Empresa"}</p>
+                      <p className="font-bold text-gray-900 text-sm truncate">
+                        {empresa?.nombre ?? "Empresa"}
+                        {empresa?.codigo && <span className="ml-1.5 text-[10px] font-bold text-gray-400">· {empresa.codigo}</span>}
+                      </p>
 
                       {sol.inicio && (
                         <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">

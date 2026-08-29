@@ -154,6 +154,7 @@ export default function MesasPage() {
   const [asistentes,   setAsistentes]   = useState('');
   const [acting,       setActing]       = useState(false);
   const [toggling,     setToggling]     = useState(false);
+  const [sinReunion, setSinReunion] = useState<any[]>([]);
 
   const [historial,        setHistorial]        = useState<any[]>([]);
   const [loadingHistorial, setLoadingHistorial] = useState(false);
@@ -163,9 +164,10 @@ export default function MesasPage() {
   const fetchGrid = useCallback(async () => {
     setLoading(true);
     try {
-      const res  = await fetch(`${API}/admin/mesas`);
-      const data = await res.json();
+      const [res, libresRes] = await Promise.all([fetch(`${API}/admin/mesas`), fetch(`${API}/staff/empresas-sin-reunion`)]);
+      const [data, libres] = await Promise.all([res.json(), libresRes.json()]);
       setMesas(Array.isArray(data) ? data : (data.mesas ?? []));
+      setSinReunion(Array.isArray(libres?.empresas) ? libres.empresas : []);
       if (data.eventoConfig) setEventoConfig(data.eventoConfig);
     } catch { setMesas([]); }
     finally { setLoading(false); }
@@ -316,6 +318,11 @@ export default function MesasPage() {
           </div>
         </div>
       )}
+
+      <section className="mb-5 rounded-2xl border border-green-100 bg-white p-4 shadow-sm">
+        <div className="mb-3 flex items-center justify-between gap-3"><div><h2 className="text-sm font-extrabold text-gray-900">Empresas sin reunión en este momento</h2><p className="text-xs text-gray-500">Disponibles ahora para orientación o nuevas conexiones.</p></div><span className="rounded-full bg-green-100 px-2.5 py-1 text-xs font-bold text-green-700">{sinReunion.length}</span></div>
+        <div className="flex max-h-36 flex-wrap gap-2 overflow-y-auto">{sinReunion.map((item) => <span key={item.empresaeventoId} className="rounded-lg border border-gray-100 bg-gray-50 px-2.5 py-1.5 text-xs font-semibold text-gray-700">{item.codigo ? `${item.codigo} · ` : ''}{item.nombre}</span>)}</div>
+      </section>
 
       {/* Tabs */}
       <div className="flex gap-1 mb-5 bg-gray-100 rounded-xl p-1 w-fit">

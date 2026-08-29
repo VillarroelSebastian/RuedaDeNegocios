@@ -1,233 +1,109 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import { Info, RotateCcw, Plus, Trash2, CheckCircle2, RefreshCw } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { CalendarClock, CheckCircle2, Copy, Info, Plus, Power, Trash2 } from "lucide-react";
+import { useModal } from "@/components/ui/Modal";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
+type Rango = { desde: string; hasta: string };
+type Dia = { fecha: string; habilitado: boolean; rangos: Rango[] };
 
-interface Rango { desde: string; hasta: string }
-
-function rangoEvento(evento?: any): Rango {
-  const hora = (iso?: string) => iso ? new Date(iso).toLocaleTimeString("en-GB", { timeZone: "America/La_Paz", hour: "2-digit", minute: "2-digit", hour12: false }) : "";
-  return { desde: hora(evento?.fechaInicioReuniones || evento?.fechaInicioEvento), hasta: hora(evento?.fechaFinReuniones || evento?.fechaFinEvento) };
-}
-
-export default function HorariosPage() {
-  const router = useRouter();
+export default function EmpresaHorariosPage() {
+  const { showError, showSuccess, ModalComponent } = useModal();
   const [eeId, setEeId] = useState<number | null>(null);
-  const [rangos, setRangos] = useState<Rango[]>([{ desde: "", hasta: "" }]);
-  const [loading, setLoading] = useState(true);
+  const [dias, setDias] = useState<Dia[]>([]);
+  const [configurado, setConfigurado] = useState(false);
+  const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
-  const [reseteando, setReseteando] = useState(false);
-  const [modal, setModal] = useState<{ tipo: "ok" | "err" | "confirm"; msg: string; onOk?: () => void } | null>(null);
 
-  const cargarRangos = useCallback((id: number, evento?: any) => {
-    fetch(`${API}/empresa/horarios-empresa/rangos?eeId=${id}`)
-      .then((r) => r.json())
-      .then((rs) => {
-        if (Array.isArray(rs) && rs.length > 0) {
-          setRangos(rs.map((r: any) => ({ desde: r.desde_hora, hasta: r.hasta_hora })));
-        } else {
-          setRangos([rangoEvento(evento)]);
-        }
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+  const cargar = useCallback(async (id: number) => {
+    setCargando(true);
+    try {
+      const res = await fetch(`${API}/empresa/horarios-empresa/dias?eeId=${id}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || "No se pudieron cargar los horarios.");
+      setDias(Array.isArray(data.dias) ? data.dias : []);
+      setConfigurado(!!data.configurado);
+    } catch (e: any) { showError("No se pudo cargar", e.message); }
+    finally { setCargando(false); }
+  // El modal expone callbacks nuevos en cada render; la carga depende solo del id.
+  // Mantenerla estable evita volver a consultar indefinidamente al mostrar esta vista.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    const raw = localStorage.getItem("empresaUser");
-    if (!raw) { router.replace("/auth/login"); return; }
-    let user: any;
-    try { user = JSON.parse(raw); } catch { router.replace("/auth/login"); return; }
+    try {
+      const user = JSON.parse(localStorage.getItem("empresaUser") || "null");
+      if (!user?.id) { setCargando(false); return; }
+      fetch(`${API}/empresa/mi-empresa?usuarioId=${user.id}`)
+        .then((r) => r.json()).then((ctx) => { setEeId(ctx.empresaeventoId); cargar(ctx.empresaeventoId); })
+        .catch(() => setCargando(false));
+    } catch { setCargando(false); }
+  }, [cargar]);
 
-    fetch(`${API}/empresa/mi-empresa?usuarioId=${user.id}`)
-      .then((r) => r.json())
-      .then((ctx) => {
-        if (!ctx?.esResponsable) { router.replace("/empresa/reuniones"); return; }
-        setEeId(ctx.empresaeventoId);
-        cargarRangos(ctx.empresaeventoId, ctx.evento);
-      })
-      .catch(() => setLoading(false));
-  }, [router, cargarRangos]);
+  const actualizar = (indice: number, cambio: Partial<Dia>) =>
+    setDias((actuales) => actuales.map((dia, i) => i === indice ? { ...dia, ...cambio } : dia));
 
-  const rangosValidos = rangos.filter((r) => r.desde && r.hasta && r.desde < r.hasta);
+  const actualizarRango = (diaIndex: number, rangoIndex: number, campo: keyof Rango, valor: string) =>
+    setDias((actuales) => actuales.map((dia, i) => i === diaIndex ? {
+      ...dia, rangos: dia.rangos.map((rango, j) => j === rangoIndex ? { ...rango, [campo]: valor } : rango),
+    } : dia));
 
-  const handleAplicar = async () => {
+  const copiarPrimero = () => {
+    if (!dias.length) return;
+    const rangos = dias[0].rangos.map((r) => ({ ...r }));
+    setDias((actuales) => actuales.map((dia) => ({ ...dia, habilitado: true, rangos: rangos.map((r) => ({ ...r })) })));
+    showSuccess("Horario copiado", "Puedes modificar después cada día por separado.");
+  };
+
+  const guardar = async () => {
     if (!eeId) return;
-    if (rangos.some((r) => r.desde && r.hasta && r.desde >= r.hasta)) {
-      setModal({ tipo: "err", msg: "Verifica los rangos: la hora de inicio debe ser menor a la de fin." });
-      return;
-    }
+    const invalido = dias.some((dia) => dia.habilitado && (
+      dia.rangos.length === 0 || dia.rangos.some((r) => !r.desde || !r.hasta || r.desde >= r.hasta)
+    ));
+    if (invalido) return showError("Revisa tus horarios", "Cada día habilitado debe tener al menos un rango válido.");
     setGuardando(true);
     try {
-      const res = await fetch(`${API}/empresa/horarios-empresa/rangos`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eeId, rangos: rangosValidos.map((r) => ({ desde: r.desde, hasta: r.hasta })) }),
+      const res = await fetch(`${API}/empresa/horarios-empresa/dias`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ eeId, dias }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || "No se pudieron guardar los horarios.");
-      if (Array.isArray(data.rangos)) setRangos(data.rangos);
-      setModal({ tipo: data.huboChoque ? "err" : "ok", msg: data.mensaje });
-    } catch {
-      setModal({ tipo: "err", msg: "Error al guardar los horarios. Inténtalo de nuevo." });
-    } finally {
-      setGuardando(false);
-    }
+      setDias(data.dias); setConfigurado(true);
+      showSuccess("Disponibilidad guardada", "Las demás empresas ya verán esta agenda al solicitarte una reunión.");
+    } catch (e: any) { showError("No se pudo guardar", e.message); }
+    finally { setGuardando(false); }
   };
 
-  const handleResetear = () => {
-    setModal({
-      tipo: "confirm",
-      msg: "¿Poner todos los horarios como disponibles? Se eliminarán todos los rangos configurados.",
-      onOk: async () => {
-        setModal(null);
-        if (!eeId) return;
-        setReseteando(true);
-        try {
-          const res = await fetch(`${API}/empresa/horarios-empresa/rangos`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ eeId, rangos: [] }),
-          });
-          if (!res.ok) throw new Error();
-          // Recargar el estado real del backend para reflejar que quedó todo disponible.
-          cargarRangos(eeId);
-          setModal({ tipo: "ok", msg: "Listo: ahora estás disponible todo el día (sin restricciones de horario)." });
-        } catch {
-          setModal({ tipo: "err", msg: "Error al restablecer." });
-        } finally {
-          setReseteando(false);
-        }
-      },
-    });
-  };
-
-  if (loading) return (
-    <div className="flex items-center justify-center h-64">
-      <div className="w-8 h-8 border-4 border-[#449D3A] border-t-transparent rounded-full animate-spin" />
+  return <div className="mx-auto max-w-5xl space-y-5 p-4 sm:p-6">
+    <ModalComponent />
+    <div>
+      <h1 className="flex items-center gap-2 text-2xl font-extrabold text-gray-900"><CalendarClock className="h-6 w-6 text-[#449D3A]" />Mi agenda disponible</h1>
+      <p className="mt-1 text-sm text-gray-500">Elige los rangos en los que tu empresa acepta reuniones durante cada día del evento.</p>
     </div>
-  );
-
-  return (
-    <div className="p-4 sm:p-6 max-w-xl space-y-5">
-      {/* Modal */}
-      {modal && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4">
-            <p className={`text-sm font-semibold text-center ${modal.tipo === "err" ? "text-red-600" : "text-gray-800"}`}>
-              {modal.msg}
-            </p>
-            <div className="flex gap-3 justify-center">
-              {modal.tipo === "confirm" && (
-                <button onClick={() => setModal(null)} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-600">
-                  Cancelar
-                </button>
-              )}
-              <button
-                onClick={() => { if (modal.onOk) modal.onOk(); else setModal(null); }}
-                className={`flex-1 px-5 py-2.5 rounded-xl text-sm font-bold text-white ${modal.tipo === "err" ? "bg-red-500" : "bg-[#449D3A]"}`}
-              >
-                {modal.tipo === "confirm" ? "Confirmar" : "Aceptar"}
-              </button>
-            </div>
+    {!configurado && !cargando && <div className="flex gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
+      <Info className="mt-0.5 h-4 w-4 shrink-0" /><p>Aún no configuraste tu agenda. Mientras no cambies nada, se usarán todos los horarios definidos por el administrador.</p>
+    </div>}
+    {cargando ? <div className="py-20 text-center text-sm text-gray-400">Cargando agendaâ€¦</div> : <>
+      <div className="flex justify-end"><button type="button" onClick={copiarPrimero} className="inline-flex items-center gap-2 rounded-xl border border-green-200 bg-white px-4 py-2.5 text-sm font-bold text-[#449D3A] hover:bg-green-50"><Copy className="h-4 w-4" />Copiar primer día a todos</button></div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        {dias.map((dia, diaIndex) => <section key={dia.fecha} className={`rounded-2xl border bg-white p-5 shadow-sm ${dia.habilitado ? "border-gray-100" : "border-red-100 bg-red-50/30"}`}>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div><p className="font-extrabold capitalize text-gray-900">{new Date(`${dia.fecha}T12:00:00`).toLocaleDateString("es-BO", { weekday: "long", day: "2-digit", month: "long" })}</p><p className="text-xs text-gray-400">{dia.habilitado ? "Disponible para recibir solicitudes" : "Día completo inhabilitado"}</p></div>
+            <button type="button" onClick={() => actualizar(diaIndex, { habilitado: !dia.habilitado })} className={`rounded-xl p-2.5 ${dia.habilitado ? "bg-green-50 text-green-700" : "bg-red-100 text-red-700"}`} aria-label="Habilitar o inhabilitar día"><Power className="h-4 w-4" /></button>
           </div>
-        </div>
-      )}
-
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-extrabold text-gray-900">Mis horarios disponibles</h1>
-        <p className="text-sm text-gray-400 mt-0.5">
-          Define en qué franjas horarias estás disponible para reuniones.
-        </p>
+          {dia.habilitado && <div className="space-y-3">
+            {dia.rangos.map((rango, rangoIndex) => <div key={rangoIndex} className="flex flex-wrap items-center gap-2">
+              <input type="time" value={rango.desde} onChange={(e) => actualizarRango(diaIndex, rangoIndex, "desde", e.target.value)} className="min-w-28 flex-1 rounded-xl border border-gray-200 px-3 py-2.5 text-sm" />
+              <span className="text-xs text-gray-400">hasta</span>
+              <input type="time" value={rango.hasta} onChange={(e) => actualizarRango(diaIndex, rangoIndex, "hasta", e.target.value)} className="min-w-28 flex-1 rounded-xl border border-gray-200 px-3 py-2.5 text-sm" />
+              {dia.rangos.length > 1 && <button type="button" onClick={() => actualizar(diaIndex, { rangos: dia.rangos.filter((_, i) => i !== rangoIndex) })} className="p-2 text-red-500"><Trash2 className="h-4 w-4" /></button>}
+            </div>)}
+            <button type="button" onClick={() => actualizar(diaIndex, { rangos: [...dia.rangos, { desde: "", hasta: "" }] })} className="inline-flex items-center gap-1.5 text-xs font-bold text-[#449D3A]"><Plus className="h-4 w-4" />Agregar otro rango</button>
+          </div>}
+        </section>)}
       </div>
-
-      {/* Info */}
-      <div className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl p-4">
-        <Info className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
-        <p className="text-sm text-blue-700">
-          Por defecto <strong>estás disponible durante todo el evento</strong>. Si tienes restricciones de horario,
-          define tus rangos de disponibilidad. Puedes agregar múltiples rangos — por ejemplo, mañana (09:00–12:00)
-          y tarde (14:00–18:00).
-        </p>
-      </div>
-
-      {/* Rangos */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-5">
-        <h2 className="font-bold text-gray-800">Rangos de disponibilidad</h2>
-
-        <div className="space-y-3">
-          {rangos.map((rango, i) => {
-            const invalido = !!(rango.desde && rango.hasta && rango.desde >= rango.hasta);
-            return (
-              <div key={i} className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-                <span className="text-xs text-gray-500 font-medium w-12 shrink-0">Desde</span>
-                <input
-                  type="time"
-                  value={rango.desde}
-                  onChange={(e) => setRangos((prev) => prev.map((r, idx) => idx === i ? { ...r, desde: e.target.value } : r))}
-                  className={`flex-1 min-w-0 border rounded-xl px-3 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#449D3A] ${invalido ? "border-red-300 bg-red-50" : "border-gray-200"}`}
-                />
-                <span className="text-xs text-gray-500 font-medium shrink-0">hasta</span>
-                <input
-                  type="time"
-                  value={rango.hasta}
-                  onChange={(e) => setRangos((prev) => prev.map((r, idx) => idx === i ? { ...r, hasta: e.target.value } : r))}
-                  className={`flex-1 min-w-0 border rounded-xl px-3 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#449D3A] ${invalido ? "border-red-300 bg-red-50" : "border-gray-200"}`}
-                />
-                {rangos.length > 1 && (
-                  <button
-                    onClick={() => setRangos((prev) => prev.filter((_, idx) => idx !== i))}
-                    className="p-2 text-gray-400 hover:text-red-500 shrink-0"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        <button
-          onClick={() => setRangos((prev) => [...prev, { desde: "", hasta: "" }])}
-          className="flex items-center gap-2 text-sm text-[#449D3A] font-semibold hover:underline"
-        >
-          <Plus className="w-4 h-4" /> Agregar otro rango
-        </button>
-
-        {/* Resumen actual */}
-        {rangosValidos.length > 0 && (
-          <div className="bg-green-50 border border-green-100 rounded-xl p-3">
-            <p className="text-xs font-bold text-green-800 mb-1">Disponibilidad configurada:</p>
-            {rangosValidos.map((r, i) => (
-              <p key={i} className="text-xs text-green-700 font-mono">• {r.desde} – {r.hasta}</p>
-            ))}
-          </div>
-        )}
-
-        {/* Buttons */}
-        <div className="flex gap-3 flex-wrap">
-          <button
-            onClick={handleAplicar}
-            disabled={guardando || reseteando}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#449D3A] text-white text-sm font-bold hover:bg-[#3a8530] disabled:opacity-50"
-          >
-            {guardando ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-            Guardar horarios
-          </button>
-          <button
-            onClick={handleResetear}
-            disabled={guardando || reseteando}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-40"
-          >
-            <RotateCcw className={`w-4 h-4 ${reseteando ? "animate-spin" : ""}`} />
-            Disponible todo el día
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+      <button type="button" onClick={guardar} disabled={guardando} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#449D3A] px-5 py-3 font-bold text-white disabled:opacity-50 sm:w-auto"><CheckCircle2 className="h-4 w-4" />{guardando ? "Guardandoâ€¦" : "Guardar mi agenda"}</button>
+    </>}
+  </div>;
 }

@@ -44,6 +44,7 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
   reunion: any; eeId: number; onClose: () => void; onOk: () => void;
 }) {
   const [horarios, setHorarios] = useState<any[]>([]);
+  const [agenda, setAgenda] = useState<any[]>([]);
   const [duracionMin, setDuracionMin] = useState(0);
   const [fechaSelec, setFechaSelec] = useState<string>("");
   const [horaSelec, setHoraSelec] = useState<string>("");
@@ -91,6 +92,7 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
       .then((data) => {
         const hrs: any[] = Array.isArray(data?.horarios) ? data.horarios : [];
         setHorarios(hrs);
+        setAgenda(Array.isArray(data?.agenda) ? data.agenda : hrs.map((h: any) => ({ ...h, disponible: true, estado: 'DISPONIBLE' })));
         setDuracionMin(data?.duracionMinutos ?? 0);
         const primerSlot = hrs[0];
         if (primerSlot) {
@@ -128,6 +130,15 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
             <h3 className="font-extrabold text-gray-900">Proponer cambios</h3>
             <p className="text-xs text-gray-400 mt-0.5">Reunión con {reunion?.contraparte?.nombre}</p>
           </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center">
+            <X className="w-4 h-4 text-gray-500" />
+          </button>
+        </div>
+        <div className="px-6 py-5 space-y-4">
+          <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-xs text-amber-700">
+            <p className="font-bold mb-0.5">Horario actual</p>
+            <p>{fmtDate(reunion?.inicio)} · {fmtTime(reunion?.inicio)} – {fmtTime(reunion?.fin)}</p>
+          </div>
 
           <div>
             <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Modalidad propuesta</label>
@@ -146,15 +157,6 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
             <textarea value={mensaje} onChange={(e) => setMensaje(e.target.value)} maxLength={500} rows={3}
               placeholder="Explica a la otra empresa qué deseas cambiar..."
               className="w-full resize-none rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-[#449D3A] focus:outline-none" />
-          </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center">
-            <X className="w-4 h-4 text-gray-500" />
-          </button>
-        </div>
-        <div className="px-6 py-5 space-y-4">
-          <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-xs text-amber-700">
-            <p className="font-bold mb-0.5">Horario actual</p>
-            <p>{fmtDate(reunion?.inicio)} · {fmtTime(reunion?.inicio)} – {fmtTime(reunion?.fin)}</p>
           </div>
 
           <div className="space-y-3">
@@ -195,7 +197,20 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
                     })}
                   </select>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {agenda.filter((slot: any) => partesFechaEvento(slot.inicio).dateKey === fechaSelec).map((slot: any, index: number) => {
+                    const disponible = slot.disponible !== false;
+                    const activo = seleccionado?.inicio === slot.inicio;
+                    const etiquetas: Record<string, string> = { DISPONIBLE: 'Disponible', PENDIENTE: 'Pendiente', OCUPADO: 'Ocupado', NO_DISPONIBLE: 'No disponible', PASADO: 'Finalizado' };
+                    return <button key={`${slot.inicio}-${index}`} type="button" disabled={!disponible}
+                      onClick={() => { const p = partesFechaEvento(slot.inicio); setHoraSelec(String(p.hour)); setMinutosStr(String(p.minute).padStart(2, '0')); }}
+                      className={`rounded-xl border p-3 text-left transition ${disponible ? (activo ? 'border-green-600 bg-green-100 ring-2 ring-green-200' : 'border-green-200 bg-green-50 hover:border-green-500') : 'cursor-not-allowed border-red-200 bg-red-50 opacity-80'}`}>
+                      <span className={`block text-sm font-extrabold ${disponible ? 'text-green-800' : 'text-red-800'}`}>{fmtTime(slot.inicio)} – {fmtTime(slot.fin)}</span>
+                      <span className={`mt-1 block text-[10px] font-bold ${disponible ? 'text-green-700' : 'text-red-700'}`}>{etiquetas[slot.estado] || (disponible ? 'Disponible' : 'No disponible')}</span>
+                    </button>;
+                  })}
+                </div>
+                <div className="hidden grid-cols-2 gap-3">
                   <div>
                     <label className="text-[10px] font-bold text-gray-500 uppercase mb-1 block">Hora</label>
                     <select value={horaSelec} onChange={(e) => {

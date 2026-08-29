@@ -110,7 +110,9 @@ function DetalleModal({ sol, tab, onClose, onAceptar, onRechazar, onCancelar }: 
                   <View style={dm.avatar}>
                     <Text style={dm.avatarTxt}>{initial}</Text>
                   </View>
-                  <Text style={dm.empresaNombre}>{empresa?.nombre ?? '—'}</Text>
+                  <Text style={dm.empresaNombre}>
+                    {empresa?.nombre ?? '—'}{empresa?.codigo ? ` · ${empresa.codigo}` : ''}
+                  </Text>
                 </View>
               </View>
 
@@ -506,7 +508,9 @@ export default function EmpresaSolicitudesScreen() {
                     </View>
                   </View>
 
-                  <Text style={s.cardNombre} numberOfLines={1}>{empresa?.nombre ?? '—'}</Text>
+                  <Text style={s.cardNombre} numberOfLines={1}>
+                    {empresa?.nombre ?? '—'}{empresa?.codigo ? ` · ${empresa.codigo}` : ''}
+                  </Text>
 
                   <View style={s.cardDate}>
                     <Calendar size={11} color="#9ca3af" />

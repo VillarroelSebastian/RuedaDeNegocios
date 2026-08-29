@@ -25,10 +25,13 @@ export default function TecnicoGaleriaScreen() {
     [refreshing, setRefreshing] = useState(false),
     [ampliada, setAmpliada] = useState<string | null>(null);
   const [descripcion, setDescripcion] = useState("");
+  const actual = userStore.get();
+  const esEmpresa = actual?.rolEvento === "EMPRESA";
   const cargar = useCallback(async () => {
     try {
-      const filtro = userStore.get()?.rolEvento === "ADMINISTRADOR" ? "" : "?soloTecnicos=1";
-      const r = await fetch(`${API_URL}/galeria${filtro}`);
+      // El filtro de fotos técnicas pertenece únicamente al landing público.
+      // Dentro de la aplicación todos los roles ven el repositorio del evento.
+      const r = await fetch(`${API_URL}/galeria`);
       setFotos(r.ok ? await r.json() : []);
     } finally {
       setRefreshing(false);
@@ -77,7 +80,7 @@ export default function TecnicoGaleriaScreen() {
         name: a.fileName || "foto-evento.jpg",
         type: a.mimeType || "image/jpeg",
       } as any);
-      const up = await fetch(`${API_URL}/admin/imagenes/upload`, {
+      const up = await fetch(`${API_URL}/${esEmpresa ? 'public' : 'admin'}/imagenes/upload`, {
         method: "POST",
         body: fd,
       });
@@ -89,10 +92,9 @@ export default function TecnicoGaleriaScreen() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           urlFoto: ud.url,
-          usuario_id: u?.id,
+          ...(esEmpresa ? { empresa_usuario_id: u?.empresaUsuarioId } : { usuario_id: u?.id }),
           descripcion: descripcion.trim() || null,
-          autorNombre:
-            `${u?.nombres || "Técnico"} ${u?.apellidoPaterno || ""}`.trim(),
+          autorNombre: `${u?.nombres || (esEmpresa ? "Participante" : "Técnico")} ${u?.apellidoPaterno || ""}`.trim(),
         }),
       });
       if (!pub.ok)
@@ -149,7 +151,9 @@ export default function TecnicoGaleriaScreen() {
               Fotos del evento
             </Text>
             <Text style={{ fontSize: 12, color: "#64748b", marginBottom: 12 }}>
-              Estas fotografías se muestran en el landing.
+              {actual?.rolEvento === "TECNICO"
+                ? "Las fotos tomadas por técnicos se muestran también en el landing."
+                : "Comparte fotografías en el repositorio del evento."}
             </Text>
             <TextInput
               value={descripcion}
@@ -196,15 +200,10 @@ export default function TecnicoGaleriaScreen() {
               source={{ uri: item.urlFoto }}
               style={{ width: "100%", height: 145, resizeMode: "contain" }}
             />
-            <Text
-              numberOfLines={1}
-              style={{ fontSize: 10, color: "#64748b", padding: 5 }}
-            >
-              {item.descripcion || item.autorNombre}
+            <Text numberOfLines={2} style={{ fontSize: 10, color: "#64748b", padding: 5 }}>
+              {item.autorNombre}{item.descripcion ? ` · ${item.descripcion}` : ''}
             </Text>
-            <TouchableOpacity onPress={() => eliminar(item.id)} style={{ alignSelf: "flex-end", padding: 7 }} accessibilityLabel="Eliminar foto">
-              <Trash2 color="#dc2626" size={17} />
-            </TouchableOpacity>
+            {!esEmpresa && <TouchableOpacity onPress={() => eliminar(item.id)} style={{ alignSelf: "flex-end", padding: 7 }} accessibilityLabel="Eliminar foto"><Trash2 color="#dc2626" size={17} /></TouchableOpacity>}
           </TouchableOpacity>
         )}
       />

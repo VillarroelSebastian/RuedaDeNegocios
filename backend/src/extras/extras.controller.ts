@@ -1,7 +1,7 @@
 import {
   Controller, Get, Post, Put, Delete, Param, Body, Query, BadRequestException, Req,
 } from '@nestjs/common';
-import { writeFileSync, mkdirSync } from 'fs';
+import { writeFileSync, mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import { randomBytes, createHmac } from 'crypto';
 import * as nodemailer from 'nodemailer';
@@ -79,12 +79,23 @@ export class ExtrasController {
     return (process.env.PUBLIC_URL || `http://localhost:${process.env.PORT ?? 3334}`).replace(/\/$/, '');
   }
 
-  private esUrlSubidaValida(value: string): boolean {
+  private esUrlSubidaValida(value: string, req?: any): boolean {
     try {
       const url = new URL(value);
-      const permitidos = new Set([new URL(this.uploadsBaseUrl()).host,
-        ...String(process.env.UPLOAD_HOSTS || '').split(',').map((x) => x.trim()).filter(Boolean)]);
-      return ['http:', 'https:'].includes(url.protocol) && permitidos.has(url.host) && url.pathname.startsWith('/uploads/');
+      const hostsProxy = [req?.headers?.['x-forwarded-host'], req?.headers?.host]
+        .flatMap((host) => String(host || '').split(','))
+        .map((host) => host.trim())
+        .filter(Boolean);
+      const permitidos = new Set([
+        new URL(this.uploadsBaseUrl()).host,
+        ...hostsProxy,
+        ...String(process.env.UPLOAD_HOSTS || '').split(',').map((x) => x.trim()).filter(Boolean),
+      ]);
+      const nombreArchivo = decodeURIComponent(url.pathname.slice('/uploads/'.length));
+      const archivoLocalValido = /^[a-zA-Z0-9._-]+$/.test(nombreArchivo) &&
+        existsSync(join(process.cwd(), 'uploads', nombreArchivo));
+      return ['http:', 'https:'].includes(url.protocol) && permitidos.has(url.host) &&
+        url.pathname.startsWith('/uploads/') && archivoLocalValido;
     } catch { return false; }
   }
 
@@ -618,7 +629,7 @@ export class ExtrasController {
       where: { evento_id: eventoId, estaActivo: 1, ...(usuariosTecnicos ? { usuario_id: { in: usuariosTecnicos } } : {}) },
       orderBy: { fechaCreacion: 'desc' },
       take,
-      select: { id: true, urlFoto: true, descripcion: true, fechaCreacion: true },
+      select: { id: true, urlFoto: true, descripcion: true, autorNombre: true, fechaCreacion: true },
     });
   }
 
@@ -638,7 +649,7 @@ export class ExtrasController {
   async subirFoto(@Body() body: any, @Req() req: any) {
     const eventoId = await this.eventoPrincipalId();
     const urlFoto = this.texto(body.urlFoto, 505, 'Fotografía')!;
-    if (!this.esUrlSubidaValida(urlFoto))
+    if (!this.esUrlSubidaValida(urlFoto, req))
       throw new BadRequestException('La fotografía debe subirse desde el dispositivo.');
 
     const empresaUsuarioId = body.empresa_usuario_id ? Number(body.empresa_usuario_id) : null;

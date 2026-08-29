@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Mail, ArrowLeft, KeyRound, Lock, Eye, EyeOff, CheckCircle2 } from "lucide-react";
@@ -8,6 +8,7 @@ const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 const GREEN = "#449D3A";
 
 type Step = "correo" | "codigo" | "nueva" | "exito";
+const RESET_STORAGE_KEY = "rueda_password_reset";
 
 export default function ForgotPasswordPage() {
   const [step, setStep] = useState<Step>("correo");
@@ -19,6 +20,18 @@ export default function ForgotPasswordPage() {
   const [showConf, setShowConf] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Un navegador mÃ³vil puede descargar esta pestaÃ±a mientras se abre el correo.
+  // Persistimos solo el correo y el paso; nunca el cÃ³digo ni la contraseÃ±a.
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(RESET_STORAGE_KEY) || "null");
+      if (saved?.correo && Number(saved?.vence) > Date.now()) {
+        setCorreo(String(saved.correo));
+        setStep("codigo");
+      } else localStorage.removeItem(RESET_STORAGE_KEY);
+    } catch { localStorage.removeItem(RESET_STORAGE_KEY); }
+  }, []);
 
   const handleSolicitarCodigo = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,6 +48,9 @@ export default function ForgotPasswordPage() {
         const data = await res.json().catch(() => ({}));
         throw new Error(data?.message || "No se pudo enviar el correo. Verifica tu dirección e intenta de nuevo.");
       }
+      localStorage.setItem(RESET_STORAGE_KEY, JSON.stringify({
+        correo: correo.trim().toLowerCase(), vence: Date.now() + 15 * 60 * 1000,
+      }));
       setStep("codigo");
     } catch (err: any) {
       setError(err.message || "No se pudo enviar el correo. Intenta de nuevo.");
@@ -58,6 +74,7 @@ export default function ForgotPasswordPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || "Código incorrecto o expirado.");
+      localStorage.removeItem(RESET_STORAGE_KEY);
       setStep("exito");
     } catch (err: any) {
       setError(err.message);
@@ -179,7 +196,7 @@ export default function ForgotPasswordPage() {
                   {loading ? "Actualizando..." : "Actualizar contraseña"}
                 </button>
 
-                <button type="button" onClick={() => { setStep("correo"); setError(""); }}
+                <button type="button" onClick={() => { localStorage.removeItem(RESET_STORAGE_KEY); setStep("correo"); setError(""); }}
                   className="w-full py-3 rounded-xl text-sm font-semibold text-gray-500 hover:bg-gray-50 transition-colors">
                   Cambiar correo
                 </button>

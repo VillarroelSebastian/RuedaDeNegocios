@@ -279,6 +279,7 @@ export default function TecnicoMesasScreen() {
   const [refreshing,   setRefreshing]   = useState(false);
   const [filtro,       setFiltro]       = useState<FiltroEstado>('EN_USO');
   const [search,       setSearch]       = useState('');
+  const [sinReunion, setSinReunion] = useState<any[]>([]);
 
   const [historial,        setHistorial]        = useState<any[]>([]);
   const [loadingHistorial, setLoadingHistorial] = useState(false);
@@ -297,9 +298,10 @@ export default function TecnicoMesasScreen() {
 
   const fetchMesas = useCallback(async () => {
     try {
-      const res  = await fetch(`${API_URL}/tecnico/mesas`);
-      const data = await res.json();
+      const [res, libresRes] = await Promise.all([fetch(`${API_URL}/tecnico/mesas`), fetch(`${API_URL}/staff/empresas-sin-reunion`)]);
+      const [data, libres] = await Promise.all([res.json(), libresRes.json()]);
       setMesas(data.mesas ?? []);
+      setSinReunion(Array.isArray(libres?.empresas) ? libres.empresas : []);
       if (data.eventoConfig) setEventoConfig(data.eventoConfig);
     } catch { setMesas([]); }
     finally { setLoading(false); setRefreshing(false); }
@@ -565,6 +567,11 @@ export default function TecnicoMesasScreen() {
       </View>
 
       {/* Body */}
+      <View style={{ marginHorizontal: 16, marginTop: 12, borderRadius: 16, borderWidth: 1, borderColor: '#dcfce7', backgroundColor: '#fff', padding: 13 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}><Text style={{ fontSize: 13, fontWeight: '800', color: '#111827' }}>Empresas sin reunión ahora</Text><Text style={{ fontSize: 11, fontWeight: '800', color: '#15803d', backgroundColor: '#dcfce7', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 }}>{sinReunion.length}</Text></View>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>{sinReunion.map((e) => <Text key={e.empresaeventoId} style={{ fontSize: 9, fontWeight: '600', color: '#374151', backgroundColor: '#f9fafb', borderRadius: 7, paddingHorizontal: 7, paddingVertical: 4 }}>{e.codigo ? `${e.codigo} · ` : ''}{e.nombre}</Text>)}</View>
+      </View>
+
       {filtro === 'HISTORIAL' ? (
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 14 }}
           refreshControl={<RefreshControl refreshing={loadingHistorial} onRefresh={() => fetchHistorial(searchH)} tintColor={GREEN} />}

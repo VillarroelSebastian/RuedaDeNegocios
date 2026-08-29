@@ -106,6 +106,19 @@ export default function EmpresaDashboardPage() {
         </div>
       )}
 
+      {esResponsable && !info.horariosConfigurados && (
+        <Link href="/empresa/horarios" className="block">
+          <div className="flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 transition-colors hover:border-blue-300">
+            <Calendar className="h-5 w-5 shrink-0 text-blue-600" />
+            <div className="flex-1">
+              <p className="text-sm font-bold text-blue-900">Configura la agenda de tu empresa</p>
+              <p className="mt-0.5 text-xs text-blue-700">Por defecto usarÃ¡s todo el horario definido por el evento. Entra aquÃ­ para ajustar rangos o inhabilitar dÃ­as.</p>
+            </div>
+            <ArrowRight className="h-4 w-4 text-blue-600" />
+          </div>
+        </Link>
+      )}
+
       {/* Alerta solicitudes pendientes recibidas — solo encargado */}
       {esResponsable && stats?.pendientesRecibidas > 0 && (
         <Link href="/empresa/solicitudes" className="block">

@@ -41,6 +41,7 @@ export default function GaleriaEvento({
   const [fotos, setFotos] = useState<Foto[]>([]);
   const [cargando, setCargando] = useState(true);
   const [subiendo, setSubiendo] = useState(false);
+  const [descripcion, setDescripcion] = useState("");
   const [ampliada, setAmpliada] = useState<Foto | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -67,7 +68,10 @@ export default function GaleriaEvento({
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const up = await fetch(`${API}/admin/imagenes/upload`, { method: "POST", body: fd });
+      // Las empresas no pueden llamar rutas /admin. El endpoint pÃºblico aplica
+      // las mismas validaciones de tipo, firma, dimensiones y tamaÃ±o del archivo.
+      const uploadPath = esStaff || usuarioId ? "admin/imagenes/upload" : "public/imagenes/upload";
+      const up = await fetch(`${API}/${uploadPath}`, { method: "POST", body: fd });
       const upData = await up.json();
       if (!up.ok || !upData.url) throw new Error(upData?.message || "No se pudo subir la imagen.");
 
@@ -79,11 +83,13 @@ export default function GaleriaEvento({
           autorNombre: autorNombre || "Participante",
           empresa_usuario_id: empresaUsuarioId ?? null,
           usuario_id: usuarioId ?? null,
+          descripcion: descripcion.trim() || null,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || "No se pudo publicar la foto.");
       setFotos((prev) => [data, ...prev]);
+      setDescripcion("");
       onOk?.("Foto publicada", "Ya es visible para todos los participantes.");
     } catch (e: any) {
       onError?.(e.message);
@@ -116,6 +122,15 @@ export default function GaleriaEvento({
     <div>
       {puedeSubir && (
         <div className="mb-6">
+          <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-gray-500">
+            DescripciÃ³n (opcional)
+          </label>
+          <input
+            value={descripcion}
+            onChange={(e) => setDescripcion(e.target.value.slice(0, 305))}
+            placeholder="Ej.: Encuentro entre productores y distribuidores"
+            className="mb-3 w-full max-w-xl rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-[#449D3A] focus:outline-none focus:ring-2 focus:ring-[#449D3A]/20"
+          />
           <input ref={fileRef} type="file" accept="image/*" className="hidden"
             onChange={(e) => { const f = e.target.files?.[0]; if (f) subir(f); }} />
           <button onClick={() => fileRef.current?.click()} disabled={subiendo}
@@ -174,6 +189,7 @@ export default function GaleriaEvento({
                 </button>
               )}
             </div>
+            {ampliada.descripcion && <p className="mt-2 text-sm text-white/80">{ampliada.descripcion}</p>}
             <button onClick={() => setAmpliada(null)} aria-label="Cerrar"
               className="absolute -top-3 -right-3 w-9 h-9 rounded-full bg-white text-gray-800 flex items-center justify-center shadow-lg">
               <X className="w-5 h-5" />

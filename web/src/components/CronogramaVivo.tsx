@@ -55,7 +55,13 @@ export function useCronogramaVivo(eeId?: number | null) {
       if (!res.ok) return;
       const data = await res.json();
       if (!vivo.current) return;
-      setActividades(Array.isArray(data.actividades) ? data.actividades : []);
+      const ordenadas = Array.isArray(data.actividades)
+        ? [...data.actividades].sort((a, b) => {
+            const fecha = String(a.fechaActividad).localeCompare(String(b.fechaActividad));
+            return fecha || hora(a.horaInicioActividad).localeCompare(hora(b.horaInicioActividad));
+          })
+        : [];
+      setActividades(ordenadas);
       setActualizado(new Date());
     } catch {
       // Sin conexión: se conserva lo último que se mostró.

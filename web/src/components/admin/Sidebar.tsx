@@ -30,6 +30,7 @@ const menuItems = [
   { name: 'Dashboard', icon: LayoutDashboard, href: '/admin/dashboard' },
   { name: 'Eventos', icon: CalendarCheck, href: '/admin/eventos' },
   { name: 'Empresas', icon: Building2, href: '/admin/empresas' },
+  { name: 'Oportunidades', icon: Handshake, href: '/admin/oportunidades' },
   { name: 'Paquetes', icon: Package, href: '/admin/paquetes' },
   { name: 'Auspiciadores', icon: Handshake, href: '/admin/auspiciadores' },
   { name: 'Pagos Iniciales', icon: CreditCard, href: '/admin/pagos' },

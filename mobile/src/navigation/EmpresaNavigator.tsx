@@ -3,7 +3,7 @@ import { TouchableOpacity, View, Text, StyleSheet, ScrollView } from 'react-nati
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator }   from '@react-navigation/bottom-tabs';
 import { useNavigation }              from '@react-navigation/native';
-import { LayoutDashboard, Building2, Send, CalendarDays, User, Bell, MoreHorizontal, Star, Clock, Newspaper, Lightbulb, MessageCircle } from 'lucide-react-native';
+import { LayoutDashboard, Building2, Send, CalendarDays, User, Bell, MoreHorizontal, Star, Clock, Newspaper, Lightbulb, MessageCircle, Images } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AsistenteChatModal, { AsistenteChatButton } from '../components/AsistenteChatMobile';
 import { rutaDeNotifMobile, useNotificacionesMobile } from '../hooks/useNotificaciones';
@@ -21,6 +21,7 @@ import EmpresaHorariosScreen    from '../screens/empresa/EmpresaHorariosScreen';
 import EmpresaOportunidadesScreen from '../screens/empresa/EmpresaOportunidadesScreen';
 import EmpresaMensajesScreen    from '../screens/empresa/EmpresaMensajesScreen';
 import EmpresaPerfilEmpresaScreen from '../screens/empresa/EmpresaPerfilEmpresaScreen';
+import TecnicoGaleriaScreen from '../screens/tecnico/TecnicoGaleriaScreen';
 import { userStore, API_URL }   from '../utils/userStore';
 
 const Tab   = createBottomTabNavigator();
@@ -38,6 +39,7 @@ function EmpresaMenuScreen({ navigation }: any) {
     { nombre: 'Comunicados', pantalla: 'Comunicados', icono: Newspaper },
     { nombre: 'Oportunidades', pantalla: 'Oportunidades', icono: Lightbulb },
     { nombre: 'Mensajes', pantalla: 'Mensajes', icono: MessageCircle },
+    { nombre: 'Galería', pantalla: 'Galeria', icono: Images },
     ...(esEncargado ? [
       { nombre: 'Resultados', pantalla: 'Resultados', icono: Star },
       { nombre: 'Mis horarios', pantalla: 'Horarios', icono: Clock },
@@ -247,6 +249,7 @@ export default function EmpresaNavigator() {
       <Stack.Screen name="Eventos"       component={EmpresaEventosScreen}       options={{ title: 'Actividades' }} />
       <Stack.Screen name="Oportunidades" component={EmpresaOportunidadesScreen} options={{ title: 'Oportunidades' }} />
       <Stack.Screen name="Mensajes"      component={EmpresaMensajesScreen}      options={{ title: 'Mensajes' }} />
+      <Stack.Screen name="Galeria"       component={TecnicoGaleriaScreen}       options={{ title: 'Galería del evento' }} />
       <Stack.Screen name="Perfil"        component={EmpresaPerfilScreen}        options={{ title: 'Perfil' }} />
       <Stack.Screen name="PerfilEmpresa" component={EmpresaPerfilEmpresaScreen} options={{ title: 'Perfil de empresa', headerShown: false }} />
       {esEncargado && (

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  LayoutDashboard, Armchair, Video, Search, Newspaper,
+  LayoutDashboard, Armchair, Video, Search, Newspaper, Handshake,
   UserCircle, LogOut, Shield, Menu, X, CalendarPlus, Radio, QrCode, Images, Bell, CalendarDays,
 } from 'lucide-react';
 
@@ -14,6 +14,7 @@ const menuItems = [
   { name: 'Mesas',            icon: Armchair,        href: '/tecnico/mesas' },
   { name: 'Virtuales',        icon: Video,           href: '/tecnico/virtuales' },
   { name: 'Buscador',         icon: Search,          href: '/tecnico/buscar' },
+  { name: 'Oportunidades',    icon: Handshake,       href: '/tecnico/oportunidades' },
   { name: 'Cronograma en Vivo', icon: Radio,         href: '/tecnico/cronograma-vivo' },
   { name: 'Galería del evento', icon: Images,        href: '/tecnico/galeria' },
   { name: 'Asistencia QR',    icon: QrCode,          href: '/tecnico/asistencia' },

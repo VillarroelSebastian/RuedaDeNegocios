@@ -225,6 +225,7 @@ model empresaevento {
   estaActivo                                                                    Int                         @default(1) @db.SmallInt
   fechaCreacion                                                                 DateTime                    @default(now()) @db.Timestamp(6)
   creadoModificadoFecha                                                         DateTime?                   @db.Timestamp(6)
+  horariosDisponibilidadJson                                                    String?                     @db.Text
   empresa_usuario                                                               empresa_usuario[]
   empresa                                                                       empresa                     @relation(fields: [empresa_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_empresaevento_empresa1")
   evento                                                                        evento                      @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_empresaevento_evento1")
@@ -293,6 +294,7 @@ model evento {
   fechaFinSolicitudes            DateTime?               @db.Timestamp(6)
   duracionReunion                Int                     @db.SmallInt
   tiempoEntreReuniones           Int                     @db.SmallInt
+  horariosReunionJson            String?                 @db.Text
   cantidadTotalMesasEvento       Int                     @db.SmallInt
   capacidadPersonasPorMesa       Int                     @db.SmallInt
   montoBaseIncripcionBolivianos  Decimal                 @db.Decimal(10, 2)

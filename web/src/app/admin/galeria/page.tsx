@@ -1,12 +1,16 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Images } from "lucide-react";
 import GaleriaEvento from "@/components/GaleriaEvento";
 import { useModal } from "@/components/ui/Modal";
 
 export default function AdminGaleriaPage() {
   const { showError, showSuccess, ModalComponent } = useModal();
+  const [user, setUser] = useState<any>(null);
+  useEffect(() => {
+    try { setUser(JSON.parse(localStorage.getItem("adminUser") || "null")); } catch { setUser(null); }
+  }, []);
 
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto">
@@ -23,6 +27,9 @@ export default function AdminGaleriaPage() {
       {/* esStaff habilita moderar: borrar fotos de cualquier participante. */}
       <GaleriaEvento
         esStaff
+        puedeSubir={!!user?.id}
+        usuarioId={user?.id}
+        autorNombre={`${user?.nombres || "Administrador"} ${user?.apellidoPaterno || ""}`.trim()}
         onError={(m) => showError("No se pudo completar", m)}
         onOk={(t, m) => showSuccess(t, m)}
       />

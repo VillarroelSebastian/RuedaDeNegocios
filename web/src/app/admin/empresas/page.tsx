@@ -137,11 +137,13 @@ export default function EmpresasPage() {
       'Esta acción desactivará la empresa del sistema.',
       async () => {
         try {
-          await fetch(`${API}/admin/empresas/${id}`, { method: 'DELETE' });
+          const res = await fetch(`${API}/admin/empresas/${id}`, { method: 'DELETE' });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data?.message || 'No se pudo desactivar la empresa.');
           showSuccess('Empresa eliminada', 'La empresa fue desactivada correctamente.');
           fetchEmpresas();
-        } catch {
-          showError('Error', 'No se pudo eliminar la empresa.');
+        } catch (e: any) {
+          showError('Error', e.message || 'No se pudo eliminar la empresa.');
         }
       }
     );

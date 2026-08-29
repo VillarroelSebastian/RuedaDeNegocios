@@ -36,7 +36,13 @@ export default function EmpresaEventosScreen() {
       const res = await fetch(`${API_URL}/public/cronograma-vivo${eeId ? `?eeId=${eeId}` : ''}`);
       if (!res.ok) throw new Error('Error cargando actividades');
       const data = await res.json();
-      setItems(Array.isArray(data?.actividades) ? data.actividades : []);
+      const ordenadas = Array.isArray(data?.actividades)
+        ? [...data.actividades].sort((a: any, b: any) => {
+            const fecha = String(a.fechaActividad || '').localeCompare(String(b.fechaActividad || ''));
+            return fecha || String(a.horaInicioActividad || '').localeCompare(String(b.horaInicioActividad || ''));
+          })
+        : [];
+      setItems(ordenadas);
     } catch (e: any) {
       setError(e.message || 'Error de red');
     } finally {

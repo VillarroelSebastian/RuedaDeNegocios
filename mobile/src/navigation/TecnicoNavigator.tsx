@@ -1,7 +1,7 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { LayoutDashboard, Armchair, Video, Search, Newspaper, UserCircle } from 'lucide-react-native';
+import { LayoutDashboard, Armchair, Video, Search, Newspaper, UserCircle, Handshake } from 'lucide-react-native';
 
 import TecnicoDashboardScreen  from '../screens/tecnico/TecnicoDashboardScreen';
 import TecnicoMesasScreen      from '../screens/tecnico/TecnicoMesasScreen';
@@ -15,6 +15,7 @@ import TecnicoAsistenciaScreen from '../screens/tecnico/TecnicoAsistenciaScreen'
 import TecnicoEventosVivoScreen from '../screens/tecnico/TecnicoEventosVivoScreen';
 import TecnicoGaleriaScreen from '../screens/tecnico/TecnicoGaleriaScreen';
 import TecnicoContenidoScreen from '../screens/tecnico/TecnicoContenidoScreen';
+import OportunidadesStaffScreen from '../screens/shared/OportunidadesStaffScreen';
 import { userStore } from '../utils/userStore';
 
 const Tab          = createBottomTabNavigator();
@@ -43,6 +44,7 @@ const IconVirtuales  = ({ color }: { color: string }) => <Video            color
 const IconBuscador   = ({ color }: { color: string }) => <Search           color={color} size={22} />;
 const IconNoticias   = ({ color }: { color: string }) => <Newspaper        color={color} size={22} />;
 const IconPerfil     = ({ color }: { color: string }) => <UserCircle       color={color} size={22} />;
+const IconOportunidades = ({ color }: { color: string }) => <Handshake color={color} size={22} />;
 
 function TecnicoTabs() {
   return (
@@ -55,6 +57,8 @@ function TecnicoTabs() {
         options={{ title: 'Virtuales', tabBarIcon: IconVirtuales }} />
       <Tab.Screen name="TecnicoBuscador"   component={TecnicoBuscadorScreen}
         options={{ title: 'Buscar',    tabBarIcon: IconBuscador }} />
+      <Tab.Screen name="TecnicoOportunidades" component={OportunidadesStaffScreen}
+        options={{ title: 'Oportun.', tabBarIcon: IconOportunidades }} />
       <Tab.Screen name="TecnicoContenido"  component={TecnicoContenidoScreen}
         options={{ title: 'Contenido', tabBarIcon: IconNoticias }} />
       <Tab.Screen name="TecnicoPerfil"     component={TecnicoPerfilScreen}

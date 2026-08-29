@@ -184,6 +184,7 @@ export default function MesasScreen() {
   const [asistentes,   setAsistentes]   = useState('');
   const [acting,       setActing]       = useState(false);
   const [toggling,     setToggling]     = useState(false);
+  const [sinReunion, setSinReunion] = useState<any[]>([]);
 
   const [historial,        setHistorial]        = useState<any[]>([]);
   const [loadingHistorial, setLoadingHistorial] = useState(false);
@@ -192,9 +193,10 @@ export default function MesasScreen() {
 
   const fetchGrid = useCallback(async () => {
     try {
-      const res  = await fetch(`${API_URL}/admin/mesas`);
-      const data = await res.json();
+      const [res, libresRes] = await Promise.all([fetch(`${API_URL}/admin/mesas`), fetch(`${API_URL}/staff/empresas-sin-reunion`)]);
+      const [data, libres] = await Promise.all([res.json(), libresRes.json()]);
       setMesas(Array.isArray(data) ? data : (data.mesas ?? []));
+      setSinReunion(Array.isArray(libres?.empresas) ? libres.empresas : []);
       if (data.eventoConfig) setEventoConfig(data.eventoConfig);
     } catch { setMesas([]); }
     finally { setLoading(false); setRefreshing(false); }
@@ -349,6 +351,11 @@ export default function MesasScreen() {
               </View>
             </View>
           )}
+
+          <View className="bg-white border border-green-100 rounded-2xl p-4 mb-4">
+            <View className="flex-row justify-between items-center mb-2"><Text className="text-sm font-bold text-gray-900">Empresas sin reunión ahora</Text><Text className="text-xs font-bold text-green-700 bg-green-100 px-2 py-1 rounded-full">{sinReunion.length}</Text></View>
+            <View className="flex-row flex-wrap gap-2">{sinReunion.map((e) => <Text key={e.empresaeventoId} className="text-[10px] font-semibold text-gray-700 bg-gray-50 border border-gray-100 px-2 py-1 rounded-lg">{e.codigo ? `${e.codigo} · ` : ''}{e.nombre}</Text>)}</View>
+          </View>
 
           {/* Tabs + refresh */}
           <View className="flex-row items-center gap-2 mb-4">

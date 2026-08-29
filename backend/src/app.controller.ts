@@ -360,6 +360,32 @@ export class AppController implements OnModuleInit {
 
   private async sincronizarEstadosReuniones() {
     const ahora = new Date();
+    // Avisar con margen al equipo si falta el enlace virtual.
+    const enTreintaMinutos = new Date(ahora.getTime() + 30 * 60_000);
+    const virtualesSinEnlace = await this.prisma.reunion.findMany({
+      where: {
+        estaActivo: 1,
+        estadoReunion: { in: ['PROGRAMADA', 'REPROGRAMADA'] },
+        tipoReunion: { in: ['VIRTUAL', 'MIXTA'] },
+        fechaHoraInicioReunion: { gt: ahora, lte: enTreintaMinutos },
+        solicitudreunion: { OR: [{ enlaceReunionVirtual: null }, { enlaceReunionVirtual: '' }] },
+      },
+      select: { id: true, evento_id: true, fechaHoraInicioReunion: true },
+    });
+    for (const reunion of virtualesSinEnlace) {
+      const hora = reunion.fechaHoraInicioReunion.toLocaleTimeString('es-BO', {
+        timeZone: EVENT_TIME_ZONE, hour: '2-digit', minute: '2-digit',
+      });
+      await this.notificarStaff(
+        reunion.evento_id,
+        'staff:reunion-sin-enlace-30m',
+        'URGENTE: agrega el enlace de la reuniÃ³n virtual',
+        `La reuniÃ³n virtual de las ${hora} comienza en menos de 30 minutos y aÃºn no tiene enlace.`,
+        reunion.id,
+        true,
+        525_600,
+      );
+    }
     const porIniciar = await this.prisma.reunion.findMany({
       where: {
         estaActivo: 1, estadoReunion: { in: ['PROGRAMADA', 'REPROGRAMADA'] },
@@ -413,7 +439,7 @@ export class AppController implements OnModuleInit {
 
   private async enviarRecordatoriosReuniones() {
     const ahora = new Date();
-    const limite = new Date(ahora.getTime() + 15 * 60000);
+    const limite = new Date(ahora.getTime() + 30 * 60000);
     const proximas = await this.prisma.reunion.findMany({
       where: {
         estaActivo: 1,
@@ -1430,6 +1456,47 @@ export class AppController implements OnModuleInit {
     return evento;
   }
 
+  private normalizarHorariosPorDia(
+    valor: any,
+    fechasEsperadas: string[],
+    desdePorDefecto: string,
+    hastaPorDefecto: string,
+    todosLosDiasObligatorios: boolean,
+  ): { fecha: string; habilitado: boolean; rangos: { desde: string; hasta: string }[] }[] {
+    let entrada = valor;
+    if (typeof entrada === 'string') {
+      try { entrada = JSON.parse(entrada); } catch { throw new BadRequestException('La configuraciÃ³n de horarios no es vÃ¡lida.'); }
+    }
+    if (!Array.isArray(entrada) || entrada.length === 0) {
+      entrada = fechasEsperadas.map((fecha) => ({
+        fecha, habilitado: true, rangos: [{ desde: desdePorDefecto, hasta: hastaPorDefecto }],
+      }));
+    }
+    const horaValida = /^(?:[01]\d|2[0-3]):[0-5]\d$|^24:00$/;
+    const porFecha = new Map<string, any>(entrada.map((dia: any) => [String(dia?.fecha || ''), dia]));
+    return fechasEsperadas.map((fecha) => {
+      const dia = porFecha.get(fecha);
+      if (!dia) {
+        if (todosLosDiasObligatorios) throw new BadRequestException(`Debes configurar horarios de reuniÃ³n para el dÃ­a ${fecha}.`);
+        return { fecha, habilitado: true, rangos: [{ desde: desdePorDefecto, hasta: hastaPorDefecto }] };
+      }
+      const habilitado = dia.habilitado !== false;
+      const rangos = habilitado && Array.isArray(dia.rangos) ? dia.rangos.map((r: any) => ({
+        desde: String(r?.desde || ''), hasta: String(r?.hasta || ''),
+      })) : [];
+      if (habilitado && rangos.length === 0) throw new BadRequestException(`Agrega al menos un rango para el dÃ­a ${fecha}.`);
+      rangos.sort((a: any, b: any) => a.desde.localeCompare(b.desde));
+      for (let i = 0; i < rangos.length; i += 1) {
+        const rango = rangos[i];
+        if (!horaValida.test(rango.desde) || !horaValida.test(rango.hasta) || rango.desde >= rango.hasta)
+          throw new BadRequestException(`El rango ${rango.desde}-${rango.hasta} del dÃ­a ${fecha} no es vÃ¡lido.`);
+        if (i > 0 && rangos[i - 1].hasta > rango.desde)
+          throw new BadRequestException(`Los rangos del dÃ­a ${fecha} no pueden superponerse.`);
+      }
+      return { fecha, habilitado, rangos };
+    });
+  }
+
   private sanitizeEventoData(body: any) {
     const orNull = (v: any) => (v === '' || v === undefined ? null : v);
     // Los controles datetime-local no incluyen zona horaria. El evento se realiza
@@ -1439,16 +1506,34 @@ export class AppController implements OnModuleInit {
       const texto = String(v);
       return new Date(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(texto) ? `${texto}-04:00` : texto);
     };
+    const fechaInicioEvento = fechaBolivia(body.fechaInicioEvento);
+    const fechaFinEvento = fechaBolivia(body.fechaFinEvento);
+    const fechas = this.fechasEvento({ fechaInicioEvento, fechaFinEvento });
+    const inicioHHMM = horaMinutoBolivia(fechaInicioEvento).hhmm;
+    const finPartes = horaMinutoBolivia(fechaFinEvento);
+    const finHHMM = finPartes.hora === 0 && finPartes.minuto === 0 ? '24:00' : finPartes.hhmm;
+    const horariosReunion = body.horariosReunion === undefined
+      ? undefined
+      : this.normalizarHorariosPorDia(body.horariosReunion, fechas, inicioHHMM, finHHMM, true);
+    if (horariosReunion?.some((dia) => !dia.habilitado)) {
+      throw new BadRequestException('Todos los días del evento deben tener al menos un horario de reuniones.');
+    }
+    if (horariosReunion?.some((dia) => dia.rangos.some((rango) =>
+      rango.desde < inicioHHMM || rango.hasta > finHHMM
+    ))) {
+      throw new BadRequestException('Los horarios de reuniones deben estar dentro del horario general del evento.');
+    }
     return {
       nombre: body.nombre,
       edicion: body.edicion || '',
       descripcion: orNull(body.descripcion),
-      fechaInicioEvento: fechaBolivia(body.fechaInicioEvento),
-      fechaFinEvento: fechaBolivia(body.fechaFinEvento),
+      fechaInicioEvento,
+      fechaFinEvento,
       fechaInicioSolicitudes: body.fechaInicioSolicitudes ? new Date(body.fechaInicioSolicitudes) : null,
       fechaFinSolicitudes: body.fechaFinSolicitudes ? new Date(body.fechaFinSolicitudes) : null,
       duracionReunion: Number(body.duracionReunion) || 20,
       tiempoEntreReuniones: Number(body.tiempoEntreReuniones) || 5,
+      ...(horariosReunion !== undefined ? { horariosReunionJson: JSON.stringify(horariosReunion) } : {}),
       cantidadTotalMesasEvento: Number(body.cantidadTotalMesasEvento) || 50,
       capacidadPersonasPorMesa: Number(body.capacidadPersonasPorMesa) || 4,
       montoBaseIncripcionBolivianos: Number(body.montoBaseIncripcionBolivianos) || 500,
@@ -1733,10 +1818,27 @@ export class AppController implements OnModuleInit {
 
   @Delete('admin/empresas/:id')
   async deleteEmpresa(@Param('id') id: string) {
-    return await this.prisma.empresa.update({
-      where: { id: Number(id) },
-      data: { estaActivo: 0 },
+    const empresaId = Number(id);
+    const eventoId = await this.getPrincipalEventoId();
+    const inscripciones = await this.prisma.empresaevento.findMany({
+      where: { empresa_id: empresaId, ...(eventoId ? { evento_id: eventoId } : {}), estaActivo: 1 },
+      select: { id: true, empresa_usuario: { where: { estaActivo: 1 }, select: { id: true, usuario_id: true } } },
     });
+    if (inscripciones.length === 0) throw new BadRequestException('La empresa ya no estÃ¡ activa en este evento');
+    const eeIds = inscripciones.map((ee) => ee.id);
+    const euIds = inscripciones.flatMap((ee) => ee.empresa_usuario.map((eu) => eu.id));
+    const usuarioIds = [...new Set(inscripciones.flatMap((ee) => ee.empresa_usuario.map((eu) => eu.usuario_id)))];
+    await this.prisma.$transaction(async (tx) => {
+      await tx.empresa_usuario.updateMany({ where: { id: { in: euIds } }, data: { estaActivo: 0 } });
+      await tx.empresaevento.updateMany({ where: { id: { in: eeIds } }, data: { estaActivo: 0 } });
+      for (const usuarioId of usuarioIds) {
+        const otroVinculo = await tx.empresa_usuario.findFirst({ where: { usuario_id: usuarioId, estaActivo: 1 } });
+        if (!otroVinculo) await tx.usuario.update({ where: { id: usuarioId }, data: { estaActivo: 0 } });
+      }
+      const otraInscripcion = await tx.empresaevento.findFirst({ where: { empresa_id: empresaId, estaActivo: 1 } });
+      if (!otraInscripcion) await tx.empresa.update({ where: { id: empresaId }, data: { estaActivo: 0 } });
+    });
+    return { ok: true, empresaId, inscripcionesDesactivadas: eeIds.length, participantesDesactivados: euIds.length };
   }
 
   @Get('admin/empresas/:id/participantes')
@@ -2242,6 +2344,34 @@ export class AppController implements OnModuleInit {
   }
 
   // ─── MESAS ───────────────────────────────────────────────────────────────────
+
+  @Get('staff/empresas-sin-reunion')
+  async getEmpresasSinReunionActual() {
+    const eventoId = await this.getPrincipalEventoId();
+    if (!eventoId) return { empresas: [], total: 0 };
+    const [inscripciones, enCurso] = await Promise.all([
+      this.prisma.empresaevento.findMany({
+        where: {
+          evento_id: eventoId, estaActivo: 1,
+          estadoHabilitacionAcceso: 'HABILITADO', estadoVerificacionPago: 'COMPLETADO',
+          empresa: { estaActivo: 1 },
+        },
+        include: { empresa: { select: { id: true, nombre: true, codigo: true, rubro: true, urlFotoPerfil: true } } },
+        orderBy: { empresa: { nombre: 'asc' } },
+      }),
+      this.prisma.reunion.findMany({
+        where: { evento_id: eventoId, estaActivo: 1, estadoReunion: 'EN_CURSO' },
+        select: { solicitudreunion: { select: { empresaEvento_id: true, empresaEventorReceptora_id: true } } },
+      }),
+    ]);
+    const ocupadas = new Set<number>();
+    for (const reunion of enCurso) {
+      if (reunion.solicitudreunion?.empresaEvento_id) ocupadas.add(reunion.solicitudreunion.empresaEvento_id);
+      if (reunion.solicitudreunion?.empresaEventorReceptora_id) ocupadas.add(reunion.solicitudreunion.empresaEventorReceptora_id);
+    }
+    const empresas = inscripciones.filter((ee) => !ocupadas.has(ee.id)).map((ee) => ({ empresaeventoId: ee.id, ...ee.empresa }));
+    return { empresas, total: empresas.length, ocupadas: ocupadas.size };
+  }
 
   @Get('admin/mesas/agenda')
   async getMesasAgenda() {
@@ -3407,7 +3537,7 @@ export class AppController implements OnModuleInit {
     const [empresasRaw, reunionesRaw, mesasRaw] = await Promise.all([
       this.prisma.empresaevento.findMany({
         where: { evento_id: eventoId, estaActivo: 1 },
-        include: { empresa: { select: { id: true, nombre: true, rubro: true, ciudad: { select: { nombre: true } }, urlFotoPerfil: true } } },
+        include: { empresa: { select: { id: true, codigo: true, nombre: true, rubro: true, ciudad: { select: { nombre: true } }, urlFotoPerfil: true } } },
         take: 20,
       }),
       this.prisma.reunion.findMany({
@@ -3423,7 +3553,11 @@ export class AppController implements OnModuleInit {
     ]);
 
     const empresas = empresasRaw
-      .filter((ee) => ee.empresa.nombre.toLowerCase().includes(lower) || ee.empresa.rubro.toLowerCase().includes(lower))
+      .filter((ee) =>
+        ee.empresa.nombre.toLowerCase().includes(lower) ||
+        ee.empresa.rubro.toLowerCase().includes(lower) ||
+        (ee.empresa.codigo || '').toLowerCase().includes(lower)
+      )
       .map((ee) => ({
         ...ee.empresa,
         estadoPago: ee.estadoVerificacionPago,
@@ -3916,6 +4050,25 @@ export class AppController implements OnModuleInit {
   // solo porque el evento termina en una fecha posterior.
   private ventanasDiariasReunionesEvento(evento: any): { start: Date; end: Date }[] {
     const ventana = this.ventanaReunionesEvento(evento);
+    if (evento.horariosReunionJson) {
+      try {
+        const dias = JSON.parse(evento.horariosReunionJson);
+        if (Array.isArray(dias) && dias.length > 0) {
+          const configuradas = dias.flatMap((dia: any) => {
+            if (dia?.habilitado === false || !Array.isArray(dia?.rangos)) return [];
+            return dia.rangos.map((rango: any) => {
+              const [hi, mi] = String(rango.desde).split(':').map(Number);
+              const [hf, mf] = String(rango.hasta).split(':').map(Number);
+              return {
+                start: this.fechaHoraBolivia(String(dia.fecha), hi, mi),
+                end: this.fechaHoraBolivia(String(dia.fecha), hf, mf),
+              };
+            });
+          }).filter((rango: any) => rango.end > rango.start && rango.start >= ventana.start && rango.end <= ventana.end);
+          if (configuradas.length > 0) return configuradas;
+        }
+      } catch { /* configuraciÃ³n antigua o corrupta: usar la jornada heredada */ }
+    }
     const inicioHora = horaMinutoBolivia(ventana.start);
     const finHora = horaMinutoBolivia(ventana.end);
     const finEsMedianoche = finHora.hora === 0 && finHora.minuto === 0;
@@ -4035,6 +4188,7 @@ export class AppController implements OnModuleInit {
       estadoPago: eu.empresaevento?.estadoVerificacionPago ?? 'PENDIENTE',
       estadoAcceso: eu.empresaevento?.estadoHabilitacionAcceso ?? 'PENDIENTE',
       tipoParticipacion: eu.empresaevento?.tipoParticipacion ?? null,
+      horariosConfigurados: !!eu.empresaevento?.horariosDisponibilidadJson,
       numeroParticipantes: eu.empresaevento?.numeroParticipantes ?? null,
     };
   }
@@ -4315,14 +4469,45 @@ export class AppController implements OnModuleInit {
   }
 
   // ── Asistente virtual rule-based ─────────────────────────────────────────────
+  @Get('staff/oportunidades')
+  async getOportunidadesStaff() {
+    const eventoId = await this.getPrincipalEventoId();
+    if (!eventoId) return [];
+    const inscripciones = await this.prisma.empresaevento.findMany({
+      where: { evento_id: eventoId, estaActivo: 1, estadoVerificacionPago: 'COMPLETADO', estadoHabilitacionAcceso: 'HABILITADO', empresa: { estaActivo: 1 } },
+      include: { empresa: true }, orderBy: { empresa: { nombre: 'asc' } },
+    });
+    const parejas: any[] = [];
+    for (let i = 0; i < inscripciones.length; i++) {
+      for (let j = i + 1; j < inscripciones.length; j++) {
+        const a = inscripciones[i]; const b = inscripciones[j]; const motivos: string[] = [];
+        if (this.hayCoincidenciaTexto(a.empresa.oferta, b.empresa.demanda)) motivos.push(`${a.empresa.nombre} ofrece lo que busca ${b.empresa.nombre}`);
+        if (this.hayCoincidenciaTexto(b.empresa.oferta, a.empresa.demanda)) motivos.push(`${b.empresa.nombre} ofrece lo que busca ${a.empresa.nombre}`);
+        if (this.hayCoincidenciaTexto(a.empresa.interesesBusqueda, b.empresa.rubro) || this.hayCoincidenciaTexto(b.empresa.interesesBusqueda, a.empresa.rubro)) motivos.push('Coincidencia de rubro e intereses');
+        if (!motivos.length && this.calcularAfinidad(a.empresa.rubro, b.empresa.rubro) === 'alta') motivos.push('Empresas del mismo rubro');
+        if (motivos.length) parejas.push({
+          empresaA: { empresaeventoId: a.id, nombre: a.empresa.nombre, codigo: a.empresa.codigo, rubro: a.empresa.rubro },
+          empresaB: { empresaeventoId: b.id, nombre: b.empresa.nombre, codigo: b.empresa.codigo, rubro: b.empresa.rubro }, motivos,
+        });
+      }
+    }
+    return parejas.sort((a, b) => b.motivos.length - a.motivos.length || a.empresaA.nombre.localeCompare(b.empresaA.nombre, 'es'));
+  }
+
   @Post('empresa/asistente')
   async asistente(@Body() body: { eeId: number; euId?: number; mensaje: string; contexto?: any }) {
     const { eeId, mensaje = '' } = body;
     if (!eeId) throw new BadRequestException('eeId requerido');
     const msg = mensaje.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
-    const eventoId = await this.getPrincipalEventoId();
-    if (!eventoId) return { respuesta: 'No hay un evento activo en este momento.' };
+    // El asistente debe responder sobre el evento de la sesión de la empresa,
+    // incluso si el administrador cambia el evento principal mientras conversa.
+    const inscripcion = await this.prisma.empresaevento.findFirst({
+      where: { id: Number(eeId), estaActivo: 1, empresa: { estaActivo: 1 } },
+      select: { evento_id: true },
+    });
+    const eventoId = inscripcion?.evento_id;
+    if (!eventoId) return { respuesta: 'Tu empresa no tiene una inscripción activa para este evento.' };
     const evento = await this.prisma.evento.findUnique({ where: { id: eventoId } });
     if (!evento) return { respuesta: 'No hay un evento activo en este momento.' };
 
@@ -4332,6 +4517,16 @@ export class AppController implements OnModuleInit {
       d ? new Date(d).toLocaleTimeString('es-BO', { timeZone: EVENT_TIME_ZONE, hour: '2-digit', minute: '2-digit' }) : '—';
 
     // ── agendar reunión (flujo multi-paso) ───────────────────────────────────
+    if (/(lista|listar|ver|mostrar|cuales|cuantas|todas)?\s*(las\s+)?empresas(\s+(participantes|registradas))?/i.test(msg) && !/reunion con/i.test(msg)) {
+      const empresas = await this.prisma.empresaevento.findMany({
+        where: { evento_id: eventoId, estaActivo: 1, estadoHabilitacionAcceso: 'HABILITADO', empresa: { estaActivo: 1 } },
+        include: { empresa: { select: { nombre: true, codigo: true, rubro: true } } },
+        orderBy: { empresa: { nombre: 'asc' } },
+      });
+      if (!empresas.length) return { respuesta: 'No hay empresas habilitadas en este evento.' };
+      return { respuesta: `Hay ${empresas.length} empresa(s) habilitada(s):\n${empresas.map((e, i) => `${i + 1}. ${e.empresa.nombre}${e.empresa.codigo ? ` (${e.empresa.codigo})` : ''}${e.empresa.rubro ? ` · ${e.empresa.rubro}` : ''}`).join('\n')}` };
+    }
+
     const respAgendar = await this.asistenteAgendarReunion(Number(eeId), body.euId, msg, body.contexto, eventoId);
     if (respAgendar) return respAgendar;
 
@@ -4566,7 +4761,7 @@ export class AppController implements OnModuleInit {
           empresa: { nombre: { contains: term, mode: 'insensitive' } },
         },
         include: { empresa: { select: { nombre: true } } },
-        take: 6,
+        take: 100,
         orderBy: { empresa: { nombre: 'asc' } },
       });
 
@@ -5091,15 +5286,27 @@ export class AppController implements OnModuleInit {
     }
     if (!eeReceptoraId || Number.isNaN(Number(eeReceptoraId)))
       throw new BadRequestException('No se pudo determinar la empresa receptora');
-    const eventoId = await this.getPrincipalEventoId();
-    if (!eventoId) return { duracionMinutos: 0, horarios: [] };
+    const [inscripcionA, inscripcionB] = await Promise.all([
+      this.prisma.empresaevento.findUnique({
+        where: { id: Number(eeId) },
+        select: { evento_id: true, estaActivo: true, horariosDisponibilidadJson: true },
+      }),
+      this.prisma.empresaevento.findUnique({
+        where: { id: Number(eeReceptoraId) },
+        select: { evento_id: true, estaActivo: true, horariosDisponibilidadJson: true },
+      }),
+    ]);
+    if (!inscripcionA || !inscripcionB || inscripcionA.estaActivo === 0 || inscripcionB.estaActivo === 0)
+      throw new BadRequestException('Una de las empresas ya no está activa en el evento.');
+    if (inscripcionA.evento_id !== inscripcionB.evento_id)
+      throw new BadRequestException('Las empresas deben pertenecer al mismo evento.');
+    const eventoId = inscripcionA.evento_id;
     const evento = await this.prisma.evento.findUnique({ where: { id: eventoId } });
     if (!evento) return { duracionMinutos: 0, horarios: [] };
 
-    // Toda la disponibilidad real: candidatos de inicio cada 5 minutos dentro de la
-    // ventana del evento (no la grilla fija duración+descanso, que solo daba 2 opciones
-    // de minutos por hora). Lo ocupado se descarta por solapamiento más abajo.
-    const franjas = usarJornadaTecnica ? this.generarCandidatosInicioTecnico(evento) : this.generarCandidatosInicio(evento);
+    // La agenda usa una grilla fija de duración + descanso configurados. Lo
+    // ocupado o pendiente se conserva en la respuesta para mostrarlo en rojo.
+    const franjas = usarJornadaTecnica ? this.generarCandidatosInicioTecnico(evento) : this.generarFranjas(evento);
     if (franjas.length === 0) return { duracionMinutos: evento.duracionReunion, horarios: [] };
 
     const excludeId = excludeReunionId ? Number(excludeReunionId) : undefined;
@@ -5132,13 +5339,16 @@ export class AppController implements OnModuleInit {
       this.prisma.solicitudreunion.findMany({
         where: {
           ...(solicitudId ? { id: { not: Number(solicitudId) } } : {}),
-          empresaEvento_id: Number(eeId), estadoSolicitud: 'PENDIENTE', estaActivo: 1,
+          OR: [{ empresaEvento_id: Number(eeId) }, { empresaEventorReceptora_id: Number(eeId) }],
+          estadoSolicitud: 'PENDIENTE', estaActivo: 1,
         },
         select: { fechaHoraInicioPropuesta: true, fechaHoraFinPropuesta: true },
       }),
       this.prisma.solicitudreunion.findMany({
         where: {
-          empresaEvento_id: Number(eeReceptoraId), estadoSolicitud: 'PENDIENTE', estaActivo: 1,
+          ...(solicitudId ? { id: { not: Number(solicitudId) } } : {}),
+          OR: [{ empresaEvento_id: Number(eeReceptoraId) }, { empresaEventorReceptora_id: Number(eeReceptoraId) }],
+          estadoSolicitud: 'PENDIENTE', estaActivo: 1,
         },
         select: { fechaHoraInicioPropuesta: true, fechaHoraFinPropuesta: true },
       }),
@@ -5169,25 +5379,50 @@ export class AppController implements OnModuleInit {
     // Bloqueos por solapamiento (no por timestamp exacto): un bloqueo guarda su
     // ventana inicio–fin, así que cualquier candidato que la toque queda descartado.
     // Esto además sobrevive a cambios posteriores en la config del evento.
+    const dentroDeDisponibilidadPorDia = (json: string | null | undefined, ini: Date, fin: Date) => {
+      if (!json) return true;
+      try {
+        const dias = JSON.parse(json);
+        const dia = Array.isArray(dias) ? dias.find((d: any) => d?.fecha === claveFechaBolivia(ini)) : null;
+        if (!dia) return true;
+        if (dia.habilitado === false) return false;
+        const iniHHMM = hhmmDe(ini), finHHMM = hhmmDe(fin);
+        return Array.isArray(dia.rangos) && dia.rangos.some((r: any) => iniHHMM >= r.desde && finHHMM <= r.hasta);
+      } catch { return true; }
+    };
+
     const chocaConBloqueo = (bloqueos: { inicio: Date; fin: Date }[], ini: Date, fin: Date) =>
       bloqueos.some((b) => new Date(b.inicio) < fin && new Date(b.fin) > ini);
 
     const ahora = new Date();
-    const disponibles = franjas.filter(
-      (f) =>
-        f.inicio > ahora &&
-        !reunionesA.some((r) => solapaCon(r, f.inicio, f.fin)) &&
-        !reunionesB.some((r) => solapaCon(r, f.inicio, f.fin)) &&
-        !solicitudesPendientesA.some((s) => solapaSolicitud(s, f.inicio, f.fin)) &&
-        !solicitudesPendientesB.some((s) => solapaSolicitud(s, f.inicio, f.fin)) &&
-        (ignorarDisponibilidadPersonalizada || !chocaConBloqueo(bloqueosA as any, f.inicio, f.fin)) &&
-        (ignorarDisponibilidadPersonalizada || !chocaConBloqueo(bloqueosB as any, f.inicio, f.fin)) &&
-        (ignorarDisponibilidadPersonalizada || dentroDeRangoReceptora(f.inicio, f.fin)),
-    );
+    const agenda = franjas.map((f) => {
+      const pasado = f.inicio <= ahora;
+      const reunionOcupada = reunionesA.some((r) => solapaCon(r, f.inicio, f.fin)) ||
+        reunionesB.some((r) => solapaCon(r, f.inicio, f.fin));
+      const solicitudPendiente = solicitudesPendientesA.some((s) => solapaSolicitud(s, f.inicio, f.fin)) ||
+        solicitudesPendientesB.some((s) => solapaSolicitud(s, f.inicio, f.fin));
+      const fueraDisponibilidad = !ignorarDisponibilidadPersonalizada && (
+        chocaConBloqueo(bloqueosA as any, f.inicio, f.fin) ||
+        chocaConBloqueo(bloqueosB as any, f.inicio, f.fin) ||
+        !dentroDeRangoReceptora(f.inicio, f.fin) ||
+        !dentroDeDisponibilidadPorDia(inscripcionA?.horariosDisponibilidadJson, f.inicio, f.fin) ||
+        !dentroDeDisponibilidadPorDia(inscripcionB?.horariosDisponibilidadJson, f.inicio, f.fin)
+      );
+      const disponible = !pasado && !reunionOcupada && !solicitudPendiente && !fueraDisponibilidad;
+      const estado = disponible ? 'DISPONIBLE'
+        : solicitudPendiente ? 'PENDIENTE'
+        : reunionOcupada ? 'OCUPADO'
+        : fueraDisponibilidad ? 'NO_DISPONIBLE'
+        : 'PASADO';
+      return { inicio: f.inicio.toISOString(), fin: f.fin.toISOString(), disponible, estado };
+    });
+    const disponibles = agenda.filter((f) => f.disponible);
 
     return {
       duracionMinutos: evento.duracionReunion,
-      horarios: disponibles.map((f) => ({ inicio: f.inicio.toISOString(), fin: f.fin.toISOString() })),
+      tiempoEntreReuniones: evento.tiempoEntreReuniones,
+      horarios: disponibles.map((f) => ({ inicio: f.inicio, fin: f.fin })),
+      agenda,
     };
   }
 
@@ -5277,6 +5512,67 @@ export class AppController implements OnModuleInit {
       where: { empresaevento_id: Number(eeId), estaActivo: 1 },
       orderBy: { desde_hora: 'asc' },
     });
+  }
+
+  @Get('empresa/horarios-empresa/dias')
+  async getDisponibilidadPorDia(@Query('eeId') eeId: string) {
+    if (!eeId) throw new BadRequestException('eeId requerido');
+    const inscripcion = await this.prisma.empresaevento.findUnique({
+      where: { id: Number(eeId) }, include: { evento: true },
+    });
+    if (!inscripcion) throw new BadRequestException('InscripciÃ³n no encontrada');
+    const ventanas = this.ventanasDiariasReunionesEvento(inscripcion.evento);
+    const porFecha = new Map<string, { desde: string; hasta: string }[]>();
+    for (const ventana of ventanas) {
+      const fecha = claveFechaBolivia(ventana.start);
+      const rangos = porFecha.get(fecha) ?? [];
+      rangos.push({ desde: horaMinutoBolivia(ventana.start).hhmm, hasta: horaMinutoBolivia(ventana.end).hhmm });
+      porFecha.set(fecha, rangos);
+    }
+    let dias: any[] = [];
+    try { dias = JSON.parse(inscripcion.horariosDisponibilidadJson || '[]'); } catch { dias = []; }
+    const configurado = Array.isArray(dias) && dias.length > 0;
+    if (!configurado) dias = this.fechasEvento(inscripcion.evento).map((fecha) => ({
+      fecha, habilitado: true, rangos: porFecha.get(fecha) ?? [],
+    }));
+    return { configurado, dias };
+  }
+
+  @Post('empresa/horarios-empresa/dias')
+  async guardarDisponibilidadPorDia(@Body() body: { eeId: number; dias: any[] }) {
+    if (!body.eeId) throw new BadRequestException('eeId requerido');
+    const inscripcion = await this.prisma.empresaevento.findUnique({
+      where: { id: Number(body.eeId) }, include: { evento: true },
+    });
+    if (!inscripcion) throw new BadRequestException('InscripciÃ³n no encontrada');
+    const ventanas = this.ventanasDiariasReunionesEvento(inscripcion.evento);
+    const primera = ventanas[0];
+    const dias = this.normalizarHorariosPorDia(
+      body.dias,
+      this.fechasEvento(inscripcion.evento),
+      primera ? horaMinutoBolivia(primera.start).hhmm : '08:00',
+      primera ? horaMinutoBolivia(primera.end).hhmm : '18:00',
+      false,
+    );
+    const ventanasPorFecha = new Map<string, { desde: string; hasta: string }[]>();
+    for (const ventana of ventanas) {
+      const fecha = claveFechaBolivia(ventana.start);
+      const actuales = ventanasPorFecha.get(fecha) ?? [];
+      actuales.push({ desde: horaMinutoBolivia(ventana.start).hhmm, hasta: horaMinutoBolivia(ventana.end).hhmm });
+      ventanasPorFecha.set(fecha, actuales);
+    }
+    const fueraDelEvento = dias.some((dia) => dia.habilitado && dia.rangos.some((rango) =>
+      !(ventanasPorFecha.get(dia.fecha) ?? []).some((ventana) =>
+        rango.desde >= ventana.desde && rango.hasta <= ventana.hasta
+      )
+    ));
+    if (fueraDelEvento)
+      throw new BadRequestException('Tu disponibilidad debe estar dentro de los horarios de reuniones definidos para cada día.');
+    await this.prisma.empresaevento.update({
+      where: { id: inscripcion.id },
+      data: { horariosDisponibilidadJson: JSON.stringify(dias), creadoModificadoFecha: new Date() },
+    });
+    return { ok: true, configurado: true, dias };
   }
 
   @Post('empresa/horarios-empresa/rangos')
@@ -5438,7 +5734,7 @@ export class AppController implements OnModuleInit {
 
   @Post('empresa/solicitudes')
   async crearSolicitud(@Body() body: any) {
-    const { eeId, eeReceptoraId, euId, tipo, inicio, fin, mesaId, enlace, mensaje } = body;
+    const { eeId, eeReceptoraId, euId, tipo, inicio, fin, mesaId, mensaje } = body;
     if (!eeId || !eeReceptoraId || !euId || !tipo || !inicio || !fin)
       throw new BadRequestException('Campos requeridos: eeId, eeReceptoraId, euId, tipo, inicio, fin');
     if (Number(eeId) === Number(eeReceptoraId))
@@ -5447,9 +5743,8 @@ export class AppController implements OnModuleInit {
     const tipoNormalizado = String(tipo).toUpperCase();
     if (!['PRESENCIAL', 'VIRTUAL'].includes(tipoNormalizado))
       throw new BadRequestException('El tipo de reunión debe ser PRESENCIAL o VIRTUAL');
-    const enlaceNormalizado = tipoNormalizado === 'VIRTUAL'
-      ? this.normalizarEnlaceReunion(enlace, true)
-      : null;
+    // El enlace virtual se asigna luego desde el panel tÃ©cnico.
+    const enlaceNormalizado = null;
     const eventoId = await this.getPrincipalEventoId();
     if (!eventoId) throw new BadRequestException('No hay un evento activo');
     await this.verificarEE(Number(eeId), eventoId);
@@ -5478,8 +5773,12 @@ export class AppController implements OnModuleInit {
     const ahora = new Date();
     if (!eventoCfg || Number.isNaN(iniDate.getTime()) || Number.isNaN(finDate.getTime()) || iniDate <= ahora)
       throw new BadRequestException('El horario de la reunión debe ser futuro y pertenecer al evento activo.');
-    if (!this.horarioDentroDe(this.generarCandidatosInicio(eventoCfg), iniDate, finDate))
+    if (!this.horarioDentroDe(this.generarFranjas(eventoCfg), iniDate, finDate))
       throw new BadRequestException('El horario o la duración no corresponden a la jornada configurada del evento.');
+    const disponibilidad = await this.getHorariosDisponibles(String(eeId), String(eeReceptoraId));
+    if (!disponibilidad.agenda?.some((slot: any) =>
+      slot.disponible && new Date(slot.inicio).getTime() === iniDate.getTime() && new Date(slot.fin).getTime() === finDate.getTime()
+    )) throw new BadRequestException('Ese horario ya no está disponible para una de las empresas. Actualiza la agenda y elige otro.');
     if (eventoCfg?.fechaInicioSolicitudes && ahora < new Date(eventoCfg.fechaInicioSolicitudes)) {
       throw new BadRequestException(
         `Las solicitudes de reunión abren el ${new Date(eventoCfg.fechaInicioSolicitudes).toLocaleString('es-BO')}`,
@@ -5574,10 +5873,10 @@ export class AppController implements OnModuleInit {
       },
       include: {
         empresaevento_solicitudreunion_empresaEvento_idToempresaevento: {
-          include: { empresa: { select: { id: true, nombre: true, rubro: true, urlFotoPerfil: true } } },
+          include: { empresa: { select: { id: true, codigo: true, nombre: true, rubro: true, urlFotoPerfil: true } } },
         },
         empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento: {
-          include: { empresa: { select: { id: true, nombre: true, rubro: true, urlFotoPerfil: true } } },
+          include: { empresa: { select: { id: true, codigo: true, nombre: true, rubro: true, urlFotoPerfil: true } } },
         },
         mesa: { select: { id: true, numeroMesa: true } },
         reunion: {
@@ -5632,7 +5931,7 @@ export class AppController implements OnModuleInit {
 
   @Put('empresa/solicitudes/:id/editar')
   async editarSolicitudPendiente(@Param('id') id: string, @Body() body: any) {
-    const { eeId, tipo, inicio, fin, mesaId, enlace, mensaje } = body;
+    const { eeId, tipo, inicio, fin, mesaId, mensaje } = body;
     if (!eeId || !tipo || !inicio || !fin)
       throw new BadRequestException('eeId, tipo, inicio y fin son requeridos');
     const sol = await this.prisma.solicitudreunion.findFirst({
@@ -5649,16 +5948,20 @@ export class AppController implements OnModuleInit {
     const evento = await this.prisma.evento.findUnique({ where: { id: eventoId } });
     if (!evento || Number.isNaN(iniDate.getTime()) || Number.isNaN(finDate.getTime()) || iniDate <= new Date())
       throw new BadRequestException('El horario de la reunión debe ser futuro y pertenecer al evento activo.');
-    if (!this.horarioDentroDe(this.generarCandidatosInicio(evento), iniDate, finDate))
+    if (!this.horarioDentroDe(this.generarFranjas(evento), iniDate, finDate))
       throw new BadRequestException('El horario o la duración no corresponden a la jornada configurada del evento.');
+    const disponibilidad = await this.getHorariosDisponibles(String(eeId), String(sol.empresaEventorReceptora_id), undefined, String(sol.id));
+    if (!disponibilidad.agenda?.some((slot: any) =>
+      slot.disponible && new Date(slot.inicio).getTime() === iniDate.getTime() && new Date(slot.fin).getTime() === finDate.getTime()
+    )) throw new BadRequestException('Ese horario ya no está disponible para una de las empresas. Actualiza la agenda y elige otro.');
     await this.verificarEE(sol.empresaEvento_id, eventoId);
     await this.verificarEE(sol.empresaEventorReceptora_id, eventoId);
     const tipoNormalizado = String(tipo).toUpperCase();
     if (!['PRESENCIAL', 'VIRTUAL'].includes(tipoNormalizado))
       throw new BadRequestException('El tipo de reunión debe ser PRESENCIAL o VIRTUAL');
-    const enlaceNormalizado = tipoNormalizado === 'VIRTUAL'
-      ? this.normalizarEnlaceReunion(enlace, true)
-      : null;
+    // Editar una solicitud no permite que una empresa reemplace el enlace
+    // operativo que ya hubiera agregado el equipo tÃ©cnico.
+    const enlaceNormalizado = sol.enlaceReunionVirtual;
     let mesaAsignada: number | null = null;
     if (tipoNormalizado === 'PRESENCIAL') {
       mesaAsignada = mesaId ? Number(mesaId) : await this.elegirMesaBalanceada(eventoId, iniDate, finDate, sol.id);
@@ -5798,6 +6101,17 @@ export class AppController implements OnModuleInit {
           where: { id: Number(id) },
           data: { estadoSolicitud: 'ACEPTADA', creadoModificadoFecha: new Date() },
         });
+        // Retirar de la campanita el aviso pendiente que originÃ³ esta solicitud.
+        await tx.notificacion.updateMany({
+          where: {
+            empresaevento_id: sol.empresaEventorReceptora_id,
+            referenciaId: sol.id,
+            referenciaNombreTabla: 'solicitudreunion',
+            tipoNotificacion: { in: ['solicitud:nueva', 'solicitud:editada'] },
+            estaActivo: 1,
+          },
+          data: { estaActivo: 0, haSidoLeida: 1, creadoModificadoFecha: new Date() },
+        });
         return creada;
       }, { isolationLevel: 'Serializable' });
     } catch (error) {
@@ -5852,10 +6166,22 @@ export class AppController implements OnModuleInit {
     if (sol.empresaEventorReceptora_id !== Number(body.eeId))
       throw new BadRequestException('Solo la empresa receptora puede rechazar esta solicitud');
 
-    await this.prisma.solicitudreunion.update({
-      where: { id: Number(id) },
-      data: { estadoSolicitud: 'RECHAZADA', motivoRechazoSolicitud: body.motivo || null, creadoModificadoFecha: new Date() },
-    });
+    await this.prisma.$transaction([
+      this.prisma.solicitudreunion.update({
+        where: { id: Number(id) },
+        data: { estadoSolicitud: 'RECHAZADA', motivoRechazoSolicitud: body.motivo || null, creadoModificadoFecha: new Date() },
+      }),
+      this.prisma.notificacion.updateMany({
+        where: {
+          empresaevento_id: sol.empresaEventorReceptora_id,
+          referenciaId: sol.id,
+          referenciaNombreTabla: 'solicitudreunion',
+          tipoNotificacion: { in: ['solicitud:nueva', 'solicitud:editada'] },
+          estaActivo: 1,
+        },
+        data: { haSidoLeida: 1, estaActivo: 0, creadoModificadoFecha: new Date() },
+      }),
+    ]);
     await this.notificar(sol.empresaEvento_id, 'solicitud:rechazada', 'Solicitud rechazada',
       `Tu solicitud de reunión fue rechazada.${body.motivo ? ' Motivo: ' + body.motivo : ''}`, sol.id, 'solicitudreunion');
     return { ok: true };
@@ -5871,10 +6197,22 @@ export class AppController implements OnModuleInit {
     if (sol.empresaEvento_id !== Number(body.eeId))
       throw new BadRequestException('Solo la empresa solicitante puede cancelar esta solicitud');
 
-    await this.prisma.solicitudreunion.update({
-      where: { id: Number(id) },
-      data: { estadoSolicitud: 'CANCELADA', creadoModificadoFecha: new Date() },
-    });
+    await this.prisma.$transaction([
+      this.prisma.solicitudreunion.update({
+        where: { id: Number(id) },
+        data: { estadoSolicitud: 'CANCELADA', creadoModificadoFecha: new Date() },
+      }),
+      this.prisma.notificacion.updateMany({
+        where: {
+          empresaevento_id: sol.empresaEventorReceptora_id,
+          referenciaId: sol.id,
+          referenciaNombreTabla: 'solicitudreunion',
+          tipoNotificacion: { in: ['solicitud:nueva', 'solicitud:editada'] },
+          estaActivo: 1,
+        },
+        data: { haSidoLeida: 1, estaActivo: 0, creadoModificadoFecha: new Date() },
+      }),
+    ]);
     await this.notificar(sol.empresaEventorReceptora_id, 'solicitud:cancelada', 'Solicitud cancelada',
       'La empresa solicitante canceló la solicitud de reunión antes de que fuera aceptada.', sol.id, 'solicitudreunion');
     return { ok: true };
@@ -6015,6 +6353,12 @@ export class AppController implements OnModuleInit {
     const { eeId, inicio } = body;
     if (!eeId || !inicio) throw new BadRequestException('eeId e inicio requeridos');
 
+    const cambiosPrevios = await this.prisma.cambioreunion.count({
+      where: { reunion_id: Number(id), estaActivo: 1 },
+    });
+    if (cambiosPrevios > 0)
+      throw new BadRequestException('Por seguridad, una reuniÃ³n confirmada solo admite una solicitud de cambio de horario.');
+
     const reunion = await this.prisma.reunion.findFirst({
       where: {
         id: Number(id), estaActivo: 1, estadoReunion: { in: ['PROGRAMADA', 'REPROGRAMADA'] },
@@ -6031,7 +6375,7 @@ export class AppController implements OnModuleInit {
     const iniDate = new Date(inicio);
     const finDate = new Date(iniDate.getTime() + evento.duracionReunion * 60000);
     if (Number.isNaN(iniDate.getTime()) || iniDate <= new Date() ||
-        !this.horarioDentroDe(this.generarCandidatosInicio(evento), iniDate, finDate))
+        !this.horarioDentroDe(this.generarFranjas(evento), iniDate, finDate))
       throw new BadRequestException('El nuevo horario debe ser futuro y pertenecer a la jornada del evento.');
     const sol = (reunion as any).solicitudreunion;
     const tipoPropuesto = String(body.tipoReunion ?? reunion.tipoReunion).toUpperCase();
@@ -6040,6 +6384,10 @@ export class AppController implements OnModuleInit {
     const mensajePropuesto = String(body.mensaje ?? sol.mensajeParaEmpresaReceptora ?? '').trim().slice(0, 500) || null;
     const eeA = sol.empresaEvento_id;
     const eeB = sol.empresaEventorReceptora_id;
+    const disponibilidad = await this.getHorariosDisponibles(String(eeA), String(eeB), String(reunion.id));
+    if (!disponibilidad.agenda?.some((slot: any) =>
+      slot.disponible && new Date(slot.inicio).getTime() === iniDate.getTime() && new Date(slot.fin).getTime() === finDate.getTime()
+    )) throw new BadRequestException('El nuevo horario ya no está disponible para una de las empresas.');
 
     const [bloqueosA, bloqueosB, reunionesA, reunionesB] = await Promise.all([
       this.prisma.empresa_bloqueo.findMany({ where: { empresaevento_id: eeA, estaActivo: 1 } }),
@@ -6984,6 +7332,21 @@ export class AppController implements OnModuleInit {
         creadoModificadoFecha: new Date(),
       },
       select: { id: true, nombres: true, apellidoPaterno: true, apellidoMaterno: true, correo: true, telefono: true, urlFotoPerfil: true },
+    });
+  }
+
+  @Put('empresa/ficha/logo')
+  async actualizarLogoEmpresa(@Body() body: { euId: number; urlFotoPerfil: string }) {
+    if (!body.euId || !body.urlFotoPerfil) throw new BadRequestException('euId y urlFotoPerfil son requeridos');
+    const eu = await this.prisma.empresa_usuario.findUnique({
+      where: { id: Number(body.euId) }, select: { empresa_id: true, esResponsable: true, estaActivo: true },
+    });
+    if (!eu || eu.estaActivo === 0 || eu.esResponsable !== 1)
+      throw new BadRequestException('Solo el encargado puede cambiar la imagen de la empresa');
+    return this.prisma.empresa.update({
+      where: { id: eu.empresa_id },
+      data: { urlFotoPerfil: String(body.urlFotoPerfil).slice(0, 500), creado_modificado_fecha: new Date() },
+      select: { id: true, urlFotoPerfil: true },
     });
   }
 

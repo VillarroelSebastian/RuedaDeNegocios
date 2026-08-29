@@ -121,7 +121,7 @@ function PagoAdicionalModal({ eeId, euEncargadoId, maxPermitidos, slotsPagados, 
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const res = await fetch(`${API}/admin/imagenes/upload`, { method: "POST", body: fd });
+      const res = await fetch(`${API}/public/imagenes/upload`, { method: "POST", body: fd });
       const data = await res.json();
       if (!data.url) throw new Error("No se obtuvo URL del archivo");
       setUrlComprobante(data.url);
@@ -243,6 +243,7 @@ export default function EmpresaPerfilPage() {
   const [exito, setExito] = useState<string | null>(null);
   const [errForm, setErrForm] = useState<string | null>(null);
   const [subiendoFoto, setSubiendoFoto] = useState(false);
+  const [subiendoLogo, setSubiendoLogo] = useState(false);
 
   // Sube la foto y la guarda de inmediato en el perfil del usuario.
   const handleFotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -254,7 +255,7 @@ export default function EmpresaPerfilPage() {
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const up = await fetch(`${API}/admin/imagenes/upload`, { method: "POST", body: fd });
+      const up = await fetch(`${API}/public/imagenes/upload`, { method: "POST", body: fd });
       const upData = await up.json();
       if (!upData.url) throw new Error("No se pudo subir la imagen");
 
@@ -279,6 +280,36 @@ export default function EmpresaPerfilPage() {
       setErrForm(err.message ?? "Error al subir la foto");
     } finally {
       setSubiendoFoto(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleLogoEmpresaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !ctx?.esResponsable) return;
+    if (file.size > 5 * 1024 * 1024) { setErrForm("La imagen no debe superar 5 MB."); return; }
+    setSubiendoLogo(true);
+    setErrForm(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const up = await fetch(`${API}/public/imagenes/upload`, { method: "POST", body: fd });
+      const upData = await up.json();
+      if (!up.ok || !upData.url) throw new Error(upData?.message || "No se pudo subir la imagen");
+      const res = await fetch(`${API}/empresa/ficha/logo`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ euId: ctx.empresaUsuarioId, urlFotoPerfil: upData.url }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || "No se pudo guardar la imagen de la empresa");
+      setCtx((prev: any) => ({ ...prev, empresa: { ...prev.empresa, urlFotoPerfil: upData.url } }));
+      setExito("Imagen de la empresa actualizada.");
+      setTimeout(() => setExito(null), 4000);
+    } catch (err: any) {
+      setErrForm(err.message || "Error al cambiar la imagen de la empresa");
+    } finally {
+      setSubiendoLogo(false);
       e.target.value = "";
     }
   };
@@ -706,6 +737,23 @@ export default function EmpresaPerfilPage() {
             <div className="flex items-center gap-2 mb-5">
               <Building2 className="w-5 h-5 text-[#449D3A]" />
               <h2 className="font-bold text-gray-900">Mi empresa</h2>
+            </div>
+            <div className="flex items-center gap-4 mb-5 rounded-xl bg-gray-50 p-3">
+              <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-gray-200 bg-white flex items-center justify-center">
+                {empresa?.urlFotoPerfil
+                  ? <img src={empresa.urlFotoPerfil} alt={`Imagen de ${empresa.nombre || "la empresa"}`} className="h-full w-full object-contain" />
+                  : <Building2 className="h-7 w-7 text-gray-300" />}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold text-gray-800">Imagen de la empresa</p>
+                <p className="text-xs text-gray-500">Se muestra completa en el directorio y el perfil.</p>
+                {esResponsable && (
+                  <label className="mt-2 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-[#449D3A]/30 bg-white px-3 py-1.5 text-xs font-bold text-[#449D3A] hover:bg-green-50">
+                    {subiendoLogo ? "Subiendo..." : "Cambiar imagen"}
+                    <input type="file" accept="image/*" className="hidden" onChange={handleLogoEmpresaUpload} disabled={subiendoLogo} />
+                  </label>
+                )}
+              </div>
             </div>
             <dl className="space-y-3 text-sm">
               {[

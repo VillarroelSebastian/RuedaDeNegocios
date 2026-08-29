@@ -44,6 +44,7 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
   reunion: any; eeId: number; onClose: () => void; onOk: () => void;
 }) {
   const [horarios, setHorarios] = useState<any[]>([]);
+  const [agenda, setAgenda] = useState<any[]>([]);
   const [duracionMin, setDuracionMin] = useState(0);
   const [fechaSel, setFechaSel] = useState('');
   const [horaSel, setHoraSel] = useState<number | null>(null);
@@ -55,24 +56,17 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
   const [appModal, setAppModal] = useState<AppModal | null>(null);
 
   const fechasDisponibles = useMemo(() =>
-    [...new Set(horarios.map((h: any) => partesFechaEvento(h.inicio).dateKey))] as string[],
-    [horarios]
+    [...new Set(agenda.map((h: any) => partesFechaEvento(h.inicio).dateKey))] as string[],
+    [agenda]
   );
   const horariosDelDia = useMemo(() =>
     horarios.filter((h: any) => partesFechaEvento(h.inicio).dateKey === fechaSel),
     [horarios, fechaSel]
   );
-  const horasDisponibles = useMemo(() =>
-    [...new Set(horariosDelDia.map((h: any) => partesFechaEvento(h.inicio).hour))].sort((a: any, b: any) => a - b) as number[],
-    [horariosDelDia]
+  const agendaDelDia = useMemo(() =>
+    agenda.filter((h: any) => partesFechaEvento(h.inicio).dateKey === fechaSel),
+    [agenda, fechaSel]
   );
-  const minutosParaHora = useMemo(() => {
-    if (horaSel === null) return [];
-    return horariosDelDia
-      .filter((h: any) => partesFechaEvento(h.inicio).hour === horaSel)
-      .map((h: any) => partesFechaEvento(h.inicio).minute)
-      .sort((a: any, b: any) => a - b);
-  }, [horariosDelDia, horaSel]);
   const horarioMatch = useMemo(() => {
     if (horaSel === null) return null;
     const mins = parseInt(minutosStr) || 0;
@@ -81,8 +75,6 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
       return p.hour === horaSel && p.minute === mins;
     }) ?? null;
   }, [horariosDelDia, horaSel, minutosStr]);
-  const minutosInvalidos = horaSel !== null && minutosStr !== '' && !horarioMatch;
-
   useEffect(() => {
     if (!reunion) return;
     const eeReceptoraId = reunion.solicitanteEeId === eeId ? reunion.receptoraEeId : reunion.solicitanteEeId;
@@ -90,7 +82,11 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
       .then((r) => r.json())
       .then((data) => {
         const hrs: any[] = Array.isArray(data?.horarios) ? data.horarios : [];
+        const agendaCompleta: any[] = Array.isArray(data?.agenda)
+          ? data.agenda
+          : hrs.map((slot: any) => ({ ...slot, disponible: true, estado: 'DISPONIBLE' }));
         setHorarios(hrs);
+        setAgenda(agendaCompleta);
         setDuracionMin(data?.duracionMinutos ?? 0);
         const primerSlot = hrs[0];
         if (primerSlot) {
@@ -102,6 +98,9 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
           setFechaSel(partes.dateKey);
           setHoraSel(partes.hour);
           setMinutosStr(String(primerMinuto ?? 0).padStart(2, '0'));
+        } else if (agendaCompleta[0]) {
+          setFechaSel(partesFechaEvento(agendaCompleta[0].inicio).dateKey);
+          setHoraSel(null);
         }
       })
       .catch(() => setHorarios([]))
@@ -180,7 +179,7 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
                 <ActivityIndicator color={GREEN} size="small" />
                 <Text style={cm.loadText}>Buscando horarios...</Text>
               </View>
-            ) : horarios.length === 0 ? (
+            ) : agenda.length === 0 ? (
               <Text style={cm.emptyText}>No hay otros horarios disponibles para ambas empresas.</Text>
             ) : (
               <>
@@ -188,7 +187,7 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
                   <View style={{ flexDirection: 'row', gap: 8, paddingRight: 16 }}>
                     {fechasDisponibles.map((fecha) => {
-                      const ejemplo = horarios.find((slot: any) => partesFechaEvento(slot.inicio).dateKey === fecha);
+                      const ejemplo = agenda.find((slot: any) => partesFechaEvento(slot.inicio).dateKey === fecha);
                       return <TouchableOpacity key={fecha} onPress={() => {
                         setFechaSel(fecha);
                         const primerSlot = horarios.find((slot: any) => partesFechaEvento(slot.inicio).dateKey === fecha);
@@ -196,60 +195,43 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
                           const partes = partesFechaEvento(primerSlot.inicio);
                           setHoraSel(partes.hour);
                           setMinutosStr(String(partes.minute).padStart(2, '0'));
-                        }
+                        } else setHoraSel(null);
                       }} style={[cm.horaBtn, fechaSel === fecha && cm.horaBtnActive]}>
                         <Text style={[cm.horaBtnText, fechaSel === fecha && cm.horaBtnTextActive]}>{ejemplo ? fmtDateShort(ejemplo.inicio) : fecha}</Text>
                       </TouchableOpacity>;
                     })}
                   </View>
                 </ScrollView>
-                <Text style={cm.sectionLabel}>Hora</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }} contentContainerStyle={{ paddingRight: 16 }}>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, maxWidth: 680 }}>
-                    {horasDisponibles.map((h: number) => (
-                      <TouchableOpacity key={h} onPress={() => {
-                        setHoraSel(h);
-                        const disponibles = horariosDelDia
-                          .filter((slot: any) => partesFechaEvento(slot.inicio).hour === h)
-                          .map((slot: any) => partesFechaEvento(slot.inicio).minute)
-                          .sort((a: number, b: number) => a - b);
-                        setMinutosStr(String(disponibles[0] ?? 0).padStart(2, '0'));
+                <Text style={cm.sectionLabel}>Agenda de la empresa</Text>
+                <View style={cm.slotGrid}>
+                  {agendaDelDia.map((slot: any, index: number) => {
+                    const disponible = slot.disponible !== false;
+                    const seleccionado = horarioMatch?.inicio === slot.inicio;
+                    const etiquetas: Record<string, string> = {
+                      DISPONIBLE: 'Disponible', PENDIENTE: 'Pendiente', OCUPADO: 'Ocupado',
+                      NO_DISPONIBLE: 'No disponible', PASADO: 'Finalizado',
+                    };
+                    return <TouchableOpacity key={`${slot.inicio}-${index}`} disabled={!disponible}
+                      onPress={() => {
+                        const partes = partesFechaEvento(slot.inicio);
+                        setHoraSel(partes.hour);
+                        setMinutosStr(String(partes.minute).padStart(2, '0'));
                       }}
-                        style={[cm.horaBtn, horaSel === h && cm.horaBtnActive]} activeOpacity={0.8}>
-                        <Text style={[cm.horaBtnText, horaSel === h && cm.horaBtnTextActive]}>
-                          {String(h).padStart(2,'0')}:00
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
+                      style={[cm.slotCard, disponible ? cm.slotAvailable : cm.slotUnavailable, seleccionado && cm.slotSelected]}>
+                      <Text style={[cm.slotTime, { color: disponible ? '#166534' : '#991b1b' }]}>
+                        {fmtTime(slot.inicio)} – {fmtTime(slot.fin)}
+                      </Text>
+                      <Text style={[cm.slotState, { color: disponible ? '#15803d' : '#b91c1c' }]}>
+                        {etiquetas[slot.estado] || (disponible ? 'Disponible' : 'No disponible')}
+                      </Text>
+                    </TouchableOpacity>;
+                  })}
+                </View>
+                {horarioMatch && (
+                  <View style={cm.okBox}>
+                    <CheckCircle2 size={13} color={GREEN} style={{ marginRight: 6 }} />
+                    <Text style={cm.okText}>{fmtDateShort(horarioMatch.inicio)} · {fmtTime(horarioMatch.inicio)}</Text>
                   </View>
-                </ScrollView>
-
-                {horaSel !== null && (
-                  <>
-                    <Text style={cm.sectionLabel}>Minutos</Text>
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                      {minutosParaHora.map((minuto: number) => {
-                        const valor = String(minuto).padStart(2, '0');
-                        return <TouchableOpacity key={minuto} onPress={() => setMinutosStr(valor)} style={[cm.horaBtn, minutosStr === valor && cm.horaBtnActive]}>
-                          <Text style={[cm.horaBtnText, minutosStr === valor && cm.horaBtnTextActive]}>:{valor}</Text>
-                        </TouchableOpacity>;
-                      })}
-                    </View>
-                    {minutosInvalidos && (
-                      <View style={cm.warnBox}>
-                        <AlertTriangle size={12} color="#d97706" style={{ marginRight: 6 }} />
-                        <Text style={cm.warnText}>
-                          La empresa no tiene disponibilidad a las {String(horaSel).padStart(2,'0')}:{minutosStr.padStart(2,'0')}. Prueba con otro horario.
-                        </Text>
-                      </View>
-                    )}
-                    {horarioMatch && (
-                      <View style={cm.okBox}>
-                        <CheckCircle2 size={13} color={GREEN} style={{ marginRight: 6 }} />
-                        <Text style={cm.okText}>{fmtDateShort(horarioMatch.inicio)} · {fmtTime(horarioMatch.inicio)}</Text>
-                      </View>
-                    )}
-                  </>
                 )}
               </>
             )}
@@ -297,6 +279,13 @@ const cm = StyleSheet.create({
   horaBtnActive: { borderColor: GREEN, backgroundColor: '#f0fdf4' },
   horaBtnText: { fontSize: 15, fontWeight: '700', color: '#475569' },
   horaBtnTextActive: { color: '#166534' },
+  slotGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+  slotCard: { width: '48%', minWidth: 138, borderWidth: 1.5, borderRadius: 12, padding: 11 },
+  slotAvailable: { borderColor: '#bbf7d0', backgroundColor: '#f0fdf4' },
+  slotUnavailable: { borderColor: '#fecaca', backgroundColor: '#fef2f2', opacity: 0.82 },
+  slotSelected: { borderColor: GREEN, backgroundColor: '#dcfce7' },
+  slotTime: { fontSize: 13, fontWeight: '800' },
+  slotState: { fontSize: 10, fontWeight: '700', marginTop: 3 },
   minsInput: { borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, fontSize: 18, fontWeight: '700', color: '#0f172a', marginBottom: 10, textAlign: 'center', backgroundColor: '#f8fafc' },
   minsInputErr: { borderColor: '#fca5a5', backgroundColor: '#fef2f2' },
   warnBox: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#fffbeb', borderRadius: 10, padding: 10, marginBottom: 10, borderWidth: 1, borderColor: '#fde68a' },

@@ -13,6 +13,19 @@ import { API_URL } from '../../utils/userStore';
 import { useModal } from '../../components/AppModal';
 
 const GREEN = '#449D3A';
+type DiaReunion = { fecha: string; rangos: Array<{ desde: string; hasta: string }> };
+
+function fechasEntre(desde: string, hasta: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(desde) || !/^\d{4}-\d{2}-\d{2}$/.test(hasta)) return [];
+  const resultado: string[] = [];
+  const actual = new Date(`${desde}T12:00:00`);
+  const fin = new Date(`${hasta}T12:00:00`);
+  while (actual <= fin && resultado.length < 366) {
+    resultado.push(actual.toLocaleDateString('en-CA'));
+    actual.setDate(actual.getDate() + 1);
+  }
+  return resultado;
+}
 
 const SOUTH_AMERICA: Record<string, string[]> = {
   'Bolivia':   ['Trinidad','Beni','La Paz','Santa Cruz de la Sierra','Cochabamba','Sucre','Oruro','Potosí','Tarija','Cobija','Riberalta','Guayaramerín'],
@@ -124,6 +137,7 @@ export default function EventConfigScreen() {
   const [reglasQR, setReglasQR] = useState([
     { rangoDesde: '1', rangoHasta: '2', monto: '500', urlQR: '' },
   ]);
+  const [horariosReunion, setHorariosReunion] = useState<DiaReunion[]>([]);
 
   // ── Fetch lista ──────────────────────────────────────────────────────────────
   const fetchEventos = async () => {
@@ -230,6 +244,7 @@ export default function EventConfigScreen() {
         paisEvento: '', ciudadEvento: '',
       });
       setReglasQR([{ rangoDesde: '1', rangoHasta: '2', monto: '500', urlQR: '' }]);
+      setHorariosReunion([]);
       return;
     }
     setLoadingForm(true);
@@ -277,6 +292,10 @@ export default function EventConfigScreen() {
             monto: String(r.monto), urlQR: r.urlQR || '',
           })));
         }
+        try {
+          const guardados = JSON.parse(data.horariosReunionJson || '[]');
+          setHorariosReunion(Array.isArray(guardados) ? guardados : []);
+        } catch { setHorariosReunion([]); }
       }
     } catch {}
     finally { setLoadingForm(false); }
@@ -299,6 +318,20 @@ export default function EventConfigScreen() {
     setReglasQR((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const rangosDia = (fecha: string) => horariosReunion.find((d) => d.fecha === fecha)?.rangos || [{ desde: formData.horaInicioEvento, hasta: formData.horaFinEvento }];
+  const actualizarRangosDia = (fecha: string, rangos: Array<{ desde: string; hasta: string }>) =>
+    setHorariosReunion((actuales) => {
+      const existe = actuales.some((d) => d.fecha === fecha);
+      return existe ? actuales.map((d) => d.fecha === fecha ? { ...d, rangos } : d) : [...actuales, { fecha, rangos }];
+    });
+  const copiarPrimerHorario = () => {
+    const fechas = fechasEntre(formData.fechaInicioEvento, formData.fechaFinEvento);
+    if (!fechas.length) return;
+    const primero = rangosDia(fechas[0]).map((r) => ({ ...r }));
+    setHorariosReunion(fechas.map((fecha) => ({ fecha, rangos: primero.map((r) => ({ ...r })) })));
+    show({ type: 'success', title: 'Horario copiado', message: 'Puedes ajustar cada día por separado.' });
+  };
+
   // ── Guardar ──────────────────────────────────────────────────────────────────
   const handleSave = async () => {
     if (!formData.nombre || !formData.fechaInicioEvento || !formData.fechaFinEvento) {
@@ -307,6 +340,14 @@ export default function EventConfigScreen() {
     }
     if (Number(formData.duracionReunion) <= 0 || Number(formData.cantidadTotalMesasEvento) <= 0) {
       show({ type: 'warning', title: 'Datos inválidos', message: 'La duración y número de mesas deben ser mayores a 0.' });
+      return;
+    }
+    const fechas = fechasEntre(formData.fechaInicioEvento, formData.fechaFinEvento);
+    const horariosNormalizados = fechas.map((fecha) => horariosReunion.find((d) => d.fecha === fecha) || {
+      fecha, rangos: [{ desde: formData.horaInicioEvento, hasta: formData.horaFinEvento }],
+    });
+    if (horariosNormalizados.some((d) => d.rangos.length === 0 || d.rangos.some((r) => !r.desde || !r.hasta || r.desde >= r.hasta))) {
+      show({ type: 'warning', title: 'Horarios de reuniones', message: 'Todos los días deben tener al menos un rango válido para reuniones.' });
       return;
     }
     setSaving(true);
@@ -318,6 +359,7 @@ export default function EventConfigScreen() {
       fechaFinEvento: `${formData.fechaFinEvento}T${formData.horaFinEvento}:00`,
       duracionReunion: Number(formData.duracionReunion),
       tiempoEntreReuniones: Number(formData.tiempoEntreReuniones),
+      horariosReunion: horariosNormalizados,
       cantidadTotalMesasEvento: Number(formData.cantidadTotalMesasEvento),
       capacidadPersonasPorMesa: Number(formData.capacidadPersonasPorMesa),
       maxParticipantesPorEmpresa: Number(formData.maxParticipantesPorEmpresa),
@@ -685,6 +727,25 @@ export default function EventConfigScreen() {
             <LayoutGrid color={GREEN} size={20} />
             <Text className="text-base font-bold text-gray-900 ml-1">Logística de Reuniones</Text>
           </View>
+          <View className="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-4">
+            <Text className="text-xs text-blue-800">El horario del evento y el horario para reuniones son independientes. Cada día debe tener al menos un rango.</Text>
+          </View>
+          <TouchableOpacity onPress={copiarPrimerHorario} className="self-end border border-green-200 rounded-lg px-3 py-2 mb-3 flex-row items-center">
+            <Text style={{ color: GREEN, fontSize: 12, fontWeight: '700' }}>Copiar primer día a todos</Text>
+          </TouchableOpacity>
+          {fechasEntre(formData.fechaInicioEvento, formData.fechaFinEvento).map((fecha) => {
+            const rangos = rangosDia(fecha);
+            return <View key={fecha} className="border border-gray-100 rounded-xl p-3 mb-3">
+              <Text className="text-sm font-bold text-gray-800 mb-2">{new Date(`${fecha}T12:00:00`).toLocaleDateString('es-BO', { weekday: 'long', day: '2-digit', month: 'long' })}</Text>
+              {rangos.map((rango, ri) => <View key={ri} className="flex-row items-center gap-2 mb-2">
+                <TextInput value={rango.desde} onChangeText={(valor) => actualizarRangosDia(fecha, rangos.map((r, i) => i === ri ? { ...r, desde: valor } : r))} keyboardType="numbers-and-punctuation" maxLength={5} placeholder="08:00" className="flex-1 bg-[#FAFAFA] border border-gray-200 rounded-lg px-3 py-2 text-sm text-center" />
+                <Text className="text-xs text-gray-500">hasta</Text>
+                <TextInput value={rango.hasta} onChangeText={(valor) => actualizarRangosDia(fecha, rangos.map((r, i) => i === ri ? { ...r, hasta: valor } : r))} keyboardType="numbers-and-punctuation" maxLength={5} placeholder="18:00" className="flex-1 bg-[#FAFAFA] border border-gray-200 rounded-lg px-3 py-2 text-sm text-center" />
+                {rangos.length > 1 && <TouchableOpacity onPress={() => actualizarRangosDia(fecha, rangos.filter((_, i) => i !== ri))}><Trash2 size={16} color="#dc2626" /></TouchableOpacity>}
+              </View>)}
+              <TouchableOpacity onPress={() => actualizarRangosDia(fecha, [...rangos, { desde: '', hasta: '' }])} className="flex-row items-center gap-1 mt-1"><Plus size={14} color={GREEN} /><Text style={{ color: GREEN, fontSize: 11, fontWeight: '700' }}>Agregar rango</Text></TouchableOpacity>
+            </View>;
+          })}
           <View className="flex-row gap-3 mb-3">
             <View className="flex-1">
               <Text className="text-xs font-bold text-gray-700 mb-2">Total de mesas *</Text>

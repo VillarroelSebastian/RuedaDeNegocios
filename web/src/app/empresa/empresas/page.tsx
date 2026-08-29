@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowRight, Building2, MapPin, Search, AlertCircle, Star, Filter } from "lucide-react";
+import { ArrowRight, Building2, MapPin, Search, AlertCircle, Star, Filter, Grid2X2, List } from "lucide-react";
 import ImagenLightbox from "@/components/ui/ImagenLightbox";
 import { paisConBandera } from "@/lib/pais";
 
@@ -42,6 +42,8 @@ export default function EmpresasPage() {
   const [filtroDemanda, setFiltroDemanda] = useState("");
   const [filtroLugar, setFiltroLugar] = useState("");
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
+  const [orden, setOrden] = useState<"afinidad" | "az" | "za" | "rubro">("afinidad");
+  const [vista, setVista] = useState<"tarjetas" | "lista">("tarjetas");
 
   const cargar = useCallback((ee: number) => {
     setLoading(true);
@@ -78,9 +80,23 @@ export default function EmpresasPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtroOferta, filtroDemanda, filtroLugar]);
 
+  // Restaurar después de que las tarjetas vuelvan al DOM; hacerlo antes de
+  // terminar la carga deja la página sin altura y el navegador vuelve arriba.
+  useEffect(() => {
+    if (loading || empresas.length === 0) return;
+    const anterior = Number(sessionStorage.getItem("directorio_scroll") || 0);
+    if (anterior > 0) requestAnimationFrame(() => window.scrollTo({ top: anterior, behavior: "auto" }));
+  }, [loading, empresas.length]);
+
   const filtradas = empresas.filter((e) =>
     [e.nombre, e.rubro, e.codigo].some((v) => v && String(v).toLowerCase().includes(busqueda.toLowerCase()))
-  );
+  ).sort((a, b) => {
+    if (orden === "az") return String(a.nombre).localeCompare(String(b.nombre), "es");
+    if (orden === "za") return String(b.nombre).localeCompare(String(a.nombre), "es");
+    if (orden === "rubro") return String(a.rubro || "").localeCompare(String(b.rubro || ""), "es") || String(a.nombre).localeCompare(String(b.nombre), "es");
+    const peso = (v: any) => v.afinidad === "alta" ? 2 : v.afinidad === "media" ? 1 : 0;
+    return peso(b) - peso(a) || String(a.nombre).localeCompare(String(b.nombre), "es");
+  });
 
   if (error) return (
     <div className="p-8 text-center">
@@ -143,6 +159,18 @@ export default function EmpresasPage() {
         </div>
       )}
 
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <label className="flex items-center gap-2 text-xs font-bold text-gray-500">Ordenar
+          <select value={orden} onChange={(e) => setOrden(e.target.value as any)} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700">
+            <option value="afinidad">Coincidencias primero</option><option value="az">Nombre A–Z</option><option value="za">Nombre Z–A</option><option value="rubro">Categoría/rubro</option>
+          </select>
+        </label>
+        <div className="flex rounded-xl border border-gray-200 bg-white p-1">
+          <button type="button" onClick={() => setVista("tarjetas")} className={`rounded-lg p-2 ${vista === "tarjetas" ? "bg-green-50 text-[#449D3A]" : "text-gray-400"}`} aria-label="Vista de tarjetas"><Grid2X2 className="h-4 w-4" /></button>
+          <button type="button" onClick={() => setVista("lista")} className={`rounded-lg p-2 ${vista === "lista" ? "bg-green-50 text-[#449D3A]" : "text-gray-400"}`} aria-label="Vista de lista"><List className="h-4 w-4" /></button>
+        </div>
+      </div>
+
       {loading ? (
         <div className="flex items-center justify-center h-64">
           <div className="w-8 h-8 border-4 border-[#449D3A] border-t-transparent rounded-full animate-spin" />
@@ -153,11 +181,12 @@ export default function EmpresasPage() {
           <p className="text-sm text-gray-400">{busqueda || filtroOferta || filtroDemanda || filtroLugar ? "Sin resultados para tu búsqueda." : "No hay otras empresas habilitadas aún."}</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className={vista === "tarjetas" ? "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3" : "grid grid-cols-1 gap-3"}>
           {filtradas.map((em: any) => (
             <Link
               key={em.empresaeventoId}
               href={`/empresa/empresas/${em.empresaeventoId}`}
+              onClick={() => sessionStorage.setItem("directorio_scroll", String(window.scrollY))}
               className={`block text-left bg-white rounded-2xl border shadow-sm overflow-hidden hover:shadow-md transition-shadow ${
                 em.afinidad === "alta" ? "border-[#449D3A]/40 ring-1 ring-[#449D3A]/20" : "border-gray-100"
               }`}

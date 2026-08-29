@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   View, Text, TextInput, TouchableOpacity, Image,
   ScrollView, KeyboardAvoidingView, Modal,
@@ -13,6 +14,7 @@ import { correoValido, sinEspacios } from '../../utils/validaciones';
 const GREEN  = '#449D3A';
 const GREEN2 = '#166534';
 const DARK   = '#0f172a';
+const RESET_STORAGE_KEY = 'rueda_password_reset';
 
 type ResetStep = 'correo' | 'codigo' | 'exito';
 
@@ -34,6 +36,20 @@ export default function LoginScreen({ navigation }: any) {
   const [resetLoading,  setResetLoading]  = useState(false);
   const [resetError,    setResetError]    = useState('');
 
+  useEffect(() => {
+    AsyncStorage.getItem(RESET_STORAGE_KEY).then((raw) => {
+      if (!raw) return;
+      try {
+        const saved = JSON.parse(raw);
+        if (saved?.correo && Number(saved?.vence) > Date.now()) {
+          setResetCorreo(String(saved.correo));
+          setResetStep('codigo');
+          setResetVisible(true);
+        } else AsyncStorage.removeItem(RESET_STORAGE_KEY);
+      } catch { AsyncStorage.removeItem(RESET_STORAGE_KEY); }
+    });
+  }, []);
+
   const openReset = () => {
     setResetStep('correo'); setResetCorreo(''); setResetCodigo('');
     setResetNueva(''); setResetConfirm(''); setResetError('');
@@ -44,13 +60,18 @@ export default function LoginScreen({ navigation }: any) {
     if (!resetCorreo.trim()) { setResetError('Ingresa tu correo electrónico.'); return; }
     setResetError(''); setResetLoading(true);
     try {
-      await fetch(`${API_URL}/auth/solicitar-reset`, {
+      const res = await fetch(`${API_URL}/auth/solicitar-reset`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ correo: resetCorreo.trim() }),
+        body: JSON.stringify({ correo: resetCorreo.trim().toLowerCase() }),
       });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || 'No se pudo enviar el correo.');
+      await AsyncStorage.setItem(RESET_STORAGE_KEY, JSON.stringify({
+        correo: resetCorreo.trim().toLowerCase(), vence: Date.now() + 15 * 60 * 1000,
+      }));
       setResetStep('codigo');
-    } catch { setResetError('No se pudo enviar el correo. Intenta de nuevo.'); }
+    } catch (error: any) { setResetError(error?.message || 'No se pudo enviar el correo. Intenta de nuevo.'); }
     finally { setResetLoading(false); }
   };
 
@@ -67,6 +88,7 @@ export default function LoginScreen({ navigation }: any) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || 'Código incorrecto o expirado.');
+      await AsyncStorage.removeItem(RESET_STORAGE_KEY);
       setResetStep('exito');
     } catch (err: any) { setResetError(err.message); }
     finally { setResetLoading(false); }

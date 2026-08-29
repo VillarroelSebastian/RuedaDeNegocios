@@ -238,6 +238,7 @@ export default function TecnicoMesasPage() {
   const [loading,      setLoading]      = useState(true);
   const [filtro,       setFiltro]       = useState<FiltroEstado>('EN_USO');
   const [search,       setSearch]       = useState('');
+  const [sinReunion, setSinReunion] = useState<any[]>([]);
 
   const [historial,        setHistorial]        = useState<any[]>([]);
   const [loadingHistorial, setLoadingHistorial] = useState(false);
@@ -256,9 +257,10 @@ export default function TecnicoMesasPage() {
 
   const fetchMesas = useCallback(async () => {
     try {
-      const res  = await fetch(`${API}/tecnico/mesas`);
-      const data = await res.json();
+      const [res, libresRes] = await Promise.all([fetch(`${API}/tecnico/mesas`), fetch(`${API}/staff/empresas-sin-reunion`)]);
+      const [data, libres] = await Promise.all([res.json(), libresRes.json()]);
       setMesas(data.mesas ?? []);
+      setSinReunion(Array.isArray(libres?.empresas) ? libres.empresas : []);
       if (data.eventoConfig) setEventoConfig(data.eventoConfig);
     } catch { setMesas([]); }
     finally { setLoading(false); }
@@ -447,6 +449,11 @@ export default function TecnicoMesasPage() {
           </div>
         </div>
       )}
+
+      <section className="mb-5 rounded-2xl border border-green-100 bg-white p-4 shadow-sm">
+        <div className="mb-3 flex items-center justify-between gap-3"><div><h2 className="text-sm font-extrabold text-gray-900">Empresas sin reunión en este momento</h2><p className="text-xs text-gray-500">Disponibles ahora para apoyo y nuevas conexiones.</p></div><span className="rounded-full bg-green-100 px-2.5 py-1 text-xs font-bold text-green-700">{sinReunion.length}</span></div>
+        <div className="flex max-h-36 flex-wrap gap-2 overflow-y-auto">{sinReunion.map((item) => <span key={item.empresaeventoId} className="rounded-lg border border-gray-100 bg-gray-50 px-2.5 py-1.5 text-xs font-semibold text-gray-700">{item.codigo ? `${item.codigo} · ` : ''}{item.nombre}</span>)}</div>
+      </section>
 
       {/* Filter bar */}
       <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-5 space-y-3">

@@ -98,13 +98,11 @@ export function NuevaSolicitudModal({ ctx, receptoraId, receptoraNombre, onClose
   const [tipo, setTipo] = useState<"PRESENCIAL" | "VIRTUAL">(solicitud?.tipo ?? "PRESENCIAL");
   const [horarios, setHorarios] = useState<any[]>([]);
   const [duracionMin, setDuracionMin] = useState<number>(0);
+  const [pausaMin, setPausaMin] = useState<number>(0);
   const [horario, setHorario] = useState<any>(null);
   const [fechaSelec, setFechaSelec] = useState<string>("");
-  const [horaSelec, setHoraSelec] = useState<string>("");
-  const [minutosStr, setMinutosStr] = useState<string>("");
   const [mesa, setMesa] = useState<number | null>(null);
   const [mesaInvalida, setMesaInvalida] = useState(false);
-  const [enlace, setEnlace] = useState(solicitud?.enlace ?? "");
   const [mensaje, setMensaje] = useState(solicitud?.mensaje ?? "");
   const [cargando, setCargando] = useState(false);
   const [enviando, setEnviando] = useState(false);
@@ -123,48 +121,15 @@ export function NuevaSolicitudModal({ ctx, receptoraId, receptoraNombre, onClose
     fechaSelec ? horarios.filter((h: any) => fechaISO(h.inicio) === fechaSelec) : [],
     [horarios, fechaSelec]
   );
-  const horasDisponibles = useMemo(() =>
-    [...new Set(horariosDelDia.map((h: any) => partesFechaEvento(h.inicio).hour))].sort((a, b) => a - b),
-    [horariosDelDia]
-  );
-  const minutosParaHora = useMemo(() => {
-    if (horaSelec === "") return [];
-    return horariosDelDia
-      .filter((h: any) => partesFechaEvento(h.inicio).hour === parseInt(horaSelec))
-      .map((h: any) => partesFechaEvento(h.inicio).minute)
-      .sort((a, b) => a - b);
-  }, [horariosDelDia, horaSelec]);
-  const horarioMatch = useMemo(() => {
-    if (horaSelec === "" || minutosStr === "") return null;
-    const mins = parseInt(minutosStr);
-    return horariosDelDia.find((h: any) => {
-      const p = partesFechaEvento(h.inicio);
-      return p.hour === parseInt(horaSelec) && p.minute === mins;
-    }) ?? null;
-  }, [horariosDelDia, horaSelec, minutosStr]);
-
   useEffect(() => {
-    setHorario(horarioMatch);
-    if (!horarioMatch) { setMesa(null); setMesaInvalida(false); }
-  }, [horarioMatch]);
+    setHorario(null);
+    setMesa(null);
+    setMesaInvalida(false);
+  }, [fechaSelec]);
 
   // Al cambiar de hora, auto-seleccionar el primer minuto válido para esa hora
   // (nunca dejar un minuto que no exista en minutosParaHora).
-  useEffect(() => {
-    setMinutosStr(minutosParaHora.length > 0 ? String(minutosParaHora[0]).padStart(2, "0") : "");
-  }, [horaSelec, minutosParaHora]);
-
   // Al cambiar de fecha, reiniciar hora/minutos y auto-seleccionar la primera hora disponible.
-  useEffect(() => {
-    setHoraSelec("");
-    if (horasDisponibles.length > 0) {
-      const cur = fechaSelec === fechaISO(new Date().toISOString()) ? partesFechaEvento(new Date()).hour : 0;
-      const auto = horasDisponibles.find((h) => h >= cur) ?? horasDisponibles[0];
-      setHoraSelec(String(auto));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fechaSelec]);
-
   useEffect(() => {
     if (!ctx) return;
     // La receptora puede venir por id directo o, al editar, deducirse del id de la
@@ -176,17 +141,21 @@ export function NuevaSolicitudModal({ ctx, receptoraId, receptoraNombre, onClose
       return;
     }
     setCargando(true); setErr(null);
-    setHorario(null); setFechaSelec(""); setHoraSelec(""); setMinutosStr(""); setMesa(null); setMesaInvalida(false);
+    setHorario(null); setFechaSelec(""); setMesa(null); setMesaInvalida(false);
     const params = new URLSearchParams({ eeId: String(ctx.empresaeventoId) });
     if (tieneReceptora) params.set("eeReceptoraId", String(receptoraId));
     if (solicitud?.id) params.set("solicitudId", String(solicitud.id));
     fetch(`${API}/empresa/horarios?${params}`)
       .then((r) => r.json())
       .then((data) => {
-        const hrs: any[] = Array.isArray(data?.horarios) ? data.horarios : [];
-        setHorarios(hrs);
+        const disponibles: any[] = Array.isArray(data?.horarios) ? data.horarios : [];
+        const agenda: any[] = Array.isArray(data?.agenda)
+          ? data.agenda
+          : disponibles.map((h: any) => ({ ...h, disponible: true, estado: "DISPONIBLE" }));
+        setHorarios(agenda);
         setDuracionMin(data?.duracionMinutos ?? 0);
-        const fechas = [...new Set(hrs.map((h: any) => fechaISO(h.inicio)))].sort();
+        setPausaMin(data?.tiempoEntreReuniones ?? 0);
+        const fechas = [...new Set(agenda.map((h: any) => fechaISO(h.inicio)))].sort();
         const hoy = fechaISO(new Date().toISOString());
         const fechaActual = solicitud?.inicio ? fechaISO(solicitud.inicio) : "";
         setFechaSelec(fechas.includes(fechaActual) ? fechaActual : (fechas.find((f) => f >= hoy) ?? fechas[0] ?? ""));
@@ -200,15 +169,6 @@ export function NuevaSolicitudModal({ ctx, receptoraId, receptoraNombre, onClose
     setErr(null);
     if (!horario) { setErr("Selecciona un horario disponible."); return; }
     if (tipo === "PRESENCIAL" && !mesa) { setErr("Selecciona una mesa."); return; }
-    if (tipo === "VIRTUAL" && enlace.trim()) {
-      try {
-        const url = new URL(enlace.trim());
-        if (url.protocol !== "https:") throw new Error();
-      } catch {
-        setErr("El enlace virtual debe ser una URL segura que comience con https://");
-        return;
-      }
-    }
     setEnviando(true);
     try {
       const res = await fetch(solicitud ? `${API}/empresa/solicitudes/${solicitud.id}/editar` : `${API}/empresa/solicitudes`, {
@@ -218,7 +178,7 @@ export function NuevaSolicitudModal({ ctx, receptoraId, receptoraNombre, onClose
           eeId: ctx.empresaeventoId, eeReceptoraId: receptoraId, euId: ctx.empresaUsuarioId,
           tipo, inicio: horario.inicio, fin: horario.fin,
           mesaId: tipo === "PRESENCIAL" ? mesa : undefined,
-          enlace: tipo === "VIRTUAL" ? enlace : undefined, mensaje,
+          mensaje,
         }),
       });
       const data = await res.json();
@@ -296,32 +256,33 @@ export function NuevaSolicitudModal({ ctx, receptoraId, receptoraNombre, onClose
                 </div>
 
                 {/* Hour + Minutes pickers — ambos restringidos a combinaciones realmente disponibles */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1 block">Hora</label>
-                    <select
-                      value={horaSelec}
-                      onChange={(e) => setHoraSelec(e.target.value)}
-                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A] bg-white"
-                    >
-                      <option value="">-- Hora --</option>
-                      {horasDisponibles.map((h) => (
-                        <option key={h} value={String(h)}>{String(h).padStart(2, "0")}:00</option>
-                      ))}
-                    </select>
+                <div>
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Agenda de {receptoraNombre}</label>
+                    <span className="text-[10px] text-gray-400">Pausa entre citas: {pausaMin} min</span>
                   </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1 block">Minutos</label>
-                    <select
-                      value={minutosStr}
-                      onChange={(e) => setMinutosStr(e.target.value)}
-                      disabled={!horaSelec || minutosParaHora.length === 0}
-                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A] disabled:opacity-40 disabled:bg-gray-50 bg-white"
-                    >
-                      {minutosParaHora.map((m) => (
-                        <option key={m} value={String(m).padStart(2, "0")}>{String(m).padStart(2, "0")}</option>
-                      ))}
-                    </select>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {horariosDelDia.map((slot: any) => {
+                      const seleccionado = horario?.inicio === slot.inicio;
+                      const estado = slot.estado === "PENDIENTE" ? "Pendiente"
+                        : slot.estado === "OCUPADO" ? "Ocupado"
+                        : slot.estado === "PASADO" ? "Ya pasó"
+                        : slot.disponible ? "Disponible" : "No disponible";
+                      return (
+                        <button key={slot.inicio} type="button" disabled={!slot.disponible}
+                          onClick={() => { setHorario(slot); setMesa(null); setMesaInvalida(false); }}
+                          className={`rounded-xl border px-2.5 py-3 text-left transition-colors ${
+                            seleccionado ? "border-green-600 bg-green-100 ring-2 ring-green-500/20"
+                            : slot.disponible ? "border-green-200 bg-green-50 hover:border-green-500"
+                            : "cursor-not-allowed border-red-100 bg-red-50 opacity-75"
+                          }`}>
+                          <span className={`block text-sm font-extrabold ${slot.disponible ? "text-green-800" : "text-red-700"}`}>
+                            {fmtTime(slot.inicio)} â€“ {fmtTime(slot.fin)}
+                          </span>
+                          <span className={`mt-1 block text-[10px] font-bold ${slot.disponible ? "text-green-600" : "text-red-500"}`}>{estado}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -360,10 +321,10 @@ export function NuevaSolicitudModal({ ctx, receptoraId, receptoraNombre, onClose
           {/* Enlace virtual */}
           {tipo === "VIRTUAL" && (
             <div>
-              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">Enlace de reunión (opcional)</label>
-              <input type="url" value={enlace} onChange={(e) => setEnlace(e.target.value)}
-                placeholder="https://meet.google.com/..."
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A]" />
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">Enlace de reunión virtual</label>
+              <p className="rounded-xl border border-blue-100 bg-blue-50 p-3 text-xs leading-relaxed text-blue-700">
+                El equipo técnico recibirá un aviso para agregar el enlace y lo verás en tu agenda cuando esté listo.
+              </p>
             </div>
           )}
 

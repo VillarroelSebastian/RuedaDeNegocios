@@ -79,6 +79,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
 
   const user = userStore.get();
   const [subiendoFoto, setSubiendoFoto] = useState(false);
+  const [subiendoLogo, setSubiendoLogo] = useState(false);
 
   // Selecciona una foto de la galería, la sube y la guarda como foto de perfil.
   const cambiarFoto = async () => {
@@ -97,7 +98,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
     try {
       const fd = new FormData();
       fd.append('file', { uri: asset.uri, name: 'perfil.jpg', type: 'image/jpeg' } as any);
-      const up = await fetch(`${API_URL}/admin/imagenes/upload`, { method: 'POST', body: fd });
+      const up = await fetch(`${API_URL}/public/imagenes/upload`, { method: 'POST', body: fd });
       const upData = await up.json();
       if (!upData.url) throw new Error('No se pudo subir la imagen');
 
@@ -113,6 +114,41 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
       setError(e.message || 'Error al cambiar la foto');
     } finally {
       setSubiendoFoto(false);
+    }
+  };
+
+  const cambiarFotoEmpresa = async () => {
+    if (!perfil?.esResponsable) return;
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) { setError('Se necesita permiso para acceder a la galería.'); return; }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: false,
+      quality: 0.85,
+    });
+    if (result.canceled || !result.assets?.length) return;
+    setSubiendoLogo(true);
+    setError('');
+    try {
+      const asset = result.assets[0];
+      const fd = new FormData();
+      fd.append('file', { uri: asset.uri, name: 'empresa.jpg', type: asset.mimeType || 'image/jpeg' } as any);
+      const up = await fetch(`${API_URL}/public/imagenes/upload`, { method: 'POST', body: fd });
+      const upData = await up.json();
+      if (!up.ok || !upData.url) throw new Error(upData?.message || 'No se pudo subir la imagen');
+      const res = await fetch(`${API_URL}/empresa/ficha/logo`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ euId: perfil.empresaUsuarioId, urlFotoPerfil: upData.url }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || 'No se pudo guardar la imagen de la empresa');
+      await fetchAll();
+      show({ type: 'success', title: 'Imagen actualizada', message: 'La imagen de la empresa se guardó correctamente.' });
+    } catch (e: any) {
+      setError(e.message || 'Error al cambiar la imagen de la empresa');
+    } finally {
+      setSubiendoLogo(false);
     }
   };
 
@@ -289,7 +325,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
     try {
       const fd = new FormData();
       fd.append('file', { uri: asset.uri, name: 'comprobante.jpg', type: 'image/jpeg' } as any);
-      const res = await fetch(`${API_URL}/admin/imagenes/upload`, { method: 'POST', body: fd });
+      const res = await fetch(`${API_URL}/public/imagenes/upload`, { method: 'POST', body: fd });
       const data = await res.json();
       if (!data.url) throw new Error('No se obtuvo URL');
       setPagoUrl(data.url);
@@ -438,6 +474,21 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
               <Text style={s.sectionTitle}>Empresa</Text>
             </View>
             <InfoRow label="Código"  value={empresa?.empresa?.codigo ?? '—'} />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14, padding: 10, borderRadius: 12, backgroundColor: '#f9fafb' }}>
+              <View style={{ width: 64, height: 64, borderRadius: 12, overflow: 'hidden', backgroundColor: '#fff', borderWidth: 1, borderColor: '#e5e7eb', alignItems: 'center', justifyContent: 'center' }}>
+                {empresa?.empresa?.urlFotoPerfil
+                  ? <Image source={{ uri: empresa.empresa.urlFotoPerfil }} style={{ width: '100%', height: '100%', resizeMode: 'contain' }} />
+                  : <Building2 size={28} color="#d1d5db" />}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: '#1f2937' }}>Imagen de la empresa</Text>
+                {esEncargado && (
+                  <TouchableOpacity onPress={cambiarFotoEmpresa} disabled={subiendoLogo} style={[s.editBtnSmall, { marginTop: 7, alignSelf: 'flex-start', paddingHorizontal: 10 }]}>
+                    {subiendoLogo ? <ActivityIndicator size="small" color={GREEN} /> : <Text style={{ color: GREEN, fontSize: 12, fontWeight: '700' }}>Cambiar imagen</Text>}
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
             <InfoRow label="Nombre"  value={empresa?.empresa?.nombre ?? '—'} />
             <InfoRow label="Rubro"   value={empresa?.empresa?.rubro ?? '—'} />
             <InfoRow label="Estado"  value={empresa?.estadoAcceso ?? empresa?.estadoPago ?? '—'} />

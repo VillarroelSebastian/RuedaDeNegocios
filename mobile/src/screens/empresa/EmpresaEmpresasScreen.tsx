@@ -66,6 +66,7 @@ export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?:
   const [filtroOferta,   setFiltroOferta]   = useState('');
   const [filtroDemanda,  setFiltroDemanda]  = useState('');
   const [filtroLugar,    setFiltroLugar]    = useState('');
+  const [orden, setOrden] = useState<'afinidad' | 'az' | 'rubro'>('afinidad');
 
   // Profile modal
   const [profileModal,    setProfileModal]    = useState(false);
@@ -93,8 +94,7 @@ export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?:
   const [mesaLastUpdate, setMesaLastUpdate] = useState<Date | null>(null);
   const [loadingM,       setLoadingM]       = useState(false);
 
-  // Mensaje / enlace / send
-  const [enlace,    setEnlace]    = useState('');
+  // Mensaje / envío
   const [mensaje,   setMensaje]   = useState('');
   const [sending,   setSending]   = useState(false);
   const [sendError, setSendError] = useState('');
@@ -192,7 +192,9 @@ export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?:
       if (solicitudId) params.set('solicitudId', String(solicitudId));
       const res = await fetch(`${API_URL}/empresa/horarios?${params}`);
       const data = res.ok ? await res.json() : {};
-      const hrs: any[] = Array.isArray(data?.horarios) ? data.horarios : [];
+      const hrs: any[] = Array.isArray(data?.agenda)
+        ? data.agenda
+        : (Array.isArray(data?.horarios) ? data.horarios.map((h: any) => ({ ...h, disponible: true, estado: 'DISPONIBLE' })) : []);
       setHorarios(hrs);
       setDuracionMin(data?.duracionMinutos ?? 0);
       const fechas = [...new Set(hrs.map((h: any) => fechaISO(h.inicio)))].sort() as string[];
@@ -251,7 +253,6 @@ export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?:
     setMesaSel(null);
     setMesaWarning('');
     setMesaLastUpdate(null);
-    setEnlace('');
     setMensaje('');
     setSendError('');
     setSendOk(false);
@@ -282,7 +283,6 @@ export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?:
         solicitudEdicion: sol,
       });
       setModalidad(sol.tipo ?? 'PRESENCIAL');
-      setEnlace(sol.enlace ?? '');
       setMensaje(sol.mensaje ?? '');
       navigation.setParams({ editarSolicitud: undefined });
     }
@@ -321,15 +321,6 @@ export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?:
       setSendError('Selecciona una mesa para continuar.');
       return;
     }
-    if (modalidad === 'VIRTUAL' && enlace.trim()) {
-      try {
-        const url = new URL(enlace.trim());
-        if (url.protocol !== 'https:') throw new Error();
-      } catch {
-        setSendError('El enlace virtual debe ser una URL segura que comience con https://');
-        return;
-      }
-    }
     setSendError('');
     setSending(true);
     try {
@@ -343,7 +334,7 @@ export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?:
       };
       if (mensaje.trim())   body.mensaje = mensaje.trim();
       if (modalidad === 'PRESENCIAL') body.mesaId = mesaSel.id;
-      if (modalidad === 'VIRTUAL' && enlace.trim()) body.enlace = enlace.trim();
+      // El enlace virtual lo asigna el equipo técnico después de la aceptación.
 
       const editando = selected?.solicitudEdicion;
       const res = await fetch(editando ? `${API_URL}/empresa/solicitudes/${editando.id}/editar` : `${API_URL}/empresa/solicitudes`, {
@@ -371,13 +362,19 @@ export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?:
 
   // ── Derived ───────────────────────────────────────────────────────────────────
 
-  const filtered = busqueda.trim()
+  const filtered = (busqueda.trim()
     ? empresas.filter((e: any) =>
         (e.nombre ?? '').toLowerCase().includes(busqueda.toLowerCase()) ||
         (e.rubro  ?? '').toLowerCase().includes(busqueda.toLowerCase()) ||
-        (e.ciudad ?? '').toLowerCase().includes(busqueda.toLowerCase())
+        (e.ciudad ?? '').toLowerCase().includes(busqueda.toLowerCase()) ||
+        (e.codigo ?? '').toLowerCase().includes(busqueda.toLowerCase())
       )
-    : empresas;
+    : [...empresas]).sort((a: any, b: any) => {
+      if (orden === 'az') return String(a.nombre).localeCompare(String(b.nombre), 'es');
+      if (orden === 'rubro') return String(a.rubro || '').localeCompare(String(b.rubro || ''), 'es') || String(a.nombre).localeCompare(String(b.nombre), 'es');
+      const peso = (e: any) => e.afinidad === 'alta' ? 2 : e.afinidad === 'media' ? 1 : 0;
+      return peso(b) - peso(a) || String(a.nombre).localeCompare(String(b.nombre), 'es');
+    });
 
   const totalSteps = modalidad === 'PRESENCIAL' ? 4 : 3;
 
@@ -396,7 +393,7 @@ export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?:
           <Search size={16} color="#9ca3af" style={{ marginRight: 8 }} />
           <TextInput
             style={s.searchInput}
-            placeholder="Buscar empresa, rubro o ciudad..."
+            placeholder="Buscar empresa, rubro, ciudad o código..."
             placeholderTextColor="#9ca3af"
             value={busqueda}
             onChangeText={setBusqueda}
@@ -421,6 +418,13 @@ export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?:
           <TextInput value={filtroOferta} onChangeText={setFiltroOferta} placeholder="Ofrece..." placeholderTextColor="#9ca3af" style={s.filtroInput} />
           <TextInput value={filtroDemanda} onChangeText={setFiltroDemanda} placeholder="Busca..." placeholderTextColor="#9ca3af" style={s.filtroInput} />
           <TextInput value={filtroLugar} onChangeText={setFiltroLugar} placeholder="Lugar (ciudad o país)..." placeholderTextColor="#9ca3af" style={s.filtroInput} />
+          <View style={{ flexDirection: 'row', gap: 7 }}>
+            {([['afinidad', 'Coincidencias'], ['az', 'A–Z'], ['rubro', 'Categoría']] as const).map(([valor, texto]) => (
+              <TouchableOpacity key={valor} onPress={() => setOrden(valor)} style={{ flex: 1, borderRadius: 9, paddingVertical: 9, alignItems: 'center', backgroundColor: orden === valor ? '#dcfce7' : '#f3f4f6', borderWidth: 1, borderColor: orden === valor ? '#86efac' : '#e5e7eb' }}>
+                <Text style={{ fontSize: 10, fontWeight: '700', color: orden === valor ? '#166534' : '#6b7280' }}>{texto}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
       )}
 
@@ -737,7 +741,7 @@ export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?:
                             Virtual
                           </Text>
                           <Text style={[s.modeSub, modalidad === 'VIRTUAL' && s.modeSubActive]}>
-                            Por videollamada, con enlace opcional
+                            Por videollamada; el equipo técnico asignará el enlace
                           </Text>
                         </View>
                         {modalidad === 'VIRTUAL' && <Check size={18} color="#fff" />}
@@ -910,18 +914,10 @@ export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?:
                       </View>
 
                       {modalidad === 'VIRTUAL' && (
-                        <>
-                          <Text style={s.stepLabel}>Enlace de videollamada (opcional)</Text>
-                          <TextInput
-                            style={s.inputField}
-                            placeholder="https://meet.google.com/..."
-                            placeholderTextColor="#9ca3af"
-                            value={enlace}
-                            onChangeText={setEnlace}
-                            autoCapitalize="none"
-                            keyboardType="url"
-                          />
-                        </>
+                        <View style={hp.infoBanner}>
+                          <Video size={15} color="#1e40af" style={{ marginRight: 7, marginTop: 1 }} />
+                          <Text style={hp.infoText}>El equipo técnico recibirá la solicitud y agregará el enlace de videollamada.</Text>
+                        </View>
                       )}
 
                       <Text style={s.stepLabel}>Objetivo de la reunión (opcional)</Text>
@@ -976,6 +972,10 @@ function HorarioPicker({ horarios, duracionMin, loadingH, fechaSel, horaSel, min
   const GREEN = '#449D3A';
   const fechasDisponibles = [...new Set(horarios.map((h: any) => fechaISO(h.inicio)))].sort() as string[];
   const horariosDelDia = fechaSel ? horarios.filter((h: any) => fechaISO(h.inicio) === fechaSel) : [];
+  const estadoTexto: Record<string, string> = {
+    DISPONIBLE: 'Disponible', PENDIENTE: 'Pendiente', OCUPADO: 'Ocupado',
+    NO_DISPONIBLE: 'No disponible', PASADO: 'Finalizado',
+  };
   const horasDisponibles = [...new Set(horariosDelDia.map((h: any) => partesFechaEvento(h.inicio).hour))].sort((a: any, b: any) => a - b) as number[];
   const minutosParaHora = horaSel !== null
     ? horariosDelDia.filter((h: any) => partesFechaEvento(h.inicio).hour === horaSel).map((h: any) => partesFechaEvento(h.inicio).minute).sort((a: any, b: any) => a - b)
@@ -990,7 +990,7 @@ function HorarioPicker({ horarios, duracionMin, loadingH, fechaSel, horaSel, min
 
   return (
     <>
-      <StepBadge current={2} total={totalSteps} label="Hora de inicio" />
+      <StepBadge current={2} total={totalSteps} label="Agenda de la empresa" />
       <BackBtn onPress={onBack} />
 
       {loadingH ? (
@@ -1033,6 +1033,30 @@ function HorarioPicker({ horarios, duracionMin, loadingH, fechaSel, horaSel, min
           </ScrollView>
 
           {/* Hour buttons */}
+          <Text style={hp.label}>Horarios</Text>
+          <View style={hp.slotGrid}>
+            {horariosDelDia.map((slot: any, index: number) => {
+              const disponible = slot.disponible !== false;
+              return (
+                <TouchableOpacity
+                  key={`${slot.inicio}-${index}`}
+                  disabled={!disponible}
+                  onPress={() => onSelectMatch(slot)}
+                  style={[hp.slotCard, disponible ? hp.slotDisponible : hp.slotOcupado]}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[hp.slotHora, { color: disponible ? '#166534' : '#991b1b' }]}>
+                    {fmtTime(slot.inicio)} – {fmtTime(slot.fin)}
+                  </Text>
+                  <Text style={[hp.slotEstado, { color: disponible ? '#15803d' : '#b91c1c' }]}>
+                    {estadoTexto[slot.estado] || (disponible ? 'Disponible' : 'No disponible')}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <View style={{ display: 'none' }}>
           <Text style={hp.label}>Hora</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
             <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -1094,6 +1118,7 @@ function HorarioPicker({ horarios, duracionMin, loadingH, fechaSel, horaSel, min
               )}
             </>
           )}
+          </View>
         </>
       )}
       <View style={{ height: 16 }} />
@@ -1139,6 +1164,12 @@ const hp = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', marginTop: 4,
   },
   nextBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  slotGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+  slotCard: { width: '48%', minHeight: 64, borderRadius: 12, borderWidth: 1.5, padding: 10, justifyContent: 'center' },
+  slotDisponible: { backgroundColor: '#f0fdf4', borderColor: '#86efac' },
+  slotOcupado: { backgroundColor: '#fef2f2', borderColor: '#fecaca', opacity: 0.82 },
+  slotHora: { fontSize: 13, fontWeight: '800' },
+  slotEstado: { fontSize: 11, fontWeight: '600', marginTop: 3 },
 });
 
 // ── Helper components ─────────────────────────────────────────────────────────

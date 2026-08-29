@@ -160,8 +160,14 @@ export default function EmpresasScreen({ navigation }: any) {
   const handleDelete = (id: number, nombre: string) => {
     showModal('confirm', 'Eliminar empresa', `¿Desactivar a "${nombre}" del evento?`, async () => {
       closeModal();
-      await fetch(`${API_URL}/admin/empresas/${id}`, { method: 'DELETE' });
-      fetchEmpresas(1, search);
+      try {
+        const res = await fetch(`${API_URL}/admin/empresas/${id}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.message || 'No se pudo desactivar la empresa.');
+        await fetchEmpresas(1, search);
+      } catch (e: any) {
+        showModal('error', 'No se pudo eliminar', e.message || 'Intenta nuevamente.');
+      }
     });
   };
 
