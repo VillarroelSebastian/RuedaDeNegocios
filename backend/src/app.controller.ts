@@ -751,7 +751,11 @@ export class AppController implements OnModuleInit {
     });
     if (!participante) throw new BadRequestException('El participante no esta habilitado para este evento.');
     const resultado = await this.prisma.$transaction(async (tx) => {
-      await tx.$queryRawUnsafe('SELECT 1 AS locked FROM pg_advisory_xact_lock($1, $2)', eventoId, euId);
+      await tx.$queryRawUnsafe(
+        'SELECT 1::int AS locked FROM (SELECT pg_advisory_xact_lock($1, $2)) AS lock_row',
+        eventoId,
+        euId,
+      );
       const usosHoy = await tx.asistenciaevento.count({
         where: { evento_id: eventoId, empresa_usuario_id: euId, fechaAsistencia, estaActivo: 1 },
       });
@@ -3852,7 +3856,7 @@ export class AppController implements OnModuleInit {
     try {
       resultado = await this.prisma.$transaction(async (tx) => {
       if (mesaAsignada) {
-        await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(78421, ${mesaAsignada})`;
+        await tx.$queryRaw`SELECT 1::int AS locked FROM (SELECT pg_advisory_xact_lock(78421, ${mesaAsignada})) AS lock_row`;
         const reservaPendiente = await tx.solicitudreunion.findFirst({
           where: {
             mesa_id: mesaAsignada, estaActivo: 1, estadoSolicitud: 'PENDIENTE', tipoReunion: 'PRESENCIAL',
@@ -5811,7 +5815,7 @@ export class AppController implements OnModuleInit {
     try {
       sol = await this.prisma.$transaction(async (tx) => {
         if (mesaAsignada) {
-          await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(78421, ${mesaAsignada})`;
+          await tx.$queryRaw`SELECT 1::int AS locked FROM (SELECT pg_advisory_xact_lock(78421, ${mesaAsignada})) AS lock_row`;
           const [reunionOcupada, solicitudOcupada] = await Promise.all([
             tx.reunion.findFirst({
               where: {
@@ -5972,7 +5976,7 @@ export class AppController implements OnModuleInit {
     try {
       actualizada = await this.prisma.$transaction(async (tx) => {
         if (mesaAsignada) {
-          await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(78421, ${mesaAsignada})`;
+          await tx.$queryRaw`SELECT 1::int AS locked FROM (SELECT pg_advisory_xact_lock(78421, ${mesaAsignada})) AS lock_row`;
           const [reunionOcupada, solicitudOcupada] = await Promise.all([
             tx.reunion.findFirst({ where: {
               mesa_id: mesaAsignada, estaActivo: 1, estadoReunion: { not: 'CANCELADA' },
@@ -6064,7 +6068,7 @@ export class AppController implements OnModuleInit {
     try {
       reunion = await this.prisma.$transaction(async (tx) => {
         if (mesaId) {
-          await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(78421, ${mesaId})`;
+          await tx.$queryRaw`SELECT 1::int AS locked FROM (SELECT pg_advisory_xact_lock(78421, ${mesaId})) AS lock_row`;
           const [mesaOcupada, otraReserva] = await Promise.all([
             tx.reunion.findFirst({
               where: {
@@ -6499,7 +6503,7 @@ export class AppController implements OnModuleInit {
 
     try {
       await this.prisma.$transaction(async (tx) => {
-      if (mesaId) await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(78421, ${mesaId})`;
+      if (mesaId) await tx.$queryRaw`SELECT 1::int AS locked FROM (SELECT pg_advisory_xact_lock(78421, ${mesaId})) AS lock_row`;
       await tx.mesabloque.updateMany({
         where: { reunion_id: cambio.reunion_id, estaActivo: 1 },
         data: { estaOcupado: 0, estaActivo: 0, creadoModificadoFecha: new Date() },
@@ -6643,7 +6647,7 @@ export class AppController implements OnModuleInit {
       const inicioReal = new Date();
       try {
         await this.prisma.$transaction(async (tx) => {
-          await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(78422, ${Number(id)})`;
+          await tx.$queryRaw`SELECT 1::int AS locked FROM (SELECT pg_advisory_xact_lock(78422, ${Number(id)})) AS lock_row`;
           const actual = await tx.reunion.findFirst({
             where: { id: Number(id), estaActivo: 1, estadoReunion: { in: ['PROGRAMADA', 'REPROGRAMADA'] } },
           });
