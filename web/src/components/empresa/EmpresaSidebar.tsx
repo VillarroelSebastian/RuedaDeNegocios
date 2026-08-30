@@ -84,7 +84,7 @@ export default function EmpresaSidebar({ esEncargado = false, eeId = null, mobil
         >
           <X className="w-4 h-4 text-gray-500" />
         </button>
-      <Link href="/" aria-label="Ir al inicio público" className="flex items-center gap-2.5 px-5 h-16 border-b border-gray-100 shrink-0">
+      <Link href="/empresa/perfil" aria-label="Abrir mi perfil" className="flex items-center gap-2.5 px-5 h-16 border-b border-gray-100 shrink-0">
         {foto ? (
           <img src={foto} alt="Tu foto de perfil" className="w-9 h-9 rounded-full object-contain border border-gray-200 shrink-0" />
         ) : (

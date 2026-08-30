@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
-import { User, LogOut } from 'lucide-react';
+import { User, LogOut, UserCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 export default function TecnicoHeader() {
@@ -65,6 +65,13 @@ export default function TecnicoHeader() {
                 </span>
               </div>
             )}
+            <button
+              onClick={() => { setShowProfile(false); router.push('/tecnico/perfil'); }}
+              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <UserCircle className="w-4 h-4" />
+              Mi perfil
+            </button>
             <button
               onClick={handleLogout}
               className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-600 hover:bg-red-50 transition-colors"

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { LogOut, ChevronDown, Bell, Menu, Clock, Newspaper } from 'lucide-react';
+import { LogOut, ChevronDown, Bell, Menu, Clock, Newspaper, UserCircle } from 'lucide-react';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
@@ -11,11 +11,16 @@ function fmtNotifFecha(f: string) {
 }
 
 // Ruta destino según el tipo de notificación, para llevar directo a su sección.
-function rutaDeNotif(tipo: string): string {
-  const t = tipo || '';
+function rutaDeNotif(notificacion: any): string {
+  const t = notificacion?.tipo || '';
   if (t.startsWith('solicitud')) return '/empresa/solicitudes';
   if (t === 'reunion:calificar') return '/empresa/resultados';
-  if (t.startsWith('reunion')) return '/empresa/reuniones';
+  if (t.startsWith('reunion')) {
+    const id = Number(notificacion?.referenciaId);
+    return notificacion?.referenciaTipo === 'reunion' && Number.isFinite(id) && id > 0
+      ? `/empresa/reuniones?reunionId=${id}`
+      : '/empresa/reuniones';
+  }
   if (t.startsWith('mensaje')) return '/empresa/mensajes';
   if (t.startsWith('pago')) return '/empresa/perfil';
   if (t.startsWith('comunicado')) return '/empresa/comunicados';
@@ -100,6 +105,15 @@ export default function EmpresaHeader({ onMenuClick, eeId }: { onMenuClick?: () 
     router.push('/auth/login');
   };
 
+  const abrirNotificacion = (notificacion: any) => {
+    setShowNotifs(false);
+    const destino = rutaDeNotif(notificacion);
+    // La recarga garantiza que una notificación de reunión abra exactamente
+    // su detalle aun si el usuario ya estaba en /empresa/reuniones.
+    if (destino.includes('reunionId=')) window.location.assign(destino);
+    else router.push(destino);
+  };
+
   const initials = user
     ? `${(user.nombres ?? '?')[0]}${(user.apellidoPaterno ?? '')[0] ?? ''}`.toUpperCase()
     : '?';
@@ -144,7 +158,7 @@ export default function EmpresaHeader({ onMenuClick, eeId }: { onMenuClick?: () 
                 <p className="text-xs text-gray-400 text-center py-6">No tienes notificaciones aún.</p>
               ) : (
                 notifs.map((n) => (
-                  <button key={n.id} onClick={() => { setShowNotifs(false); router.push(rutaDeNotif(n.tipo)); }}
+                  <button key={n.id} onClick={() => abrirNotificacion(n)}
                     className={`w-full text-left px-4 py-3 border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors ${n.leida ? '' : 'bg-green-50/50'}`}>
                     <p className="text-xs font-bold text-gray-800">{n.titulo}</p>
                     <p className="text-xs text-gray-600 mt-0.5 leading-relaxed">{n.mensaje}</p>
@@ -191,6 +205,13 @@ export default function EmpresaHeader({ onMenuClick, eeId }: { onMenuClick?: () 
                 <span className="inline-block mt-1 text-[10px] font-bold text-[#449D3A] bg-green-50 px-2 py-0.5 rounded-full uppercase">Empresa</span>
               </div>
             )}
+            <button
+              onClick={() => { setShowProfile(false); router.push('/empresa/perfil'); }}
+              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <UserCircle className="w-4 h-4" />
+              Mi perfil
+            </button>
             <button
               onClick={handleLogout}
               className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-600 hover:bg-red-50 transition-colors"

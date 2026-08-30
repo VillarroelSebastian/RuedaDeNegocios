@@ -56,7 +56,7 @@ export default function ReportesPage() {
     : filas;
 
   return (
-    <div className="p-6 space-y-5">
+    <div className="report-print-area p-6 space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 print:hidden">
         <div>
           <h1 className="text-2xl font-extrabold text-gray-900 flex items-center gap-2">
@@ -118,9 +118,9 @@ export default function ReportesPage() {
           <p className="text-sm text-gray-400">No hay datos para este reporte{filtro ? " con ese filtro" : ""}.</p>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+        <div className="report-table-wrap bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="report-table-scroll overflow-x-auto">
+            <table className="report-table w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50/50">
                   {columnas.map((c) => (
@@ -148,6 +148,39 @@ export default function ReportesPage() {
           </div>
         </div>
       )}
+      <style jsx global>{`
+        @media print {
+          @page { size: landscape; margin: 8mm; }
+          body * { visibility: hidden !important; }
+          .report-print-area, .report-print-area * { visibility: visible !important; }
+          .report-print-area {
+            position: absolute !important;
+            inset: 0 auto auto 0 !important;
+            width: 100% !important;
+            padding: 0 !important;
+          }
+          .report-table-wrap, .report-table-scroll {
+            overflow: visible !important;
+            border: 0 !important;
+            box-shadow: none !important;
+          }
+          .report-table {
+            width: 100% !important;
+            table-layout: auto !important;
+            font-size: 8px !important;
+          }
+          .report-table thead { display: table-header-group; }
+          .report-table tr { break-inside: avoid; }
+          .report-table th, .report-table td {
+            white-space: normal !important;
+            overflow: visible !important;
+            text-overflow: clip !important;
+            max-width: none !important;
+            overflow-wrap: anywhere !important;
+            padding: 4px 5px !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }

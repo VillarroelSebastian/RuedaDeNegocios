@@ -283,9 +283,9 @@ function DetalleReunionModal({ reunion, eeId, esEncargado, onClose, onCambiarHor
   const ahora = new Date();
   const esProgramada = (reunion.estado === "PROGRAMADA" || reunion.estado === "REPROGRAMADA") && new Date(reunion.fin) > ahora;
   const esFinalizada = reunion.estado === "FINALIZADA" || new Date(reunion.fin) <= ahora;
-  // El cierre es automático al finalizar el bloque. Una reunión iniciada no
-  // permite editar, cancelar ni finalizar manualmente.
-  const puedeFinalizarEncargado = false;
+  // Las reuniones presenciales concluyen automáticamente. En una virtual el
+  // encargado puede cerrarla antes si la llamada ya terminó.
+  const puedeFinalizarEncargado = esEncargado && reunion.tipo === "VIRTUAL" && reunion.estado === "EN_CURSO";
   const puedeIniciar = esEncargado && ["PROGRAMADA", "REPROGRAMADA"].includes(reunion.estado);
   const otraPidioIniciar = reunion.inicioAnticipadoPor && reunion.inicioAnticipadoPor !== eeId;
   const yoPediIniciar = reunion.inicioAnticipadoPor && reunion.inicioAnticipadoPor === eeId;
@@ -391,10 +391,13 @@ function DetalleReunionModal({ reunion, eeId, esEncargado, onClose, onCambiarHor
                 </a>
               } />
             )}
+            {reunion.tipo === "VIRTUAL" && reunion.enlaceConfigurado && !reunion.enlace && (
+              <Row label="Enlace" value={<span className="font-normal text-gray-500">Disponible cuando la reunión esté en curso</span>} />
+            )}
             {reunion.mensaje && <Row label="Mensaje" value={<em className="text-gray-600 font-normal">{reunion.mensaje}</em>} />}
           </div>
 
-          {reunion.tipo === "VIRTUAL" && !reunion.enlace && (
+          {reunion.tipo === "VIRTUAL" && !reunion.enlaceConfigurado && (
             <div className="mb-4 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
               <span>Esta reunión todavía no tiene enlace. Puedes esperar a que el equipo técnico lo agregue; al intentar iniciar se les enviará una alerta urgente.</span>
@@ -526,7 +529,15 @@ export default function ReunionesPage() {
   const cargarReuniones = useCallback((id: number) => {
     fetch(`${API}/empresa/reuniones?eeId=${id}`, { cache: "no-store" })
       .then((r) => r.json())
-      .then((data) => setReuniones(Array.isArray(data) ? data : []))
+      .then((data) => {
+        const lista = Array.isArray(data) ? data : [];
+        setReuniones(lista);
+        const reunionId = Number(new URLSearchParams(window.location.search).get("reunionId"));
+        if (Number.isFinite(reunionId) && reunionId > 0) {
+          const solicitada = lista.find((r: any) => r.id === reunionId);
+          if (solicitada) setDetalleModal(solicitada);
+        }
+      })
       .catch(() => setError("No se pudo cargar las reuniones."))
       .finally(() => setLoading(false));
   }, []);

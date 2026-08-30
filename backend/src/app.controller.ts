@@ -426,7 +426,10 @@ export class AppController implements OnModuleInit {
       });
       for (const ee of [sol?.empresaEvento_id, sol?.empresaEventorReceptora_id].filter(Boolean)) {
         await this.notificar(ee, 'reunion:iniciada', 'Reunión iniciada',
-          'La hora acordada llegó y tu reunión comenzó automáticamente.', r.id, 'reunion');
+          ['VIRTUAL', 'MIXTA'].includes(r.tipoReunion)
+            ? 'La hora acordada llegó y tu reunión virtual comenzó. Abre esta notificación para acceder al enlace y unirte.'
+            : 'La hora acordada llegó y tu reunión comenzó automáticamente.',
+          r.id, 'reunion');
       }
     }
 
@@ -2532,7 +2535,11 @@ export class AppController implements OnModuleInit {
     if (!evento) return { mesas: [], eventoConfig: null };
 
     const mesas = await this.prisma.mesa.findMany({
-        where: { evento_id: eventoId },
+        where: {
+          evento_id: eventoId,
+          estaActivo: 1,
+          numeroMesa: { lte: evento.cantidadTotalMesasEvento },
+        },
         orderBy: { numeroMesa: 'asc' },
         include: {
           reunion: {
@@ -3575,7 +3582,11 @@ export class AppController implements OnModuleInit {
     const eventoId = eventoConfig.id;
 
     const mesas = await this.prisma.mesa.findMany({
-        where: { evento_id: eventoId },
+        where: {
+          evento_id: eventoId,
+          estaActivo: 1,
+          numeroMesa: { lte: eventoConfig.cantidadTotalMesasEvento },
+        },
         orderBy: { numeroMesa: 'asc' },
         include: {
           reunion: {
@@ -4698,6 +4709,36 @@ export class AppController implements OnModuleInit {
       return { respuesta: `Hay ${empresas.length} empresa(s) habilitada(s):\n${empresas.map((e, i) => `${i + 1}. ${e.empresa.nombre}${e.empresa.codigo ? ` (${e.empresa.codigo})` : ''}${e.empresa.rubro ? ` · ${e.empresa.rubro}` : ''}`).join('\n')}` };
     }
 
+    // Búsqueda directa sin obligar a iniciar antes el flujo de agendamiento.
+    // Acepta tanto el código visible (RB-...) como el nombre de la empresa.
+    const codigoBuscado = msg.match(/\brb-[a-z0-9]+-\d+\b/i)?.[0];
+    const busquedaExplicita = msg.match(/(?:buscar|busca|encontrar|encuentra|datos de|informacion de)\s+(?:la\s+)?(?:empresa\s+)?(.+)$/i)?.[1]?.trim();
+    const terminoEmpresa = codigoBuscado || busquedaExplicita;
+    const esComandoDeAgendamiento = /(agendar|programar|solicitar|pedir)\s+(una\s+|otra\s+)?reunion|reunion con\s+\S+/.test(msg);
+    if (terminoEmpresa && !esComandoDeAgendamiento) {
+      const encontrada = await this.prisma.empresaevento.findFirst({
+        where: {
+          evento_id: eventoId,
+          estaActivo: 1,
+          estadoHabilitacionAcceso: 'HABILITADO',
+          empresa: {
+            estaActivo: 1,
+            OR: [
+              { codigo: { equals: terminoEmpresa, mode: 'insensitive' } },
+              { nombre: { contains: terminoEmpresa, mode: 'insensitive' } },
+            ],
+          },
+        },
+        include: { empresa: { select: { nombre: true, codigo: true, rubro: true, oferta: true } } },
+        orderBy: { empresa: { nombre: 'asc' } },
+      });
+      if (!encontrada) return { respuesta: `No encontré una empresa habilitada con el nombre o código "${terminoEmpresa}" en este evento.` };
+      const empresa = encontrada.empresa;
+      return {
+        respuesta: `${empresa.nombre}${empresa.codigo ? ` (${empresa.codigo})` : ''}${empresa.rubro ? ` · ${empresa.rubro}` : ''}${empresa.oferta ? `\nOferta: ${empresa.oferta}` : ''}\n\nSi quieres reunirte con esta empresa, escribe "agendar reunión con ${empresa.codigo || empresa.nombre}".`,
+      };
+    }
+
     const respAgendar = await this.asistenteAgendarReunion(Number(eeId), body.euId, msg, body.contexto, eventoId);
     if (respAgendar) return respAgendar;
 
@@ -4926,9 +4967,15 @@ export class AppController implements OnModuleInit {
           estadoVerificacionPago: 'COMPLETADO',
           estadoHabilitacionAcceso: 'HABILITADO',
           id: { not: eeId },
-          empresa: { nombre: { contains: term, mode: 'insensitive' } },
+          empresa: {
+            estaActivo: 1,
+            OR: [
+              { nombre: { contains: term, mode: 'insensitive' } },
+              { codigo: { equals: term, mode: 'insensitive' } },
+            ],
+          },
         },
-        include: { empresa: { select: { nombre: true } } },
+        include: { empresa: { select: { nombre: true, codigo: true } } },
         take: 100,
         orderBy: { empresa: { nombre: 'asc' } },
       });
@@ -4964,10 +5011,10 @@ export class AppController implements OnModuleInit {
         return presentarHorarios(encontradas[0].id, encontradas[0].empresa.nombre);
       }
       return {
-        respuesta: `Encontré varias empresas:\n${encontradas.map((e, i) => `${i + 1}. ${e.empresa.nombre}`).join('\n')}\n\n¿Cuál eliges? Responde con el número o el nombre.`,
+        respuesta: `Encontré varias empresas:\n${encontradas.map((e, i) => `${i + 1}. ${e.empresa.nombre}${e.empresa.codigo ? ` (${e.empresa.codigo})` : ''}`).join('\n')}\n\n¿Cuál eliges? Responde con el número, el nombre o el código.`,
         contexto: {
           flujo: 'agendar', paso: 'empresa',
-          candidatos: encontradas.map((e) => ({ id: e.id, nombre: e.empresa.nombre })),
+          candidatos: encontradas.map((e) => ({ id: e.id, nombre: e.empresa.nombre, codigo: e.empresa.codigo })),
         },
         opciones: encontradas.map((e) => e.empresa.nombre),
       };
@@ -4985,7 +5032,7 @@ export class AppController implements OnModuleInit {
             respuesta: `Elige una empresa:\n${opciones.map((opcion, i) => `${i + 1}. ${opcion}`).join('\n')}\n\nTambién puedes escribir el nombre de otra empresa o "cancelar".`,
             contexto: {
               flujo: 'agendar', paso: 'empresa',
-              candidatos: sugeridas.map((e) => ({ id: e.id, nombre: e.empresa.nombre })),
+              candidatos: sugeridas.map((e) => ({ id: e.id, nombre: e.empresa.nombre, codigo: e.empresa.codigo })),
             },
             opciones,
           };
@@ -5003,11 +5050,13 @@ export class AppController implements OnModuleInit {
     const paso = contexto.paso;
 
     if (paso === 'empresa') {
-      const candidatos: { id: number; nombre: string }[] = contexto.candidatos ?? [];
+      const candidatos: { id: number; nombre: string; codigo?: string | null }[] = contexto.candidatos ?? [];
       if (candidatos.length > 0) {
         const idx = parseInt(msg, 10);
         let elegido = !isNaN(idx) ? candidatos[idx - 1] : undefined;
-        if (!elegido) elegido = candidatos.find((c) => msg.includes(norm(c.nombre)) || norm(c.nombre).includes(msg.trim()));
+        if (!elegido) elegido = candidatos.find((c) =>
+          msg.includes(norm(c.nombre)) || norm(c.nombre).includes(msg.trim()) || norm(c.codigo ?? '') === msg.trim()
+        );
         if (!elegido) {
           if (isNaN(idx) && msg.trim()) return procesarBusqueda(msg.trim());
           return {
@@ -5229,6 +5278,8 @@ export class AppController implements OnModuleInit {
         titulo: n.tituloNotificacion,
         mensaje: n.mensajeNotificacion,
         tipo: n.tipoNotificacion,
+        referenciaId: n.referenciaId,
+        referenciaTipo: n.referenciaNombreTabla,
         leida: n.haSidoLeida === 1,
         fecha: n.fechaCreacion,
       })),
@@ -6499,7 +6550,10 @@ export class AppController implements OnModuleInit {
         fin: r.fechaHoraFinReunion,
         estado: r.estadoReunion,
         mesa: r.mesa,
-        enlace: (r as any).enlaceReunionVirtual ?? sol?.enlaceReunionVirtual ?? null,
+        enlace: r.estadoReunion === 'EN_CURSO' && r.fechaHoraInicioReunion <= new Date()
+          ? ((r as any).enlaceReunionVirtual ?? sol?.enlaceReunionVirtual ?? null)
+          : null,
+        enlaceConfigurado: Boolean((r as any).enlaceReunionVirtual ?? sol?.enlaceReunionVirtual),
         mensaje: sol?.mensajeParaEmpresaReceptora ?? null,
         contraparte,
         miResultado: (r as any).resultadoreunion?.[0] ?? null,
@@ -6715,9 +6769,14 @@ export class AppController implements OnModuleInit {
     } catch (error) {
       this.errorAgendaAmigable(error);
     }
+    const modalidadAnterior = cambio.reunion.tipoReunion === 'PRESENCIAL' ? 'presencial' : 'virtual';
+    const modalidadNueva = cambio.tipoReunion === 'PRESENCIAL' ? 'presencial' : 'virtual';
+    const modalidadCambio = modalidadAnterior !== modalidadNueva;
     for (const ee of participantes) {
-      await this.notificar(ee, 'reunion:cambio-aceptado', 'Cambio de reunión acordado',
-        'Ambas empresas aceptaron el cambio. La agenda y la mesa ya fueron actualizadas.',
+      await this.notificar(ee, 'reunion:cambio-aceptado', modalidadCambio ? 'Modalidad de reunión cambiada' : 'Cambio de reunión acordado',
+        modalidadCambio
+          ? `Ambas empresas aceptaron el cambio. La modalidad cambió de ${modalidadAnterior} a ${modalidadNueva}; la agenda y la mesa ya fueron actualizadas.`
+          : 'Ambas empresas aceptaron el cambio de horario. La agenda y la mesa ya fueron actualizadas.',
         cambio.reunion_id, 'reunion');
     }
     return { ok: true, estado: 'ACEPTADA' };
@@ -6837,9 +6896,15 @@ export class AppController implements OnModuleInit {
         this.errorAgendaAmigable(error);
       }
       await this.notificar(sol.empresaEvento_id, 'reunion:iniciada', 'Reunión iniciada',
-        'Tu reunión comenzó. ¡Éxitos en la negociación!', Number(id), 'reunion');
+        ['VIRTUAL', 'MIXTA'].includes(reunion.tipoReunion)
+          ? 'Tu reunión virtual comenzó. Abre esta notificación para acceder al enlace y unirte.'
+          : 'Tu reunión comenzó. ¡Éxitos en la negociación!',
+        Number(id), 'reunion');
       await this.notificar(sol.empresaEventorReceptora_id, 'reunion:iniciada', 'Reunión iniciada',
-        'Tu reunión comenzó. ¡Éxitos en la negociación!', Number(id), 'reunion');
+        ['VIRTUAL', 'MIXTA'].includes(reunion.tipoReunion)
+          ? 'Tu reunión virtual comenzó. Abre esta notificación para acceder al enlace y unirte.'
+          : 'Tu reunión comenzó. ¡Éxitos en la negociación!',
+        Number(id), 'reunion');
       return { ok: true, iniciada: true };
     };
 
