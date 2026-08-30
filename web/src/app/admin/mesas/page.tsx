@@ -12,6 +12,7 @@ const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
 const ESTADO_MESA: Record<string, { label: string; badge: string; grid: string }> = {
   LIBRE:     { label: 'Libre',     badge: 'bg-green-100 text-green-700',   grid: '#449D3A' },
+  PRE_RESERVADA: { label: 'Solicitud pendiente', badge: 'bg-amber-100 text-amber-700', grid: '#f59e0b' },
   RESERVADA: { label: 'Reservada', badge: 'bg-blue-100 text-blue-700',     grid: '#3b82f6' },
   EN_USO:    { label: 'En uso',    badge: 'bg-orange-100 text-orange-700', grid: '#f97316' },
 };
@@ -243,13 +244,14 @@ export default function MesasPage() {
   const mesasFiltradas = mesas.filter((m) => {
     if (filtro === 'INHABILITADA') return m.estaHabilitada === 0;
     if (filtro === 'TODAS') return true;
+    if (filtro === 'RESERVADA') return m.estadoMesa === 'RESERVADA' || m.estadoMesa === 'PRE_RESERVADA';
     return m.estadoMesa === filtro;
   });
 
   const counts = {
     total:        mesas.length,
     libre:        mesas.filter((m) => m.estadoMesa === 'LIBRE').length,
-    reservada:    mesas.filter((m) => m.estadoMesa === 'RESERVADA').length,
+    reservada:    mesas.filter((m) => m.estadoMesa === 'RESERVADA' || m.estadoMesa === 'PRE_RESERVADA').length,
     enUso:        mesas.filter((m) => m.estadoMesa === 'EN_USO').length,
     inhabilitada: mesas.filter((m) => m.estaHabilitada === 0).length,
   };

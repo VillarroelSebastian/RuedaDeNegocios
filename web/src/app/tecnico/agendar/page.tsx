@@ -358,26 +358,31 @@ export default function TecnicoAgendarPage() {
                   ))}
                 </select>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1 block">Hora</label>
-                  <select value={horaSelec} onChange={(e) => setHoraSelec(e.target.value)}
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A] bg-white">
-                    <option value="">-- Hora --</option>
-                    {horasDisponibles.map((h) => (
-                      <option key={h} value={String(h)}>{String(h).padStart(2, "0")}:00</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1 block">Minutos</label>
-                  <select value={minutosStr} onChange={(e) => setMinutosStr(e.target.value)}
-                    disabled={!horaSelec || minutosParaHora.length === 0}
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A] disabled:opacity-40 bg-white">
-                    {minutosParaHora.map((m) => (
-                      <option key={m} value={String(m).padStart(2, "0")}>{String(m).padStart(2, "0")}</option>
-                    ))}
-                  </select>
+              <div>
+                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2 block">Franja disponible</label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-72 overflow-y-auto pr-1">
+                  {horariosDelDia.map((h: any) => {
+                    const inicio = new Date(h.inicio);
+                    const seleccionado = horario?.inicio === h.inicio;
+                    return (
+                      <button
+                        key={h.inicio}
+                        type="button"
+                        onClick={() => {
+                          setHoraSelec(String(inicio.getHours()));
+                          setMinutosStr(String(inicio.getMinutes()).padStart(2, "0"));
+                        }}
+                        className={`rounded-xl border px-3 py-3 text-left transition-all ${
+                          seleccionado
+                            ? "border-[#449D3A] bg-green-50 text-green-800 ring-2 ring-green-100"
+                            : "border-gray-200 bg-white text-gray-700 hover:border-green-300 hover:bg-green-50/40"
+                        }`}
+                      >
+                        <span className="block text-sm font-extrabold">{fmtTime(h.inicio)}</span>
+                        <span className="block text-[11px] mt-0.5 opacity-70">hasta {fmtTime(h.fin)}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
               {horario && (

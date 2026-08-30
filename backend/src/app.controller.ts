@@ -333,16 +333,18 @@ export class AppController implements OnModuleInit {
   }
 
   private async alertarReunionesVirtualesSinEnlace() {
+    const evento = await this.getPrincipalEvento();
+    if (!evento) return;
+    const operativas = this.filtroReunionOperativa(evento);
     const reuniones = await this.prisma.reunion.findMany({
-      where: {
-        estaActivo: 1,
+      where: { AND: [operativas, {
         estadoReunion: { in: ['PROGRAMADA', 'REPROGRAMADA'] },
         tipoReunion: { in: ['VIRTUAL', 'MIXTA'] },
         fechaHoraFinReunion: { gt: new Date() },
         solicitudreunion: {
           OR: [{ enlaceReunionVirtual: null }, { enlaceReunionVirtual: '' }],
         },
-      },
+      }] },
       select: { id: true, evento_id: true },
     });
     for (const reunion of reuniones) {
@@ -364,17 +366,19 @@ export class AppController implements OnModuleInit {
   }
 
   private async sincronizarEstadosReuniones() {
+    const evento = await this.getPrincipalEvento();
+    if (!evento) return;
+    const operativas = this.filtroReunionOperativa(evento);
     const ahora = new Date();
     // Avisar con margen al equipo si falta el enlace virtual.
     const enTreintaMinutos = new Date(ahora.getTime() + 30 * 60_000);
     const virtualesSinEnlace = await this.prisma.reunion.findMany({
-      where: {
-        estaActivo: 1,
+      where: { AND: [operativas, {
         estadoReunion: { in: ['PROGRAMADA', 'REPROGRAMADA'] },
         tipoReunion: { in: ['VIRTUAL', 'MIXTA'] },
         fechaHoraInicioReunion: { gt: ahora, lte: enTreintaMinutos },
         solicitudreunion: { OR: [{ enlaceReunionVirtual: null }, { enlaceReunionVirtual: '' }] },
-      },
+      }] },
       select: { id: true, evento_id: true, fechaHoraInicioReunion: true },
     });
     for (const reunion of virtualesSinEnlace) {
@@ -392,10 +396,10 @@ export class AppController implements OnModuleInit {
       );
     }
     const porIniciar = await this.prisma.reunion.findMany({
-      where: {
-        estaActivo: 1, estadoReunion: { in: ['PROGRAMADA', 'REPROGRAMADA'] },
+      where: { AND: [operativas, {
+        estadoReunion: { in: ['PROGRAMADA', 'REPROGRAMADA'] },
         fechaHoraInicioReunion: { lte: ahora }, fechaHoraFinReunion: { gt: ahora },
-      },
+      }] },
       include: { solicitudreunion: { select: { empresaEvento_id: true, empresaEventorReceptora_id: true, enlaceReunionVirtual: true } } },
     });
     for (const r of porIniciar) {
@@ -427,10 +431,10 @@ export class AppController implements OnModuleInit {
     }
 
     const vencidas = await this.prisma.reunion.findMany({
-      where: {
-        estaActivo: 1, estadoReunion: { in: ['PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO'] },
+      where: { AND: [operativas, {
+        estadoReunion: { in: ['PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO'] },
         fechaHoraFinReunion: { lte: ahora },
-      },
+      }] },
       select: { id: true },
     });
     for (const r of vencidas) {
@@ -443,15 +447,16 @@ export class AppController implements OnModuleInit {
   }
 
   private async enviarRecordatoriosReuniones() {
+    const evento = await this.getPrincipalEvento();
+    if (!evento) return;
     const ahora = new Date();
     const limite = new Date(ahora.getTime() + 30 * 60000);
     const proximas = await this.prisma.reunion.findMany({
-      where: {
-        estaActivo: 1,
+      where: { AND: [this.filtroReunionOperativa(evento), {
         estadoReunion: { in: ['PROGRAMADA', 'REPROGRAMADA'] },
         seEnvioNotificacionDeRetraso: 0,
         fechaHoraInicioReunion: { gte: ahora, lte: limite },
-      },
+      }] },
       include: {
         mesa: { select: { numeroMesa: true } },
         solicitudreunion: {
@@ -517,8 +522,9 @@ export class AppController implements OnModuleInit {
 
   private datosUsuarioDeInscripcion(eu: any) {
     const usuario = eu?.usuario ?? {};
+    const { contrasenia: _contrasenia, resetToken: _resetToken, resetTokenExpiry: _resetTokenExpiry, ...usuarioSeguro } = usuario;
     return {
-      ...usuario,
+      ...usuarioSeguro,
       nombres: eu?.nombresEvento || usuario.nombres || '',
       apellidoPaterno: eu?.apellidoPaternoEvento || usuario.apellidoPaterno || '',
       apellidoMaterno: eu?.apellidoMaternoEvento ?? usuario.apellidoMaterno ?? null,
@@ -1353,6 +1359,50 @@ export class AppController implements OnModuleInit {
     return evento?.id ?? null;
   }
 
+  private async getPrincipalEvento(): Promise<any | null> {
+    return this.prisma.evento.findFirst({
+      where: { esPrincipal: 1, estaActivo: { not: 0 } },
+    });
+  }
+
+  // Una reunión operativa debe pertenecer a las fechas vigentes del evento y
+  // conservar activas a ambas inscripciones. Los registros históricos se
+  // mantienen en la base, pero no deben ocupar mesas ni aparecer como actuales.
+  private filtroReunionOperativa(evento: any): any {
+    const { start, end } = this.ventanaReunionesEvento(evento);
+    return {
+      evento_id: evento.id,
+      estaActivo: 1,
+      fechaHoraInicioReunion: { gte: start },
+      fechaHoraFinReunion: { lte: end },
+      solicitudreunion: {
+        empresaevento_solicitudreunion_empresaEvento_idToempresaevento: {
+          estaActivo: 1,
+          empresa: { estaActivo: 1 },
+        },
+        empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento: {
+          estaActivo: 1,
+          empresa: { estaActivo: 1 },
+        },
+      },
+    };
+  }
+
+  private filtroSolicitudOperativa(evento: any): any {
+    const { start, end } = this.ventanaReunionesEvento(evento);
+    return {
+      estaActivo: 1,
+      fechaHoraInicioPropuesta: { gte: start },
+      fechaHoraFinPropuesta: { lte: end },
+      empresaevento_solicitudreunion_empresaEvento_idToempresaevento: {
+        evento_id: evento.id, estaActivo: 1, empresa: { estaActivo: 1 },
+      },
+      empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento: {
+        evento_id: evento.id, estaActivo: 1, empresa: { estaActivo: 1 },
+      },
+    };
+  }
+
   private contextoAsistenciaEvento(evento: { fechaInicioEvento: Date; fechaFinEvento: Date }) {
     const inicio = new Date(evento.fechaInicioEvento);
     const fin = new Date(evento.fechaFinEvento);
@@ -1726,7 +1776,14 @@ export class AppController implements OnModuleInit {
 
     const where: any = { estaActivo: 1 };
     if (eventoId) where.empresaevento = { some: { evento_id: eventoId, estaActivo: 1 } };
-    if (search) where.nombre = { contains: search, mode: 'insensitive' };
+    if (search) {
+      const termino = search.trim();
+      where.OR = [
+        { nombre: { contains: termino, mode: 'insensitive' } },
+        { codigo: { contains: termino, mode: 'insensitive' } },
+        { correoCorporativo: { contains: termino, mode: 'insensitive' } },
+      ];
+    }
     if (rubro) where.rubro = { contains: rubro, mode: 'insensitive' };
     if (ciudad) where.ciudad = { nombre: { contains: ciudad, mode: 'insensitive' } };
 
@@ -1822,8 +1879,20 @@ export class AppController implements OnModuleInit {
     if (!empresa) throw new BadRequestException('Empresa no encontrada');
 
     const ee = (empresa as any).empresaevento?.[0] ?? null;
-    return {
+    const empresaSegura = {
       ...empresa,
+      empresaevento: Array.isArray((empresa as any).empresaevento)
+        ? (empresa as any).empresaevento.map((inscripcion: any) => ({
+            ...inscripcion,
+            empresa_usuario: (inscripcion.empresa_usuario ?? []).map((eu: any) => ({
+              ...eu,
+              usuario: this.datosUsuarioDeInscripcion(eu),
+            })),
+          }))
+        : (empresa as any).empresaevento,
+    };
+    return {
+      ...empresaSegura,
       // Se aplana lo del evento para que el panel no tenga que escarbar.
       ficha: {
         pais: (empresa as any).ciudad?.pais?.nombre ?? null,
@@ -2452,13 +2521,22 @@ export class AppController implements OnModuleInit {
     const eventoId = await this.getPrincipalEventoId();
     if (!eventoId) return { mesas: [], eventoConfig: null };
 
-    const [mesas, evento] = await Promise.all([
-      this.prisma.mesa.findMany({
+    const evento = await this.prisma.evento.findUnique({
+      where: { id: eventoId },
+      select: {
+        id: true, fechaInicioEvento: true, fechaFinEvento: true,
+        duracionReunion: true, tiempoEntreReuniones: true,
+        cantidadTotalMesasEvento: true, capacidadPersonasPorMesa: true,
+      },
+    });
+    if (!evento) return { mesas: [], eventoConfig: null };
+
+    const mesas = await this.prisma.mesa.findMany({
         where: { evento_id: eventoId },
         orderBy: { numeroMesa: 'asc' },
         include: {
           reunion: {
-            where: { estaActivo: 1 },
+            where: this.filtroReunionOperativa(evento),
             orderBy: { fechaHoraInicioReunion: 'asc' },
             include: {
               solicitudreunion: {
@@ -2489,12 +2567,7 @@ export class AppController implements OnModuleInit {
           },
           _count: { select: { reunion: true } },
         },
-      }),
-      this.prisma.evento.findUnique({
-        where: { id: eventoId },
-        select: { duracionReunion: true, tiempoEntreReuniones: true, cantidadTotalMesasEvento: true, capacidadPersonasPorMesa: true },
-      }),
-    ]);
+      });
 
     const mesasConEstado = mesas.map((m) => ({
       ...m,
@@ -2511,8 +2584,13 @@ export class AppController implements OnModuleInit {
 
     const evento = await this.prisma.evento.findUnique({
       where: { id: eventoId },
-      select: { duracionReunion: true, tiempoEntreReuniones: true, cantidadTotalMesasEvento: true, capacidadPersonasPorMesa: true },
+      select: {
+        id: true, fechaInicioEvento: true, fechaFinEvento: true,
+        duracionReunion: true, tiempoEntreReuniones: true,
+        cantidadTotalMesasEvento: true, capacidadPersonasPorMesa: true,
+      },
     });
+    if (!evento) return { mesas: [], eventoConfig: null };
 
     // Auto-sync: mesas 1..targetCount → estaActivo=1; mesas >targetCount → estaActivo=0
     const targetCount = evento?.cantidadTotalMesasEvento ?? 0;
@@ -2562,7 +2640,7 @@ export class AppController implements OnModuleInit {
       orderBy: { numeroMesa: 'asc' },
       include: {
         reunion: {
-          where: { estaActivo: 1 },
+          where: this.filtroReunionOperativa(evento),
           orderBy: { fechaHoraInicioReunion: 'asc' },
           include: {
             solicitudreunion: {
@@ -2587,7 +2665,14 @@ export class AppController implements OnModuleInit {
         estaActivo: 1,
         estadoSolicitud: 'PENDIENTE',
         mesa_id: { gt: 0 },
-        empresaevento_solicitudreunion_empresaEvento_idToempresaevento: { evento_id: eventoId },
+        fechaHoraInicioPropuesta: { gte: this.ventanaReunionesEvento(evento).start },
+        fechaHoraFinPropuesta: { lte: this.ventanaReunionesEvento(evento).end },
+        empresaevento_solicitudreunion_empresaEvento_idToempresaevento: {
+          evento_id: eventoId, estaActivo: 1, empresa: { estaActivo: 1 },
+        },
+        empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento: {
+          evento_id: eventoId, estaActivo: 1, empresa: { estaActivo: 1 },
+        },
       },
       include: {
         empresaevento_solicitudreunion_empresaEvento_idToempresaevento: { include: { empresa: { select: { nombre: true } } } },
@@ -2696,11 +2781,11 @@ export class AppController implements OnModuleInit {
 
   @Get('admin/mesas/historial')
   async getMesasHistorial(@Query('q') q?: string) {
-    const eventoId = await this.getPrincipalEventoId();
-    if (!eventoId) return [];
+    const evento = await this.getPrincipalEvento();
+    if (!evento) return [];
 
     const reuniones = await this.prisma.reunion.findMany({
-      where: { evento_id: eventoId, estaActivo: 1, estadoReunion: 'FINALIZADA' },
+      where: { ...this.filtroReunionOperativa(evento), estadoReunion: 'FINALIZADA' },
       orderBy: { fechaHoraFinReunion: 'desc' },
       include: {
         mesa: { select: { id: true, numeroMesa: true } },
@@ -2809,8 +2894,10 @@ export class AppController implements OnModuleInit {
   @Put('admin/reuniones/:id/estado')
   async updateAdminReunionEstado(@Param('id') id: string, @Body() body: { estadoReunion: string; asistentes?: number; observaciones?: string }) {
     const reunionId = Number(id);
-    const actual = await this.prisma.reunion.findUnique({
-      where: { id: reunionId },
+    const evento = await this.getPrincipalEvento();
+    if (!evento) throw new BadRequestException('No hay un evento activo');
+    const actual = await this.prisma.reunion.findFirst({
+      where: { id: reunionId, ...this.filtroReunionOperativa(evento) },
       include: { solicitudreunion: true },
     });
     if (!actual || actual.estaActivo === 0) throw new BadRequestException('Reunión no encontrada');
@@ -3448,19 +3535,18 @@ export class AppController implements OnModuleInit {
 
   @Get('tecnico/dashboard')
   async getTecnicoDashboard() {
-    const eventoId = await this.getPrincipalEventoId();
-    if (!eventoId) return { stats: {}, proximasReuniones: [], evento: null };
+    const evento = await this.getPrincipalEvento();
+    if (!evento) return { stats: {}, proximasReuniones: [], evento: null };
 
     const ahora = new Date();
-    const ef = { evento_id: eventoId, estaActivo: 1 };
+    const ef = this.filtroReunionOperativa(evento);
 
-    const [evento, reunionesEnCurso, proximasReuniones, reunionesVirtuales, mesasActivas, todasReuniones, proximasActividades] =
+    const [reunionesEnCurso, proximasReuniones, reunionesVirtuales, mesasActivas, todasReuniones, proximasActividades] =
       await Promise.all([
-        this.prisma.evento.findUnique({ where: { id: eventoId }, select: { nombre: true, edicion: true, fechaInicioEvento: true, fechaFinEvento: true } }),
         this.prisma.reunion.count({ where: { ...ef, estadoReunion: 'EN_CURSO' } }),
         this.prisma.reunion.count({ where: { ...ef, estadoReunion: { in: ['PROGRAMADA', 'REPROGRAMADA'] }, fechaHoraInicioReunion: { gte: ahora } } }),
         this.prisma.reunion.count({ where: { ...ef, tipoReunion: { in: ['VIRTUAL', 'MIXTA'] }, estadoReunion: { not: 'CANCELADA' } } }),
-        this.prisma.mesa.count({ where: { evento_id: eventoId, estaActivo: 1 } }),
+        this.prisma.mesa.count({ where: { evento_id: evento.id, estaActivo: 1 } }),
         this.prisma.reunion.findMany({
           where: { ...ef, estadoReunion: { in: ['PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO'] }, fechaHoraInicioReunion: { gte: ahora } },
           orderBy: { fechaHoraInicioReunion: 'asc' },
@@ -3468,7 +3554,7 @@ export class AppController implements OnModuleInit {
           include: this.reunionInclude(),
         }),
         this.prisma.actividadprograma.findMany({
-          where: { evento_id: eventoId, estaActivo: 1 },
+          where: { evento_id: evento.id, estaActivo: 1 },
           orderBy: [{ fechaActividad: 'asc' }, { horaInicioActividad: 'asc' }],
           take: 4,
         }),
@@ -3484,27 +3570,22 @@ export class AppController implements OnModuleInit {
 
   @Get('tecnico/mesas')
   async getTecnicoMesas() {
-    const eventoId = await this.getPrincipalEventoId();
-    if (!eventoId) return { mesas: [], eventoConfig: null };
+    const eventoConfig = await this.getPrincipalEvento();
+    if (!eventoConfig) return { mesas: [], eventoConfig: null };
+    const eventoId = eventoConfig.id;
 
-    const [mesas, eventoConfig] = await Promise.all([
-      this.prisma.mesa.findMany({
+    const mesas = await this.prisma.mesa.findMany({
         where: { evento_id: eventoId },
         orderBy: { numeroMesa: 'asc' },
         include: {
           reunion: {
-            where: { estaActivo: 1 },
+            where: this.filtroReunionOperativa(eventoConfig),
             orderBy: { fechaHoraInicioReunion: 'asc' },
             include: this.reunionInclude(),
           },
           _count: { select: { reunion: true } },
         },
-      }),
-      this.prisma.evento.findUnique({
-        where: { id: eventoId },
-        select: { duracionReunion: true, tiempoEntreReuniones: true, cantidadTotalMesasEvento: true, capacidadPersonasPorMesa: true },
-      }),
-    ]);
+      });
 
     const mesasConEstado = mesas.map((m) => ({
       ...m,
@@ -3516,10 +3597,10 @@ export class AppController implements OnModuleInit {
 
   @Get('tecnico/reuniones')
   async getTecnicoReuniones(@Query('q') q?: string, @Query('estado') estado?: string, @Query('tipo') tipo?: string) {
-    const eventoId = await this.getPrincipalEventoId();
-    if (!eventoId) return [];
+    const evento = await this.getPrincipalEvento();
+    if (!evento) return [];
 
-    const where: any = { evento_id: eventoId, estaActivo: 1 };
+    const where: any = this.filtroReunionOperativa(evento);
     if (estado && estado !== 'TODOS') where.estadoReunion = estado;
     if (tipo && tipo !== 'TODOS') where.tipoReunion = tipo;
 
@@ -3552,8 +3633,10 @@ export class AppController implements OnModuleInit {
   @Put('tecnico/reuniones/:id/estado')
   async updateTecnicoReunionEstado(@Param('id') id: string, @Body() body: { estadoReunion: string; observaciones?: string }) {
     const reunionId = Number(id);
-    const actual = await this.prisma.reunion.findUnique({
-      where: { id: reunionId },
+    const evento = await this.getPrincipalEvento();
+    if (!evento) throw new BadRequestException('No hay un evento activo');
+    const actual = await this.prisma.reunion.findFirst({
+      where: { id: reunionId, ...this.filtroReunionOperativa(evento) },
       include: { solicitudreunion: true },
     });
     if (!actual || actual.estaActivo === 0) throw new BadRequestException('Reunión no encontrada');
@@ -3603,8 +3686,9 @@ export class AppController implements OnModuleInit {
 
   @Get('tecnico/buscar')
   async tecnicoBuscar(@Query('q') q: string) {
-    const eventoId = await this.getPrincipalEventoId();
-    if (!eventoId || !q?.trim()) return { empresas: [], reuniones: [], mesas: [] };
+    const evento = await this.getPrincipalEvento();
+    if (!evento || !q?.trim()) return { empresas: [], reuniones: [], mesas: [] };
+    const eventoId = evento.id;
 
     const lower = q.toLowerCase();
 
@@ -3615,7 +3699,7 @@ export class AppController implements OnModuleInit {
         take: 20,
       }),
       this.prisma.reunion.findMany({
-        where: { evento_id: eventoId, estaActivo: 1 },
+        where: this.filtroReunionOperativa(evento),
         include: this.reunionInclude(),
         take: 50,
       }),
@@ -3657,8 +3741,10 @@ export class AppController implements OnModuleInit {
 
   @Get('tecnico/reuniones/:id')
   async getTecnicoReunionDetalle(@Param('id') id: string) {
-    return await this.prisma.reunion.findUnique({
-      where: { id: Number(id) },
+    const evento = await this.getPrincipalEvento();
+    if (!evento) throw new BadRequestException('No hay un evento activo');
+    const reunion = await this.prisma.reunion.findFirst({
+      where: { id: Number(id), ...this.filtroReunionOperativa(evento) },
       include: {
         ...this.reunionInclude(),
         solicitudreunion: {
@@ -3679,15 +3765,17 @@ export class AppController implements OnModuleInit {
         },
       },
     });
+    if (!reunion) throw new BadRequestException('Reunión no encontrada en el evento activo');
+    return reunion;
   }
 
   @Get('tecnico/mesas/historial')
   async getTecnicoMesasHistorial(@Query('q') q?: string) {
-    const eventoId = await this.getPrincipalEventoId();
-    if (!eventoId) return [];
+    const evento = await this.getPrincipalEvento();
+    if (!evento) return [];
 
     const reuniones = await this.prisma.reunion.findMany({
-      where: { evento_id: eventoId, estaActivo: 1, estadoReunion: 'FINALIZADA' },
+      where: { ...this.filtroReunionOperativa(evento), estadoReunion: 'FINALIZADA' },
       orderBy: { fechaHoraFinReunion: 'desc' },
       include: {
         mesa: { select: { id: true, numeroMesa: true } },
@@ -3726,8 +3814,10 @@ export class AppController implements OnModuleInit {
 
   @Put('tecnico/reuniones/:id/link')
   async updateTecnicoReunionLink(@Param('id') id: string, @Body() body: { enlace: string }) {
-    const reunion = await this.prisma.reunion.findUnique({
-      where: { id: Number(id) },
+    const evento = await this.getPrincipalEvento();
+    if (!evento) throw new BadRequestException('No hay un evento activo');
+    const reunion = await this.prisma.reunion.findFirst({
+      where: { id: Number(id), ...this.filtroReunionOperativa(evento) },
       include: { solicitudreunion: { select: { id: true, empresaEvento_id: true, empresaEventorReceptora_id: true } } },
     });
     if (!reunion?.solicitudReunion_id || !['VIRTUAL', 'MIXTA'].includes(reunion.tipoReunion))
@@ -3765,8 +3855,10 @@ export class AppController implements OnModuleInit {
   @Post('tecnico/reuniones/:id/mensaje')
   async sendTecnicoMensaje(@Param('id') id: string, @Body() body: { empresa: string; mensaje: string }) {
     if (!body.mensaje?.trim()) throw new BadRequestException('El mensaje no puede estar vacío');
-    const reunion = await this.prisma.reunion.findUnique({
-      where: { id: Number(id) },
+    const evento = await this.getPrincipalEvento();
+    if (!evento) throw new BadRequestException('No hay un evento activo');
+    const reunion = await this.prisma.reunion.findFirst({
+      where: { id: Number(id), ...this.filtroReunionOperativa(evento) },
       include: {
         solicitudreunion: {
           include: {
@@ -3874,8 +3966,8 @@ export class AppController implements OnModuleInit {
     const iniDate = new Date(inicio);
     const finDate = new Date(iniDate.getTime() + evento.duracionReunion * 60000);
     if (Number.isNaN(iniDate.getTime()) || iniDate <= new Date() ||
-        !this.horarioDentroDe(this.generarCandidatosInicioTecnico(evento), iniDate, finDate))
-      throw new BadRequestException('El horario debe ser futuro y pertenecer a la jornada técnica del evento.');
+        !this.horarioDentroDe(this.generarFranjas(evento), iniDate, finDate))
+      throw new BadRequestException('El horario debe ser futuro y pertenecer a una franja de reuniones del evento.');
     const tipoNormalizado = String(tipo).toUpperCase();
     if (!['PRESENCIAL', 'VIRTUAL'].includes(tipoNormalizado))
       throw new BadRequestException('El tipo de reunión debe ser PRESENCIAL o VIRTUAL');
@@ -4612,11 +4704,10 @@ export class AppController implements OnModuleInit {
     // Listado y total: una reunión existe únicamente después de aceptar la solicitud.
     if (/(todas|total|lista|listar|cuantas|cuántas|mis)\s+(las\s+)?reuniones|reuniones\s+(aceptadas|agendadas|confirmadas)/i.test(msg)) {
       const reuniones = await this.prisma.reunion.findMany({
-        where: {
-          evento_id: eventoId, estaActivo: 1,
+        where: { AND: [this.filtroReunionOperativa(evento), {
           estadoReunion: { in: ['PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO'] },
           solicitudreunion: { OR: [{ empresaEvento_id: eeId }, { empresaEventorReceptora_id: eeId }] },
-        },
+        }] },
         orderBy: { fechaHoraInicioReunion: 'asc' },
         include: {
           mesa: true,
@@ -4642,12 +4733,11 @@ export class AppController implements OnModuleInit {
     if (/reunion|reunione|cuando me reun/i.test(msg)) {
       const ahora = new Date();
       const reunion = await this.prisma.reunion.findFirst({
-        where: {
-          evento_id: eventoId, estaActivo: 1,
+        where: { AND: [this.filtroReunionOperativa(evento), {
           estadoReunion: { in: ['PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO'] },
           solicitudreunion: { OR: [{ empresaEvento_id: eeId }, { empresaEventorReceptora_id: eeId }] },
           fechaHoraInicioReunion: { gte: ahora },
-        },
+        }] },
         orderBy: { fechaHoraInicioReunion: 'asc' },
         include: {
           mesa: true,
@@ -4674,13 +4764,12 @@ export class AppController implements OnModuleInit {
     // ── mesa asignada ────────────────────────────────────────────────────────
     if (/mesa|donde.*(reunion|me toca)|lugar.*reunion/i.test(msg)) {
       const reunion = await this.prisma.reunion.findFirst({
-        where: {
-          evento_id: eventoId, estaActivo: 1,
+        where: { AND: [this.filtroReunionOperativa(evento), {
           estadoReunion: { in: ['PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO'] },
           solicitudreunion: { OR: [{ empresaEvento_id: eeId }, { empresaEventorReceptora_id: eeId }] },
           mesa_id: { gt: 0 },
           fechaHoraFinReunion: { gte: new Date() },
-        },
+        }] },
         include: { mesa: true },
         orderBy: { fechaHoraInicioReunion: 'asc' },
       });
@@ -5512,7 +5601,7 @@ export class AppController implements OnModuleInit {
     @Query('eeId') eeId: string,
     @Query('eeReceptoraId') eeReceptoraId: string,
   ) {
-    return this.getHorariosDisponibles(eeId, eeReceptoraId, undefined, undefined, true, true);
+    return this.getHorariosDisponibles(eeId, eeReceptoraId, undefined, undefined, true, false);
   }
 
   @Get('empresa/mesas-disponibles')
@@ -5942,14 +6031,18 @@ export class AppController implements OnModuleInit {
   @Get('empresa/solicitudes')
   async getSolicitudesEmpresa(@Query('eeId') eeId: string) {
     if (!eeId) throw new BadRequestException('eeId requerido');
+    const inscripcion = await this.prisma.empresaevento.findFirst({
+      where: { id: Number(eeId), estaActivo: 1, empresa: { estaActivo: 1 } },
+      include: { evento: true },
+    });
+    if (!inscripcion?.evento) throw new BadRequestException('Inscripción no activa');
     const solicitudes = await this.prisma.solicitudreunion.findMany({
-      where: {
-        estaActivo: 1,
+      where: { AND: [this.filtroSolicitudOperativa(inscripcion.evento), {
         OR: [
           { empresaEvento_id: Number(eeId) },
           { empresaEventorReceptora_id: Number(eeId) },
         ],
-      },
+      }] },
       include: {
         empresaevento_solicitudreunion_empresaEvento_idToempresaevento: {
           include: { empresa: { select: { id: true, codigo: true, nombre: true, rubro: true, urlFotoPerfil: true } } },
@@ -6352,9 +6445,13 @@ export class AppController implements OnModuleInit {
   @Get('empresa/reuniones')
   async getReunionesEmpresa(@Query('eeId') eeId: string) {
     if (!eeId) throw new BadRequestException('eeId requerido');
+    const inscripcion = await this.prisma.empresaevento.findFirst({
+      where: { id: Number(eeId), estaActivo: 1, empresa: { estaActivo: 1 } },
+      include: { evento: true },
+    });
+    if (!inscripcion?.evento) throw new BadRequestException('Inscripción no activa');
     const reuniones = await this.prisma.reunion.findMany({
-      where: {
-        estaActivo: 1,
+      where: { AND: [this.filtroReunionOperativa(inscripcion.evento), {
         estadoReunion: { not: 'CANCELADA' },
         solicitudreunion: {
           estaActivo: 1,
@@ -6363,7 +6460,7 @@ export class AppController implements OnModuleInit {
             { empresaEventorReceptora_id: Number(eeId) },
           ],
         },
-      },
+      }] },
       include: {
         mesa: { select: { id: true, numeroMesa: true } },
         solicitudreunion: {
