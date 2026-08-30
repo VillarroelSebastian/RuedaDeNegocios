@@ -277,7 +277,7 @@ export function NuevaSolicitudModal({ ctx, receptoraId, receptoraNombre, onClose
                             : "cursor-not-allowed border-red-100 bg-red-50 opacity-75"
                           }`}>
                           <span className={`block text-sm font-extrabold ${slot.disponible ? "text-green-800" : "text-red-700"}`}>
-                            {fmtTime(slot.inicio)} â€“ {fmtTime(slot.fin)}
+                            {fmtTime(slot.inicio)} – {fmtTime(slot.fin)}
                           </span>
                           <span className={`mt-1 block text-[10px] font-bold ${slot.disponible ? "text-green-600" : "text-red-500"}`}>{estado}</span>
                         </button>

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UnauthorizedException, BadRequestException, Query, OnModuleInit, Req } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, UnauthorizedException, ForbiddenException, BadRequestException, Query, OnModuleInit, Req } from '@nestjs/common';
 import { AppService } from './app.service.js';
 import { PrismaService } from './prisma/prisma.service.js';
 import { NotificacionesGateway } from './notificaciones/notificaciones.gateway.js';
@@ -240,7 +240,12 @@ export class AppController implements OnModuleInit {
     const uploadsDir = join(process.cwd(), 'uploads');
     mkdirSync(uploadsDir, { recursive: true });
     const filename = `credencial-${euId}-${randomBytes(4).toString('hex')}.png`;
-    const buffer = await QRCode.toBuffer(contenido, { width: 500, margin: 2, color: { dark: '#0f172a', light: '#ffffff' } });
+    const buffer = await QRCode.toBuffer(contenido, {
+      width: 800,
+      margin: 4,
+      errorCorrectionLevel: 'H',
+      color: { dark: '#000000', light: '#ffffff' },
+    });
     writeFileSync(join(uploadsDir, filename), buffer);
     const url = `${this.uploadsBaseUrl()}/uploads/${filename}`;
     await this.prisma.empresa_usuario.update({ where: { id: euId }, data: { urlCredencialQR: url } });
@@ -510,6 +515,17 @@ export class AppController implements OnModuleInit {
     return this.appService.getHello();
   }
 
+  private datosUsuarioDeInscripcion(eu: any) {
+    const usuario = eu?.usuario ?? {};
+    return {
+      ...usuario,
+      nombres: eu?.nombresEvento || usuario.nombres || '',
+      apellidoPaterno: eu?.apellidoPaternoEvento || usuario.apellidoPaterno || '',
+      apellidoMaterno: eu?.apellidoMaternoEvento ?? usuario.apellidoMaterno ?? null,
+      telefono: eu?.telefonoEvento || usuario.telefono || '',
+    };
+  }
+
   // ─── AUTH ───────────────────────────────────────────────────────────────────
 
   @Post('auth/login')
@@ -556,13 +572,43 @@ export class AppController implements OnModuleInit {
           empresaevento: { evento_id: eventoId ?? undefined, estaActivo: 1 },
         },
       });
-      if (!eu) throw new UnauthorizedException('Tu cuenta no está registrada para el evento activo actualmente.');
+      if (!eu) {
+        throw new UnauthorizedException(
+          'Tu cuenta no está habilitada para el evento actual. Debes registrar tu empresa para participar en este evento.',
+        );
+      }
+      const inscripcion = await this.prisma.empresaevento.findUnique({
+        where: { id: eu.empresaevento_id },
+        select: { estadoHabilitacionAcceso: true, estadoVerificacionPago: true },
+      });
+      if (inscripcion?.estadoVerificacionPago === 'OBSERVADO')
+        throw new UnauthorizedException('Tu inscripción para el evento actual tiene observaciones pendientes. Revísalas antes de ingresar.');
+      if (inscripcion?.estadoVerificacionPago === 'RECHAZADO')
+        throw new UnauthorizedException('Tu inscripción para el evento actual fue rechazada. Comunícate con el equipo del evento.');
+      if (inscripcion?.estadoHabilitacionAcceso !== 'HABILITADO' || inscripcion?.estadoVerificacionPago !== 'COMPLETADO')
+        throw new UnauthorizedException('Tu inscripción para el evento actual todavía está pendiente de aprobación. Aún no puedes ingresar.');
       esResponsable = eu?.esResponsable === 1;
       empresaeventoId = eu.empresaevento_id;
       empresaUsuarioId = eu.id;
+      const datosEvento = this.datosUsuarioDeInscripcion({ ...eu, usuario: user });
+      user.nombres = datosEvento.nombres;
+      user.apellidoPaterno = datosEvento.apellidoPaterno;
+      user.apellidoMaterno = datosEvento.apellidoMaterno;
+      user.telefono = datosEvento.telefono;
     }
 
-    const memberships = await this.prisma.empresa_usuario.findMany({ where: { usuario_id: user.id, estaActivo: 1 }, select: { id: true, empresaevento_id: true } });
+    const memberships = await this.prisma.empresa_usuario.findMany({
+      where: {
+        usuario_id: user.id,
+        estaActivo: 1,
+        empresaevento: {
+          estaActivo: 1,
+          estadoHabilitacionAcceso: 'HABILITADO',
+          estadoVerificacionPago: 'COMPLETADO',
+        },
+      },
+      select: { id: true, empresaevento_id: true },
+    });
     const token = await this.jwt.signAsync({ sub: user.id, role: user.rolEvento, eventoId: user.evento_id,
       eeIds: memberships.map((m) => m.empresaevento_id), euIds: memberships.map((m) => m.id) });
     return {
@@ -605,25 +651,32 @@ export class AppController implements OnModuleInit {
 
   @Get('public/verificar-empresa')
   async verificarEmpresa(@Query('correo') correo?: string, @Query('telefono') telefono?: string, @Query('tipo') tipo?: string) {
+    const eventoId = await this.getPrincipalEventoId();
+    if (!eventoId) return { existe: false };
     if (telefono) {
       const buscado = normalizarTelefono(telefono);
       if (buscado.length < 7) return { existe: false };
       if (tipo === 'empresa') {
-        const empresas = await this.prisma.empresa.findMany({ where: { estaActivo: 1 }, select: { nombre: true, telefonoWhatsapp: true } });
+        const empresas = await this.prisma.empresa.findMany({
+          where: { estaActivo: 1, empresaevento: { some: { evento_id: eventoId, estaActivo: 1 } } },
+          select: { nombre: true, telefonoWhatsapp: true },
+        });
         const empresa = empresas.find((e) => normalizarTelefono(e.telefonoWhatsapp) === buscado);
         return { existe: !!empresa, nombreEmpresa: empresa?.nombre };
       }
-      const usuarios = await this.prisma.usuario.findMany({ where: { estaActivo: 1 }, select: { correo: true, telefono: true } });
+      const participantes = await this.prisma.empresa_usuario.findMany({
+        where: { estaActivo: 1, empresaevento: { evento_id: eventoId, estaActivo: 1 } },
+        select: { telefonoEvento: true, usuario: { select: { correo: true, telefono: true } } },
+      });
       const correoNorm = normalizarCorreo(correo);
       return {
-        existe: usuarios.some((u) =>
-          normalizarTelefono(u.telefono) === buscado && normalizarCorreo(u.correo) !== correoNorm,
+        existe: participantes.some((vinculo) =>
+          normalizarTelefono(vinculo.telefonoEvento || vinculo.usuario.telefono) === buscado &&
+          normalizarCorreo(vinculo.usuario.correo) !== correoNorm,
         ),
       };
     }
     if (!correo) return { existe: false };
-    const eventoId = await this.getPrincipalEventoId();
-    if (!eventoId) return { existe: false };
     const empresa = await this.prisma.empresa.findFirst({
       where: { correoCorporativo: { equals: normalizarCorreo(correo), mode: 'insensitive' }, estaActivo: 1 },
     });
@@ -659,7 +712,7 @@ export class AppController implements OnModuleInit {
       valida: true,
       habilitado,
       participante: {
-        nombre: `${eu.usuario.nombres} ${eu.usuario.apellidoPaterno}${eu.usuario.apellidoMaterno ? ' ' + eu.usuario.apellidoMaterno : ''}`.trim(),
+        nombre: `${eu.nombresEvento || eu.usuario.nombres} ${eu.apellidoPaternoEvento || eu.usuario.apellidoPaterno}${(eu.apellidoMaternoEvento ?? eu.usuario.apellidoMaterno) ? ' ' + (eu.apellidoMaternoEvento ?? eu.usuario.apellidoMaterno) : ''}`.trim(),
         urlFotoPerfil: eu.usuario.urlFotoPerfil || null,
         cargo: eu.cargo || null,
         esResponsable: eu.esResponsable === 1,
@@ -720,7 +773,7 @@ export class AppController implements OnModuleInit {
     });
     for (const p of participantes) if (!p.urlCredencialQR) await this.generarCredencialQR(p.id, '', `${p.usuario.nombres} ${p.usuario.apellidoPaterno}`);
     const actualizados = await this.prisma.empresa_usuario.findMany({ where: { id: { in: participantes.map((p) => p.id) } }, include: { usuario: true, empresa: true }, orderBy: { id: 'asc' } });
-    return { evento, medidaMm: { ancho: 85.6, alto: 54 }, credenciales: actualizados.map((p) => ({ id: p.id, nombre: `${p.usuario.nombres} ${p.usuario.apellidoPaterno}${p.usuario.apellidoMaterno ? ` ${p.usuario.apellidoMaterno}` : ''}`, empresa: p.empresa.nombre, cargo: p.cargo, foto: p.usuario.urlFotoPerfil || null, qr: p.urlCredencialQR })) };
+    return { evento, medidaMm: { ancho: 85.6, alto: 54 }, credenciales: actualizados.map((p) => ({ id: p.id, nombre: `${p.nombresEvento || p.usuario.nombres} ${p.apellidoPaternoEvento || p.usuario.apellidoPaterno}${(p.apellidoMaternoEvento ?? p.usuario.apellidoMaterno) ? ` ${p.apellidoMaternoEvento ?? p.usuario.apellidoMaterno}` : ''}`, empresa: p.empresa.nombre, cargo: p.cargo, foto: p.usuario.urlFotoPerfil || null, qr: p.urlCredencialQR })) };
   }
 
   @Post('tecnico/asistencias')
@@ -777,7 +830,7 @@ export class AppController implements OnModuleInit {
       usosRestantes: LIMITE_ASISTENCIAS_DIARIAS - resultado.usosHoy,
       limiteDiario: LIMITE_ASISTENCIAS_DIARIAS,
       participante: {
-        nombre: `${participante.usuario.nombres} ${participante.usuario.apellidoPaterno}`.trim(),
+        nombre: `${participante.nombresEvento || participante.usuario.nombres} ${participante.apellidoPaternoEvento || participante.usuario.apellidoPaterno}`.trim(),
         empresa: participante.empresa.nombre,
         cargo: participante.cargo,
       },
@@ -969,7 +1022,10 @@ export class AppController implements OnModuleInit {
     if (telefonoEmpresa.length < 7)
       throw new BadRequestException('El telefono/WhatsApp de la empresa no es valido.');
     const empresasConTelefono = await this.prisma.empresa.findMany({
-      where: { estaActivo: 1 },
+      where: {
+        estaActivo: 1,
+        empresaevento: { some: { evento_id: eventoId, estaActivo: 1 } },
+      },
       select: { id: true, telefonoWhatsapp: true, nombre: true },
     });
     const empresaMismoTelefono = empresasConTelefono.find((e) =>
@@ -1024,16 +1080,20 @@ export class AppController implements OnModuleInit {
       if (usuario.empresa_usuario.length > 0)
         throw new BadRequestException(`El correo ${usuario.correo} ya esta registrado en el evento actual.`);
     }
-    const usuariosConTelefono = await this.prisma.usuario.findMany({
-      where: { estaActivo: 1 },
-      select: { id: true, telefono: true },
+    const participantesConTelefono = await this.prisma.empresa_usuario.findMany({
+      where: {
+        estaActivo: 1,
+        empresaevento: { evento_id: eventoId, estaActivo: 1 },
+      },
+      select: { usuario_id: true, telefonoEvento: true, usuario: { select: { telefono: true } } },
     });
     for (const participante of participantesEntrada) {
       const correo = normalizarCorreo(participante?.correo);
       const telefono = normalizarTelefono(participante?.telefono);
       const usuarioReutilizable = usuarioPorCorreo.get(correo);
-      const usadoPorOtro = usuariosConTelefono.some((u) =>
-        normalizarTelefono(u.telefono) === telefono && u.id !== usuarioReutilizable?.id,
+      const usadoPorOtro = participantesConTelefono.some((vinculo) =>
+        normalizarTelefono(vinculo.telefonoEvento || vinculo.usuario.telefono) === telefono &&
+        vinculo.usuario_id !== usuarioReutilizable?.id,
       );
       if (usadoPorOtro)
         throw new BadRequestException(`El telefono del participante con correo ${correo} ya esta asociado a otra cuenta.`);
@@ -1193,13 +1253,17 @@ export class AppController implements OnModuleInit {
           empresaevento_id: ee.id,
           cargo: p.cargo || '',
           esResponsable: p.esResponsable ? 1 : 0,
+          nombresEvento: nombres,
+          apellidoPaternoEvento: apellidoPaterno,
+          apellidoMaternoEvento: apellidoMaterno,
+          telefonoEvento: p.telefono || '',
         },
       });
 
       participantesCreados.push({
         id: usuario.id,
-        nombres: usuario.nombres,
-        apellidoPaterno: usuario.apellidoPaterno,
+        nombres,
+        apellidoPaterno,
         correo: usuario.correo,
         cargo: p.cargo,
         esResponsable: p.esResponsable,
@@ -1780,11 +1844,11 @@ export class AppController implements OnModuleInit {
           esResponsable: eu.esResponsable === 1,
           cargo: eu.cargo ?? null,
           urlCredencialQR: eu.urlCredencialQR ?? null,
-          nombres: eu.usuario?.nombres ?? '',
-          apellidoPaterno: eu.usuario?.apellidoPaterno ?? '',
-          apellidoMaterno: eu.usuario?.apellidoMaterno ?? null,
+          nombres: eu.nombresEvento || eu.usuario?.nombres || '',
+          apellidoPaterno: eu.apellidoPaternoEvento || eu.usuario?.apellidoPaterno || '',
+          apellidoMaterno: eu.apellidoMaternoEvento ?? eu.usuario?.apellidoMaterno ?? null,
           correo: eu.usuario?.correo ?? null,
-          telefono: eu.usuario?.telefono ?? null,
+          telefono: eu.telefonoEvento || eu.usuario?.telefono || null,
         })),
         comprobantes: (ee?.empresaeventocomprobantes ?? []).map((c: any) => ({
           id: c.id,
@@ -1896,7 +1960,13 @@ export class AppController implements OnModuleInit {
       },
     });
     if (!pago) throw new BadRequestException('Pago no encontrado');
-    return pago;
+    return {
+      ...pago,
+      empresa_usuario: pago.empresa_usuario.map((eu: any) => ({
+        ...eu,
+        usuario: this.datosUsuarioDeInscripcion(eu),
+      })),
+    };
   }
 
   @Get('admin/pagos')
@@ -1967,7 +2037,7 @@ export class AppController implements OnModuleInit {
     const correosFallidos: string[] = [];
 
     for (const eu of (ee as any).empresa_usuario.filter((e: any) => e.estaActivo !== 0)) {
-      const u = eu.usuario;
+      const u = this.datosUsuarioDeInscripcion(eu);
       const otrasInscripciones = await this.prisma.empresa_usuario.count({
         where: { usuario_id: u.id, id: { not: eu.id } },
       });
@@ -4010,6 +4080,9 @@ export class AppController implements OnModuleInit {
       },
     });
     if (!eu) throw new BadRequestException('No se encontró empresa para este usuario');
+    if (eu.empresaevento?.estadoHabilitacionAcceso !== 'HABILITADO' || eu.empresaevento?.estadoVerificacionPago !== 'COMPLETADO')
+      throw new ForbiddenException('Tu inscripción para el evento actual todavía no está aprobada.');
+    (eu as any).usuario = this.datosUsuarioDeInscripcion(eu);
     return eu;
   }
 
@@ -4105,7 +4178,9 @@ export class AppController implements OnModuleInit {
     const bufMs = evento.tiempoEntreReuniones * 60000;
     const intervalMs = durMs + bufMs;
     for (const { start, end } of this.ventanasDiariasReunionesEvento(evento)) {
-      let current = this.redondearInicio(start, intervalMs);
+      // Cada jornada comienza exactamente a la hora configurada. Redondear
+      // desde medianoche desplazaba 08:00 a 08:10 cuando el bloque era 35 min.
+      let current = new Date(start);
       while (current.getTime() + durMs <= end.getTime()) {
         slots.push({ inicio: new Date(current), fin: new Date(current.getTime() + durMs) });
         current = new Date(current.getTime() + intervalMs);
@@ -5785,12 +5860,12 @@ export class AppController implements OnModuleInit {
     )) throw new BadRequestException('Ese horario ya no está disponible para una de las empresas. Actualiza la agenda y elige otro.');
     if (eventoCfg?.fechaInicioSolicitudes && ahora < new Date(eventoCfg.fechaInicioSolicitudes)) {
       throw new BadRequestException(
-        `Las solicitudes de reunión abren el ${new Date(eventoCfg.fechaInicioSolicitudes).toLocaleString('es-BO')}`,
+        `Las solicitudes de reunión abren el ${new Date(eventoCfg.fechaInicioSolicitudes).toLocaleString('es-BO', { timeZone: 'America/La_Paz' })}`,
       );
     }
     if (eventoCfg?.fechaFinSolicitudes && ahora > new Date(eventoCfg.fechaFinSolicitudes)) {
       throw new BadRequestException(
-        `El plazo para solicitar reuniones cerró el ${new Date(eventoCfg.fechaFinSolicitudes).toLocaleString('es-BO')}`,
+        `El plazo para solicitar reuniones cerró el ${new Date(eventoCfg.fechaFinSolicitudes).toLocaleString('es-BO', { timeZone: 'America/La_Paz' })}`,
       );
     }
 
@@ -6960,7 +7035,7 @@ export class AppController implements OnModuleInit {
       slotsUsados, slotsPagados, slotsDisponibles, maxPermitidos, pagoAdicionalPendiente,
       participantes: (ee as any).empresa_usuario.map((eu: any) => ({
         id: eu.id, esResponsable: eu.esResponsable === 1, cargo: eu.cargo, estaActivo: eu.estaActivo,
-        usuario: eu.usuario,
+        usuario: this.datosUsuarioDeInscripcion(eu),
       })),
       pagos,
     };
@@ -7019,8 +7094,16 @@ export class AppController implements OnModuleInit {
       throw new BadRequestException('Ese correo ya tiene una inscripción en el evento actual');
     const telefonoNorm = normalizarTelefono(body.telefono);
     if (telefonoNorm) {
-      const usuarios = await this.prisma.usuario.findMany({ where: { estaActivo: 1 }, select: { id: true, telefono: true } });
-      if (usuarios.some((u) => u.id !== existeUser?.id && normalizarTelefono(u.telefono) === telefonoNorm))
+      const participantesEvento = await this.prisma.empresa_usuario.findMany({
+        where: {
+          estaActivo: 1,
+          empresaevento: { evento_id: ee.evento_id, estaActivo: 1 },
+        },
+        select: { usuario_id: true, telefonoEvento: true, usuario: { select: { telefono: true } } },
+      });
+      if (participantesEvento.some((vinculo) =>
+        vinculo.usuario_id !== existeUser?.id &&
+        normalizarTelefono(vinculo.telefonoEvento || vinculo.usuario.telefono) === telefonoNorm))
         throw new BadRequestException('Ese teléfono ya pertenece a otra cuenta');
     }
 
@@ -7047,6 +7130,8 @@ export class AppController implements OnModuleInit {
         empresa_id: ee.empresa_id, usuario_id: nuevoUsuario.id,
         empresaevento_id: Number(eeId), cargo: cargo?.trim() ?? 'Participante',
         esResponsable: 0, estaActivo: 1,
+        nombresEvento: nombres.trim(), apellidoPaternoEvento: apellidoPaterno.trim(),
+        telefonoEvento: body.telefono?.trim() ?? '',
       }});
       return { nuevoUsuario, nuevoEu };
     }, { isolationLevel: 'Serializable' });
@@ -7321,21 +7406,26 @@ export class AppController implements OnModuleInit {
     if (!euId) throw new BadRequestException('euId requerido');
     const eu = await this.prisma.empresa_usuario.findUnique({
       where: { id: Number(euId) },
-      select: { usuario_id: true },
+      include: { usuario: true },
     });
     if (!eu) throw new BadRequestException('Registro no encontrado');
-    return this.prisma.usuario.update({
-      where: { id: eu.usuario_id },
-      data: {
-        nombres: nombres || undefined,
-        apellidoPaterno: apellidoPaterno || undefined,
-        apellidoMaterno: apellidoMaterno || null,
-        telefono: telefono || undefined,
-        // urlFotoPerfil puede llegar como '' para quitar la foto; solo se ignora si es undefined
-        ...(urlFotoPerfil !== undefined ? { urlFotoPerfil } : {}),
-        creadoModificadoFecha: new Date(),
-      },
-      select: { id: true, nombres: true, apellidoPaterno: true, apellidoMaterno: true, correo: true, telefono: true, urlFotoPerfil: true },
+    return this.prisma.$transaction(async (tx) => {
+      const vinculo = await tx.empresa_usuario.update({
+        where: { id: Number(euId) },
+        data: {
+          nombresEvento: nombres || undefined,
+          apellidoPaternoEvento: apellidoPaterno || undefined,
+          apellidoMaternoEvento: apellidoMaterno || null,
+          telefonoEvento: telefono || undefined,
+        },
+      });
+      const usuario = urlFotoPerfil !== undefined
+        ? await tx.usuario.update({
+            where: { id: eu.usuario_id },
+            data: { urlFotoPerfil, creadoModificadoFecha: new Date() },
+          })
+        : eu.usuario;
+      return this.datosUsuarioDeInscripcion({ ...vinculo, usuario });
     });
   }
 

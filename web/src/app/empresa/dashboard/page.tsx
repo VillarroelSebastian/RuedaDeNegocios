@@ -112,7 +112,7 @@ export default function EmpresaDashboardPage() {
             <Calendar className="h-5 w-5 shrink-0 text-blue-600" />
             <div className="flex-1">
               <p className="text-sm font-bold text-blue-900">Configura la agenda de tu empresa</p>
-              <p className="mt-0.5 text-xs text-blue-700">Por defecto usarÃ¡s todo el horario definido por el evento. Entra aquÃ­ para ajustar rangos o inhabilitar dÃ­as.</p>
+              <p className="mt-0.5 text-xs text-blue-700">Por defecto usarás todo el horario definido por el evento. Entra aquí para ajustar rangos o inhabilitar días.</p>
             </div>
             <ArrowRight className="h-4 w-4 text-blue-600" />
           </div>

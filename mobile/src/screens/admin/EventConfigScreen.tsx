@@ -355,8 +355,8 @@ export default function EventConfigScreen() {
     const payload: any = {
       nombre: formData.nombre, edicion: formData.edicion || '',
       descripcion: orNull(formData.descripcion),
-      fechaInicioEvento: `${formData.fechaInicioEvento}T${formData.horaInicioEvento}:00`,
-      fechaFinEvento: `${formData.fechaFinEvento}T${formData.horaFinEvento}:00`,
+      fechaInicioEvento: `${formData.fechaInicioEvento}T${formData.horaInicioEvento}:00-04:00`,
+      fechaFinEvento: `${formData.fechaFinEvento}T${formData.horaFinEvento}:00-04:00`,
       duracionReunion: Number(formData.duracionReunion),
       tiempoEntreReuniones: Number(formData.tiempoEntreReuniones),
       horariosReunion: horariosNormalizados,

@@ -113,7 +113,7 @@ export default function EmpresaDashboardScreen({ navigation }: any) {
         {esEncargado && ctx && !ctx.horariosConfigurados && (
           <TouchableOpacity style={[s.alertBox, { backgroundColor:'#eff6ff', borderColor:'#93c5fd' }]} onPress={() => navigation.navigate('Horarios')} activeOpacity={0.8}>
             <CalendarDays size={17} color="#2563eb" style={{ marginRight:8 }} />
-            <Text style={[s.alertText, { color:'#1e40af' }]}>Configura la agenda de tu empresa. Mientras no la cambies se usarÃ¡ todo el horario del evento.</Text>
+            <Text style={[s.alertText, { color:'#1e40af' }]}>Configura la agenda de tu empresa. Mientras no la cambies se usará todo el horario del evento.</Text>
             <ChevronRight size={17} color="#2563eb" />
           </TouchableOpacity>
         )}

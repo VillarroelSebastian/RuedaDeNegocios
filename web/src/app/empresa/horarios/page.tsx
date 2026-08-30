@@ -84,7 +84,7 @@ export default function EmpresaHorariosPage() {
     {!configurado && !cargando && <div className="flex gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
       <Info className="mt-0.5 h-4 w-4 shrink-0" /><p>Aún no configuraste tu agenda. Mientras no cambies nada, se usarán todos los horarios definidos por el administrador.</p>
     </div>}
-    {cargando ? <div className="py-20 text-center text-sm text-gray-400">Cargando agendaâ€¦</div> : <>
+    {cargando ? <div className="py-20 text-center text-sm text-gray-400">Cargando agenda…</div> : <>
       <div className="flex justify-end"><button type="button" onClick={copiarPrimero} className="inline-flex items-center gap-2 rounded-xl border border-green-200 bg-white px-4 py-2.5 text-sm font-bold text-[#449D3A] hover:bg-green-50"><Copy className="h-4 w-4" />Copiar primer día a todos</button></div>
       <div className="grid gap-4 lg:grid-cols-2">
         {dias.map((dia, diaIndex) => <section key={dia.fecha} className={`rounded-2xl border bg-white p-5 shadow-sm ${dia.habilitado ? "border-gray-100" : "border-red-100 bg-red-50/30"}`}>
@@ -103,7 +103,7 @@ export default function EmpresaHorariosPage() {
           </div>}
         </section>)}
       </div>
-      <button type="button" onClick={guardar} disabled={guardando} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#449D3A] px-5 py-3 font-bold text-white disabled:opacity-50 sm:w-auto"><CheckCircle2 className="h-4 w-4" />{guardando ? "Guardandoâ€¦" : "Guardar mi agenda"}</button>
+      <button type="button" onClick={guardar} disabled={guardando} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#449D3A] px-5 py-3 font-bold text-white disabled:opacity-50 sm:w-auto"><CheckCircle2 className="h-4 w-4" />{guardando ? "Guardando…" : "Guardar mi agenda"}</button>
     </>}
   </div>;
 }

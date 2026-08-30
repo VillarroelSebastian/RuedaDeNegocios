@@ -31,6 +31,10 @@ function fechaHoraBolivia(iso: string) {
   return `${valor('year')}-${valor('month')}-${valor('day')}T${valor('hour')}:${valor('minute')}`;
 }
 
+function fechaHoraInputComoBolivia(valor: string) {
+  return valor ? `${valor}:00-04:00` : null;
+}
+
 const SOUTH_AMERICA: Record<string, string[]> = {
   "Bolivia":   ["Trinidad","Beni","La Paz","Santa Cruz de la Sierra","Cochabamba","Sucre","Oruro","Potosí","Tarija","Cobija","Riberalta","Guayaramerín"],
   "Argentina": ["Buenos Aires","Córdoba","Rosario","Mendoza","Tucumán","La Plata","Mar del Plata","Salta","Santa Fe","San Juan"],
@@ -111,8 +115,8 @@ export default function ConfiguracionDeEventoPage() {
             descripcion: data.descripcion || '',
             fechaInicioEvento: legado ? `${fechaLegada}T08:00` : fechaHoraBolivia(data.fechaInicioEvento),
             fechaFinEvento: legado ? `${fechaLegada}T18:00` : fechaHoraBolivia(data.fechaFinEvento),
-            fechaInicioSolicitudes: data.fechaInicioSolicitudes ? data.fechaInicioSolicitudes.substring(0, 16) : '',
-            fechaFinSolicitudes: data.fechaFinSolicitudes ? data.fechaFinSolicitudes.substring(0, 16) : '',
+            fechaInicioSolicitudes: data.fechaInicioSolicitudes ? fechaHoraBolivia(data.fechaInicioSolicitudes) : '',
+            fechaFinSolicitudes: data.fechaFinSolicitudes ? fechaHoraBolivia(data.fechaFinSolicitudes) : '',
             duracionReunion: data.duracionReunion || 20,
             tiempoEntreReuniones: data.tiempoEntreReuniones || 5,
             cantidadTotalMesasEvento: data.cantidadTotalMesasEvento || 50,
@@ -248,10 +252,10 @@ export default function ConfiguracionDeEventoPage() {
       nombre: formData.nombre,
       edicion: formData.edicion || '',
       descripcion: orNull(formData.descripcion),
-      fechaInicioEvento: formData.fechaInicioEvento || new Date().toISOString(),
-      fechaFinEvento: formData.fechaFinEvento || new Date().toISOString(),
-      fechaInicioSolicitudes: formData.fechaInicioSolicitudes || null,
-      fechaFinSolicitudes: formData.fechaFinSolicitudes || null,
+      fechaInicioEvento: fechaHoraInputComoBolivia(formData.fechaInicioEvento) || new Date().toISOString(),
+      fechaFinEvento: fechaHoraInputComoBolivia(formData.fechaFinEvento) || new Date().toISOString(),
+      fechaInicioSolicitudes: fechaHoraInputComoBolivia(formData.fechaInicioSolicitudes),
+      fechaFinSolicitudes: fechaHoraInputComoBolivia(formData.fechaFinSolicitudes),
       duracionReunion: Number(formData.duracionReunion),
       tiempoEntreReuniones: Number(formData.tiempoEntreReuniones),
       horariosReunion: horariosNormalizados,

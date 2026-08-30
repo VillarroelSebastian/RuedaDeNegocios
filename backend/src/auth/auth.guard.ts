@@ -32,7 +32,18 @@ export class AuthGuard implements CanActivate {
     const dbUser = await this.prisma.usuario.findFirst({
       where: { id: Number(payload.sub), estaActivo: 1 },
       select: { id: true, rolEvento: true, evento_id: true,
-        empresa_usuario: { where: { estaActivo: 1 }, select: { id: true, empresaevento_id: true } } },
+        empresa_usuario: {
+          where: {
+            estaActivo: 1,
+            empresaevento: {
+              estaActivo: 1,
+              estadoHabilitacionAcceso: 'HABILITADO',
+              estadoVerificacionPago: 'COMPLETADO',
+            },
+          },
+          select: { id: true, empresaevento_id: true },
+        },
+      },
     });
     if (!dbUser || dbUser.rolEvento !== payload.role) throw new UnauthorizedException('La cuenta ya no está habilitada.');
     const eeIds = dbUser.empresa_usuario.map((x) => x.empresaevento_id);

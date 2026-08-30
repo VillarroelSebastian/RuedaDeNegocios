@@ -61,9 +61,9 @@ export default function TecnicoAsistenciaScreen() {
   const procesarQR = async (contenido: string) => {
     if (procesando || escaneoBloqueadoRef.current) return;
     escaneoBloqueadoRef.current = true;
-    const match = contenido.match(/\/credencial\/(\d+)\?t=([a-zA-Z0-9]+)/);
+    const match = contenido.match(/\/credencial\/(\d+)\/?\?t=([a-zA-Z0-9_-]+)/);
     const matchAusp = contenido.match(
-      /\/credencial\/auspiciador\/(\d+)\?t=([a-zA-Z0-9]+)/,
+      /\/credencial\/auspiciador\/(\d+)\/?\?t=([a-zA-Z0-9_-]+)/,
     );
     if (!match && !matchAusp) {
       show({

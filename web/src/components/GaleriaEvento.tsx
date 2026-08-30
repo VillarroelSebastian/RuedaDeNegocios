@@ -68,8 +68,8 @@ export default function GaleriaEvento({
     try {
       const fd = new FormData();
       fd.append("file", file);
-      // Las empresas no pueden llamar rutas /admin. El endpoint pÃºblico aplica
-      // las mismas validaciones de tipo, firma, dimensiones y tamaÃ±o del archivo.
+      // Las empresas no pueden llamar rutas /admin. El endpoint público aplica
+      // las mismas validaciones de tipo, firma, dimensiones y tamaño del archivo.
       const uploadPath = esStaff || usuarioId ? "admin/imagenes/upload" : "public/imagenes/upload";
       const up = await fetch(`${API}/${uploadPath}`, { method: "POST", body: fd });
       const upData = await up.json();
@@ -123,7 +123,7 @@ export default function GaleriaEvento({
       {puedeSubir && (
         <div className="mb-6">
           <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-gray-500">
-            DescripciÃ³n (opcional)
+            Descripción (opcional)
           </label>
           <input
             value={descripcion}

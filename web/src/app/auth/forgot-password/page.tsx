@@ -21,8 +21,8 @@ export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Un navegador mÃ³vil puede descargar esta pestaÃ±a mientras se abre el correo.
-  // Persistimos solo el correo y el paso; nunca el cÃ³digo ni la contraseÃ±a.
+  // Un navegador móvil puede descargar esta pestaña mientras se abre el correo.
+  // Persistimos solo el correo y el paso; nunca el código ni la contraseña.
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(RESET_STORAGE_KEY) || "null");

@@ -1,6 +1,6 @@
 "use client";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { CheckCircle2, ScanLine, X } from "lucide-react";
+import { CheckCircle2, ImageIcon, ScanLine, X } from "lucide-react";
 import { BrowserQRCodeReader } from "@zxing/browser";
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
@@ -33,6 +33,19 @@ export default function TecnicoAsistenciaPage() {
   useEffect(() => {
     cargar();
   }, [cargar]);
+  const extraerCredencial = (contenido: string) => {
+    try {
+      const url = new URL(contenido.trim());
+      const ausp = url.pathname.match(/\/credencial\/auspiciador\/(\d+)\/?$/);
+      const normal = url.pathname.match(/\/credencial\/(\d+)\/?$/);
+      const token = url.searchParams.get("t");
+      if (token && (ausp || normal)) return { partes: (ausp || normal)!, auspiciador: Boolean(ausp), token };
+    } catch { /* también se aceptan enlaces copiados sin URL absoluta */ }
+    const matchAusp = contenido.match(/\/credencial\/auspiciador\/(\d+)\/?\?t=([a-zA-Z0-9_-]+)/);
+    const match = contenido.match(/\/credencial\/(\d+)\/?\?t=([a-zA-Z0-9_-]+)/);
+    const partes = matchAusp || match;
+    return partes ? { partes, auspiciador: Boolean(matchAusp), token: partes[2] } : null;
+  };
   const cerrarCamara = () => {
     controlesRef.current?.stop?.();
     controlesRef.current = null;
@@ -42,9 +55,8 @@ export default function TecnicoAsistenciaPage() {
   const revisar = async (contenido: string) => {
     if (procesando || escaneoBloqueadoRef.current) return;
     escaneoBloqueadoRef.current = true;
-    const match = contenido.match(/\/credencial\/(\d+)\?t=([a-zA-Z0-9]+)/);
-    const matchAusp = contenido.match(/\/credencial\/auspiciador\/(\d+)\?t=([a-zA-Z0-9]+)/);
-    if (!match && !matchAusp) {
+    const credencial = extraerCredencial(contenido);
+    if (!credencial) {
       setModal({
         titulo: "QR no válido",
         mensaje: "Escanea o pega una credencial válida del evento.",
@@ -53,14 +65,14 @@ export default function TecnicoAsistenciaPage() {
     }
     setProcesando(true);
     try {
-      const auspiciador = Boolean(matchAusp); const partes = matchAusp || match!;
+      const { auspiciador, partes, token } = credencial;
       const res = await fetch(auspiciador
-        ? `${API}/tecnico/credenciales-auspiciador/verificar?personaId=${partes[1]}&token=${partes[2]}`
-        : `${API}/tecnico/credenciales/verificar?euId=${partes[1]}&token=${partes[2]}`);
+        ? `${API}/tecnico/credenciales-auspiciador/verificar?personaId=${partes[1]}&token=${encodeURIComponent(token)}`
+        : `${API}/tecnico/credenciales/verificar?euId=${partes[1]}&token=${encodeURIComponent(token)}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || "No se pudo verificar.");
       cerrarCamara();
-      setPendiente({ ...(auspiciador ? { personaId: Number(partes[1]) } : { euId: Number(partes[1]) }), token: partes[2], tipo: auspiciador ? "AUSPICIADOR" : "PARTICIPANTE", ...data });
+      setPendiente({ ...(auspiciador ? { personaId: Number(partes[1]) } : { euId: Number(partes[1]) }), token, tipo: auspiciador ? "AUSPICIADOR" : "PARTICIPANTE", ...data });
     } catch (e: any) {
       setModal({ titulo: "No se pudo verificar", mensaje: e.message });
     } finally {
@@ -114,9 +126,19 @@ export default function TecnicoAsistenciaPage() {
       try {
         const video = videoRef.current;
         if (!video) throw new Error("No se pudo iniciar la vista de cámara.");
-        const lector = new BrowserQRCodeReader();
+        const lector = new BrowserQRCodeReader(undefined, {
+          delayBetweenScanAttempts: 100,
+          delayBetweenScanSuccess: 500,
+        });
         controlesRef.current = await lector.decodeFromConstraints(
-          { audio: false, video: { facingMode: { ideal: "environment" } } },
+          {
+            audio: false,
+            video: {
+              facingMode: { ideal: "environment" },
+              width: { ideal: 1920 },
+              height: { ideal: 1080 },
+            },
+          },
           video,
           (resultado) => {
             if (resultado?.getText() && !escaneoBloqueadoRef.current) {
@@ -136,6 +158,20 @@ export default function TecnicoAsistenciaPage() {
         });
       }
     }, 100);
+  };
+  const leerImagenQR = async (archivo?: File) => {
+    if (!archivo || procesando) return;
+    const url = URL.createObjectURL(archivo);
+    try {
+      const lector = new BrowserQRCodeReader();
+      const resultado = await lector.decodeFromImageUrl(url);
+      await revisar(resultado.getText());
+    } catch {
+      escaneoBloqueadoRef.current = false;
+      setModal({ titulo: "QR no reconocido", mensaje: "No se encontró un código QR legible en la imagen. Intenta acercarlo, enfocarlo mejor o usa la cámara." });
+    } finally {
+      URL.revokeObjectURL(url);
+    }
   };
   useEffect(() => () => controlesRef.current?.stop?.(), []);
   return (
@@ -241,6 +277,10 @@ export default function TecnicoAsistenciaPage() {
                 Verificar QR
               </button>
             </div>
+            <label className="mt-3 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold text-gray-700">
+              <ImageIcon className="h-5 w-5" /> Leer QR desde una imagen
+              <input type="file" accept="image/*" className="hidden" onChange={(e) => { void leerImagenQR(e.target.files?.[0]); e.currentTarget.value = ""; }} />
+            </label>
           </>
         )}
       </div>

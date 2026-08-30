@@ -41,7 +41,8 @@ export default function LoginPage() {
       });
 
       if (!res.ok) {
-        throw new Error("Credenciales inválidas");
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.message || "Credenciales inválidas");
       }
 
       const user = await res.json();
