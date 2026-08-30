@@ -60,23 +60,23 @@ function PagosPageContent() {
       </div>
 
       {/* Tabs */}
-      <div className="mb-6 max-w-full overflow-x-auto pb-1">
-        <div className="flex min-w-max gap-1 rounded-xl bg-gray-100 p-1">
-        {TABS.map((t) => {
-          const Icon = t.icon;
-          return (
-            <button
-              key={t.value}
-              onClick={() => setTab(t.value)}
-              className={`flex shrink-0 items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-                tab === t.value ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              <Icon className="w-4 h-4" />
-              {t.label}
-            </button>
-          );
-        })}
+      <div className="mb-6 max-w-full">
+        <div className="flex flex-wrap gap-1 rounded-xl bg-gray-100 p-1">
+          {TABS.map((t) => {
+            const Icon = t.icon;
+            return (
+              <button
+                key={t.value}
+                onClick={() => setTab(t.value)}
+                className={`flex min-w-[110px] flex-1 items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  tab === t.value ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                {t.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
