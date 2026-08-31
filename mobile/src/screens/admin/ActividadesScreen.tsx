@@ -9,6 +9,10 @@ import { API_URL } from '../../utils/userStore';
 
 const GREEN = '#449D3A';
 
+const horaBolivia = (iso: string) => iso
+  ? new Date(iso).toLocaleTimeString('es-BO', { timeZone: 'America/La_Paz', hour: '2-digit', minute: '2-digit', hour12: false })
+  : '';
+
 const TIPOS = ['Seminario', 'Taller', 'Actividad', 'Conferencia', 'Panel'];
 const ESTADOS = ['Activo', 'Inactivo'];
 
@@ -54,8 +58,8 @@ export default function ActividadesScreen() {
       nombreSalaEspacio: a.nombreSalaEspacio,
       capacidadPersonasSala: String(a.capacidadPersonasSala),
       fechaActividad: a.fechaActividad?.substring(0, 10) || '',
-      horaInicioActividad: a.horaInicioActividad ? new Date(a.horaInicioActividad).toTimeString().substring(0, 5) : '',
-      horaFinActividad: a.horaFinActividad ? new Date(a.horaFinActividad).toTimeString().substring(0, 5) : '',
+      horaInicioActividad: horaBolivia(a.horaInicioActividad),
+      horaFinActividad: horaBolivia(a.horaFinActividad),
       nombreCompletoPilaExpositor: a.nombreCompletoPilaExpositor || '',
       linkReunionVirtual: a.linkReunionVirtual || '',
       estadoActividad: a.estadoActividad,
@@ -143,8 +147,8 @@ export default function ActividadesScreen() {
             </View>
           ) : (
             actividades.map((a) => {
-              const inicio = a.horaInicioActividad ? new Date(a.horaInicioActividad).toTimeString().substring(0, 5) : '';
-              const fin = a.horaFinActividad ? new Date(a.horaFinActividad).toTimeString().substring(0, 5) : '';
+              const inicio = horaBolivia(a.horaInicioActividad);
+              const fin = horaBolivia(a.horaFinActividad);
               return (
                 <View key={a.id} className="mx-4 mt-3 bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
                   <View className="flex-row items-start justify-between mb-2">

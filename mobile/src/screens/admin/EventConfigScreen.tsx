@@ -42,8 +42,9 @@ const SOUTH_AMERICA: Record<string, string[]> = {
 
 function fmtDate(iso: string) {
   if (!iso) return '';
-  const [y, m, d] = iso.substring(0, 10).split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString('es-BO', { day: 'numeric', month: 'numeric', year: 'numeric' });
+  return new Date(iso).toLocaleDateString('es-BO', {
+    timeZone: 'America/La_Paz', day: 'numeric', month: 'numeric', year: 'numeric',
+  });
 }
 
 // ── Componente reutilizable para campos de imagen ──────────────────────────────

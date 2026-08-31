@@ -74,7 +74,7 @@ export default function FichaEmpresaModal({ empresaId, onClose }: { empresaId: n
                   <Dato label="Pago" value={ficha.estadoVerificacionPago} />
                   <Dato label="Acceso" value={ficha.estadoHabilitacionAcceso} />
                   <Dato label="Modalidad" value={ficha.tipoParticipacion} />
-                  <Dato label="Participantes" value={ficha.numeroParticipantes} />
+                  <Dato label="Cupos pagados" value={ficha.numeroParticipantes} />
                   <Dato label="Monto pagado" value={ficha.montoPagado != null ? `Bs. ${ficha.montoPagado}` : null} />
                   <Dato label="Paquete" value={ficha.paquete ? `${ficha.paquete.nombre} · Bs. ${ficha.paquete.costo}` : 'Tarifa general'} />
                 </Bloque>

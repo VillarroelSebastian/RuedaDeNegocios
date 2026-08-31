@@ -62,9 +62,9 @@ export default function ReportesPage() {
           <h1 className="text-2xl font-extrabold text-gray-900 flex items-center gap-2">
             <FileText className="w-6 h-6 text-[#449D3A]" />Reportes del evento
           </h1>
-          <p className="text-sm text-gray-500 mt-1">Información consolidada de la rueda de negocios</p>
+          <p className="text-sm text-gray-500 mt-1">Información del evento dentro de sus fechas operativas vigentes</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button onClick={cargar}
             className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 px-3 py-2 rounded-xl">
             <RefreshCw className="w-4 h-4" />Actualizar

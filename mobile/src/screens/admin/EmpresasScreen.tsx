@@ -228,7 +228,7 @@ export default function EmpresasScreen({ navigation }: any) {
                     {badgePago(emp.estadoVerificacionPago)}
                     <View className="flex-row items-center gap-1">
                       <Users color="#9ca3af" size={12} />
-                      <Text className="text-xs text-gray-400">{emp.numeroParticipantes} part.</Text>
+                      <Text className="text-xs text-gray-400">{emp.participantesRegistrados ?? 0}/{emp.numeroParticipantes} cupos</Text>
                     </View>
                   </View>
                 </View>

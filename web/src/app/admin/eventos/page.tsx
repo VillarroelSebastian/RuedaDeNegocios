@@ -8,8 +8,9 @@ const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
 function formatDate(iso: string) {
   if (!iso) return '';
-  const [y, m, d] = iso.substring(0, 10).split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString('es-BO', { day: 'numeric', month: 'numeric', year: 'numeric' });
+  return new Date(iso).toLocaleDateString('es-BO', {
+    timeZone: 'America/La_Paz', day: 'numeric', month: 'numeric', year: 'numeric',
+  });
 }
 
 export default function EventosListPage() {

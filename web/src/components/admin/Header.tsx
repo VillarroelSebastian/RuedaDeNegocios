@@ -136,6 +136,8 @@ export default function Header() {
         <div ref={notifRef} className="relative">
           <button
             onClick={() => { setShowNotif(!showNotif); setShowProfile(false); }}
+            aria-label="Abrir notificaciones"
+            title="Notificaciones"
             className="relative p-2 text-gray-500 hover:text-gray-700 transition-colors rounded-lg hover:bg-gray-50"
           >
             <Bell className="h-5 w-5" />
@@ -190,6 +192,8 @@ export default function Header() {
         <div ref={profileRef} className="relative">
           <button
             onClick={() => { setShowProfile(!showProfile); setShowNotif(false); }}
+            aria-label="Abrir menú de perfil"
+            title="Perfil"
             className="flex items-center gap-2 rounded-xl hover:bg-gray-50 p-1 transition-colors"
           >
             <div className="h-9 w-9 rounded-full bg-[#E5D7B5] flex items-center justify-center border-2 border-white shadow-sm ring-1 ring-gray-200 overflow-hidden">

@@ -300,7 +300,7 @@ export default function EmpresasPage() {
                     <td className="py-4 px-5">
                       <div className="flex items-center gap-1 text-sm text-gray-600">
                         <Users className="w-4 h-4 text-gray-400" />
-                        {emp.numeroParticipantes} participantes
+                        {emp.participantesRegistrados ?? 0} de {emp.numeroParticipantes} cupos
                       </div>
                     </td>
                     <td className="py-4 px-5">{badgePago(emp.estadoVerificacionPago)}</td>

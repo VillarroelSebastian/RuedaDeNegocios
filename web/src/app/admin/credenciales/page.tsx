@@ -19,7 +19,7 @@ export default function CredencialesPage() {
     setImprimirId(id);
     window.setTimeout(() => window.print(), 100);
   };
-  return <main className="p-4 sm:p-6 max-w-7xl mx-auto">
+  return <div className="p-4 sm:p-6 max-w-7xl mx-auto">
     <style jsx global>{`
       @page { size: letter portrait; margin: 10mm; }
       @media print {
@@ -46,5 +46,5 @@ export default function CredencialesPage() {
         {c.qr && <img src={c.qr} alt={`QR de ${c.nombre}`} className="w-32 h-32 object-contain shrink-0"/>}
       </section>)}
     </div>
-  </main>;
+  </div>;
 }

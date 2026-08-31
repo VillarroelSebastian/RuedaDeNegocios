@@ -170,7 +170,7 @@ export default function FichaEmpresaModal({
                 )}
                 <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3 border-t border-gray-100 pt-3">
                   <Dato label="Modalidad" valor={f.tipoParticipacion} />
-                  <Dato label="Participantes" valor={f.numeroParticipantes} />
+                  <Dato label="Cupos pagados" valor={f.numeroParticipantes} />
                   <Dato label="Monto pagado" valor={f.montoPagado != null ? `Bs. ${f.montoPagado}` : null} />
                 </div>
               </Bloque>

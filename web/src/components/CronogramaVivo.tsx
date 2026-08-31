@@ -31,9 +31,14 @@ export type ActividadVivo = {
 
 export function hora(iso: string) {
   if (!iso) return "";
-  // Las horas vienen como Time de Postgres; se muestra tal cual sin desfase local.
-  const m = /T(\d{2}:\d{2})/.exec(iso);
-  return m ? m[1] : new Date(iso).toLocaleTimeString("es-BO", { hour: "2-digit", minute: "2-digit", hour12: false });
+  const fecha = new Date(iso);
+  if (Number.isNaN(fecha.getTime())) return "";
+  return fecha.toLocaleTimeString("es-BO", {
+    timeZone: "America/La_Paz",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
 }
 
 export function fechaLarga(iso: string) {

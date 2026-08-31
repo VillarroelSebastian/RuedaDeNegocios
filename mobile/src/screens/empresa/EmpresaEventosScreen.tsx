@@ -12,7 +12,14 @@ const GREEN = '#449D3A';
 
 function fmtDate(iso: string) {
   if (!iso) return '';
-  return new Date(iso).toLocaleDateString('es-BO', { weekday: 'long', day: '2-digit', month: 'long' });
+  return new Date(iso).toLocaleDateString('es-BO', { timeZone: 'America/La_Paz', weekday: 'long', day: '2-digit', month: 'long' });
+}
+
+function fmtTime(iso: string) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleTimeString('es-BO', {
+    timeZone: 'America/La_Paz', hour: '2-digit', minute: '2-digit', hour12: false,
+  });
 }
 
 const TIPO_COLORS: Record<string, { bg: string; text: string }> = {
@@ -110,7 +117,7 @@ export default function EmpresaEventosScreen() {
                 <View style={s.metaRow}>
                   <Clock size={13} color="#94a3b8" style={{ marginRight: 4 }} />
                   <Text style={s.metaText}>
-                    {item.horaInicioActividad?.slice(0, 5) ?? ''} – {item.horaFinActividad?.slice(0, 5) ?? ''}
+                    {fmtTime(item.horaInicioActividad)} – {fmtTime(item.horaFinActividad)}
                   </Text>
                 </View>
               )}

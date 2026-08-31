@@ -41,7 +41,7 @@ export default function EstadisticasScreen() {
     { label: 'Empresas', value: stats.kpis.empresasRegistradas, icon: Building2, color: GREEN },
     { label: 'Participantes', value: stats.kpis.participantesTotales, icon: Users, color: '#2563eb' },
     { label: 'Asistentes hoy', value: stats.kpis.asistentesHoy ?? 0, icon: CalendarCheck, color: GREEN },
-    { label: 'Reuniones', value: stats.kpis.reunionesProgramadas, icon: CalendarCheck, color: '#7c3aed' },
+    { label: 'Programadas', value: stats.kpis.reunionesProgramadas, icon: CalendarCheck, color: '#7c3aed' },
     { label: 'Realizadas', value: stats.kpis.reunionesRealizadas, icon: Handshake, color: '#7c3aed' },
     { label: 'P. Verificados', value: stats.kpis.pagosVerificados, icon: Shield, color: '#059669' },
     { label: 'P. Pendientes', value: stats.kpis.pagosPendientes, icon: Clock, color: '#ea580c' },

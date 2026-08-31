@@ -712,9 +712,23 @@ export class ExtrasController {
   // Devuelve la agenda del día con lo que está pasando ahora mismo.
   @Get('public/cronograma-vivo')
   async cronogramaVivo(@Query('eeId') eeId?: string) {
-    const eventoId = await this.eventoPrincipalId();
+    const evento = await this.prisma.evento.findFirst({
+      where: { esPrincipal: 1, estaActivo: { not: 0 } },
+      select: { id: true, fechaInicioEvento: true, fechaFinEvento: true },
+    });
+    if (!evento) throw new BadRequestException('No hay un evento principal activo.');
+    const eventoId = evento.id;
+    const primeraFecha = claveFechaBolivia(evento.fechaInicioEvento);
+    const ultimaFecha = claveFechaBolivia(new Date(evento.fechaFinEvento.getTime() - 1));
     const actividades = await this.prisma.actividadprograma.findMany({
-      where: { evento_id: eventoId, estaActivo: 1 },
+      where: {
+        evento_id: eventoId,
+        estaActivo: 1,
+        fechaActividad: {
+          gte: new Date(`${primeraFecha}T00:00:00.000Z`),
+          lte: new Date(`${ultimaFecha}T23:59:59.999Z`),
+        },
+      },
       orderBy: [{ fechaActividad: 'asc' }, { horaInicioActividad: 'asc' }],
       select: {
         id: true, nombreActividad: true, descripcionActividad: true, tipoActividad: true,

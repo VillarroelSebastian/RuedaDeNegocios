@@ -8,6 +8,10 @@ const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 const TIPOS = ['Seminario', 'Taller', 'Actividad', 'Conferencia', 'Panel'];
 const ESTADOS = ['Activo', 'Inactivo'];
 
+const horaBolivia = (iso: string) => iso
+  ? new Date(iso).toLocaleTimeString('es-BO', { timeZone: 'America/La_Paz', hour: '2-digit', minute: '2-digit', hour12: false })
+  : '';
+
 const badgeTipo = (tipo: string) => {
   const map: Record<string, string> = {
     Seminario: 'bg-purple-100 text-purple-700',
@@ -65,8 +69,8 @@ export default function ActividadesPage() {
       nombreSalaEspacio: a.nombreSalaEspacio,
       capacidadPersonasSala: String(a.capacidadPersonasSala),
       fechaActividad: a.fechaActividad?.substring(0, 10) || '',
-      horaInicioActividad: a.horaInicioActividad ? new Date(a.horaInicioActividad).toTimeString().substring(0, 5) : '',
-      horaFinActividad: a.horaFinActividad ? new Date(a.horaFinActividad).toTimeString().substring(0, 5) : '',
+      horaInicioActividad: horaBolivia(a.horaInicioActividad),
+      horaFinActividad: horaBolivia(a.horaFinActividad),
       nombreCompletoPilaExpositor: a.nombreCompletoPilaExpositor || '',
       organizacionDelExpositor: a.organizacionDelExpositor || '',
       estadoActividad: a.estadoActividad,
@@ -148,8 +152,8 @@ export default function ActividadesPage() {
                 <tr><td colSpan={7} className="py-12 text-center text-sm text-gray-400">No hay actividades registradas</td></tr>
               ) : (
                 actividades.map((a) => {
-                  const inicio = a.horaInicioActividad ? new Date(a.horaInicioActividad).toTimeString().substring(0, 5) : '';
-                  const fin = a.horaFinActividad ? new Date(a.horaFinActividad).toTimeString().substring(0, 5) : '';
+                  const inicio = horaBolivia(a.horaInicioActividad);
+                  const fin = horaBolivia(a.horaFinActividad);
                   return (
                     <tr key={a.id} className={`hover:bg-gray-50/50 transition-colors ${a.estadoActividad === 'Inactivo' ? 'opacity-60' : ''}`}>
                       <td className="py-4 px-5">

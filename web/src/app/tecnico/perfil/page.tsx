@@ -305,9 +305,9 @@ export default function TecnicoPerfilPage() {
                 <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
               </label>
             </div>
-            <div>
+            <div className="min-w-0 flex-1">
               <p className="font-bold text-gray-900">{user?.nombres} {user?.apellidoPaterno}</p>
-              <p className="text-sm text-gray-500">{user?.correo}</p>
+              <p className="text-sm text-gray-500 break-all">{user?.correo}</p>
               <span className="inline-block mt-1 text-[10px] font-bold text-[#449D3A] bg-green-50 px-2 py-0.5 rounded-full uppercase">{user?.rolEvento ?? 'Técnico'}</span>
               {uploading && <p className="text-xs text-[#449D3A] mt-1">Subiendo imagen...</p>}
             </div>
