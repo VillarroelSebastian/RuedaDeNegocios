@@ -6,6 +6,7 @@ import {
 import {
   Building2, Clock, Video, MapPin, CheckCircle, ChevronDown,
   ChevronUp, Search, X, Armchair, AlertTriangle,
+  Star,
 } from 'lucide-react-native';
 import { API_URL } from '../../utils/userStore';
 
@@ -181,6 +182,9 @@ export default function TecnicoReunionesScreen() {
   const [filtroEst,  setFiltroEst]  = useState('TODOS');
   const [filtroTip,  setFiltroTip]  = useState('TODOS');
   const [modal,      setModal]      = useState<any>({ visible:false, type:'success', title:'', message:'' });
+  const [evaluando, setEvaluando] = useState<any>(null);
+  const [evaluacion, setEvaluacion] = useState<any>({ calificacionA:0, rangoA:'', observacionesA:'', calificacionB:0, rangoB:'', observacionesB:'' });
+  const [guardando, setGuardando] = useState(false);
 
   const fetchReuniones = useCallback(async () => {
     try {
@@ -197,6 +201,10 @@ export default function TecnicoReunionesScreen() {
   useEffect(() => { setLoading(true); fetchReuniones(); }, [filtroEst, filtroTip]);
 
   const handleCambiarEstado = async (id: number, estado: string) => {
+    if (estado === 'FINALIZADA') {
+      setEvaluando(reuniones.find((r) => r.id === id) ?? null);
+      return;
+    }
     try {
       const res = await fetch(`${API_URL}/tecnico/reuniones/${id}/estado`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -210,6 +218,21 @@ export default function TecnicoReunionesScreen() {
     }
   };
 
+  const guardarEvaluacion = async () => {
+    if (!evaluando || !evaluacion.calificacionA || !evaluacion.calificacionB || !evaluacion.rangoA.trim() || !evaluacion.rangoB.trim() || !evaluacion.observacionesA.trim() || !evaluacion.observacionesB.trim()) {
+      setModal({ visible:true, type:'error', title:'Datos incompletos', message:'Completa la evaluación de ambas empresas.' }); return;
+    }
+    setGuardando(true);
+    try {
+      const res = await fetch(`${API_URL}/tecnico/reuniones/${evaluando.id}/finalizar-evaluar`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(evaluacion) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || 'No se pudo finalizar');
+      setEvaluando(null); setEvaluacion({ calificacionA:0, rangoA:'', observacionesA:'', calificacionB:0, rangoB:'', observacionesB:'' });
+      setModal({ visible:true, type:'success', title:'Reunión finalizada', message:'Se guardaron las evaluaciones de ambas empresas.' }); fetchReuniones();
+    } catch (e:any) { setModal({ visible:true, type:'error', title:'Error', message:e.message }); }
+    finally { setGuardando(false); }
+  };
+
   const estados = ['TODOS','PROGRAMADA','REPROGRAMADA','EN_CURSO','FINALIZADA','CANCELADA'];
   const tipos   = ['TODOS','PRESENCIAL','VIRTUAL','MIXTA'];
   const canceladasPorEmpresa = reuniones.filter((r) =>
@@ -219,6 +242,13 @@ export default function TecnicoReunionesScreen() {
   return (
     <View style={{ flex:1, backgroundColor:'#f8fafc' }}>
       <AppModal {...modal} onClose={() => setModal((m:any) => ({ ...m, visible:false }))} />
+      <RNModal visible={!!evaluando} transparent animationType="slide" onRequestClose={() => setEvaluando(null)}>
+        <View style={{flex:1,backgroundColor:'rgba(0,0,0,.55)',justifyContent:'flex-end'}}><View style={{backgroundColor:'#fff',borderTopLeftRadius:24,borderTopRightRadius:24,maxHeight:'92%',padding:20}}>
+          <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center',marginBottom:12}}><Text style={{fontSize:19,fontWeight:'800'}}>Finalizar y evaluar</Text><TouchableOpacity onPress={() => setEvaluando(null)}><X size={22} color="#64748b" /></TouchableOpacity></View>
+          <ScrollView>{['A','B'].map((sufijo) => { const sol=evaluando?.solicitudreunion; const nombre=sufijo==='A' ? sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa?.nombre : sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento?.empresa?.nombre; const kc=`calificacion${sufijo}`, kr=`rango${sufijo}`, ko=`observaciones${sufijo}`; return <View key={sufijo} style={{borderWidth:1,borderColor:'#e5e7eb',borderRadius:16,padding:14,marginBottom:12}}><Text style={{fontWeight:'800',marginBottom:10}}>{nombre ?? `Empresa ${sufijo}`}</Text><View style={{flexDirection:'row',gap:5,marginBottom:10}}>{[1,2,3,4,5].map(n=><TouchableOpacity key={n} onPress={()=>setEvaluacion((v:any)=>({...v,[kc]:n}))}><Star size={28} color={evaluacion[kc]>=n?'#f59e0b':'#d1d5db'} fill={evaluacion[kc]>=n?'#f59e0b':'transparent'} /></TouchableOpacity>)}</View><TextInput value={evaluacion[kr]} onChangeText={(t)=>setEvaluacion((v:any)=>({...v,[kr]:t}))} placeholder="Rango estimado del acuerdo" style={{borderWidth:1,borderColor:'#e5e7eb',borderRadius:12,padding:11,marginBottom:8}}/><TextInput value={evaluacion[ko]} onChangeText={(t)=>setEvaluacion((v:any)=>({...v,[ko]:t}))} placeholder="Observaciones y puntos tratados" multiline style={{borderWidth:1,borderColor:'#e5e7eb',borderRadius:12,padding:11,minHeight:70,textAlignVertical:'top'}}/></View>})}</ScrollView>
+          <TouchableOpacity disabled={guardando} onPress={guardarEvaluacion} style={{backgroundColor:'#f97316',borderRadius:14,paddingVertical:14,alignItems:'center',opacity:guardando?.6:1}}><Text style={{color:'#fff',fontWeight:'800'}}>{guardando?'Guardando…':'Finalizar y guardar'}</Text></TouchableOpacity>
+        </View></View>
+      </RNModal>
 
       {/* Header */}
       <View style={{ backgroundColor:'#fff', paddingHorizontal:16, paddingTop:52, paddingBottom:14,

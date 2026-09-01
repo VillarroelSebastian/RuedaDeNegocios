@@ -27,6 +27,7 @@ import AuspiciadoresScreen         from '../screens/admin/AuspiciadoresScreen';
 import TecnicoReunionesScreen     from '../screens/tecnico/TecnicoReunionesScreen';
 import TecnicoGaleriaScreen       from '../screens/tecnico/TecnicoGaleriaScreen';
 import OportunidadesStaffScreen   from '../screens/shared/OportunidadesStaffScreen';
+import TecnicoAgendarScreen       from '../screens/tecnico/TecnicoAgendarScreen';
 
 const Tab        = createBottomTabNavigator();
 const AdminStack = createNativeStackNavigator();
@@ -58,6 +59,7 @@ function MenuScreen({ navigation }: any) {
     { name: 'Auspiciadores',     icon: Users,             screen: 'Auspiciadores',     desc: 'Credenciales y aportes'     },
     { name: 'Agenda',           icon: ListChecks,        screen: 'Agenda',            desc: 'Ocupación de mesas'       },
     { name: 'Control reuniones',icon: CalendarCheck,     screen: 'ControlReuniones',  desc: 'Finalizar o cancelar'     },
+    { name: 'Agendar reunión',  icon: CalendarCheck,     screen: 'AgendarReunion',    desc: 'Crear una reunión'        },
     { name: 'Oportunidades',    icon: Handshake,         screen: 'Oportunidades',     desc: 'Conectar empresas afines' },
     { name: 'Noticias',         icon: Newspaper,         screen: 'Noticias',          desc: 'Comunicados'              },
     { name: 'Galería',          icon: Newspaper,         screen: 'Galeria',           desc: 'Fotos y moderación'       },
@@ -197,6 +199,7 @@ export default function AdminNavigator() {
       <AdminStack.Screen name="Agenda"       component={AgendaScreen}       options={{ title: 'Agenda de Mesas' }} />
       <AdminStack.Screen name="Oportunidades" component={OportunidadesStaffScreen} options={{ title: 'Oportunidades' }} />
       <AdminStack.Screen name="ControlReuniones" component={TecnicoReunionesScreen} options={{ title: 'Control de Reuniones' }} />
+      <AdminStack.Screen name="AgendarReunion" component={TecnicoAgendarScreen} options={{ title: 'Agendar reunión' }} />
       <AdminStack.Screen name="PagoDetail"        component={PagoDetailScreen}        options={{ title: 'Verificar Pago'           }} />
       <AdminStack.Screen name="PagosAdicionales"  component={PagosAdicionalesScreen}  options={{ title: 'Pagos Adicionales'        }} />
       <AdminStack.Screen name="EventoConfig"       component={AdminEventoConfigScreen} options={{ title: 'Configuración del Evento' }} />

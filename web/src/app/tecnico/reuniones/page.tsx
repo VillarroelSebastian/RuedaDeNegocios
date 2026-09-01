@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useCallback } from 'react';
-import { Building2, Clock, Video, MapPin, CheckCircle, AlertCircle, X, ChevronDown } from 'lucide-react';
+import { Building2, Clock, Video, MapPin, CheckCircle, AlertCircle, X, ChevronDown, Star } from 'lucide-react';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
@@ -100,7 +100,7 @@ function getMapsUrl(sol: any): string | null {
   return null;
 }
 
-function ReunionRow({ r, onChange }: { r: any; onChange: (id: number, estado: string) => void }) {
+function ReunionRow({ r, onChange, onFinalizar }: { r: any; onChange: (id: number, estado: string) => void; onFinalizar: (r: any) => void }) {
   const [expanded, setExpanded] = useState(false);
   const sol        = r.solicitudreunion;
   const ea         = sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa;
@@ -145,6 +145,11 @@ function ReunionRow({ r, onChange }: { r: any; onChange: (id: number, estado: st
         <div className="shrink-0">
           <EstadoDropdown reunion={r} onChange={onChange} />
         </div>
+        {r.estadoReunion === 'EN_CURSO' && (
+          <button onClick={() => onFinalizar(r)} className="shrink-0 rounded-lg bg-orange-500 px-3 py-2 text-xs font-bold text-white hover:bg-orange-600">
+            Finalizar y evaluar
+          </button>
+        )}
 
         {/* Expand */}
         {((esVirtual && link && enlaceOperativo) || (esPresencial && mapsUrl) || canceladaPorEmpresa) && (
@@ -186,6 +191,9 @@ export default function TecnicoReunionesPage() {
   const [filtroEst, setFiltroEst] = useState('TODOS');
   const [filtroTip, setFiltroTip] = useState('TODOS');
   const [modal,     setModal]     = useState<any>({ visible:false, type:'success', title:'', message:'' });
+  const [evaluando, setEvaluando] = useState<any>(null);
+  const [evaluacion, setEvaluacion] = useState({ calificacionA: 0, rangoA: '', observacionesA: '', calificacionB: 0, rangoB: '', observacionesB: '' });
+  const [guardandoEvaluacion, setGuardandoEvaluacion] = useState(false);
 
   const fetchReuniones = useCallback(async () => {
     setLoading(true);
@@ -203,6 +211,11 @@ export default function TecnicoReunionesPage() {
   useEffect(() => { fetchReuniones(); }, [fetchReuniones]);
 
   const handleCambiarEstado = async (id: number, estado: string) => {
+    if (estado === 'FINALIZADA') {
+      const reunion = reuniones.find((item) => item.id === id);
+      if (reunion) setEvaluando(reunion);
+      return;
+    }
     try {
       const res = await fetch(`${API}/tecnico/reuniones/${id}/estado`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -216,6 +229,28 @@ export default function TecnicoReunionesPage() {
     }
   };
 
+  const guardarEvaluacion = async () => {
+    if (!evaluando) return;
+    if (!evaluacion.calificacionA || !evaluacion.calificacionB || !evaluacion.rangoA.trim() || !evaluacion.rangoB.trim() || !evaluacion.observacionesA.trim() || !evaluacion.observacionesB.trim()) {
+      setModal({ visible:true, type:'error', title:'Datos incompletos', message:'Califica y completa el rango y las observaciones de ambas empresas.' });
+      return;
+    }
+    setGuardandoEvaluacion(true);
+    try {
+      const res = await fetch(`${API}/tecnico/reuniones/${evaluando.id}/finalizar-evaluar`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(evaluacion),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || 'No se pudo finalizar');
+      setEvaluando(null);
+      setEvaluacion({ calificacionA: 0, rangoA: '', observacionesA: '', calificacionB: 0, rangoB: '', observacionesB: '' });
+      setModal({ visible:true, type:'success', title:'Reunión finalizada', message:'Las evaluaciones de ambas empresas quedaron registradas.' });
+      fetchReuniones();
+    } catch (error: any) {
+      setModal({ visible:true, type:'error', title:'No se pudo finalizar', message:error.message });
+    } finally { setGuardandoEvaluacion(false); }
+  };
+
   const estados = ['TODOS', 'PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO', 'FINALIZADA', 'CANCELADA'];
   const tipos   = ['TODOS', 'PRESENCIAL', 'VIRTUAL', 'MIXTA'];
   const canceladasPorEmpresa = reuniones.filter((r) =>
@@ -225,6 +260,28 @@ export default function TecnicoReunionesPage() {
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <Modal {...modal} onClose={() => setModal((m: any) => ({ ...m, visible:false }))} />
+      {evaluando && (() => {
+        const sol = evaluando.solicitudreunion;
+        const empresaA = sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa?.nombre ?? 'Empresa solicitante';
+        const empresaB = sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento?.empresa?.nombre ?? 'Empresa receptora';
+        return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6">
+            <div className="mb-4 flex items-start justify-between"><div><h2 className="text-xl font-extrabold">Finalizar reunión</h2><p className="text-sm text-gray-500">Registra la evaluación de ambas empresas.</p></div><button onClick={() => setEvaluando(null)}><X /></button></div>
+            {[{ nombre: empresaA, sufijo: 'A' }, { nombre: empresaB, sufijo: 'B' }].map(({ nombre, sufijo }) => {
+              const keyCal = `calificacion${sufijo}` as 'calificacionA' | 'calificacionB';
+              const keyRan = `rango${sufijo}` as 'rangoA' | 'rangoB';
+              const keyObs = `observaciones${sufijo}` as 'observacionesA' | 'observacionesB';
+              return <section key={sufijo} className="mb-4 rounded-xl border border-gray-200 p-4">
+                <h3 className="mb-3 font-bold">{nombre}</h3>
+                <div className="mb-3 flex gap-1">{[1,2,3,4,5].map((n) => <button type="button" key={n} onClick={() => setEvaluacion((v) => ({...v, [keyCal]: n}))}><Star className={`h-7 w-7 ${evaluacion[keyCal] >= n ? 'fill-amber-400 text-amber-400' : 'text-gray-300'}`} /></button>)}</div>
+                <input value={evaluacion[keyRan]} onChange={(e) => setEvaluacion((v) => ({...v, [keyRan]: e.target.value}))} placeholder="Rango estimado del acuerdo" className="mb-3 w-full rounded-xl border px-3 py-2 text-sm" />
+                <textarea value={evaluacion[keyObs]} onChange={(e) => setEvaluacion((v) => ({...v, [keyObs]: e.target.value}))} placeholder="Observaciones y puntos tratados" className="w-full rounded-xl border px-3 py-2 text-sm" rows={3} />
+              </section>;
+            })}
+            <button disabled={guardandoEvaluacion} onClick={guardarEvaluacion} className="w-full rounded-xl bg-orange-500 py-3 font-bold text-white disabled:opacity-50">{guardandoEvaluacion ? 'Guardando…' : 'Finalizar y guardar evaluaciones'}</button>
+          </div>
+        </div>;
+      })()}
 
       {/* Header */}
       <div className="mb-6">
@@ -299,7 +356,7 @@ export default function TecnicoReunionesPage() {
       ) : (
         <div className="space-y-3">
           {reuniones.map((r) => (
-            <ReunionRow key={r.id} r={r} onChange={handleCambiarEstado} />
+            <ReunionRow key={r.id} r={r} onChange={handleCambiarEstado} onFinalizar={setEvaluando} />
           ))}
         </div>
       )}

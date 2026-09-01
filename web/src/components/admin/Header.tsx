@@ -92,14 +92,14 @@ export default function Header() {
   };
 
   return (
-    <header className="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6 sticky top-0 z-10 w-full">
+    <header className="bg-white border-b border-gray-200 h-16 flex items-center justify-between pl-16 pr-4 lg:px-6 sticky top-0 z-10 w-full min-w-0">
       <div className="flex-1 shrink-0">
-        <h1 className="text-xl font-bold text-gray-800 hidden md:block">Rueda de Negocios del Beni</h1>
+        <h1 className="text-xl font-bold text-gray-800 hidden lg:block">Rueda de Negocios del Beni</h1>
       </div>
 
       <div className="flex items-center space-x-4 flex-1 justify-end shrink-0">
         {/* Search */}
-        <div ref={searchRef} className="relative max-w-sm w-full hidden md:block">
+        <div ref={searchRef} className="relative max-w-sm w-full hidden lg:block">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <Search className="h-4 w-4 text-gray-400" />
           </div>
@@ -147,7 +147,7 @@ export default function Header() {
           </button>
 
           {showNotif && (
-            <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden">
+            <div className="absolute right-0 top-full mt-2 w-[min(20rem,calc(100vw-2rem))] bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden">
               <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                 <h3 className="font-bold text-sm text-gray-900">Notificaciones</h3>
                 {totalNoLeidas > 0 && (

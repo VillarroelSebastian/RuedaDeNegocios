@@ -309,10 +309,13 @@ function DetalleReunionModal({ reunion, eeId, esEncargado, navigation, onClose, 
   reunion: any; eeId: number; esEncargado: boolean;
   navigation: any; onClose: () => void; onCambiarHorario: () => void; onFinalizado: () => void;
 }) {
-  const ahora = new Date();
+  const [reloj, setReloj] = useState(Date.now());
+  useEffect(() => { const timer = setInterval(() => setReloj(Date.now()), 15000); return () => clearInterval(timer); }, []);
+  const ahora = new Date(reloj);
+  const minutosRestantes = Math.max(0, Math.ceil((new Date(reunion.fin).getTime() - reloj) / 60000));
   const esProgramada = (reunion.estado === 'PROGRAMADA' || reunion.estado === 'REPROGRAMADA') && new Date(reunion.fin) > ahora;
   const esFinalizada = reunion.estado === 'FINALIZADA' || new Date(reunion.fin) <= ahora;
-  const puedeFinalizarEncargado = false;
+  const puedeFinalizarEncargado = reunion.estado === 'EN_CURSO';
   const puedeIniciar = esEncargado && ['PROGRAMADA', 'REPROGRAMADA'].includes(reunion.estado);
   const otraPidioIniciar = reunion.inicioAnticipadoPor && reunion.inicioAnticipadoPor !== eeId;
   const yoPediIniciar = reunion.inicioAnticipadoPor && reunion.inicioAnticipadoPor === eeId;
@@ -458,6 +461,7 @@ function DetalleReunionModal({ reunion, eeId, esEncargado, navigation, onClose, 
             </View>
 
             {/* Result */}
+            {reunion.estado === 'EN_CURSO' && <View style={{backgroundColor:minutosRestantes<=2?'#fef2f2':minutosRestantes<=5?'#fffbeb':'#eff6ff',borderRadius:12,padding:12,marginBottom:12}}><Text style={{fontSize:13,fontWeight:'800',textAlign:'center',color:minutosRestantes<=2?'#b91c1c':minutosRestantes<=5?'#92400e':'#1e40af'}}>{minutosRestantes>0?`Quedan aproximadamente ${minutosRestantes} minuto(s)`:'El tiempo programado terminó'}</Text><Text style={{fontSize:11,textAlign:'center',color:'#64748b',marginTop:3}}>Al concluir, finaliza la reunión y registra la evaluación.</Text></View>}
             {reunion.miResultado && (
               <View style={dm.resultCard}>
                 <Text style={dm.resultLabel}>Mi evaluación</Text>
@@ -562,7 +566,7 @@ function DetalleReunionModal({ reunion, eeId, esEncargado, navigation, onClose, 
                   )}
                 </>
               )}
-              {esEncargado && esFinalizada && !reunion.miResultado && (
+              {esFinalizada && !reunion.miResultado && (
                 <TouchableOpacity
                   onPress={() => { onClose(); navigation.navigate('Resultados', { reunionId: reunion.id, contraparte: reunion.contraparte?.nombre }); }}
                   style={dm.primaryBtn} activeOpacity={0.8}

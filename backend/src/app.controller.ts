@@ -114,6 +114,16 @@ export class AppController implements OnModuleInit {
     this.notifGateway.emitirParaEe(eeId, tipo, { titulo, mensaje });
   }
 
+  private async notificarUnaVez(
+    eeId: number, tipo: string, titulo: string, mensaje: string, referenciaId: number,
+  ) {
+    const existe = await this.prisma.notificacion.findFirst({
+      where: { empresaevento_id: eeId, tipoNotificacion: tipo, referenciaId, estaActivo: 1 },
+      select: { id: true },
+    });
+    if (!existe) await this.notificar(eeId, tipo, titulo, mensaje, referenciaId, 'reunion');
+  }
+
   private async notificarStaff(
     eventoId: number,
     tipo: string,
@@ -433,6 +443,28 @@ export class AppController implements OnModuleInit {
       }
     }
 
+    // Avisos de cierre visibles tanto en historial como en tiempo real. Cada tipo
+    // se persiste una sola vez aunque este proceso se ejecute cada 15 segundos.
+    const porTerminar = await this.prisma.reunion.findMany({
+      where: { AND: [operativas, {
+        estadoReunion: 'EN_CURSO', fechaHoraFinReunion: { gt: ahora, lte: new Date(ahora.getTime() + 5 * 60_000) },
+      }] },
+      include: { solicitudreunion: { select: { empresaEvento_id: true, empresaEventorReceptora_id: true } } },
+    });
+    for (const reunion of porTerminar) {
+      const minutos = Math.max(1, Math.ceil((reunion.fechaHoraFinReunion.getTime() - ahora.getTime()) / 60_000));
+      const umbral = minutos <= 2 ? 2 : 5;
+      const tipo = `reunion:finaliza-${umbral}m`;
+      const titulo = umbral === 2 ? 'La reunión está por terminar' : 'Quedan pocos minutos';
+      const mensaje = `Quedan aproximadamente ${minutos} minuto(s). Finaliza la reunión al concluir y registra la evaluación.`;
+      const sol = reunion.solicitudreunion;
+      if (!sol) continue;
+      await Promise.all([
+        this.notificarUnaVez(sol.empresaEvento_id, tipo, titulo, mensaje, reunion.id),
+        this.notificarUnaVez(sol.empresaEventorReceptora_id, tipo, titulo, mensaje, reunion.id),
+      ]);
+    }
+
     const vencidas = await this.prisma.reunion.findMany({
       where: { AND: [operativas, {
         estadoReunion: { in: ['PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO'] },
@@ -521,6 +553,56 @@ export class AppController implements OnModuleInit {
   @Get()
   getHello(): string {
     return this.appService.getHello();
+  }
+
+  /** Mantiene las mesas del evento alineadas con su configuracion sin borrar historial. */
+  private async sincronizarMesasEvento(eventoId: number, total: number, capacidad: number) {
+    if (!eventoId || total < 1) return;
+    const existentes = await this.prisma.mesa.findMany({
+      where: { evento_id: eventoId },
+      select: { numeroMesa: true },
+    });
+    const numeros = new Set(existentes.map((mesa) => mesa.numeroMesa));
+    const faltantes = Array.from({ length: total }, (_, i) => i + 1).filter((numero) => !numeros.has(numero));
+    await this.prisma.$transaction(async (tx) => {
+      if (faltantes.length) {
+        await tx.mesa.createMany({
+          data: faltantes.map((numeroMesa) => ({
+            evento_id: eventoId, numeroMesa, capacidadPersonas: capacidad,
+            estaActivo: 1, estaHabilitada: 1,
+          })),
+        });
+      }
+      await tx.mesa.updateMany({
+        where: { evento_id: eventoId, numeroMesa: { lte: total } },
+        data: { estaActivo: 1, capacidadPersonas: capacidad },
+      });
+      const ocupadasFuera = await tx.mesa.findMany({
+        where: {
+          evento_id: eventoId, numeroMesa: { gt: total }, estaActivo: 1,
+          reunion: { some: { estaActivo: 1, estadoReunion: { in: ['PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO'] } } },
+        },
+        select: { id: true },
+      });
+      const preReservadasFuera = await tx.solicitudreunion.findMany({
+        where: {
+          mesa: { evento_id: eventoId, numeroMesa: { gt: total }, estaActivo: 1 },
+          estaActivo: 1, estadoSolicitud: 'PENDIENTE', mesa_id: { not: null },
+        },
+        select: { mesa_id: true },
+      });
+      const protegidas = [...new Set([
+        ...ocupadasFuera.map((m) => m.id),
+        ...preReservadasFuera.map((s) => s.mesa_id).filter((id): id is number => id != null),
+      ])];
+      await tx.mesa.updateMany({
+        where: {
+          evento_id: eventoId, numeroMesa: { gt: total }, estaActivo: 1,
+          ...(protegidas.length ? { id: { notIn: protegidas } } : {}),
+        },
+        data: { estaActivo: 0 },
+      });
+    });
   }
 
   private datosUsuarioDeInscripcion(eu: any) {
@@ -818,6 +900,21 @@ export class AppController implements OnModuleInit {
         eventoId,
         euId,
       );
+      // Algunos lectores QR emiten el mismo resultado dos veces antes de que la
+      // vista alcance a bloquearse. El reintento inmediato no consume otro uso.
+      const registroReciente = await tx.asistenciaevento.findFirst({
+        where: {
+          evento_id: eventoId, empresa_usuario_id: euId, fechaAsistencia,
+          estaActivo: 1, fechaHoraAsistencia: { gte: new Date(Date.now() - 20_000) },
+        },
+        orderBy: [{ fechaHoraAsistencia: 'desc' }, { id: 'desc' }],
+      });
+      if (registroReciente) {
+        const usosHoy = await tx.asistenciaevento.count({
+          where: { evento_id: eventoId, empresa_usuario_id: euId, fechaAsistencia, estaActivo: 1 },
+        });
+        return { asistencia: registroReciente, usosHoy, duplicada: true };
+      }
       const usosHoy = await tx.asistenciaevento.count({
         where: { evento_id: eventoId, empresa_usuario_id: euId, fechaAsistencia, estaActivo: 1 },
       });
@@ -829,11 +926,11 @@ export class AppController implements OnModuleInit {
           fechaAsistencia, numeroUso: usosHoy + 1, estaActivo: 1,
         },
       });
-      return { asistencia, usosHoy: usosHoy + 1 };
+      return { asistencia, usosHoy: usosHoy + 1, duplicada: false };
     });
     return {
       ok: true,
-      yaRegistrada: false,
+      yaRegistrada: resultado.duplicada,
       fechaHoraAsistencia: resultado.asistencia.fechaHoraAsistencia,
       usosHoy: resultado.usosHoy,
       usosRestantes: LIMITE_ASISTENCIAS_DIARIAS - resultado.usosHoy,
@@ -887,7 +984,7 @@ export class AppController implements OnModuleInit {
     if (!eventoId) return [];
     return this.prisma.asistenciaevento.findMany({
       where: { evento_id: eventoId, estaActivo: 1, tecnico_id: Number(req.user?.sub) },
-      orderBy: { fechaHoraAsistencia: 'desc' },
+      orderBy: [{ fechaHoraAsistencia: 'desc' }, { id: 'desc' }],
       include: {
         empresa_usuario: { include: { usuario: { select: { nombres: true, apellidoPaterno: true } }, empresa: { select: { nombre: true } } } },
         tecnico: { select: { nombres: true, apellidoPaterno: true } },
@@ -1670,8 +1767,8 @@ export class AppController implements OnModuleInit {
       descripcion: orNull(body.descripcion),
       fechaInicioEvento,
       fechaFinEvento,
-      fechaInicioSolicitudes: body.fechaInicioSolicitudes ? new Date(body.fechaInicioSolicitudes) : null,
-      fechaFinSolicitudes: body.fechaFinSolicitudes ? new Date(body.fechaFinSolicitudes) : null,
+      fechaInicioSolicitudes: body.fechaInicioSolicitudes ? fechaBolivia(body.fechaInicioSolicitudes) : null,
+      fechaFinSolicitudes: body.fechaFinSolicitudes ? fechaBolivia(body.fechaFinSolicitudes) : null,
       duracionReunion: Number(body.duracionReunion) || 20,
       tiempoEntreReuniones: Number(body.tiempoEntreReuniones) || 5,
       ...(horariosReunion !== undefined ? { horariosReunionJson: JSON.stringify(horariosReunion) } : {}),
@@ -1726,6 +1823,7 @@ export class AppController implements OnModuleInit {
         },
         include: { eventoreglaqr: true },
       });
+      await this.sincronizarMesasEvento(evento.id, evento.cantidadTotalMesasEvento, evento.capacidadPersonasPorMesa);
       return evento;
     } catch (error) {
       throw new BadRequestException(error instanceof Error ? error.message : JSON.stringify(error));
@@ -1740,6 +1838,7 @@ export class AppController implements OnModuleInit {
       const reglasQR = body.reglasQR;
 
       await this.prisma.evento.update({ where: { id: eventId }, data: eventoData });
+      await this.sincronizarMesasEvento(eventId, eventoData.cantidadTotalMesasEvento, eventoData.capacidadPersonasPorMesa);
 
       if (reglasQR && Array.isArray(reglasQR)) {
         // Eliminación lógica: se desactivan las reglas anteriores y se crean las nuevas
@@ -2022,6 +2121,31 @@ export class AppController implements OnModuleInit {
       esResponsable: eu.esResponsable === 1,
       estaActivo: eu.usuario.estaActivo,
     }));
+  }
+
+  @Put('admin/participantes/:usuarioId/password-temporal')
+  async cambiarPasswordParticipanteAdmin(
+    @Param('usuarioId') usuarioId: string,
+    @Body() body: { nuevaContrasenia?: string },
+  ) {
+    const usuario = await this.prisma.usuario.findFirst({
+      where: {
+        id: Number(usuarioId), estaActivo: 1,
+        empresa_usuario: { some: { estaActivo: 1 } },
+      },
+      select: { id: true, correo: true },
+    });
+    if (!usuario) throw new BadRequestException('Participante activo no encontrado');
+    // Las contraseñas existentes están cifradas y no pueden mostrarse. Se genera
+    // o asigna una nueva y solo se devuelve en esta respuesta para entrega segura.
+    const nuevaContrasenia = body.nuevaContrasenia?.trim()
+      ? validarPasswordSegura(body.nuevaContrasenia)
+      : `Rn!${randomBytes(7).toString('base64url')}9aA`;
+    await this.prisma.usuario.update({
+      where: { id: usuario.id },
+      data: { contrasenia: await bcrypt.hash(nuevaContrasenia, 10), creadoModificadoFecha: new Date() },
+    });
+    return { ok: true, correo: usuario.correo, nuevaContrasenia };
   }
 
   // ─── PAGOS ───────────────────────────────────────────────────────────────────
@@ -2543,6 +2667,27 @@ export class AppController implements OnModuleInit {
     }
     const empresas = inscripciones.filter((ee) => !ocupadas.has(ee.id)).map((ee) => ({ empresaeventoId: ee.id, ...ee.empresa }));
     return { empresas, total: empresas.length, ocupadas: ocupadas.size };
+  }
+
+  @Get('staff/empresas/:eeId/agenda')
+  async getAgendaEmpresaStaff(@Param('eeId') eeId: string) {
+    const eventoId = await this.getPrincipalEventoId();
+    const id = Number(eeId);
+    if (!eventoId || !id) throw new BadRequestException('Empresa o evento no válido');
+    const inscripcion = await this.prisma.empresaevento.findFirst({
+      where: { id, evento_id: eventoId, estaActivo: 1 },
+      include: { empresa: { select: { id: true, nombre: true, codigo: true, urlFotoPerfil: true } } },
+    });
+    if (!inscripcion) throw new BadRequestException('La empresa no pertenece al evento activo');
+    const reuniones = await this.prisma.reunion.findMany({
+      where: {
+        evento_id: eventoId, estaActivo: 1, estadoReunion: { not: 'CANCELADA' },
+        solicitudreunion: { OR: [{ empresaEvento_id: id }, { empresaEventorReceptora_id: id }] },
+      },
+      orderBy: { fechaHoraInicioReunion: 'asc' },
+      include: this.reunionInclude(),
+    });
+    return { empresa: inscripcion.empresa, empresaeventoId: id, reuniones };
   }
 
   @Get('admin/mesas/agenda')
@@ -3741,6 +3886,61 @@ export class AppController implements OnModuleInit {
       return actualizada;
     }
     return actualizada;
+  }
+
+  @Post('tecnico/reuniones/:id/finalizar-evaluar')
+  async finalizarEvaluarReunionTecnico(
+    @Param('id') id: string,
+    @Body() body: {
+      calificacionA: number; rangoA: string; observacionesA: string;
+      calificacionB: number; rangoB: string; observacionesB: string;
+    },
+  ) {
+    const reunionId = Number(id);
+    const evento = await this.getPrincipalEvento();
+    if (!evento) throw new BadRequestException('No hay un evento activo');
+    const reunion = await this.prisma.reunion.findFirst({
+      where: { id: reunionId, ...this.filtroReunionOperativa(evento) },
+      include: { solicitudreunion: true },
+    });
+    if (!reunion?.solicitudreunion || reunion.estadoReunion !== 'EN_CURSO')
+      throw new BadRequestException('La reunión no está en curso o no pertenece al evento activo');
+    const campos = [
+      { calificacion: Number(body.calificacionA), rango: body.rangoA, observaciones: body.observacionesA },
+      { calificacion: Number(body.calificacionB), rango: body.rangoB, observaciones: body.observacionesB },
+    ];
+    if (campos.some((v) => v.calificacion < 1 || v.calificacion > 5 || !v.rango?.trim() || !v.observaciones?.trim()))
+      throw new BadRequestException('Completa la calificación, rango y observaciones de ambas empresas');
+    const sol = reunion.solicitudreunion;
+    const autores = await Promise.all([
+      this.prisma.empresa_usuario.findFirst({ where: { empresaevento_id: sol.empresaEvento_id, estaActivo: 1 }, orderBy: { esResponsable: 'desc' } }),
+      this.prisma.empresa_usuario.findFirst({ where: { empresaevento_id: sol.empresaEventorReceptora_id, estaActivo: 1 }, orderBy: { esResponsable: 'desc' } }),
+    ]);
+    if (!autores[0] || !autores[1]) throw new BadRequestException('Ambas empresas necesitan al menos un participante activo');
+    await this.prisma.$transaction(async (tx) => {
+      await tx.reunion.update({
+        where: { id: reunionId },
+        data: { estadoReunion: 'FINALIZADA', fechaHoraFinReal: new Date(), creadoModificadoFecha: new Date() },
+      });
+      const evaluaciones = [
+        { calificadora: sol.empresaEvento_id, calificada: sol.empresaEventorReceptora_id, autor: autores[0]!.id, ...campos[0] },
+        { calificadora: sol.empresaEventorReceptora_id, calificada: sol.empresaEvento_id, autor: autores[1]!.id, ...campos[1] },
+      ];
+      for (const ev of evaluaciones) {
+        const existe = await tx.resultadoreunion.findFirst({
+          where: { reunion_id: reunionId, empresaeventoCalificadora_id: ev.calificadora, estaActivo: 1 },
+        });
+        if (!existe) await tx.resultadoreunion.create({
+          data: {
+            reunion_id: reunionId, empresaeventoCalificadora_id: ev.calificadora,
+            empresaeventoCalificada_id: ev.calificada, empresa_usuario_id: ev.autor,
+            calificacionReunion: ev.calificacion, rangoAcuerdoComercial: ev.rango.trim(),
+            observacionesPuntosTratados: ev.observaciones.trim(), estaActivo: 1,
+          },
+        });
+      }
+    });
+    return { ok: true };
   }
 
   @Get('tecnico/buscar')
@@ -4998,15 +5198,15 @@ export class AppController implements OnModuleInit {
       return { respuesta: 'Listo, cancelé el agendamiento. ¿Te ayudo con algo más?', contexto: null };
     }
 
-    // Solo el encargado puede agendar
+    // Cualquier participante activo puede agendar; euId conserva la autoría.
     if (!euId) {
       return { respuesta: 'Para agendar reuniones necesito identificar tu cuenta. Cierra sesión y vuelve a entrar, luego intenta de nuevo.', contexto: null };
     }
     const eu = await this.prisma.empresa_usuario.findFirst({
       where: { id: Number(euId), empresaevento_id: eeId, estaActivo: 1 },
     });
-    if (!eu || eu.esResponsable !== 1) {
-      return { respuesta: 'Solo el encargado de tu empresa puede agendar reuniones. Pídele a tu encargado que envíe la solicitud.', contexto: null };
+    if (!eu) {
+      return { respuesta: 'Tu participante no está habilitado en esta empresa para el evento actual.', contexto: null };
     }
 
     const buscarEmpresas = (term: string) =>
@@ -5719,7 +5919,13 @@ export class AppController implements OnModuleInit {
     // Tiempo de limpieza entre reuniones en la misma mesa (lo configura el admin
     // en tiempoEntreReuniones). Una mesa solo aparece libre si no tiene otra
     // reunión que se solape con [inicio - limpieza, fin + limpieza].
-    const evento = await this.prisma.evento.findUnique({ where: { id: eventoId }, select: { tiempoEntreReuniones: true } });
+    const evento = await this.prisma.evento.findUnique({
+      where: { id: eventoId },
+      select: { tiempoEntreReuniones: true, cantidadTotalMesasEvento: true, capacidadPersonasPorMesa: true },
+    });
+    if (evento) {
+      await this.sincronizarMesasEvento(eventoId, evento.cantidadTotalMesasEvento, evento.capacidadPersonasPorMesa);
+    }
     const bufMs = (evento?.tiempoEntreReuniones ?? 0) * 60000;
     const iniConBuffer = new Date(iniDate.getTime() - bufMs);
     const finConBuffer = new Date(finDate.getTime() + bufMs);
@@ -7036,8 +7242,8 @@ export class AppController implements OnModuleInit {
     const euRecord = await this.prisma.empresa_usuario.findFirst({
       where: { id: Number(euId), empresaevento_id: Number(eeId) },
     });
-    if (!euRecord || euRecord.esResponsable !== 1)
-      throw new BadRequestException('Solo el encargado de la empresa puede registrar el resultado');
+    if (!euRecord || euRecord.estaActivo !== 1)
+      throw new BadRequestException('Tu participante no está habilitado para registrar el resultado');
 
     return this.prisma.resultadoreunion.create({
       data: {

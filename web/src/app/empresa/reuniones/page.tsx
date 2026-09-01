@@ -280,12 +280,15 @@ function DetalleReunionModal({ reunion, eeId, esEncargado, onClose, onCambiarHor
   reunion: any; eeId: number; esEncargado: boolean;
   onClose: () => void; onCambiarHorario: () => void; onRefresh: () => void;
 }) {
-  const ahora = new Date();
+  const [reloj, setReloj] = useState(() => Date.now());
+  useEffect(() => { const timer = window.setInterval(() => setReloj(Date.now()), 15_000); return () => window.clearInterval(timer); }, []);
+  const ahora = new Date(reloj);
+  const minutosRestantes = Math.max(0, Math.ceil((new Date(reunion.fin).getTime() - reloj) / 60_000));
   const esProgramada = (reunion.estado === "PROGRAMADA" || reunion.estado === "REPROGRAMADA") && new Date(reunion.fin) > ahora;
   const esFinalizada = reunion.estado === "FINALIZADA" || new Date(reunion.fin) <= ahora;
-  // Las reuniones presenciales concluyen automáticamente. En una virtual el
-  // encargado puede cerrarla antes si la llamada ya terminó.
-  const puedeFinalizarEncargado = esEncargado && reunion.tipo === "VIRTUAL" && reunion.estado === "EN_CURSO";
+  // Cualquier participante presente puede cerrar una reunión en curso; después
+  // cada empresa conserva una única evaluación de la contraparte.
+  const puedeFinalizarEncargado = reunion.estado === "EN_CURSO";
   const puedeIniciar = esEncargado && ["PROGRAMADA", "REPROGRAMADA"].includes(reunion.estado);
   const otraPidioIniciar = reunion.inicioAnticipadoPor && reunion.inicioAnticipadoPor !== eeId;
   const yoPediIniciar = reunion.inicioAnticipadoPor && reunion.inicioAnticipadoPor === eeId;
@@ -403,6 +406,7 @@ function DetalleReunionModal({ reunion, eeId, esEncargado, onClose, onCambiarHor
               <span>Esta reunión todavía no tiene enlace. Puedes esperar a que el equipo técnico lo agregue; al intentar iniciar se les enviará una alerta urgente.</span>
             </div>
           )}
+          {reunion.estado === "EN_CURSO" && <div className={`mb-4 rounded-xl border p-3 text-center ${minutosRestantes <= 2 ? 'border-red-200 bg-red-50 text-red-800' : minutosRestantes <= 5 ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-blue-200 bg-blue-50 text-blue-800'}`}><p className="text-sm font-bold">{minutosRestantes > 0 ? `Quedan aproximadamente ${minutosRestantes} minuto(s)` : 'El tiempo programado terminó'}</p><p className="mt-1 text-xs">Al concluir, finaliza la reunión y registra la evaluación.</p></div>}
 
           {/* Result */}
           {reunion.miResultado && (
@@ -494,7 +498,7 @@ function DetalleReunionModal({ reunion, eeId, esEncargado, onClose, onCambiarHor
                 )}
               </>
             )}
-            {esEncargado && esFinalizada && !reunion.miResultado && (
+            {esFinalizada && !reunion.miResultado && (
               <Link href={`/empresa/resultados?reunionId=${reunion.id}`}
                 className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#449D3A] text-white text-sm font-bold hover:bg-[#3a8531]">
                 <Star className="w-4 h-4" />

@@ -40,8 +40,8 @@ function EmpresaMenuScreen({ navigation }: any) {
     { nombre: 'Oportunidades', pantalla: 'Oportunidades', icono: Lightbulb },
     { nombre: 'Mensajes', pantalla: 'Mensajes', icono: MessageCircle },
     { nombre: 'Galería', pantalla: 'Galeria', icono: Images },
+    { nombre: 'Resultados', pantalla: 'Resultados', icono: Star },
     ...(esEncargado ? [
-      { nombre: 'Resultados', pantalla: 'Resultados', icono: Star },
       { nombre: 'Mis horarios', pantalla: 'Horarios', icono: Clock },
     ] : []),
   ];

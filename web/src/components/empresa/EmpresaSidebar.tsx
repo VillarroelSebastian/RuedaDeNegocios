@@ -21,7 +21,7 @@ const allMenuItems = [
   { name: 'Galería',        icon: Images,          href: '/empresa/galeria',       soloEncargado: false },
   { name: 'Solicitudes',    icon: Send,            href: '/empresa/solicitudes',   soloEncargado: true  },
   { name: 'Mis Horarios',   icon: Clock,           href: '/empresa/horarios',      soloEncargado: true  },
-  { name: 'Resultados',     icon: Star,            href: '/empresa/resultados',    soloEncargado: true  },
+  { name: 'Resultados',     icon: Star,            href: '/empresa/resultados',    soloEncargado: false },
   { name: 'Mi Paquete',     icon: Package,         href: '/empresa/mi-paquete',    soloEncargado: false },
   { name: 'Mi Perfil',      icon: User,            href: '/empresa/perfil',        soloEncargado: false },
 ];

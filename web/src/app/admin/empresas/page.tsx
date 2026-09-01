@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, Building2, Users, Eye, Trash2, ChevronLeft, ChevronRight, Filter, X, MessageSquare } from 'lucide-react';
+import { Search, Building2, Users, Eye, Trash2, ChevronLeft, ChevronRight, Filter, X, MessageSquare, KeyRound, CalendarClock } from 'lucide-react';
 import ImagenLightbox from '@/components/ui/ImagenLightbox';
 import { useModal } from '@/components/ui/Modal';
 import { EnviarMensajeEmpresaModal } from '@/components/EnviarMensajeEmpresaModal';
@@ -20,6 +20,19 @@ const ESTADOS_PAGO = [
 function ParticipantesModal({ empresa, onClose }: { empresa: { id: number; nombre: string } | null; onClose: () => void }) {
   const [participantes, setParticipantes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [credencial, setCredencial] = useState<{ correo: string; password: string } | null>(null);
+  const [reiniciando, setReiniciando] = useState<number | null>(null);
+
+  const reiniciarPassword = async (p: any) => {
+    setReiniciando(p.usuarioId);
+    try {
+      const res = await fetch(`${API}/admin/participantes/${p.usuarioId}/password-temporal`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'No se pudo cambiar la contraseña');
+      setCredencial({ correo: data.correo, password: data.nuevaContrasenia });
+    } catch (error: any) { setCredencial({ correo: p.correo, password: `ERROR: ${error.message}` }); }
+    finally { setReiniciando(null); }
+  };
 
   useEffect(() => {
     if (!empresa) return;
@@ -45,6 +58,10 @@ function ParticipantesModal({ empresa, onClose }: { empresa: { id: number; nombr
           </button>
         </div>
         <div className="flex-1 overflow-y-auto p-6">
+          {credencial && <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            <p className="font-bold">Nueva contraseña temporal</p><p className="mt-1 break-all">{credencial.correo}</p><code className="mt-2 block rounded bg-white p-2 font-bold">{credencial.password}</code>
+            <p className="mt-2 text-xs">Cópiala ahora: por seguridad la contraseña anterior no se puede ver y esta clave solo se muestra en este momento.</p>
+          </div>}
           {loading ? (
             <div className="flex justify-center py-8">
               <div className="w-8 h-8 border-4 border-[#449D3A] border-t-transparent rounded-full animate-spin" />
@@ -71,6 +88,7 @@ function ParticipantesModal({ empresa, onClose }: { empresa: { id: number; nombr
                     <span className={`text-[10px] font-semibold ${p.estaActivo ? 'text-gray-400' : 'text-red-400'}`}>
                       {p.estaActivo ? 'Activo' : 'Inactivo'}
                     </span>
+                    {p.estaActivo && <button disabled={reiniciando === p.usuarioId} onClick={() => reiniciarPassword(p)} className="mt-1 inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-white px-2 py-1 text-[10px] font-bold text-amber-700 disabled:opacity-50"><KeyRound className="h-3 w-3" />Nueva clave</button>}
                   </div>
                 </div>
               ))}
@@ -83,6 +101,24 @@ function ParticipantesModal({ empresa, onClose }: { empresa: { id: number; nombr
       </div>
     </div>
   );
+}
+
+function AgendaEmpresaModal({ empresa, onClose }: { empresa: { eeId: number; nombre: string } | null; onClose: () => void }) {
+  const [data, setData] = useState<any>(null);
+  useEffect(() => {
+    if (!empresa) return;
+    setData(null);
+    fetch(`${API}/staff/empresas/${empresa.eeId}/agenda`).then((r) => r.json()).then(setData).catch(() => setData({ reuniones: [] }));
+  }, [empresa]);
+  if (!empresa) return null;
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}><div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6" onClick={(e) => e.stopPropagation()}>
+    <div className="mb-5 flex justify-between"><div><h2 className="text-lg font-bold">Agenda de {empresa.nombre}</h2><p className="text-sm text-gray-500">Reuniones del evento activo</p></div><button onClick={onClose}><X /></button></div>
+    {!data ? <div className="py-12 text-center text-gray-400">Cargando…</div> : data.reuniones?.length === 0 ? <div className="py-12 text-center text-gray-400">No tiene reuniones registradas.</div> : <div className="space-y-3">{data.reuniones.map((r: any) => {
+      const sol = r.solicitudreunion; const a = sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa; const b = sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento?.empresa;
+      const otra = sol?.empresaEvento_id === empresa.eeId ? b : a;
+      return <div key={r.id} className="rounded-xl border border-gray-200 p-4"><div className="flex flex-wrap justify-between gap-2"><p className="font-bold">{otra?.nombre ?? 'Empresa'}</p><span className="text-xs font-bold text-[#449D3A]">{r.estadoReunion}</span></div><p className="mt-1 text-sm text-gray-600">{new Date(r.fechaHoraInicioReunion).toLocaleString('es-BO', { timeZone: 'America/La_Paz' })} · {r.mesa ? `Mesa ${r.mesa.numeroMesa}` : r.tipoReunion}</p></div>;
+    })}</div>}
+  </div></div>;
 }
 
 /* ── Main Page ───────────────────────────────────────────────── */
@@ -98,6 +134,7 @@ export default function EmpresasPage() {
   const [rubro, setRubro] = useState('');
   const [participantesEmpresa, setParticipantesEmpresa] = useState<{ id: number; nombre: string } | null>(null);
   const [mensajeEmpresa, setMensajeEmpresa] = useState<{ eeId: number; nombre: string } | null>(null);
+  const [agendaEmpresa, setAgendaEmpresa] = useState<{ eeId: number; nombre: string } | null>(null);
   const [adminUserId, setAdminUserId] = useState<number | null>(null);
   const limit = 10;
 
@@ -183,6 +220,7 @@ export default function EmpresasPage() {
       <ModalComponent />
       <ParticipantesModal empresa={participantesEmpresa} onClose={() => setParticipantesEmpresa(null)} />
       <FichaEmpresaModal empresaId={fichaEmpresaId} onClose={() => setFichaEmpresaId(null)} />
+      <AgendaEmpresaModal empresa={agendaEmpresa} onClose={() => setAgendaEmpresa(null)} />
       {mensajeEmpresa && adminUserId && (
         <EnviarMensajeEmpresaModal
           usuarioId={adminUserId}
@@ -333,6 +371,7 @@ export default function EmpresasPage() {
                             <MessageSquare className="w-4 h-4" />
                           </button>
                         )}
+                        {emp.empresaEventoId && <button onClick={() => setAgendaEmpresa({ eeId: emp.empresaEventoId, nombre: emp.nombre })} className="p-1.5 rounded-lg text-gray-400 hover:text-violet-600 hover:bg-violet-50" title="Ver agenda"><CalendarClock className="h-4 w-4" /></button>}
                         <button
                           onClick={() => handleDelete(emp.id, emp.nombre)}
                           className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"

@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { Search, Building2, Armchair, CalendarCheck, Video, MapPin, X, MessageSquare } from 'lucide-react';
+import { Search, Building2, Armchair, CalendarCheck, Video, MapPin, X, MessageSquare, CalendarClock } from 'lucide-react';
 import { EnviarMensajeEmpresaModal } from '@/components/EnviarMensajeEmpresaModal';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
@@ -49,6 +49,8 @@ export default function TecnicoBuscarPage() {
   const [loading, setLoading] = useState(false);
   const [mensajeEmpresa, setMensajeEmpresa] = useState<{ eeId: number; nombre: string } | null>(null);
   const [tecUserId, setTecUserId] = useState<number | null>(null);
+  const [agendaEmpresa, setAgendaEmpresa] = useState<any>(null);
+  const [agenda, setAgenda] = useState<any>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -82,6 +84,12 @@ export default function TecnicoBuscarPage() {
   const mesas     = results?.mesas     ?? [];
   const total     = empresas.length + reuniones.length + mesas.length;
 
+  const abrirAgenda = async (empresa: any) => {
+    setAgendaEmpresa(empresa); setAgenda(null);
+    try { const res = await fetch(`${API}/staff/empresas/${empresa.empresaeventoId}/agenda`); setAgenda(await res.json()); }
+    catch { setAgenda({ reuniones: [] }); }
+  };
+
   return (
     <div className="p-6 max-w-4xl mx-auto">
       {mensajeEmpresa && tecUserId && (
@@ -92,6 +100,7 @@ export default function TecnicoBuscarPage() {
           onClose={() => setMensajeEmpresa(null)}
         />
       )}
+      {agendaEmpresa && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setAgendaEmpresa(null)}><div className="max-h-[85vh] w-full max-w-xl overflow-y-auto rounded-2xl bg-white p-6" onClick={(e) => e.stopPropagation()}><div className="mb-4 flex justify-between"><div><h2 className="text-lg font-bold">Agenda de {agendaEmpresa.nombre}</h2><p className="text-sm text-gray-500">Reuniones del evento activo</p></div><button onClick={() => setAgendaEmpresa(null)}><X /></button></div>{!agenda ? <p className="py-10 text-center text-gray-400">Cargando…</p> : !agenda.reuniones?.length ? <p className="py-10 text-center text-gray-400">Sin reuniones registradas.</p> : <div className="space-y-3">{agenda.reuniones.map((r:any) => { const sol=r.solicitudreunion; const a=sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa; const b=sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento?.empresa; const otra=sol?.empresaEvento_id===agendaEmpresa.empresaeventoId?b:a; return <div key={r.id} className="rounded-xl border p-3"><div className="flex justify-between gap-2"><b>{otra?.nombre ?? 'Empresa'}</b><span className="text-xs font-bold text-green-700">{r.estadoReunion}</span></div><p className="mt-1 text-xs text-gray-500">{new Date(r.fechaHoraInicioReunion).toLocaleString('es-BO',{timeZone:'America/La_Paz'})} · {r.mesa?`Mesa ${r.mesa.numeroMesa}`:r.tipoReunion}</p></div>; })}</div>}</div></div>}
       <h1 className="text-2xl font-extrabold text-gray-900 mb-1">Buscador</h1>
       <p className="text-sm text-gray-500 mb-6">Empresas, reuniones y mesas del evento</p>
 
@@ -165,6 +174,7 @@ export default function TecnicoBuscarPage() {
                         <MessageSquare className="w-3.5 h-3.5" /> Mensaje
                       </button>
                     )}
+                    {e.empresaeventoId && <button onClick={() => abrirAgenda(e)} className="flex items-center gap-1.5 rounded-lg border border-violet-200 px-3 py-1.5 text-xs font-bold text-violet-700 hover:bg-violet-50"><CalendarClock className="h-3.5 w-3.5" />Agenda</button>}
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${e.estaActivo === 1 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                       {e.estaActivo === 1 ? 'Activa' : 'Inactiva'}
                     </span>

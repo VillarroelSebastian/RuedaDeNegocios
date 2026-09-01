@@ -30,4 +30,25 @@ describe('AppController - jornadas de reuniones', () => {
     expect(ventanas[0].start.toISOString()).toBe('2026-11-13T13:00:00.000Z');
     expect(ventanas[1].end.toISOString()).toBe('2026-11-14T22:00:00.000Z');
   });
+
+  it('respeta exactamente los rangos diarios y el descanso definidos por el admin', () => {
+    const evento = {
+      fechaInicioEvento: new Date('2026-09-01T12:00:00.000Z'),
+      fechaFinEvento: new Date('2026-09-01T18:00:00.000Z'),
+      duracionReunion: 20,
+      tiempoEntreReuniones: 5,
+      horariosReunionJson: JSON.stringify([
+        { fecha: '2026-09-01', habilitado: true, rangos: [{ desde: '08:00', hasta: '10:00' }] },
+      ]),
+    };
+    const slots = controller.generarFranjas(evento);
+    expect(slots.map((slot: any) => slot.inicio.toISOString())).toEqual([
+      '2026-09-01T12:00:00.000Z',
+      '2026-09-01T12:25:00.000Z',
+      '2026-09-01T12:50:00.000Z',
+      '2026-09-01T13:15:00.000Z',
+      '2026-09-01T13:40:00.000Z',
+    ]);
+    expect(slots.at(-1).fin.toISOString()).toBe('2026-09-01T14:00:00.000Z');
+  });
 });

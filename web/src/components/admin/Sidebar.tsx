@@ -24,6 +24,7 @@ import {
   Images,
   Radio,
   QrCode,
+  CalendarPlus,
 } from 'lucide-react';
 
 const menuItems = [
@@ -38,6 +39,7 @@ const menuItems = [
   { name: 'Mesas', icon: Armchair, href: '/admin/mesas' },
   { name: 'Agenda de Mesas', icon: CalendarDays, href: '/admin/agenda' },
   { name: 'Control de Reuniones', icon: CalendarCheck, href: '/admin/reuniones' },
+  { name: 'Agendar reunión', icon: CalendarPlus, href: '/admin/agendar' },
   { name: 'Actividades', icon: Star, href: '/admin/actividades' },
   { name: 'Cronograma en Vivo', icon: Radio, href: '/admin/cronograma-vivo' },
   { name: 'Galería', icon: Images, href: '/admin/galeria' },
@@ -61,18 +63,18 @@ export default function Sidebar() {
       {/* Botón hamburguesa (solo móvil) */}
       <button
         onClick={() => setMobileOpen(true)}
-        className="md:hidden fixed top-3.5 left-4 z-30 p-2 bg-white border border-gray-200 rounded-xl shadow-sm"
+        className="lg:hidden fixed top-3.5 left-4 z-30 p-2 bg-white border border-gray-200 rounded-xl shadow-sm"
         aria-label="Abrir menú"
       >
         <Menu className="w-5 h-5 text-gray-700" />
       </button>
       {mobileOpen && (
-        <div className="fixed inset-0 bg-black/40 z-30 md:hidden" onClick={() => setMobileOpen(false)} aria-hidden="true" />
+        <div className="fixed inset-0 bg-black/40 z-30 lg:hidden" onClick={() => setMobileOpen(false)} aria-hidden="true" />
       )}
-      <aside className={`w-64 bg-white border-r border-gray-200 flex flex-col h-screen fixed left-0 top-0 overflow-y-auto z-40 transition-transform duration-200 md:translate-x-0 md:z-20 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`w-64 bg-white border-r border-gray-200 flex flex-col h-screen fixed left-0 top-0 overflow-y-auto z-40 transition-transform duration-200 lg:translate-x-0 lg:z-20 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <button
           onClick={() => setMobileOpen(false)}
-          className="md:hidden absolute top-4 right-3 p-1.5 rounded-lg hover:bg-gray-100"
+          className="lg:hidden absolute top-4 right-3 p-1.5 rounded-lg hover:bg-gray-100"
           aria-label="Cerrar menú"
         >
           <X className="w-4 h-4 text-gray-500" />

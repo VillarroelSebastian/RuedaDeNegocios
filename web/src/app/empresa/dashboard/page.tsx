@@ -134,7 +134,7 @@ export default function EmpresaDashboardPage() {
         </Link>
       )}
 
-      {esResponsable && stats?.pendientesEvaluar > 0 && (
+      {stats?.pendientesEvaluar > 0 && (
         <Link href="/empresa/resultados" className="block">
           <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3 hover:border-green-300 transition-colors">
             <Star className="w-5 h-5 text-[#449D3A] shrink-0" />
@@ -372,7 +372,7 @@ export default function EmpresaDashboardPage() {
               { href: "/empresa/empresas",   Icon: Building2,   label: "Ver empresas",  desc: "Perfiles de participantes",   soloEncargado: false },
               { href: "/empresa/solicitudes",Icon: Send,        label: "Solicitudes",   desc: "Gestión de reuniones",        soloEncargado: true },
               { href: "/empresa/reuniones",  Icon: Users,       label: "Mis reuniones", desc: "Citas confirmadas",           soloEncargado: false },
-              { href: "/empresa/resultados", Icon: Star,        label: "Resultados",    desc: "Registra acuerdos",           soloEncargado: true },
+              { href: "/empresa/resultados", Icon: Star,        label: "Resultados",    desc: "Registra acuerdos",           soloEncargado: false },
               { href: "/empresa/eventos",    Icon: Calendar,    label: "Programa",      desc: "Actividades del evento",      soloEncargado: false },
               { href: "/empresa/comunicados",Icon: Megaphone,   label: "Comunicados",   desc: "Noticias y anuncios",         soloEncargado: false },
             ].filter((item) => esResponsable || !item.soloEncargado).map(({ href, Icon, label, desc }) => (

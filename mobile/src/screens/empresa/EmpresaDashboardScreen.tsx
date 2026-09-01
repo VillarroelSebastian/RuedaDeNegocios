@@ -128,7 +128,7 @@ export default function EmpresaDashboardScreen({ navigation }: any) {
           </TouchableOpacity>
         )}
 
-        {esEncargado && stats?.pendientesEvaluar > 0 && (
+        {stats?.pendientesEvaluar > 0 && (
           <TouchableOpacity style={[s.alertBox, { backgroundColor:'#f0fdf4', borderColor:'#86efac' }]} onPress={() => navigation.navigate('Resultados')} activeOpacity={0.8}>
             <Star size={17} color={GREEN} style={{ marginRight:8 }} />
             <Text style={[s.alertText, { color:'#166534' }]}>Tienes {stats.pendientesEvaluar} reunión(es) pendiente(s) de calificar. Registra el acuerdo y tus observaciones.</Text>
@@ -220,7 +220,7 @@ export default function EmpresaDashboardScreen({ navigation }: any) {
               { label: 'Empresas',       screen: 'Empresas',       color: '#fdf4ff', soloEncargado: false },
               { label: 'Mensajes',       screen: 'Mensajes',       color: '#f0f9ff', soloEncargado: false },
               { label: 'Oportunidades',  screen: 'Oportunidades',  color: '#fefce8', soloEncargado: false },
-              { label: 'Resultados',     screen: 'Resultados',     color: '#f5f3ff', soloEncargado: true  },
+              { label: 'Resultados',     screen: 'Resultados',     color: '#f5f3ff', soloEncargado: false },
               { label: 'Solicitudes',    screen: 'Solicitudes',    color: '#fff7ed', soloEncargado: true  },
               { label: 'Horarios',       screen: 'Horarios',       color: '#ecfdf5', soloEncargado: true  },
             ].filter(q => esEncargado || !q.soloEncargado).map((q) => (

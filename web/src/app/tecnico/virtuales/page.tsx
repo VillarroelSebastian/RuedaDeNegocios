@@ -238,6 +238,11 @@ export default function TecnicoVirtualesPage() {
 
                   {/* Actions */}
                   <div className="flex items-center gap-2 shrink-0">
+                    {r.estadoReunion === 'EN_CURSO' && (
+                      <Link href="/tecnico/reuniones" className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-orange-600">
+                        Finalizar y evaluar
+                      </Link>
+                    )}
                     <Link
                       href={`/tecnico/virtuales/${r.id}`}
                       className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
