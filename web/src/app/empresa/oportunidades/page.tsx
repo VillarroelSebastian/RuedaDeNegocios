@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Building2, MapPin, Send, AlertCircle, Sparkles, CheckCircle2 } from "lucide-react";
+import { AlertCircle, Building2, CheckCircle2, ChevronLeft, ChevronRight, MapPin, Search, Send, Sparkles } from "lucide-react";
 import ImagenLightbox from "@/components/ui/ImagenLightbox";
 import { paisConBandera } from "@/lib/pais";
 
@@ -15,6 +15,23 @@ export default function OportunidadesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [esEncargado, setEsEncargado] = useState(false);
+  const [busqueda, setBusqueda] = useState("");
+  const [rubro, setRubro] = useState("");
+  const [orden, setOrden] = useState<"relevancia" | "alfabetico">("relevancia");
+  const [pagina, setPagina] = useState(1);
+
+  const rubros = useMemo(() => Array.from(new Set(oportunidades.map((item) => item.rubro).filter(Boolean))).sort(), [oportunidades]);
+  const filtradas = useMemo(() => {
+    const termino = busqueda.trim().toLocaleLowerCase("es");
+    const resultado = oportunidades.filter((item) => {
+      const texto = [item.nombre, item.codigo, item.rubro, item.ciudad, item.pais, ...(item.motivos || [])].filter(Boolean).join(" ").toLocaleLowerCase("es");
+      return (!termino || texto.includes(termino)) && (!rubro || item.rubro === rubro);
+    });
+    return orden === "alfabetico" ? resultado.sort((a, b) => a.nombre.localeCompare(b.nombre, "es")) : resultado;
+  }, [busqueda, oportunidades, orden, rubro]);
+  const porPagina = 9;
+  const totalPaginas = Math.max(1, Math.ceil(filtradas.length / porPagina));
+  const visibles = filtradas.slice((pagina - 1) * porPagina, pagina * porPagina);
 
   useEffect(() => {
     const raw = localStorage.getItem("empresaUser");
@@ -58,6 +75,23 @@ export default function OportunidadesPage() {
         </p>
       </div>
 
+      {oportunidades.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-100 p-4 flex flex-col lg:flex-row gap-3">
+          <label className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input value={busqueda} onChange={(e) => { setBusqueda(e.target.value); setPagina(1); }} placeholder="Buscar por empresa, código, rubro o coincidencia..." className="w-full border border-gray-200 rounded-xl py-2.5 pl-9 pr-3 text-sm outline-none focus:border-[#449D3A]" />
+          </label>
+          <select value={rubro} onChange={(e) => { setRubro(e.target.value); setPagina(1); }} className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white outline-none focus:border-[#449D3A]">
+            <option value="">Todos los rubros</option>
+            {rubros.map((item) => <option key={item} value={item}>{item}</option>)}
+          </select>
+          <select value={orden} onChange={(e) => { setOrden(e.target.value as "relevancia" | "alfabetico"); setPagina(1); }} className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white outline-none focus:border-[#449D3A]">
+            <option value="relevancia">Mayor afinidad</option>
+            <option value="alfabetico">Orden alfabético</option>
+          </select>
+        </div>
+      )}
+
       {oportunidades.length === 0 ? (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
           <Sparkles className="w-12 h-12 mx-auto mb-3 opacity-30 text-gray-300" />
@@ -68,9 +102,13 @@ export default function OportunidadesPage() {
             Ir a Mi Perfil →
           </Link>
         </div>
+      ) : filtradas.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center text-sm text-gray-500">No hay oportunidades que coincidan con los filtros.</div>
       ) : (
+        <>
+        <div className="flex items-center justify-between text-xs text-gray-500"><span>{filtradas.length} resultado(s)</span><span>Página {pagina} de {totalPaginas}</span></div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {oportunidades.map((em: any) => (
+          {visibles.map((em: any) => (
             <div key={em.empresaeventoId} className="bg-white rounded-2xl border border-[#449D3A]/30 ring-1 ring-[#449D3A]/10 shadow-sm overflow-hidden">
               <div className="p-5">
                 <div className="flex items-start gap-3 mb-3">
@@ -117,6 +155,14 @@ export default function OportunidadesPage() {
             </div>
           ))}
         </div>
+        {totalPaginas > 1 && (
+          <div className="flex items-center justify-center gap-3">
+            <button type="button" disabled={pagina === 1} onClick={() => setPagina((p) => p - 1)} className="flex items-center gap-1 border border-gray-200 rounded-xl px-3 py-2 text-sm font-semibold disabled:opacity-40"><ChevronLeft className="w-4 h-4" />Anterior</button>
+            <span className="text-sm text-gray-500">{pagina} / {totalPaginas}</span>
+            <button type="button" disabled={pagina === totalPaginas} onClick={() => setPagina((p) => p + 1)} className="flex items-center gap-1 border border-gray-200 rounded-xl px-3 py-2 text-sm font-semibold disabled:opacity-40">Siguiente<ChevronRight className="w-4 h-4" /></button>
+          </div>
+        )}
+        </>
       )}
     </div>
   );

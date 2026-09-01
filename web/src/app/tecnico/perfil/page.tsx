@@ -85,6 +85,10 @@ export default function TecnicoPerfilPage() {
 
   const handleSavePerfil = async () => {
     if (!user) return;
+    if (!form.nombres?.trim() || !form.apellidoPaterno?.trim()) {
+      showError('Datos incompletos', 'Nombres y apellido paterno son obligatorios.');
+      return;
+    }
     setSaving(true);
     try {
       const res = await fetch(`${API}/admin/perfil/${user.id}`, {
@@ -93,12 +97,13 @@ export default function TecnicoPerfilPage() {
         body: JSON.stringify(form),
       });
       const updated = await res.json();
+      if (!res.ok) throw new Error(updated?.message || 'No se pudo actualizar el perfil.');
       const newUser = { ...user, ...updated };
       localStorage.setItem('tecnicoUser', JSON.stringify(newUser));
       setUser(newUser);
       window.dispatchEvent(new CustomEvent('profileUpdated'));
       showSuccess('Perfil actualizado', 'Los cambios se guardaron correctamente.');
-    } catch { showError('Error', 'No se pudo actualizar el perfil.'); }
+    } catch (error: any) { showError('Error', error?.message || 'No se pudo actualizar el perfil.'); }
     finally { setSaving(false); }
   };
 

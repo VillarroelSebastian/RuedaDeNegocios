@@ -201,6 +201,7 @@ export default function TecnicoVirtualesPage() {
             const tip = TIPO_CFG[r.tipoReunion] ?? TIPO_CFG.VIRTUAL;
             const link = sol?.enlaceReunionVirtual;
             const cancelada = r.estadoReunion === 'CANCELADA';
+            const enlaceOperativo = ['PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO'].includes(r.estadoReunion);
             const canceladaPorEmpresa = cancelada && /^Cancelada por /i.test(r.observacionesReunion ?? '');
 
             return (
@@ -243,7 +244,7 @@ export default function TecnicoVirtualesPage() {
                     >
                       Ver detalles
                     </Link>
-                    {link && !cancelada && (
+                    {link && enlaceOperativo && (
                       <a
                         href={link}
                         target="_blank"

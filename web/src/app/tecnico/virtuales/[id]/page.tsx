@@ -167,6 +167,7 @@ export default function VirtualDetailPage() {
   const est  = ESTADO_CFG[reunion.estadoReunion] ?? ESTADO_CFG.PROGRAMADA;
   const tip  = TIPO_CFG[reunion.tipoReunion] ?? TIPO_CFG.VIRTUAL;
   const link = sol?.enlaceReunionVirtual;
+  const enlaceOperativo = ['PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO'].includes(reunion.estadoReunion);
 
   // Responsable from empresa A's users
   const responsable = ea?.empresa_usuario?.[0]?.usuario;
@@ -267,7 +268,9 @@ export default function VirtualDetailPage() {
               Plataformas compatibles: Zoom / Google Meet / Teams
             </p>
 
-            {editandoLink ? (
+            {!enlaceOperativo ? (
+              <p className="rounded-xl bg-white/15 px-3 py-3 text-center text-sm text-white">Reunión cerrada. El enlace ya no puede abrirse ni modificarse.</p>
+            ) : editandoLink ? (
               <div className="space-y-2">
                 <input
                   type="url"

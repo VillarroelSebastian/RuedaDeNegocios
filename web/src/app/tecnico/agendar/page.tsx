@@ -42,6 +42,7 @@ function SelectorEmpresa({ titulo, empresas, seleccionada, excluirEeId, onSelect
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-bold text-gray-900 truncate">{seleccionada.nombre}</p>
+            {seleccionada.codigo && <p className="text-[10px] font-bold text-[#449D3A]">{seleccionada.codigo}</p>}
             {seleccionada.rubro && <p className="text-xs text-gray-500 truncate">{seleccionada.rubro}</p>}
           </div>
           <button onClick={() => onSelect(null)} className="text-xs font-bold text-gray-400 hover:text-red-500 shrink-0">
@@ -72,8 +73,9 @@ function SelectorEmpresa({ titulo, empresas, seleccionada, excluirEeId, onSelect
                   <div className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center font-bold text-[#449D3A] text-sm shrink-0">
                     {(e.nombre ?? "E")[0].toUpperCase()}
                   </div>
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-gray-800 truncate">{e.nombre}</p>
+                    {e.codigo && <p className="text-[10px] font-bold text-[#449D3A]">{e.codigo}</p>}
                     {e.rubro && <p className="text-[11px] text-gray-400 truncate">{e.rubro}</p>}
                   </div>
                 </button>

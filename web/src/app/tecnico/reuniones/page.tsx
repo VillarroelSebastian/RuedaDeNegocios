@@ -112,6 +112,7 @@ function ReunionRow({ r, onChange }: { r: any; onChange: (id: number, estado: st
   const esPresencial= r.tipoReunion === 'PRESENCIAL' || r.tipoReunion === 'MIXTA';
   const canceladaPorEmpresa = r.estadoReunion === 'CANCELADA'
     && /^Cancelada por /i.test(r.observacionesReunion ?? '');
+  const enlaceOperativo = ['PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO'].includes(r.estadoReunion);
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
@@ -135,7 +136,7 @@ function ReunionRow({ r, onChange }: { r: any; onChange: (id: number, estado: st
         <div className="hidden sm:flex items-center gap-2 shrink-0">
           <span className="flex items-center gap-1 text-xs text-gray-500">
             <Clock className="w-3 h-3" />
-            Mesa {r.mesa?.numeroMesa} · {fmtDate(r.fechaHoraInicioReunion)} {fmtTime(r.fechaHoraInicioReunion)}
+            {r.mesa?.numeroMesa ? `Mesa ${r.mesa.numeroMesa}` : 'Sin mesa física'} · {fmtDate(r.fechaHoraInicioReunion)} {fmtTime(r.fechaHoraInicioReunion)}
           </span>
           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${tip.badge}`}>{tip.label}</span>
         </div>
@@ -146,7 +147,7 @@ function ReunionRow({ r, onChange }: { r: any; onChange: (id: number, estado: st
         </div>
 
         {/* Expand */}
-        {((esVirtual && link) || (esPresencial && mapsUrl) || canceladaPorEmpresa) && (
+        {((esVirtual && link && enlaceOperativo) || (esPresencial && mapsUrl) || canceladaPorEmpresa) && (
           <button onClick={() => setExpanded(!expanded)} className="shrink-0 text-gray-400 hover:text-gray-600">
             <ChevronDown className={`w-4 h-4 transition-transform ${expanded ? 'rotate-180' : ''}`} />
           </button>
@@ -161,7 +162,7 @@ function ReunionRow({ r, onChange }: { r: any; onChange: (id: number, estado: st
               <span>{r.observacionesReunion}</span>
             </div>
           )}
-          {esVirtual && link && (
+          {esVirtual && link && enlaceOperativo && (
             <a href={link} target="_blank" rel="noreferrer"
               className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition-colors">
               <Video className="w-3 h-3" /> Reunión virtual

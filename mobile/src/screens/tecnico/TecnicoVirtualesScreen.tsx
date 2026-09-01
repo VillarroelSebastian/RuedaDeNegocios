@@ -45,6 +45,7 @@ function VirtualCard({ r, onEditLink }: { r: any; onEditLink: (r: any) => void }
   const tip = TIPO_CFG[r.tipoReunion]    ?? TIPO_CFG.VIRTUAL;
   const link = sol?.enlaceReunionVirtual;
   const cancelada = r.estadoReunion === 'CANCELADA';
+  const enlaceOperativo = ['PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO'].includes(r.estadoReunion);
   const canceladaPorEmpresa = cancelada && /^Cancelada por /i.test(r.observacionesReunion ?? '');
 
   return (
@@ -109,7 +110,7 @@ function VirtualCard({ r, onEditLink }: { r: any; onEditLink: (r: any) => void }
           </View>
         )}
 
-        {!cancelada && (link ? (
+        {enlaceOperativo && (link ? (
           <TouchableOpacity
             onPress={() => Linking.openURL(link)}
             style={{
@@ -131,7 +132,7 @@ function VirtualCard({ r, onEditLink }: { r: any; onEditLink: (r: any) => void }
         ))}
 
         {/* Cambiar / agregar enlace */}
-        {!cancelada && <TouchableOpacity
+        {enlaceOperativo && <TouchableOpacity
           onPress={() => onEditLink(r)}
           style={{
             flexDirection: 'row', alignItems: 'center', justifyContent: 'center',

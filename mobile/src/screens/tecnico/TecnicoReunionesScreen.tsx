@@ -69,6 +69,7 @@ function ReunionCard({ r, onCambiarEstado }: { r: any; onCambiarEstado: (id:numb
   const esPresencial= r.tipoReunion === 'PRESENCIAL' || r.tipoReunion === 'MIXTA';
   const canceladaPorEmpresa = r.estadoReunion === 'CANCELADA'
     && /^Cancelada por /i.test(r.observacionesReunion ?? '');
+  const enlaceOperativo = ['PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO'].includes(r.estadoReunion);
   const permitidos: Record<string, string[]> = {
     PROGRAMADA: ['EN_CURSO', 'CANCELADA'],
     REPROGRAMADA: ['EN_CURSO', 'CANCELADA'],
@@ -101,7 +102,7 @@ function ReunionCard({ r, onCambiarEstado }: { r: any; onCambiarEstado: (id:numb
         <View style={{ flexDirection:'row', alignItems:'center', gap:7, flexWrap:'wrap', marginLeft:14 }}>
           <View style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
             <Armchair color="#9ca3af" size={11}/>
-            <Text style={{ fontSize:10, color:'#6b7280', fontWeight:'600' }}>Mesa {r.mesa?.numeroMesa}</Text>
+            <Text style={{ fontSize:10, color:'#6b7280', fontWeight:'600' }}>{r.mesa?.numeroMesa ? `Mesa ${r.mesa.numeroMesa}` : 'Sin mesa física'}</Text>
           </View>
           <View style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
             <Clock color="#9ca3af" size={11}/>
@@ -125,7 +126,7 @@ function ReunionCard({ r, onCambiarEstado }: { r: any; onCambiarEstado: (id:numb
               <Text style={{ flex:1, color:'#991b1b', fontSize:12, lineHeight:17 }}>{r.observacionesReunion}</Text>
             </View>
           )}
-          {esVirtual && link && (
+          {esVirtual && link && enlaceOperativo && (
             <TouchableOpacity onPress={() => Linking.openURL(link)}
               style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:8, paddingVertical:10, borderRadius:12, backgroundColor:'#2563eb' }}>
               <Video color="#fff" size={14}/>

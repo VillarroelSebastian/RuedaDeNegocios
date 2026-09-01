@@ -3247,7 +3247,7 @@ export class AppController implements OnModuleInit {
     try {
       const actual = await this.prisma.usuario.findUnique({ where: { id: Number(id) } });
       if (!actual) throw new BadRequestException('Usuario no encontrado');
-      const correo = normalizarCorreo(body.correo);
+      const correo = normalizarCorreo(body.correo ?? actual.correo);
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo))
         throw new BadRequestException('El correo no es valido');
       const correoEnUso = await this.prisma.usuario.findFirst({
@@ -3255,12 +3255,16 @@ export class AppController implements OnModuleInit {
         select: { id: true },
       });
       if (correoEnUso) throw new BadRequestException('Ya existe una cuenta con ese correo');
+      const nombres = String(body.nombres ?? actual.nombres ?? '').trim();
+      const apellidoPaterno = String(body.apellidoPaterno ?? actual.apellidoPaterno ?? '').trim();
+      if (!nombres || !apellidoPaterno)
+        throw new BadRequestException('Nombres y apellido paterno son obligatorios');
       const data: any = {
-        nombres: body.nombres,
-        apellidoPaterno: body.apellidoPaterno,
-        apellidoMaterno: body.apellidoMaterno || null,
+        nombres,
+        apellidoPaterno,
+        apellidoMaterno: body.apellidoMaterno === undefined ? actual.apellidoMaterno : (body.apellidoMaterno || null),
         correo,
-        telefono: body.telefono,
+        telefono: body.telefono === undefined ? actual.telefono : body.telefono,
         urlFotoPerfil: body.urlFotoPerfil || undefined,
         creadoModificadoFecha: new Date(),
       };
@@ -3605,7 +3609,7 @@ export class AppController implements OnModuleInit {
           include: this.reunionInclude(),
         }),
         this.prisma.actividadprograma.findMany({
-          where: { evento_id: evento.id, estaActivo: 1 },
+          where: this.filtroActividadOperativa(evento),
           orderBy: [{ fechaActividad: 'asc' }, { horaInicioActividad: 'asc' }],
           take: 4,
         }),
@@ -3877,6 +3881,8 @@ export class AppController implements OnModuleInit {
     });
     if (!reunion?.solicitudReunion_id || !['VIRTUAL', 'MIXTA'].includes(reunion.tipoReunion))
       throw new BadRequestException('Reunión virtual no encontrada');
+    if (!['PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO'].includes(reunion.estadoReunion))
+      throw new BadRequestException('No se puede modificar el enlace de una reunión finalizada o cancelada');
     const enlace = this.normalizarEnlaceReunion(body.enlace, false)!;
     await this.prisma.solicitudreunion.update({
       where: { id: reunion.solicitudReunion_id },

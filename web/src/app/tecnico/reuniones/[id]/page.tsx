@@ -150,6 +150,7 @@ export default function ReunionDetailPage() {
   const est  = ESTADO_CFG[reunion.estadoReunion] ?? ESTADO_CFG.PROGRAMADA;
   const tip  = TIPO_CFG[reunion.tipoReunion] ?? TIPO_CFG.PRESENCIAL;
   const link = sol?.enlaceReunionVirtual;
+  const enlaceOperativo = ['PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO'].includes(reunion.estadoReunion);
   const mapsUrl = getMapsUrl(sol);
 
   const esPresencial = reunion.tipoReunion === 'PRESENCIAL' || reunion.tipoReunion === 'MIXTA';
@@ -281,7 +282,9 @@ export default function ReunionDetailPage() {
             {esVirtual && (
               <div className="mb-4">
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">Enlace virtual</p>
-                {editandoLink ? (
+                {!enlaceOperativo ? (
+                  <p className="text-xs text-gray-500 italic">Reunión cerrada. El enlace ya no puede abrirse ni modificarse.</p>
+                ) : editandoLink ? (
                   <div className="space-y-2">
                     <input
                       type="url"

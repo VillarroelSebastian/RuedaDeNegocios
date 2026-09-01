@@ -95,7 +95,7 @@ function HistorialRow({ r }: { r: any }) {
       <button onClick={() => setOpen(!open)}
         className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left">
         <div className="w-8 h-8 rounded-lg bg-gray-700 flex items-center justify-center shrink-0">
-          <span className="text-white text-[11px] font-bold">{String(r.mesa?.numeroMesa ?? '?').padStart(2, '0')}</span>
+          <span className="text-white text-[11px] font-bold">{r.mesa?.numeroMesa ? String(r.mesa.numeroMesa).padStart(2, '0') : 'VR'}</span>
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-xs font-semibold text-gray-800 truncate">

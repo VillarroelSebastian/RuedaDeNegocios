@@ -215,6 +215,7 @@ export default function TecnicoAgendarScreen() {
                     <View style={s.empAvatar}><Text style={s.empAvatarText}>{(e.nombre ?? 'E')[0].toUpperCase()}</Text></View>
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text style={s.empNombre} numberOfLines={1}>{e.nombre}</Text>
+                      {!!e.codigo && <Text style={s.empCodigo}>{e.codigo}</Text>}
                       {!!e.rubro && <Text style={s.empRubro} numberOfLines={1}>{e.rubro}</Text>}
                     </View>
                   </TouchableOpacity>
@@ -271,6 +272,7 @@ export default function TecnicoAgendarScreen() {
                           <View style={s.empAvatar}><Text style={s.empAvatarText}>{(emp.nombre ?? 'E')[0].toUpperCase()}</Text></View>
                           <View style={{ flex: 1, minWidth: 0 }}>
                             <Text style={s.empNombre} numberOfLines={1}>{emp.nombre}</Text>
+                            {!!emp.codigo && <Text style={s.empCodigo}>{emp.codigo}</Text>}
                             {!!emp.rubro && <Text style={s.empRubro} numberOfLines={1}>{emp.rubro}</Text>}
                           </View>
                           <TouchableOpacity onPress={() => (lado === 'A' ? setEmpA(null) : setEmpB(null))}>
@@ -552,6 +554,7 @@ const s = StyleSheet.create({
   },
   empAvatarText: { fontSize: 15, fontWeight: '800', color: GREEN },
   empNombre: { fontSize: 14, fontWeight: '700', color: '#0f172a' },
+  empCodigo: { fontSize: 10, fontWeight: '800', color: GREEN, marginTop: 1 },
   empRubro:  { fontSize: 11, color: '#94a3b8' },
   elegirBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,

@@ -104,7 +104,7 @@ function HistorialRow({ r }: { r: any }) {
       <TouchableOpacity onPress={() => setOpen(!open)} style={{ padding: 12 }} activeOpacity={0.8}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: '#374151', alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>{String(r.mesa?.numeroMesa ?? '?').padStart(2, '0')}</Text>
+            <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>{r.mesa?.numeroMesa ? String(r.mesa.numeroMesa).padStart(2, '0') : 'VR'}</Text>
           </View>
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={{ fontSize: 11, fontWeight: '600', color: '#1f2937' }} numberOfLines={1}>
