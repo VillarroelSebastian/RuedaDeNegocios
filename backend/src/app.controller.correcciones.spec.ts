@@ -89,3 +89,40 @@ describe('AppController - alcance operativo de actividades', () => {
     expect(() => controller.validarFechaActividad(evento, '2026-08-30')).not.toThrow();
   });
 });
+
+describe('AppController - oportunidades priorizadas', () => {
+  it('evita devolver todas las combinaciones posibles y mantiene crecimiento lineal', async () => {
+    const inscripciones = Array.from({ length: 200 }, (_, indice) => ({
+      id: indice + 1,
+      empresa: {
+        nombre: `Empresa ${String(indice + 1).padStart(3, '0')}`,
+        codigo: `RB-EMP-${indice + 1}`,
+        rubro: 'Energía y Tecnología',
+        oferta: 'Servicios de software empresarial',
+        demanda: 'Servicios de software empresarial',
+        interesesBusqueda: 'Energía y Tecnología',
+      },
+    }));
+    const prisma = {
+      evento: { findFirst: jest.fn().mockResolvedValue({ id: 9 }) },
+      empresaevento: { findMany: jest.fn().mockResolvedValue(inscripciones) },
+    };
+    const controller = new AppController({} as any, prisma as any, {} as any, {} as any) as any;
+    const evaluar = jest.spyOn(controller, 'evaluarParejaOportunidad');
+
+    const resultado = await controller.getOportunidadesStaff();
+
+    expect(resultado).toHaveLength(200);
+    expect(new Set(resultado.map((item: any) => `${item.empresaA.empresaeventoId}-${item.empresaB.empresaeventoId}`)).size)
+      .toBe(resultado.length);
+    expect(evaluar.mock.calls.length).toBeLessThanOrEqual(200 * 32);
+    expect(evaluar.mock.calls.length).toBeLessThan((200 * 199) / 2);
+  });
+
+  it('normaliza tildes y descarta palabras demasiado genéricas de menos de cuatro letras', () => {
+    const controller = new AppController({} as any, {} as any, {} as any, {} as any) as any;
+
+    expect(controller.palabrasOportunidad('Tecnología, logística y café')).toEqual(['tecnologia', 'logistica', 'cafe']);
+    expect(controller.hayCoincidenciaTexto('Soluciones de tecnología', 'Tecnologia financiera')).toBe(true);
+  });
+});

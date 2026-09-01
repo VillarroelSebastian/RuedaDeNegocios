@@ -71,7 +71,7 @@ export default function OportunidadesPage() {
           <Sparkles className="w-6 h-6 text-[#449D3A]" />Oportunidades para tu empresa
         </h1>
         <p className="text-sm text-gray-400 mt-0.5">
-          Empresas cuyo interés, oferta o demanda coincide con el perfil de tu empresa.
+          Mejores empresas cuyo interés, oferta o demanda coincide con el perfil de tu empresa.
         </p>
       </div>
 

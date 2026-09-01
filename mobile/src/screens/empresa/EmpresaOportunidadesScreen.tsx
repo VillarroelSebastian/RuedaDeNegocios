@@ -55,7 +55,7 @@ export default function EmpresaOportunidadesScreen() {
         <Sparkles size={20} color={GREEN} />
         <View style={{ marginLeft: 8 }}>
           <Text style={s.headerTitle}>Oportunidades</Text>
-          <Text style={s.headerSub}>Empresas afines a tu perfil</Text>
+          <Text style={s.headerSub}>Mejores empresas afines a tu perfil</Text>
         </View>
       </View>
 

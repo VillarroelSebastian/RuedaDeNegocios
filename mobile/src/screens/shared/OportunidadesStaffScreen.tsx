@@ -35,7 +35,7 @@ export default function OportunidadesStaffScreen() {
 
   if (loading) return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator size="large" color={GREEN} /></View>;
   return <ScrollView style={{ flex: 1, backgroundColor: '#f8fafc' }} contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 40 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); cargar(); }} />}>
-    <View><Text style={{ fontSize: 22, fontWeight: '800', color: '#111827' }}>Oportunidades</Text><Text style={{ marginTop: 3, fontSize: 12, color: '#6b7280' }}>Empresas con oferta, demanda o intereses compatibles.</Text></View>
+    <View><Text style={{ fontSize: 22, fontWeight: '800', color: '#111827' }}>Oportunidades</Text><Text style={{ marginTop: 3, fontSize: 12, color: '#6b7280' }}>Mejores conexiones por oferta, demanda e intereses; no todas las combinaciones.</Text></View>
     {!!error && <Text style={{ borderRadius: 12, backgroundColor: '#fef2f2', padding: 12, color: '#b91c1c' }}>{error}</Text>}
     {!!items.length && <View style={{ gap: 10, borderRadius: 16, backgroundColor: '#fff', padding: 12 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, paddingHorizontal: 10 }}><Search size={17} color="#9ca3af" /><TextInput value={busqueda} onChangeText={(value) => { setBusqueda(value); setPagina(1); }} placeholder="Empresa, código, rubro o motivo" style={{ flex: 1, height: 42, fontSize: 13 }} /></View>
@@ -44,7 +44,7 @@ export default function OportunidadesStaffScreen() {
     </View>}
     {!items.length && !error && <Text style={{ paddingVertical: 40, textAlign: 'center', color: '#9ca3af' }}>No se encontraron coincidencias.</Text>}
     {!!items.length && !filtrados.length && <Text style={{ paddingVertical: 40, textAlign: 'center', color: '#9ca3af' }}>No hay resultados para estos filtros.</Text>}
-    {!!filtrados.length && <Text style={{ fontSize: 11, color: '#6b7280' }}>{filtrados.length} coincidencia(s) · Página {paginaActual} de {totalPaginas}</Text>}
+    {!!filtrados.length && <Text style={{ fontSize: 11, color: '#6b7280' }}>{filtrados.length} recomendación(es) · Página {paginaActual} de {totalPaginas}</Text>}
     {visibles.map((item) => <View key={`${item.empresaA.empresaeventoId}-${item.empresaB.empresaeventoId}`} style={{ borderRadius: 16, borderWidth: 1, borderColor: '#dcfce7', backgroundColor: '#fff', padding: 14 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><Empresa data={item.empresaA} /><Sparkles size={19} color="#f59e0b" /><Empresa data={item.empresaB} /></View>
       <View style={{ marginTop: 12, gap: 6 }}>{item.motivos.map((m: string, i: number) => <Text key={i} style={{ borderRadius: 9, backgroundColor: '#f0fdf4', padding: 8, fontSize: 11, fontWeight: '600', color: '#166534' }}>{m}</Text>)}</View>

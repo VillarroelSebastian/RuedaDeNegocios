@@ -4835,11 +4835,40 @@ export class AppController implements OnModuleInit {
   // Coincidencia simple por palabras clave (>=4 letras, sin tildes) entre dos textos.
   private hayCoincidenciaTexto(a: string | null | undefined, b: string | null | undefined): boolean {
     if (!a || !b) return false;
-    const normalizar = (s: string) =>
-      s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').split(/[^a-z0-9]+/).filter((w) => w.length >= 4);
-    const setA = new Set(normalizar(a));
-    const palabrasB = normalizar(b);
+    const setA = new Set(this.palabrasOportunidad(a));
+    const palabrasB = this.palabrasOportunidad(b);
     return palabrasB.some((w) => setA.has(w));
+  }
+
+  private palabrasOportunidad(texto: string | null | undefined): string[] {
+    if (!texto) return [];
+    return [...new Set(
+      texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .split(/[^a-z0-9]+/).filter((palabra) => palabra.length >= 4),
+    )];
+  }
+
+  private evaluarParejaOportunidad(a: any, b: any): { motivos: string[]; puntaje: number } {
+    const motivos: string[] = [];
+    let puntaje = 0;
+    if (this.hayCoincidenciaTexto(a.oferta, b.demanda)) {
+      motivos.push(`${a.nombre} ofrece lo que busca ${b.nombre}`);
+      puntaje += 4;
+    }
+    if (this.hayCoincidenciaTexto(b.oferta, a.demanda)) {
+      motivos.push(`${b.nombre} ofrece lo que busca ${a.nombre}`);
+      puntaje += 4;
+    }
+    if (this.hayCoincidenciaTexto(a.interesesBusqueda, b.rubro)
+      || this.hayCoincidenciaTexto(b.interesesBusqueda, a.rubro)) {
+      motivos.push('Coincidencia de rubro e intereses');
+      puntaje += 2;
+    }
+    if (!motivos.length && this.calcularAfinidad(a.rubro, b.rubro) === 'alta') {
+      motivos.push('Empresas del mismo rubro');
+      puntaje = 1;
+    }
+    return { motivos, puntaje };
   }
 
   // Oportunidades: empresas cuyo interés declarado coincide con mi rubro, o cuya
@@ -4895,7 +4924,11 @@ export class AppController implements OnModuleInit {
         pais: ee.empresa.ciudad?.pais?.nombre ?? null,
         motivos,
       }))
-      .sort((a, b) => b.motivos.length - a.motivos.length);
+      .sort((a, b) => b.motivos.length - a.motivos.length || a.nombre.localeCompare(b.nombre, 'es'))
+      // Una empresa necesita una lista accionable, no las otras N-1 fichas del evento.
+      // El cálculo sigue evaluando todas sus posibles contrapartes (O(N)), pero solo
+      // devuelve las mejores coincidencias para mantener estable la interfaz.
+      .slice(0, 30);
 
     return resultados;
   }
@@ -4909,21 +4942,102 @@ export class AppController implements OnModuleInit {
       where: { evento_id: eventoId, estaActivo: 1, estadoVerificacionPago: 'COMPLETADO', estadoHabilitacionAcceso: 'HABILITADO', empresa: { estaActivo: 1 } },
       include: { empresa: true }, orderBy: { empresa: { nombre: 'asc' } },
     });
-    const parejas: any[] = [];
-    for (let i = 0; i < inscripciones.length; i++) {
-      for (let j = i + 1; j < inscripciones.length; j++) {
-        const a = inscripciones[i]; const b = inscripciones[j]; const motivos: string[] = [];
-        if (this.hayCoincidenciaTexto(a.empresa.oferta, b.empresa.demanda)) motivos.push(`${a.empresa.nombre} ofrece lo que busca ${b.empresa.nombre}`);
-        if (this.hayCoincidenciaTexto(b.empresa.oferta, a.empresa.demanda)) motivos.push(`${b.empresa.nombre} ofrece lo que busca ${a.empresa.nombre}`);
-        if (this.hayCoincidenciaTexto(a.empresa.interesesBusqueda, b.empresa.rubro) || this.hayCoincidenciaTexto(b.empresa.interesesBusqueda, a.empresa.rubro)) motivos.push('Coincidencia de rubro e intereses');
-        if (!motivos.length && this.calcularAfinidad(a.empresa.rubro, b.empresa.rubro) === 'alta') motivos.push('Empresas del mismo rubro');
-        if (motivos.length) parejas.push({
-          empresaA: { empresaeventoId: a.id, nombre: a.empresa.nombre, codigo: a.empresa.codigo, rubro: a.empresa.rubro },
-          empresaB: { empresaeventoId: b.id, nombre: b.empresa.nombre, codigo: b.empresa.codigo, rubro: b.empresa.rubro }, motivos,
-        });
+    if (inscripciones.length < 2) return [];
+
+    // Antes se recorrían todas las parejas posibles: N*(N-1)/2. Con 28 empresas
+    // podían aparecer 378 combinaciones y con 200 serían 19.900. Estos índices
+    // generan candidatos únicamente cuando comparten palabras o rubro.
+    const preparadas = inscripciones.map((inscripcion, indice) => ({
+      indice,
+      inscripcion,
+      oferta: this.palabrasOportunidad(inscripcion.empresa.oferta),
+      demanda: this.palabrasOportunidad(inscripcion.empresa.demanda),
+      intereses: this.palabrasOportunidad(inscripcion.empresa.interesesBusqueda),
+      rubro: this.palabrasOportunidad(inscripcion.empresa.rubro),
+      rubroExacto: String(inscripcion.empresa.rubro ?? '').trim().toLocaleLowerCase('es'),
+    }));
+    const crearIndice = (selector: (item: typeof preparadas[number]) => string[]) => {
+      const indice = new Map<string, number[]>();
+      preparadas.forEach((item) => selector(item).forEach((palabra) => {
+        const actuales = indice.get(palabra) ?? [];
+        actuales.push(item.indice);
+        indice.set(palabra, actuales);
+      }));
+      return indice;
+    };
+    const ofertas = crearIndice((item) => item.oferta);
+    const demandas = crearIndice((item) => item.demanda);
+    const intereses = crearIndice((item) => item.intereses);
+    const rubros = crearIndice((item) => item.rubro);
+    const rubrosExactos = new Map<string, number[]>();
+    preparadas.forEach((item) => {
+      if (!item.rubroExacto) return;
+      const actuales = rubrosExactos.get(item.rubroExacto) ?? [];
+      actuales.push(item.indice);
+      rubrosExactos.set(item.rubroExacto, actuales);
+    });
+
+    const agregarDesdeIndice = (
+      destino: Set<number>, indice: Map<string, number[]>, palabras: string[], propio: number, limite = 8,
+    ) => {
+      let agregados = 0;
+      for (const palabra of palabras) {
+        for (const candidato of indice.get(palabra) ?? []) {
+          if (candidato === propio || destino.has(candidato)) continue;
+          destino.add(candidato);
+          agregados += 1;
+          if (agregados >= limite) return;
+        }
+      }
+    };
+
+    const rankings = preparadas.map((item) => {
+      const candidatos = new Set<number>();
+      agregarDesdeIndice(candidatos, demandas, item.oferta, item.indice);
+      agregarDesdeIndice(candidatos, ofertas, item.demanda, item.indice);
+      agregarDesdeIndice(candidatos, rubros, item.intereses, item.indice);
+      agregarDesdeIndice(candidatos, intereses, item.rubro, item.indice);
+      for (const candidato of (rubrosExactos.get(item.rubroExacto) ?? []).slice(0, 9)) {
+        if (candidato !== item.indice) candidatos.add(candidato);
+      }
+
+      return [...candidatos].map((indiceB) => {
+        const otra = preparadas[indiceB];
+        const evaluacion = this.evaluarParejaOportunidad(item.inscripcion.empresa, otra.inscripcion.empresa);
+        const primero = item.inscripcion.id < otra.inscripcion.id ? item : otra;
+        const segundo = item.inscripcion.id < otra.inscripcion.id ? otra : item;
+        return {
+          clave: `${primero.inscripcion.id}-${segundo.inscripcion.id}`,
+          puntaje: evaluacion.puntaje,
+          empresaA: { empresaeventoId: primero.inscripcion.id, nombre: primero.inscripcion.empresa.nombre, codigo: primero.inscripcion.empresa.codigo, rubro: primero.inscripcion.empresa.rubro },
+          empresaB: { empresaeventoId: segundo.inscripcion.id, nombre: segundo.inscripcion.empresa.nombre, codigo: segundo.inscripcion.empresa.codigo, rubro: segundo.inscripcion.empresa.rubro },
+          motivos: evaluacion.motivos,
+        };
+      }).filter((pareja) => pareja.motivos.length > 0)
+        .sort((a, b) => b.puntaje - a.puntaje
+          || a.empresaA.nombre.localeCompare(b.empresaA.nombre, 'es')
+          || a.empresaB.nombre.localeCompare(b.empresaB.nombre, 'es'))
+        .slice(0, 3);
+    });
+
+    // Selección por rondas: primero intenta dar una recomendación a cada empresa
+    // y recién después añade segundas/terceras opciones. El resultado crece como
+    // máximo de forma lineal (hasta una oportunidad por empresa, tope 200).
+    const limiteTotal = Math.min(200, Math.max(12, inscripciones.length));
+    const seleccionadas = new Map<string, (typeof rankings)[number][number]>();
+    for (let nivel = 0; nivel < 3 && seleccionadas.size < limiteTotal; nivel += 1) {
+      for (const ranking of rankings) {
+        const pareja = ranking[nivel];
+        if (pareja) seleccionadas.set(pareja.clave, pareja);
+        if (seleccionadas.size >= limiteTotal) break;
       }
     }
-    return parejas.sort((a, b) => b.motivos.length - a.motivos.length || a.empresaA.nombre.localeCompare(b.empresaA.nombre, 'es'));
+
+    return [...seleccionadas.values()]
+      .sort((a, b) => b.puntaje - a.puntaje
+        || a.empresaA.nombre.localeCompare(b.empresaA.nombre, 'es')
+        || a.empresaB.nombre.localeCompare(b.empresaB.nombre, 'es'))
+      .map(({ clave: _clave, puntaje: _puntaje, ...pareja }) => pareja);
   }
 
   @Post('empresa/asistente')

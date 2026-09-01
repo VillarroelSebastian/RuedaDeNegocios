@@ -58,7 +58,7 @@ export default function OportunidadesStaff() {
   return <div className="mx-auto max-w-6xl space-y-5 p-4 sm:p-6">
     <div>
       <h1 className="flex items-center gap-2 text-2xl font-extrabold text-gray-900"><Sparkles className="h-6 w-6 text-[#449D3A]" />Oportunidades entre empresas</h1>
-      <p className="mt-1 text-sm text-gray-500">Sugerencias para que el equipo conecte empresas con oferta, demanda o intereses compatibles.</p>
+      <p className="mt-1 text-sm text-gray-500">Mejores conexiones sugeridas según oferta, demanda e intereses. La lista prioriza calidad y cobertura, no todas las combinaciones posibles.</p>
     </div>
 
     {!cargando && !error && items.length > 0 && <div className="grid gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_220px_180px]">
@@ -82,7 +82,7 @@ export default function OportunidadesStaff() {
       : filtrados.length === 0 ? <div className="rounded-2xl border border-dashed border-gray-200 bg-white p-12 text-center text-sm text-gray-500">No hay oportunidades que coincidan con los filtros.</div>
       : <>
         <div className="flex items-center justify-between text-xs text-gray-500">
-          <span>{filtrados.length} coincidencia(s)</span>
+          <span>{filtrados.length} recomendación(es) priorizada(s)</span>
           <span>Página {paginaActual} de {totalPaginas}</span>
         </div>
         <div className="grid gap-4 lg:grid-cols-2">{visibles.map((item) => <article key={`${item.empresaA.empresaeventoId}-${item.empresaB.empresaeventoId}`} className="rounded-2xl border border-green-100 bg-white p-5 shadow-sm">
