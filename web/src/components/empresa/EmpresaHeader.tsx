@@ -13,7 +13,9 @@ function fmtNotifFecha(f: string) {
 // Ruta destino según el tipo de notificación, para llevar directo a su sección.
 function rutaDeNotif(notificacion: any): string {
   const t = notificacion?.tipo || '';
-  if (t.startsWith('solicitud')) return '/empresa/solicitudes';
+  if (['solicitud:nueva', 'solicitud:editada', 'solicitud:cancelada'].includes(t))
+    return '/empresa/solicitudes?tab=recibidas';
+  if (t.startsWith('solicitud')) return '/empresa/solicitudes?tab=enviadas';
   if (t === 'reunion:calificar') return '/empresa/resultados';
   if (t.startsWith('reunion')) {
     const id = Number(notificacion?.referenciaId);
@@ -110,7 +112,7 @@ export default function EmpresaHeader({ onMenuClick, eeId }: { onMenuClick?: () 
     const destino = rutaDeNotif(notificacion);
     // La recarga garantiza que una notificación de reunión abra exactamente
     // su detalle aun si el usuario ya estaba en /empresa/reuniones.
-    if (destino.includes('reunionId=')) window.location.assign(destino);
+    if (destino.includes('reunionId=') || destino.includes('/empresa/solicitudes?')) window.location.assign(destino);
     else router.push(destino);
   };
 

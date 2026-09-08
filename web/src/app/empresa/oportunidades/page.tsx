@@ -14,7 +14,6 @@ export default function OportunidadesPage() {
   const [oportunidades, setOportunidades] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [esEncargado, setEsEncargado] = useState(false);
   const [busqueda, setBusqueda] = useState("");
   const [rubro, setRubro] = useState("");
   const [orden, setOrden] = useState<"relevancia" | "alfabetico">("relevancia");
@@ -42,7 +41,6 @@ export default function OportunidadesPage() {
     fetch(`${API}/empresa/mi-empresa?usuarioId=${user.id}`)
       .then((r) => r.json())
       .then((ctx) => {
-        setEsEncargado(!!ctx.esResponsable);
         return fetch(`${API}/empresa/oportunidades?eeId=${ctx.empresaeventoId}`);
       })
       .then((r) => r.json())
@@ -142,15 +140,13 @@ export default function OportunidadesPage() {
                   </span>
                 )}
 
-                {esEncargado && (
-                  <Link
+                <Link
                     href={`/empresa/solicitudes?nueva=1&receptoraId=${em.empresaeventoId}&receptoraNombre=${encodeURIComponent(em.nombre)}`}
                     className="w-full flex items-center justify-center gap-2 bg-[#449D3A] hover:bg-[#3a8531] text-white text-sm font-bold py-2.5 rounded-xl transition-colors"
                   >
                     <Send className="w-3.5 h-3.5" />
                     Solicitar reunión
-                  </Link>
-                )}
+                </Link>
               </div>
             </div>
           ))}

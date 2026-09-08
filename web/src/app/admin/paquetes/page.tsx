@@ -57,18 +57,34 @@ export default function PaquetesPage() {
   const [guardando, setGuardando] = useState(false);
   const [subiendo, setSubiendo] = useState(false);
   const [form, setForm] = useState(formVacio);
+  const [eventoId, setEventoId] = useState<number | null>(null);
+  const [eventoNombre, setEventoNombre] = useState("");
+  const [queryReady, setQueryReady] = useState(false);
+
+  useEffect(() => {
+    const value = Number(new URLSearchParams(window.location.search).get("eventoId"));
+    setEventoId(Number.isInteger(value) && value > 0 ? value : null);
+    setQueryReady(true);
+  }, []);
 
   const cargar = useCallback(async () => {
+    if (!queryReady) return;
     setLoading(true);
     try {
-      const res = await fetch(`${API}/admin/paquetes`);
+      const suffix = eventoId ? `?eventoId=${eventoId}` : "";
+      const res = await fetch(`${API}/admin/paquetes${suffix}`);
       setLista(res.ok ? await res.json() : []);
+      if (eventoId) {
+        const eventoRes = await fetch(`${API}/admin/eventos/${eventoId}`);
+        const evento = eventoRes.ok ? await eventoRes.json() : null;
+        setEventoNombre(evento?.nombre ?? "");
+      }
     } catch {
       showError("Sin conexión", "No se pudieron cargar los paquetes.");
     } finally {
       setLoading(false);
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [eventoId, queryReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { cargar(); }, [cargar]);
 
@@ -133,6 +149,7 @@ export default function PaquetesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
+          ...(eventoId ? { eventoId } : {}),
           costo: Number(form.costo),
           credencialesIncluidas: Number(form.credencialesIncluidas),
           maxParticipantes: Number(form.maxParticipantes),
@@ -174,6 +191,7 @@ export default function PaquetesPage() {
           <h1 className="text-2xl font-extrabold text-gray-900 flex items-center gap-2">
             <Package className="w-6 h-6 text-[#449D3A]" /> Paquetes de inscripción
           </h1>
+          {eventoNombre && <p className="mt-1 text-sm font-semibold text-[#449D3A]">Evento: {eventoNombre}</p>}
           <p className="text-sm text-gray-500 mt-1">
             Definen el costo, las credenciales incluidas y el QR de pago del formulario de registro.
           </p>
@@ -191,7 +209,7 @@ export default function PaquetesPage() {
           <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
           <p className="font-semibold text-gray-700">Todavía no hay paquetes</p>
           <p className="text-sm text-gray-400 mt-1">
-            Sin paquetes, el registro usa el monto base del evento.
+            Crea al menos uno para habilitar este evento como principal y permitir nuevas inscripciones.
           </p>
         </div>
       ) : (

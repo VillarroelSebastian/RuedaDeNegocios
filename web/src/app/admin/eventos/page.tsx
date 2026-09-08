@@ -46,10 +46,12 @@ export default function EventosListPage() {
       'Al cambiar el evento principal, TODOS los módulos del sistema (empresas, pagos, mesas, técnicos, estadísticas) mostrarán únicamente datos de este evento. ¿Deseas continuar?',
       async () => {
         try {
-          await fetch(`${API}/admin/eventos/${id}/set-principal`, { method: 'PUT' });
+          const res = await fetch(`${API}/admin/eventos/${id}/set-principal`, { method: 'PUT' });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data?.message || 'No se pudo cambiar el evento principal.');
           fetchEventos();
-        } catch {
-          showModal('error', 'Error', 'No se pudo cambiar el evento principal. Intenta de nuevo.');
+        } catch (error: any) {
+          showModal('error', 'No se puede activar el evento', error.message || 'No se pudo cambiar el evento principal. Intenta de nuevo.');
         }
       },
     );

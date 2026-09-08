@@ -221,7 +221,7 @@ export default function EmpresaDashboardScreen({ navigation }: any) {
               { label: 'Mensajes',       screen: 'Mensajes',       color: '#f0f9ff', soloEncargado: false },
               { label: 'Oportunidades',  screen: 'Oportunidades',  color: '#fefce8', soloEncargado: false },
               { label: 'Resultados',     screen: 'Resultados',     color: '#f5f3ff', soloEncargado: false },
-              { label: 'Solicitudes',    screen: 'Solicitudes',    color: '#fff7ed', soloEncargado: true  },
+              { label: 'Solicitudes',    screen: 'Solicitudes',    color: '#fff7ed', soloEncargado: false },
               { label: 'Horarios',       screen: 'Horarios',       color: '#ecfdf5', soloEncargado: true  },
             ].filter(q => esEncargado || !q.soloEncargado).map((q) => (
               <TouchableOpacity

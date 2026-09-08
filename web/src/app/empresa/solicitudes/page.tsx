@@ -280,6 +280,12 @@ function DetalleSolicitudModal({ sol, tab, eeId, onClose, onAceptar, onRechazar,
 
           {/* Actions */}
           <div className="space-y-2 pt-1">
+            {sol.estado === "ACEPTADA" && sol.reunion?.id && (
+              <button onClick={() => window.location.assign(`/empresa/reuniones?reunionId=${sol.reunion.id}`)}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#449D3A] hover:bg-[#3a8531] text-white text-sm font-bold transition-colors">
+                <Calendar className="w-4 h-4" />Ver y gestionar la reunión
+              </button>
+            )}
             {tab === "recibidas" && isPendiente && (
               <div className="grid grid-cols-2 gap-2">
                 <button onClick={onAceptar}
@@ -385,6 +391,10 @@ function SolicitudesContent() {
   }, [ctx?.empresaeventoId, cargarSolicitudes]);
 
   useEffect(() => {
+    const tabSolicitada = searchParams.get("tab");
+    if (tabSolicitada === "recibidas" || tabSolicitada === "enviadas") {
+      setTab(tabSolicitada);
+    }
     const nueva = searchParams.get("nueva");
     const rid = searchParams.get("receptoraId");
     const rnom = searchParams.get("receptoraNombre");

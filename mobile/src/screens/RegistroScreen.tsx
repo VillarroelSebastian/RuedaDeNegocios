@@ -9,8 +9,6 @@ import { StatusBar } from 'expo-status-bar';
 import { API_URL } from '../utils/userStore';
 import { LIMITES, correoValido, validarNombreEmpresa, limpiarEspacios } from '../utils/validaciones';
 
-const MAX_PARTICIPANTES = 5;
-
 // Los rubros viven en ../constants/rubros para no repetirlos entre pantallas.
 
 import { RUBROS, RUBROS_CON_OTRO, OTRO } from '../constants/rubros';
@@ -41,6 +39,11 @@ interface EventoPublico {
   eventoreglaqr: ReglaqR[];
 }
 interface ReglaqR { id: number; rangoDesde: number; rangoHasta: number; monto: number; urlQR: string }
+interface PaqueteRegistro {
+  id: number; nombre: string; objetivo?: string | null; descripcion?: string | null;
+  costo: number; credencialesIncluidas: number; maxParticipantes: number;
+  tipoParticipacion: 'PRESENCIAL' | 'VIRTUAL' | 'HIBRIDO'; urlQR?: string | null;
+}
 interface Participante { nombre: string; apellido: string; correo: string; cargo: string; telefono: string }
 
 // ─── AppModal ────────────────────────────────────────────────────────────────
@@ -164,6 +167,8 @@ const selBtn = (hasVal: boolean) => ({ ...inp, flexDirection: 'row' as const, ju
 export default function RegistroScreen({ navigation }: any) {
   const [step, setStep] = useState(0);
   const [evento, setEvento] = useState<EventoPublico | null>(null);
+  const [paquetes, setPaquetes] = useState<PaqueteRegistro[]>([]);
+  const [paqueteId, setPaqueteId] = useState<number | null>(null);
   const [loadingInit, setLoadingInit] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
@@ -213,19 +218,29 @@ export default function RegistroScreen({ navigation }: any) {
 
   // Init
   useEffect(() => {
-    fetch(`${API_URL}/public/evento`)
-      .then(r => r.json())
-      .then(ev => setEvento(ev))
+    Promise.all([
+      fetch(`${API_URL}/public/evento`).then(r => r.json()),
+      fetch(`${API_URL}/public/paquetes`).then(r => r.ok ? r.json() : []),
+    ])
+      .then(([ev, lista]) => {
+        setEvento(ev);
+        const disponibles = Array.isArray(lista) ? lista : [];
+        setPaquetes(disponibles);
+        if (disponibles.length > 0) {
+          const primero = disponibles[0] as PaqueteRegistro;
+          setPaqueteId(primero.id);
+          setNumParticipantes(primero.credencialesIncluidas);
+          setTipoParticipacion(primero.tipoParticipacion);
+        }
+      })
       .catch(() => showModal('error', 'Sin conexión', 'No se pudo cargar la información del evento.'))
       .finally(() => setLoadingInit(false));
   }, []);
 
   // QR helpers
-  const reglasQR = evento?.eventoreglaqr ?? [];
-  const reglaActual = reglasQR.find(r => numParticipantes >= r.rangoDesde && numParticipantes <= r.rangoHasta) ?? reglasQR[reglasQR.length - 1];
-  const costoBase = Number(evento?.montoBaseIncripcionBolivianos ?? reglaActual?.monto ?? 0);
-  const totalPago = costoBase;
-  const urlQRActual = reglaActual?.urlQR ?? '';
+  const paquete = paquetes.find((p) => p.id === paqueteId) ?? null;
+  const totalPago = Number(paquete?.costo ?? 0);
+  const urlQRActual = paquete?.urlQR ?? '';
 
   // File upload
   const pickAndUpload = async () => {
@@ -268,6 +283,7 @@ export default function RegistroScreen({ navigation }: any) {
     if (!correoEmpresa.trim()) return 'El correo corporativo es requerido.';
     if (!correoValido(correoEmpresa)) return 'El correo corporativo no es válido.';
     if (!telefonoWA.trim()) return 'El teléfono/WhatsApp es requerido.';
+    if (!paqueteId) return 'Este evento todavía no tiene paquetes de inscripción disponibles.';
     return null;
   };
   const validateStep1 = () => {
@@ -310,7 +326,7 @@ export default function RegistroScreen({ navigation }: any) {
           telefonoWhatsapp: telefonoWA.trim(),
           descripcion: descripcion.trim() || null,
         },
-        participacion: { numeroParticipantes: numParticipantes, tipoParticipacion },
+        participacion: { numeroParticipantes: numParticipantes, tipoParticipacion, paquete_id: paqueteId },
         comprobante: { urlComprobante: comprobanteUrl },
         participantes: [
           { nombreCompleto: limpiarEspacios(`${responsable.nombre} ${responsable.apellido}`), cargo: limpiarEspacios(responsable.cargo), correo: responsable.correo.trim(), telefono: responsable.telefono.trim(), esResponsable: true },
@@ -537,32 +553,26 @@ export default function RegistroScreen({ navigation }: any) {
                 <Text style={{ fontSize: 11, color: '#9ca3af', textAlign: 'right', marginTop: 2 }}>{descripcion.length}/{LIMITES.descripcion}</Text>
               </Field>
 
-              {/* Participación */}
+              {/* Paquete oficial de inscripción */}
               <View style={{ backgroundColor: '#fff', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 16, padding: 16, marginBottom: 16 }}>
-                <Text style={{ fontSize: 14, fontWeight: '700', color: '#111827', marginBottom: 12 }}>Tipo de participación *</Text>
-                {(['PRESENCIAL', 'VIRTUAL', 'HIBRIDO'] as const).map(tipo => (
-                  <TouchableOpacity key={tipo} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }} onPress={() => setTipoParticipacion(tipo)}>
-                    <View style={{ width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: tipoParticipacion === tipo ? '#5B9A27' : '#d1d5db', alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
-                      {tipoParticipacion === tipo && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: '#5B9A27' }} />}
+                <Text style={{ fontSize: 14, fontWeight: '700', color: '#111827', marginBottom: 12 }}>Paquete de inscripción *</Text>
+                {paquetes.length === 0 ? (
+                  <View style={{ borderRadius: 12, backgroundColor: '#fef2f2', padding: 12 }}>
+                    <Text style={{ color: '#b91c1c', fontSize: 13 }}>El administrador aún no configuró paquetes para este evento. El registro permanece cerrado.</Text>
+                  </View>
+                ) : paquetes.map((p) => {
+                  const activo = p.id === paqueteId;
+                  return <TouchableOpacity key={p.id} activeOpacity={0.8}
+                    onPress={() => { setPaqueteId(p.id); setNumParticipantes(p.credencialesIncluidas); setTipoParticipacion(p.tipoParticipacion); setAdicionales([]); }}
+                    style={{ borderWidth: 2, borderColor: activo ? '#5B9A27' : '#e5e7eb', backgroundColor: activo ? '#f0fdf4' : '#fff', borderRadius: 14, padding: 13, marginBottom: 10 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 10 }}>
+                      <Text style={{ flex: 1, fontWeight: '800', color: '#111827' }}>{p.nombre}</Text>
+                      <Text style={{ fontWeight: '800', color: '#166534' }}>Bs {Number(p.costo).toFixed(2)}</Text>
                     </View>
-                    <Text style={{ fontSize: 14, color: '#374151' }}>{tipo}</Text>
-                  </TouchableOpacity>
-                ))}
-
-                <Text style={{ fontSize: 14, fontWeight: '700', color: '#111827', marginTop: 12, marginBottom: 8 }}>Número de participantes (máx. {MAX_PARTICIPANTES})</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-                  <TouchableOpacity onPress={() => setNumParticipantes(n => Math.max(1, n - 1))} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#f3f4f6', borderWidth: 1, borderColor: '#e5e7eb', alignItems: 'center', justifyContent: 'center' }}>
-                    <Text style={{ fontSize: 20, color: '#374151' }}>−</Text>
-                  </TouchableOpacity>
-                  <Text style={{ fontSize: 22, fontWeight: '800', color: '#111827', minWidth: 30, textAlign: 'center' }}>{numParticipantes}</Text>
-                  <TouchableOpacity
-                    onPress={() => setNumParticipantes(n => Math.min(MAX_PARTICIPANTES, n + 1))}
-                    disabled={numParticipantes >= MAX_PARTICIPANTES}
-                    style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: numParticipantes >= MAX_PARTICIPANTES ? '#e5e7eb' : '#5B9A27', alignItems: 'center', justifyContent: 'center' }}
-                  >
-                    <Text style={{ fontSize: 20, color: numParticipantes >= MAX_PARTICIPANTES ? '#9ca3af' : '#fff' }}>+</Text>
-                  </TouchableOpacity>
-                </View>
+                    {!!p.objetivo && <Text style={{ marginTop: 4, color: '#4b5563', fontSize: 12 }}>{p.objetivo}</Text>}
+                    <Text style={{ marginTop: 7, color: '#166534', fontSize: 11, fontWeight: '700' }}>{p.credencialesIncluidas} credencial(es) · {p.tipoParticipacion}</Text>
+                  </TouchableOpacity>;
+                })}
               </View>
             </View>
           )}

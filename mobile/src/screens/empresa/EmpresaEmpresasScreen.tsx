@@ -267,7 +267,7 @@ export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?:
   // Abrir el wizard de solicitud cuando se llega desde la pantalla de perfil.
   useEffect(() => {
     const sid = route.params?.solicitarEeId;
-    if (sid && esEncargado) {
+    if (sid) {
       openModal({ empresaeventoId: sid, nombre: route.params?.solicitarNombre ?? 'Empresa' });
       navigation.setParams({ solicitarEeId: undefined, solicitarNombre: undefined });
     }
@@ -276,7 +276,7 @@ export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?:
 
   useEffect(() => {
     const sol = route.params?.editarSolicitud;
-    if (sol && esEncargado) {
+    if (sol) {
       openModal({
         empresaeventoId: sol.receptoraEeId,
         nombre: sol.receptora?.nombre ?? 'Empresa',
@@ -515,15 +515,13 @@ export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?:
 
             {/* Actions */}
             <View style={s.cardActions}>
-              <TouchableOpacity style={[s.profileBtn, !esEncargado && { flex: 1 }]} onPress={() => navigation.navigate('PerfilEmpresa', { eeId: item.empresaeventoId })} activeOpacity={0.8}>
+              <TouchableOpacity style={s.profileBtn} onPress={() => navigation.navigate('PerfilEmpresa', { eeId: item.empresaeventoId })} activeOpacity={0.8}>
                 <Text style={s.profileBtnText}>Ver perfil</Text>
               </TouchableOpacity>
-              {esEncargado && (
-                <TouchableOpacity style={s.solicBtn} onPress={() => openModal(item)} activeOpacity={0.8}>
+              <TouchableOpacity style={s.solicBtn} onPress={() => openModal(item)} activeOpacity={0.8}>
                   <Send size={13} color="#fff" style={{ marginRight: 5 }} />
                   <Text style={s.solicBtnText}>Solicitar reunión</Text>
-                </TouchableOpacity>
-              )}
+              </TouchableOpacity>
             </View>
           </View>
         )}
@@ -631,16 +629,14 @@ export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?:
               )}
 
               {/* Buttons */}
-              {esEncargado && (
-                <TouchableOpacity
+              <TouchableOpacity
                   style={[s.btnPrimary, { marginTop: 20 }]}
                   onPress={() => { setProfileModal(false); openModal(profileSelected); }}
                   activeOpacity={0.8}
                 >
                   <Send size={16} color="#fff" style={{ marginRight: 8 }} />
                   <Text style={s.btnText}>Solicitar reunión</Text>
-                </TouchableOpacity>
-              )}
+              </TouchableOpacity>
               {esEncargado && (
                 <TouchableOpacity
                   style={[s.btnSecondary, { marginTop: 10, borderColor: GREEN }]}

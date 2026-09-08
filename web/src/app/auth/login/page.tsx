@@ -76,7 +76,7 @@ export default function LoginPage() {
       
       {/* Navbar */}
       <header className="w-full bg-white flex items-center justify-between px-8 py-4 shrink-0">
-        <div className="flex items-center">
+        <Link href="/" aria-label="Ir a la página principal" className="flex items-center">
           <div className="relative h-12 w-48">
              {/* Logo placeholder - replace with actual logo */}
             <Image 
@@ -88,7 +88,7 @@ export default function LoginPage() {
               priority
             />
           </div>
-        </div>
+        </Link>
         <nav className="hidden md:flex items-center space-x-8">
           <Link href="/" className="text-sm font-semibold text-gray-500 hover:text-gray-900">← Inicio</Link>
           <Link href="/#sobre" className="text-sm font-semibold text-gray-500 hover:text-gray-900">Sobre el Evento</Link>

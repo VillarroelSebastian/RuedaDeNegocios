@@ -326,6 +326,7 @@ export default function RegistroPage() {
     if (!correoValido(empresa.correoCorporativo)) return "El correo corporativo no es válido.";
     if (!empresa.telefonoWhatsapp.trim()) return "El teléfono/WhatsApp es obligatorio.";
     if (!validTel(empresa.telefonoWhatsapp)) return "El teléfono/WhatsApp no es válido. Usa solo dígitos, espacios, +, - o ().";
+    if (!paqueteId) return "Este evento todavía no tiene paquetes de inscripción disponibles.";
     if (participacion.numeroParticipantes < 1) return "Debe haber al menos 1 participante.";
     return null;
   };
@@ -650,7 +651,7 @@ export default function RegistroPage() {
               </div>
 
               {/* Paquetes de inscripción */}
-              {paquetes.length > 0 && (
+              {paquetes.length > 0 ? (
                 <div className="mb-6">
                   <Field label="Paquete de inscripción" required>
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -702,6 +703,10 @@ export default function RegistroPage() {
                       })}
                     </div>
                   </Field>
+                </div>
+              ) : (
+                <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
+                  El administrador aún no configuró paquetes para este evento. El registro permanece cerrado.
                 </div>
               )}
 

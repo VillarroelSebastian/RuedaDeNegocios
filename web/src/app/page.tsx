@@ -148,8 +148,8 @@ export default function HomePage() {
     <div className="min-h-screen bg-white font-sans">
 
       {/* ── NAVBAR ─────────────────────────────────────────────────── */}
-      <header className="fixed top-0 left-0 right-0 z-50 w-full bg-white flex items-center justify-between px-8 py-4 border-b border-gray-100 shadow-sm">
-        <div className="flex items-center">
+      <header className="fixed top-0 left-0 right-0 z-50 w-full bg-white flex items-center justify-between px-4 sm:px-8 py-4 border-b border-gray-100 shadow-sm">
+        <Link href="/" aria-label="Ir al inicio" className="flex items-center">
           <div className="relative h-12 w-48">
             <Image
               src="/assets/iconos/logo.png"
@@ -160,18 +160,18 @@ export default function HomePage() {
               priority
             />
           </div>
-        </div>
-        <nav className="hidden md:flex items-center space-x-6">
+        </Link>
+        <nav className="hidden lg:flex items-center gap-3 xl:gap-6">
           <a href="#sobre" className="text-sm font-semibold text-gray-500 hover:text-gray-900 transition-colors">Sobre el Evento</a>
           <a href="#actividades" className="text-sm font-semibold text-gray-500 hover:text-gray-900 transition-colors">Actividades</a>
           <a href="#envivo" className="text-sm font-semibold text-gray-500 hover:text-gray-900 transition-colors">En Vivo</a>
           <a href="#galeria" className="text-sm font-semibold text-gray-500 hover:text-gray-900 transition-colors">Galería</a>
           <a href="#contacto" className="text-sm font-semibold text-gray-500 hover:text-gray-900 transition-colors">Contacto</a>
           <InstalarAppButton className="flex items-center gap-1.5 rounded-md border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 hover:border-[#449D3A] hover:text-[#449D3A] transition-colors" />
-          <Link href="/registro" className="rounded-md border border-[#449D3A] px-5 py-2 text-sm font-semibold text-[#449D3A] hover:bg-green-50 transition-colors">
+          <Link href="/registro" className="whitespace-nowrap rounded-md border border-[#449D3A] px-4 xl:px-5 py-2 text-sm font-semibold text-[#449D3A] hover:bg-green-50 transition-colors">
             Registrarse
           </Link>
-          <Link href="/auth/login" className="rounded-md bg-[#449D3A] px-5 py-2 text-sm font-semibold text-white hover:bg-[#367d2e] transition-colors">
+          <Link href="/auth/login" className="whitespace-nowrap rounded-md bg-[#449D3A] px-4 xl:px-5 py-2 text-sm font-semibold text-white hover:bg-[#367d2e] transition-colors">
             Iniciar Sesión
           </Link>
         </nav>

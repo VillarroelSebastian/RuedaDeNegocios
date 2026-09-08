@@ -276,8 +276,8 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
 
 // ── Detail Modal ──────────────────────────────────────────────────────────────
 
-function DetalleReunionModal({ reunion, eeId, esEncargado, onClose, onCambiarHorario, onRefresh }: {
-  reunion: any; eeId: number; esEncargado: boolean;
+function DetalleReunionModal({ reunion, eeId, onClose, onCambiarHorario, onRefresh }: {
+  reunion: any; eeId: number;
   onClose: () => void; onCambiarHorario: () => void; onRefresh: () => void;
 }) {
   const [reloj, setReloj] = useState(() => Date.now());
@@ -289,7 +289,7 @@ function DetalleReunionModal({ reunion, eeId, esEncargado, onClose, onCambiarHor
   // Cualquier participante presente puede cerrar una reunión en curso; después
   // cada empresa conserva una única evaluación de la contraparte.
   const puedeFinalizarEncargado = reunion.estado === "EN_CURSO";
-  const puedeIniciar = esEncargado && ["PROGRAMADA", "REPROGRAMADA"].includes(reunion.estado);
+  const puedeIniciar = ["PROGRAMADA", "REPROGRAMADA"].includes(reunion.estado);
   const otraPidioIniciar = reunion.inicioAnticipadoPor && reunion.inicioAnticipadoPor !== eeId;
   const yoPediIniciar = reunion.inicioAnticipadoPor && reunion.inicioAnticipadoPor === eeId;
   const [finalizando, setFinalizando] = useState(false);
@@ -439,14 +439,14 @@ function DetalleReunionModal({ reunion, eeId, esEncargado, onClose, onCambiarHor
                 )}
               </>
             )}
-            {esEncargado && esProgramada && (
+            {esProgramada && (
               <button onClick={onCambiarHorario}
                 className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50">
                 <Edit2 className="w-4 h-4" />
                 Solicitar cambios
               </button>
             )}
-            {esEncargado && esProgramada && (confirmandoCancelacion ? (
+            {esProgramada && (confirmandoCancelacion ? (
               <div className="rounded-xl border border-red-200 bg-red-50 p-4 space-y-3">
                 <p className="text-sm text-red-800 font-semibold">La otra empresa y el equipo técnico verán esta cancelación.</p>
                 <textarea value={motivoCancelacion} onChange={(e) => setMotivoCancelacion(e.target.value)} maxLength={300} rows={2}
@@ -525,7 +525,6 @@ export default function ReunionesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [eeId, setEeId] = useState<number | null>(null);
-  const [esEncargado, setEsEncargado] = useState(false);
   const [filtro, setFiltro] = useState<"todas" | "proximas" | "finalizadas">("todas");
   const [detalleModal, setDetalleModal] = useState<any>(null);
   const [cambiarModal, setCambiarModal] = useState<any>(null);
@@ -556,7 +555,6 @@ export default function ReunionesPage() {
       .then((r) => r.json())
       .then((ctx) => {
         setEeId(ctx.empresaeventoId);
-        setEsEncargado(!!ctx.esResponsable);
         cargarReuniones(ctx.empresaeventoId);
       })
       .catch(() => setError("No se pudo cargar el contexto."));
@@ -624,7 +622,6 @@ export default function ReunionesPage() {
         <DetalleReunionModal
           reunion={detalleModal}
           eeId={eeId}
-          esEncargado={esEncargado}
           onClose={() => setDetalleModal(null)}
           onCambiarHorario={() => { setCambiarModal(detalleModal); setDetalleModal(null); }}
           onRefresh={() => { setDetalleModal(null); if (eeId) { setLoading(true); cargarReuniones(eeId); } }}
@@ -696,11 +693,9 @@ export default function ReunionesPage() {
                filtro === "finalizadas" ? "No tienes reuniones finalizadas." :
                "No tienes reuniones confirmadas aún."}
             </p>
-            {esEncargado && (
-              <Link href="/empresa/empresas" className="text-sm text-[#449D3A] font-bold hover:underline">
+            <Link href="/empresa/empresas" className="text-sm text-[#449D3A] font-bold hover:underline">
                 Ver empresas y solicitar reunión →
-              </Link>
-            )}
+            </Link>
           </div>
         ) : (
           <div className="space-y-4">

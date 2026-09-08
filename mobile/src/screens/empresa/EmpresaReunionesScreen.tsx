@@ -305,8 +305,8 @@ const cm = StyleSheet.create({
 
 // ── Detail Modal ──────────────────────────────────────────────────────────────
 
-function DetalleReunionModal({ reunion, eeId, esEncargado, navigation, onClose, onCambiarHorario, onFinalizado }: {
-  reunion: any; eeId: number; esEncargado: boolean;
+function DetalleReunionModal({ reunion, eeId, navigation, onClose, onCambiarHorario, onFinalizado }: {
+  reunion: any; eeId: number;
   navigation: any; onClose: () => void; onCambiarHorario: () => void; onFinalizado: () => void;
 }) {
   const [reloj, setReloj] = useState(Date.now());
@@ -316,7 +316,7 @@ function DetalleReunionModal({ reunion, eeId, esEncargado, navigation, onClose, 
   const esProgramada = (reunion.estado === 'PROGRAMADA' || reunion.estado === 'REPROGRAMADA') && new Date(reunion.fin) > ahora;
   const esFinalizada = reunion.estado === 'FINALIZADA' || new Date(reunion.fin) <= ahora;
   const puedeFinalizarEncargado = reunion.estado === 'EN_CURSO';
-  const puedeIniciar = esEncargado && ['PROGRAMADA', 'REPROGRAMADA'].includes(reunion.estado);
+  const puedeIniciar = ['PROGRAMADA', 'REPROGRAMADA'].includes(reunion.estado);
   const otraPidioIniciar = reunion.inicioAnticipadoPor && reunion.inicioAnticipadoPor !== eeId;
   const yoPediIniciar = reunion.inicioAnticipadoPor && reunion.inicioAnticipadoPor === eeId;
   const st = STATUS_STYLE[reunion.estado] ?? { bg: '#f1f5f9', text: '#475569', label: reunion.estado };
@@ -497,13 +497,13 @@ function DetalleReunionModal({ reunion, eeId, esEncargado, navigation, onClose, 
                   )}
                 </>
               )}
-              {esEncargado && esProgramada && (
+              {esProgramada && (
                 <TouchableOpacity onPress={onCambiarHorario} style={dm.secondaryBtn} activeOpacity={0.8}>
                   <Edit2 size={14} color="#374151" style={{ marginRight: 8 }} />
                   <Text style={dm.secondaryBtnText}>Cambiar horario</Text>
                 </TouchableOpacity>
               )}
-              {esEncargado && esProgramada && (confirmandoCancelacion ? (
+              {esProgramada && (confirmandoCancelacion ? (
                 <View style={dm.cancelMeetingBox}>
                   <Text style={dm.cancelMeetingText}>La otra empresa y el equipo técnico verán esta cancelación.</Text>
                   <TextInput
@@ -642,7 +642,6 @@ export default function EmpresaReunionesScreen({ navigation }: any) {
   const [refreshing,  setRefreshing]  = useState(false);
   const [error,       setError]       = useState('');
   const [eeId,        setEeId]        = useState<number | null>(null);
-  const [esEncargado, setEsEncargado] = useState(false);
   const [detalleModal,setDetalleModal]= useState<any>(null);
   const [cambiarModal,setCambiarModal]= useState<any>(null);
   const [appModal,    setAppModal]    = useState<AppModal | null>(null);
@@ -659,14 +658,13 @@ export default function EmpresaReunionesScreen({ navigation }: any) {
       const data = await res.json();
       setItems(Array.isArray(data) ? data : []);
       setEeId(id);
-      setEsEncargado(!!user?.esResponsable);
     } catch (e: any) {
       setError(e.message || 'Error de red');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [user?.empresaeventoId, user?.esResponsable]);
+  }, [user?.empresaeventoId]);
 
   useFocusEffect(useCallback(() => {
     fetchData();
@@ -716,7 +714,6 @@ export default function EmpresaReunionesScreen({ navigation }: any) {
         <DetalleReunionModal
           reunion={detalleModal}
           eeId={eeId}
-          esEncargado={esEncargado}
           navigation={navigation}
           onClose={() => setDetalleModal(null)}
           onCambiarHorario={() => { setCambiarModal(detalleModal); setDetalleModal(null); }}

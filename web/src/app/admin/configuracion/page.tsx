@@ -30,10 +30,7 @@ function TabEvento() {
       .then((d) => {
         setConfig(d);
         setForm({
-          maxParticipantesPorEmpresa: d.maxParticipantesPorEmpresa ?? 5,
           costoParticipanteExtra: d.costoParticipanteExtra ?? 0,
-          cantidadParticipantesIncluidos: d.cantidadParticipantesIncluidos ?? 2,
-          montoBaseIncripcionBolivianos: d.montoBaseIncripcionBolivianos ?? 800,
           duracionReunion: d.duracionReunion ?? 20,
           tiempoEntreReuniones: d.tiempoEntreReuniones ?? 5,
         });
@@ -50,10 +47,7 @@ function TabEvento() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          maxParticipantesPorEmpresa: Number(form.maxParticipantesPorEmpresa),
           costoParticipanteExtra: Number(form.costoParticipanteExtra),
-          cantidadParticipantesIncluidos: Number(form.cantidadParticipantesIncluidos),
-          montoBaseIncripcionBolivianos: Number(form.montoBaseIncripcionBolivianos),
           duracionReunion: Number(form.duracionReunion),
           tiempoEntreReuniones: Number(form.tiempoEntreReuniones),
         }),
@@ -92,30 +86,18 @@ function TabEvento() {
       )}
 
       <div>
-        <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-4">Reglas de participantes</h3>
+        <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-4">Inscripción y cupos adicionales</h3>
+        <div className="mb-4 rounded-xl border border-green-200 bg-green-50 p-4">
+          <p className="text-sm font-bold text-green-800">Los paquetes son el sistema oficial de inscripción.</p>
+          <p className="mt-1 text-xs text-gray-600">Allí se definen el precio inicial, credenciales, máximo de participantes, modalidad y QR.</p>
+          <a href="/admin/paquetes" className="mt-2 inline-block text-xs font-bold text-[#449D3A] hover:underline">Ir a configurar paquetes →</a>
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Máx. participantes por empresa</label>
-            <input type="number" min={1} max={50} value={form.maxParticipantesPorEmpresa ?? ''} onChange={(e) => setF('maxParticipantesPorEmpresa', e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
-            <p className="text-xs text-gray-400 mt-1">Límite de participantes que puede tener una empresa en el evento.</p>
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Participantes incluidos (base)</label>
-            <input type="number" min={1} value={form.cantidadParticipantesIncluidos ?? ''} onChange={(e) => setF('cantidadParticipantesIncluidos', e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
-            <p className="text-xs text-gray-400 mt-1">Participantes cubiertos por la inscripción base.</p>
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Monto base inscripción (Bs.)</label>
-            <input type="number" min={0} value={form.montoBaseIncripcionBolivianos ?? ''} onChange={(e) => setF('montoBaseIncripcionBolivianos', e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Costo por participante extra (Bs.)</label>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Precio por participante adicional (Bs.)</label>
             <input type="number" min={0} value={form.costoParticipanteExtra ?? ''} onChange={(e) => setF('costoParticipanteExtra', e.target.value)}
               className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
-            <p className="text-xs text-gray-400 mt-1">Costo aplicado a pagos adicionales de cupos.</p>
+            <p className="text-xs text-gray-400 mt-1">Solo se usa cuando una empresa ya inscrita solicita nuevos cupos.</p>
           </div>
         </div>
       </div>

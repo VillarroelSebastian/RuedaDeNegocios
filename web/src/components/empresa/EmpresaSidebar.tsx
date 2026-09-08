@@ -19,7 +19,7 @@ const allMenuItems = [
   { name: 'Oportunidades',  icon: Sparkles,        href: '/empresa/oportunidades', soloEncargado: false },
   { name: 'Cronograma en Vivo', icon: Radio,       href: '/empresa/cronograma-vivo', soloEncargado: false },
   { name: 'Galería',        icon: Images,          href: '/empresa/galeria',       soloEncargado: false },
-  { name: 'Solicitudes',    icon: Send,            href: '/empresa/solicitudes',   soloEncargado: true  },
+  { name: 'Solicitudes',    icon: Send,            href: '/empresa/solicitudes',   soloEncargado: false },
   { name: 'Mis Horarios',   icon: Clock,           href: '/empresa/horarios',      soloEncargado: true  },
   { name: 'Resultados',     icon: Star,            href: '/empresa/resultados',    soloEncargado: false },
   { name: 'Mi Paquete',     icon: Package,         href: '/empresa/mi-paquete',    soloEncargado: false },

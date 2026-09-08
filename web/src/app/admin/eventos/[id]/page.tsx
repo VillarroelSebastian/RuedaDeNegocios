@@ -297,8 +297,14 @@ export default function ConfiguracionDeEventoPage() {
       });
       
       if (res.ok) {
-        showModal('success', '¡Guardado!', 'El evento se guardó exitosamente.');
-        setTimeout(() => router.push('/admin/eventos'), 1500);
+        const guardado = await res.json();
+        const eventoId = Number(guardado?.id || formData.id);
+        showModal(
+          'success',
+          'Evento configurado',
+          'La configuración general quedó guardada. Ahora revisa los paquetes de inscripción: el evento necesita al menos uno antes de poder activarse como principal.',
+        );
+        setTimeout(() => router.push(`/admin/paquetes?eventoId=${eventoId}`), 1800);
       } else {
         const errorData = await res.json().catch(() => null);
         const msg = errorData?.message || 'Error desconocido del servidor.';
@@ -593,24 +599,30 @@ export default function ConfiguracionDeEventoPage() {
           </div>
         </div>
 
-        {/* Pagos y Tarifas */}
+        {/* Paquetes oficiales y cupos adicionales */}
         <div className={styles.formSection}>
           <div className={styles.sectionHeader}>
             <CreditCard className={styles.icon} />
-            <h2 className={styles.sectionTitle}>Pagos y Tarifas</h2>
+            <h2 className={styles.sectionTitle}>Inscripción y cupos adicionales</h2>
           </div>
-          <div className={styles.grid + " " + styles.grid3Lg}>
-            <div>
-              <label className={styles.label}>Monto base (Bs.)</label>
-              <input type="number" name="montoBaseIncripcionBolivianos" value={formData.montoBaseIncripcionBolivianos} onChange={handleChange} className={styles.input} />
+          <div style={{display: 'grid', gap: '1rem'}}>
+            <div style={{border: '1px solid #bbf7d0', background: '#f0fdf4', borderRadius: '0.75rem', padding: '1rem'}}>
+              <strong style={{display: 'block', color: '#166534'}}>Los paquetes son el sistema oficial de inscripción</strong>
+              <span style={{display: 'block', marginTop: '0.25rem', color: '#4b5563', fontSize: '0.875rem'}}>
+                El precio inicial, las credenciales incluidas, la modalidad y el QR de inscripción se configuran en Paquetes. Este evento no podrá activarse como principal hasta tener al menos un paquete activo.
+              </span>
+              {!isNew && (
+                <button type="button" onClick={() => router.push(`/admin/paquetes?eventoId=${formData.id}`)} className={styles.uploadButton} style={{marginTop: '0.75rem'}}>
+                  Ir a configurar paquetes
+                </button>
+              )}
             </div>
-            <div>
-              <label className={styles.label}>Participantes incluidos</label>
-              <input type="number" name="cantidadParticipantesIncluidos" value={formData.cantidadParticipantesIncluidos} onChange={handleChange} className={styles.input} />
-            </div>
-            <div>
-              <label className={styles.label}>Participante extra (Bs.)</label>
-              <input type="number" name="costoParticipanteExtra" value={formData.costoParticipanteExtra} onChange={handleChange} className={styles.input} />
+            <div style={{maxWidth: '22rem'}}>
+              <label className={styles.label}>Precio por participante adicional (Bs.)</label>
+              <input type="number" min="0" name="costoParticipanteExtra" value={formData.costoParticipanteExtra} onChange={handleChange} className={styles.input} />
+              <span style={{display: 'block', marginTop: '0.35rem', color: '#6b7280', fontSize: '0.75rem'}}>
+                Se aplica cuando una empresa ya inscrita solicita cupos por encima de las credenciales incluidas en su paquete.
+              </span>
             </div>
           </div>
         </div>
@@ -620,20 +632,22 @@ export default function ConfiguracionDeEventoPage() {
           <div className={styles.qrContainer}>
             <div className={styles.sectionHeader} style={{marginBottom: 0}}>
               <QrCode className={styles.icon} />
-              <h2 className={styles.sectionTitle}>Reglas QR de Pago</h2>
+              <h2 className={styles.sectionTitle}>QR para pagos adicionales</h2>
             </div>
             <button onClick={addRule} className={styles.uploadButton} style={{marginTop: 0}}>
               <Plus size={14} /> Agregar Regla
             </button>
           </div>
           
+          <p style={{margin: '0.75rem 0', color: '#6b7280', fontSize: '0.8rem'}}>
+            El rango corresponde al total de participantes que tendrá la empresa después de aprobar los nuevos cupos. El importe se calcula automáticamente con el precio por participante adicional.
+          </p>
           <div className={styles.tableContainer}>
             <table className={styles.table}>
               <thead>
                 <tr>
-                  <th className={styles.th} style={{width: '30%'}}>Rango participantes</th>
-                  <th className={styles.th} style={{width: '25%'}}>Monto (Bs.)</th>
-                  <th className={styles.th} style={{width: '35%'}}>Imagen QR</th>
+                  <th className={styles.th} style={{width: '45%'}}>Total resultante de participantes</th>
+                  <th className={styles.th} style={{width: '45%'}}>Imagen QR</th>
                   <th className={styles.th} style={{textAlign: 'right'}}>Acciones</th>
                 </tr>
               </thead>
@@ -646,9 +660,6 @@ export default function ConfiguracionDeEventoPage() {
                         <span style={{fontSize: '0.75rem', color: '#6b7280'}}>a</span>
                         <input type="number" value={regla.rangoHasta} onChange={(e) => handleQRChange(index, 'rangoHasta', Number(e.target.value))} className={styles.input} style={{width: '4rem', padding: '0.5rem'}} />
                       </div>
-                    </td>
-                    <td className={styles.td}>
-                      <input type="number" value={regla.monto} onChange={(e) => handleQRChange(index, 'monto', Number(e.target.value))} className={styles.input} style={{padding: '0.5rem'}} />
                     </td>
                     <td className={styles.td}>
                       <input 

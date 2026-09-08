@@ -55,6 +55,20 @@ export class ExtrasController {
     return ev.id;
   }
 
+  private async eventoAdministrableId(eventoId?: string | number): Promise<number> {
+    if (eventoId !== undefined && eventoId !== null && String(eventoId).trim() !== '') {
+      const id = Number(eventoId);
+      if (!Number.isInteger(id) || id <= 0)
+        throw new BadRequestException('El evento seleccionado no es válido.');
+      const existe = await this.prisma.evento.findFirst({
+        where: { id, estaActivo: { not: 0 } }, select: { id: true },
+      });
+      if (!existe) throw new BadRequestException('El evento seleccionado no existe o está inactivo.');
+      return id;
+    }
+    return this.eventoPrincipalId();
+  }
+
   private contextoAsistenciaEvento(evento: { fechaInicioEvento: Date; fechaFinEvento: Date }) {
     const inicio = new Date(evento.fechaInicioEvento);
     const fin = new Date(evento.fechaFinEvento);
@@ -198,8 +212,8 @@ export class ExtrasController {
   }
 
   @Get('admin/paquetes')
-  async listarPaquetes() {
-    const eventoId = await this.eventoPrincipalId();
+  async listarPaquetes(@Query('eventoId') eventoIdSolicitado?: string) {
+    const eventoId = await this.eventoAdministrableId(eventoIdSolicitado);
     return this.prisma.paquete.findMany({
       where: { evento_id: eventoId, estaActivo: 1 },
       orderBy: [{ orden: 'asc' }, { costo: 'asc' }],
@@ -255,7 +269,7 @@ export class ExtrasController {
 
   @Post('admin/paquetes')
   async crearPaquete(@Body() body: any) {
-    const eventoId = await this.eventoPrincipalId();
+    const eventoId = await this.eventoAdministrableId(body.eventoId);
     return this.prisma.paquete.create({ data: { ...this.datosPaquete(body), evento_id: eventoId } });
   }
 
@@ -270,6 +284,18 @@ export class ExtrasController {
   @Delete('admin/paquetes/:id')
   async eliminarPaquete(@Param('id') id: string) {
     const paqueteId = Number(id);
+    const paquete = await this.prisma.paquete.findFirst({
+      where: { id: paqueteId, estaActivo: 1 },
+      select: { evento_id: true, evento: { select: { esPrincipal: true } } },
+    });
+    if (!paquete) throw new BadRequestException('El paquete no existe o ya fue eliminado.');
+    if (paquete.evento.esPrincipal === 1) {
+      const activos = await this.prisma.paquete.count({
+        where: { evento_id: paquete.evento_id, estaActivo: 1 },
+      });
+      if (activos <= 1)
+        throw new BadRequestException('El evento principal debe conservar al menos un paquete activo.');
+    }
     // Eliminación lógica; además se impide dejar inscripciones huérfanas.
     const enUso = await this.prisma.empresaevento.count({
       where: { paquete_id: paqueteId, estaActivo: 1 },

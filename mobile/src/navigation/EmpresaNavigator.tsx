@@ -167,7 +167,7 @@ function EncargadoTabs() {
   );
 }
 
-// Participante: solo info — reuniones, comunicados, eventos, perfil
+// Participante: también puede consultar empresas y agendar reuniones.
 function ParticipanteTabs() {
   return (
     <Tab.Navigator screenOptions={tabOptions}>
@@ -175,6 +175,16 @@ function ParticipanteTabs() {
         name="Inicio"
         component={EmpresaDashboardScreen}
         options={{ title: 'Inicio', tabBarIcon: ({ color }) => <LayoutDashboard color={color} size={22} /> }}
+      />
+      <Tab.Screen
+        name="Empresas"
+        component={EmpresaEmpresasScreen}
+        options={{ title: 'Empresas', tabBarIcon: ({ color }) => <Building2 color={color} size={22} /> }}
+      />
+      <Tab.Screen
+        name="Solicitudes"
+        component={EmpresaSolicitudesScreen}
+        options={{ title: 'Solicitudes', tabBarIcon: ({ color }) => <Send color={color} size={22} /> }}
       />
       <Tab.Screen
         name="Reuniones"
@@ -252,17 +262,9 @@ export default function EmpresaNavigator() {
       <Stack.Screen name="Galeria"       component={TecnicoGaleriaScreen}       options={{ title: 'Galería del evento' }} />
       <Stack.Screen name="Perfil"        component={EmpresaPerfilScreen}        options={{ title: 'Perfil' }} />
       <Stack.Screen name="PerfilEmpresa" component={EmpresaPerfilEmpresaScreen} options={{ title: 'Perfil de empresa', headerShown: false }} />
-      {esEncargado && (
-        <Stack.Screen name="Resultados"  component={EmpresaResultadosScreen}  options={{ title: 'Resultados' }} />
-      )}
+      <Stack.Screen name="Resultados"  component={EmpresaResultadosScreen}  options={{ title: 'Resultados' }} />
       {esEncargado && (
         <Stack.Screen name="Horarios"    component={EmpresaHorariosScreen}    options={{ title: 'Mis horarios disponibles' }} />
-      )}
-      {/* "Empresas" ya existe como Tab.Screen anidado dentro de EncargadoTabs — registrar
-          este Stack.Screen de nivel superior solo para participantes evita tener dos rutas
-          con el mismo nombre alcanzables simultáneamente desde el mismo árbol de navegación. */}
-      {!esEncargado && (
-        <Stack.Screen name="Empresas"    component={EmpresaEmpresasScreen}    options={{ title: 'Empresas' }} />
       )}
       </Stack.Navigator>
       {notifActual && (
@@ -277,7 +279,17 @@ export default function EmpresaNavigator() {
               <TouchableOpacity onPress={() => {
                 const ruta = rutaDeNotifMobile(notifActual.evento);
                 dismiss(notifActual.id);
-                if (ruta && navigationRef.isReady()) navigationRef.navigate(ruta as never);
+                if (ruta && navigationRef.isReady()) {
+                  const esTabPrincipal = ['Inicio', 'Empresas', 'Solicitudes', 'Reuniones', 'Mas'].includes(ruta);
+                  const params = notifActual.evento === 'solicitud:nueva' || notifActual.evento === 'solicitud:editada' || notifActual.evento === 'solicitud:cancelada'
+                    ? { tab: 'recibidas' }
+                    : notifActual.evento.startsWith('solicitud') ? { tab: 'enviadas' } : undefined;
+                  if (esTabPrincipal) {
+                    (navigationRef.navigate as any)('EmpresaRoot', { screen: 'EmpresaTabs', params: { screen: ruta, params } });
+                  } else {
+                    (navigationRef.navigate as any)('EmpresaRoot', { screen: ruta, params });
+                  }
+                }
               }} style={{ backgroundColor: GREEN, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 }}>
                 <Text style={{ color: '#fff', fontWeight: '800', fontSize: 12 }}>Ver</Text>
               </TouchableOpacity>

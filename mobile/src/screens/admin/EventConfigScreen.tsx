@@ -195,11 +195,13 @@ export default function EventConfigScreen() {
       cancelText: 'Cancelar',
       onConfirm: async () => {
         try {
-          await fetch(`${API_URL}/admin/eventos/${id}/set-principal`, { method: 'PUT' });
+          const res = await fetch(`${API_URL}/admin/eventos/${id}/set-principal`, { method: 'PUT' });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data?.message || 'No se pudo cambiar a principal.');
           fetchEventos();
           show({ type: 'success', title: '¡Listo!', message: `"${nombre}" es ahora el evento principal.` });
-        } catch {
-          show({ type: 'error', title: 'Error', message: 'No se pudo cambiar a principal.' });
+        } catch (error: any) {
+          show({ type: 'error', title: 'No se puede activar', message: error.message || 'No se pudo cambiar a principal.' });
         }
       },
     });
@@ -391,7 +393,7 @@ export default function EventConfigScreen() {
       const method = editingId === 'nuevo' ? 'POST' : 'PUT';
       const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       if (res.ok) {
-        show({ type: 'success', title: '¡Guardado!', message: 'El evento fue guardado exitosamente.', onConfirm: () => setViewState('lista') });
+        show({ type: 'success', title: 'Evento configurado', message: 'El evento se guardó. Configura al menos un paquete desde el panel web antes de activarlo como principal.', onConfirm: () => setViewState('lista') });
       } else {
         const errorData = await res.json().catch(() => null);
         show({ type: 'error', title: 'Error al guardar', message: errorData?.message || 'Error desconocido.' });
@@ -773,31 +775,20 @@ export default function EventConfigScreen() {
           </View>
         </View>
 
-        {/* ── Pagos ── */}
+        {/* ── Paquetes y cupos adicionales ── */}
         <View className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mb-5">
           <View className="flex-row items-center gap-2 mb-4 border-b border-gray-100 pb-3">
             <CreditCard color={GREEN} size={20} />
-            <Text className="text-base font-bold text-gray-900 ml-1">Pagos y Tarifas</Text>
+            <Text className="text-base font-bold text-gray-900 ml-1">Inscripción y cupos adicionales</Text>
           </View>
-          <Text className="text-xs font-bold text-gray-700 mb-2">Monto base (Bs.) *</Text>
-          <TextInput value={formData.montoBaseIncripcionBolivianos} onChangeText={(t) => handleChange('montoBaseIncripcionBolivianos', t)}
-            keyboardType="numeric" className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm mb-4" />
-          <View className="flex-row gap-3">
-            <View className="flex-1">
-              <Text className="text-[10px] font-bold text-gray-700 mb-2">Participantes incluidos *</Text>
-              <TextInput value={formData.cantidadParticipantesIncluidos} onChangeText={(t) => handleChange('cantidadParticipantesIncluidos', t)}
-                keyboardType="numeric" className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm" />
-            </View>
-            <View className="flex-1">
-              <Text className="text-[10px] font-bold text-gray-700 mb-2">Costo p. extra (Bs.) *</Text>
-              <TextInput value={formData.costoParticipanteExtra} onChangeText={(t) => handleChange('costoParticipanteExtra', t)}
-                keyboardType="numeric" className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm" />
-            </View>
+          <View className="bg-green-50 border border-green-200 rounded-xl p-3 mb-4">
+            <Text className="text-xs font-bold text-green-800">Los paquetes son el sistema oficial de inscripción.</Text>
+            <Text className="text-[11px] text-gray-600 mt-1">Configura precio, credenciales, modalidad y QR desde Paquetes en el panel web.</Text>
           </View>
-          <Text className="text-xs font-bold text-gray-700 mb-2 mt-4">Máx. participantes por empresa *</Text>
-          <TextInput value={formData.maxParticipantesPorEmpresa} onChangeText={(t) => handleChange('maxParticipantesPorEmpresa', t)}
-            keyboardType="numeric" placeholder="5" placeholderTextColor="#9ca3af"
-            className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm mb-4" />
+          <Text className="text-xs font-bold text-gray-700 mb-2">Precio por participante adicional (Bs.) *</Text>
+          <TextInput value={formData.costoParticipanteExtra} onChangeText={(t) => handleChange('costoParticipanteExtra', t)}
+            keyboardType="numeric" className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm" />
+          <Text className="text-[11px] text-gray-500 mt-2">Se usa únicamente cuando una empresa ya inscrita solicita cupos adicionales.</Text>
         </View>
 
         {/* ── Reglas QR ── */}
@@ -805,7 +796,7 @@ export default function EventConfigScreen() {
           <View className="flex-row justify-between items-center mb-4 border-b border-gray-100 pb-3">
             <View className="flex-row items-center gap-2">
               <QrCode color={GREEN} size={20} />
-              <Text className="text-base font-bold text-gray-900 ml-1">Reglas QR de Pago</Text>
+              <Text className="text-base font-bold text-gray-900 ml-1">QR para pagos adicionales</Text>
             </View>
             <TouchableOpacity onPress={addRule} className="bg-[#f4f7ee] p-2 rounded-lg border border-[#d3e5b5]">
               <Plus color="#4d8321" size={16} />
@@ -821,7 +812,7 @@ export default function EventConfigScreen() {
                 </TouchableOpacity>
               </View>
 
-              <Text className="text-xs font-semibold text-gray-600 mb-1.5">Rango de participantes *</Text>
+              <Text className="text-xs font-semibold text-gray-600 mb-1.5">Total resultante de participantes *</Text>
               <View className="flex-row items-center gap-2 mb-3">
                 <TextInput value={regla.rangoDesde} onChangeText={(t) => handleQRChange(index, 'rangoDesde', t)}
                   keyboardType="numeric" className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-center" placeholder="Mín" />
@@ -829,10 +820,6 @@ export default function EventConfigScreen() {
                 <TextInput value={regla.rangoHasta} onChangeText={(t) => handleQRChange(index, 'rangoHasta', t)}
                   keyboardType="numeric" className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-center" placeholder="Máx" />
               </View>
-
-              <Text className="text-xs font-semibold text-gray-600 mb-1.5">Monto (Bs.) *</Text>
-              <TextInput value={regla.monto} onChangeText={(t) => handleQRChange(index, 'monto', t)}
-                keyboardType="numeric" className="bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm mb-3" placeholder="Monto en bolivianos" />
 
               <Text className="text-xs font-semibold text-gray-600 mb-1.5">Imagen QR de pago</Text>
               <TouchableOpacity

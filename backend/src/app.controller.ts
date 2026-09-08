@@ -405,6 +405,36 @@ export class AppController implements OnModuleInit {
         525_600,
       );
     }
+
+    // En Microsoft Teams, quien creó el enlace debe abrir la sala para admitir
+    // a los participantes. Como el modelo actual no guarda qué técnico cargó
+    // el enlace, se avisa al equipo técnico completo cinco minutos antes.
+    const enCincoMinutos = new Date(ahora.getTime() + 5 * 60_000);
+    const teamsPorIniciar = await this.prisma.reunion.findMany({
+      where: { AND: [operativas, {
+        estadoReunion: { in: ['PROGRAMADA', 'REPROGRAMADA'] },
+        tipoReunion: { in: ['VIRTUAL', 'MIXTA'] },
+        fechaHoraInicioReunion: { gt: ahora, lte: enCincoMinutos },
+        solicitudreunion: {
+          enlaceReunionVirtual: { contains: 'teams', mode: 'insensitive' },
+        },
+      }] },
+      select: { id: true, evento_id: true, fechaHoraInicioReunion: true },
+    });
+    for (const reunion of teamsPorIniciar) {
+      const hora = reunion.fechaHoraInicioReunion.toLocaleTimeString('es-BO', {
+        timeZone: EVENT_TIME_ZONE, hour: '2-digit', minute: '2-digit',
+      });
+      await this.notificarStaff(
+        reunion.evento_id,
+        'staff:reunion-teams-iniciar',
+        'Inicia la sala de Microsoft Teams',
+        `La reunión de las ${hora} comienza en menos de 5 minutos. El técnico que creó el enlace debe abrir Teams para admitir a las empresas.`,
+        reunion.id,
+        true,
+        525_600,
+      );
+    }
     const porIniciar = await this.prisma.reunion.findMany({
       where: { AND: [operativas, {
         estadoReunion: { in: ['PROGRAMADA', 'REPROGRAMADA'] },
@@ -1208,6 +1238,9 @@ export class AppController implements OnModuleInit {
     const paqueteIdSolicitado = body.participacion?.paquete_id
       ? Number(body.participacion.paquete_id)
       : null;
+    if (!paqueteIdSolicitado) {
+      throw new BadRequestException('Este evento todavía no tiene paquetes de inscripción disponibles.');
+    }
     let paqueteElegido:
       | { id: number; costo: any; credencialesIncluidas: number; tipoParticipacion: string }
       | null = null;
@@ -1809,14 +1842,13 @@ export class AppController implements OnModuleInit {
     try {
       const eventoData = this.sanitizeEventoData(body);
       const reglasQR = body.reglasQR;
-      const activeCount = await this.prisma.evento.count({ where: { estaActivo: { not: 0 } } });
-      const isFirst = activeCount === 0;
-
       const evento = await this.prisma.evento.create({
         data: {
           ...eventoData,
           estaActivo: 1,
-          esPrincipal: isFirst ? 1 : 0,
+          // Un evento nuevo no se publica automáticamente: primero debe tener
+          // al menos un paquete y luego el administrador lo activa explícitamente.
+          esPrincipal: 0,
           eventoreglaqr: {
             create: reglasQR && reglasQR.length > 0 ? this.sanitizeReglasQR(reglasQR) : [],
           },
@@ -1865,8 +1897,22 @@ export class AppController implements OnModuleInit {
   @Put('admin/eventos/:id/set-principal')
   async setEventoPrincipal(@Param('id') id: string) {
     const eventId = Number(id);
-    await this.prisma.evento.updateMany({ where: {}, data: { esPrincipal: 0 } });
-    return await this.prisma.evento.update({ where: { id: eventId }, data: { esPrincipal: 1 } });
+    const evento = await this.prisma.evento.findFirst({
+      where: { id: eventId, estaActivo: { not: 0 } }, select: { id: true, nombre: true },
+    });
+    if (!evento) throw new BadRequestException('El evento no existe o está inactivo.');
+    const paquetesActivos = await this.prisma.paquete.count({
+      where: { evento_id: eventId, estaActivo: 1 },
+    });
+    if (paquetesActivos === 0) {
+      throw new BadRequestException(
+        `Configura al menos un paquete de inscripción para "${evento.nombre}" antes de activarlo como evento principal.`,
+      );
+    }
+    return this.prisma.$transaction(async (tx) => {
+      await tx.evento.updateMany({ where: {}, data: { esPrincipal: 0 } });
+      return tx.evento.update({ where: { id: eventId }, data: { esPrincipal: 1 } });
+    });
   }
 
   @Delete('admin/eventos/:id')

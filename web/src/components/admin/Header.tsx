@@ -44,8 +44,15 @@ export default function Header() {
 
   useEffect(() => {
     fetchNotificaciones();
-    const interval = setInterval(fetchNotificaciones, 60000);
-    return () => clearInterval(interval);
+    const interval = setInterval(fetchNotificaciones, 10_000);
+    const alVolver = () => { if (document.visibilityState === 'visible') fetchNotificaciones(); };
+    window.addEventListener('focus', fetchNotificaciones);
+    document.addEventListener('visibilitychange', alVolver);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', fetchNotificaciones);
+      document.removeEventListener('visibilitychange', alVolver);
+    };
   }, []);
 
   const fetchNotificaciones = async () => {
@@ -135,7 +142,12 @@ export default function Header() {
         {/* Notifications */}
         <div ref={notifRef} className="relative">
           <button
-            onClick={() => { setShowNotif(!showNotif); setShowProfile(false); }}
+            onClick={() => {
+              const abrir = !showNotif;
+              setShowNotif(abrir);
+              setShowProfile(false);
+              if (abrir) void fetchNotificaciones();
+            }}
             aria-label="Abrir notificaciones"
             title="Notificaciones"
             className="relative p-2 text-gray-500 hover:text-gray-700 transition-colors rounded-lg hover:bg-gray-50"

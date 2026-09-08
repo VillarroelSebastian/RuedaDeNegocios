@@ -8,7 +8,7 @@ export default function TecnicoContenidoScreen() {
   const [tab, setTab] = useState<'comunicados'|'actividades'|'vivo'>('comunicados');
   return <View style={{ flex: 1, backgroundColor: '#f8fafc' }}>
     <View style={{ flexDirection: 'row', gap: 6, padding: 10, backgroundColor: '#fff' }}>
-      {([['comunicados','Notificaciones'],['actividades','Eventos'],['vivo','En vivo']] as const).map(([id,label]) =>
+      {([['comunicados','Comunicados'],['actividades','Actividades'],['vivo','En vivo']] as const).map(([id,label]) =>
         <TouchableOpacity key={id} onPress={() => setTab(id)} style={{ flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center', backgroundColor: tab === id ? '#449D3A' : '#f1f5f9' }}>
           <Text style={{ fontSize: 11, fontWeight: '800', color: tab === id ? '#fff' : '#475569' }}>{label}</Text>
         </TouchableOpacity>)}

@@ -113,12 +113,10 @@ export default function EmpresaOportunidadesScreen() {
                 </View>
               )}
 
-              {!!user?.esResponsable && (
-                <TouchableOpacity style={s.solicitarBtn} onPress={() => navigation.navigate('Empresas')} activeOpacity={0.85}>
+              <TouchableOpacity style={s.solicitarBtn} onPress={() => navigation.navigate('EmpresaTabs', { screen: 'Empresas', params: { solicitarEeId: item.empresaeventoId, solicitarNombre: item.nombre } })} activeOpacity={0.85}>
                   <Send size={14} color="#fff" />
                   <Text style={s.solicitarBtnText}>Solicitar reunión</Text>
-                </TouchableOpacity>
-              )}
+              </TouchableOpacity>
             </View>
           )}
           ListFooterComponent={totalPaginas > 1 ? <View style={s.pagination}><TouchableOpacity disabled={paginaActual === 1} onPress={() => setPagina((p) => Math.max(1, p - 1))} style={{ opacity: paginaActual === 1 ? 0.35 : 1 }}><ChevronLeft size={22} color="#374151" /></TouchableOpacity><Text style={{ fontSize: 12, fontWeight: '700', color: '#6b7280' }}>{paginaActual} / {totalPaginas}</Text><TouchableOpacity disabled={paginaActual === totalPaginas} onPress={() => setPagina((p) => Math.min(totalPaginas, p + 1))} style={{ opacity: paginaActual === totalPaginas ? 0.35 : 1 }}><ChevronRight size={22} color="#374151" /></TouchableOpacity></View> : null}

@@ -36,7 +36,6 @@ export default function EmpresasPage() {
   const [empresas, setEmpresas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [esEncargado, setEsEncargado] = useState(false);
   const [busqueda, setBusqueda] = useState("");
   const [filtroOferta, setFiltroOferta] = useState("");
   const [filtroDemanda, setFiltroDemanda] = useState("");
@@ -68,7 +67,6 @@ export default function EmpresasPage() {
       .then((r) => r.json())
       .then((c) => {
         setCtx(c);
-        setEsEncargado(!!c.esResponsable);
         cargar(c.empresaeventoId);
       })
       .catch(() => setError("No se pudo cargar la lista de empresas."));
@@ -110,7 +108,7 @@ export default function EmpresasPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-extrabold text-gray-900">Empresas</h1>
-          <p className="text-sm text-gray-400 mt-0.5">Consulta el perfil de las empresas participantes{esEncargado ? " y solicita una reunión" : ""}</p>
+          <p className="text-sm text-gray-400 mt-0.5">Consulta el perfil de las empresas participantes y solicita una reunión.</p>
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
           <div className="relative flex-1 sm:flex-none">

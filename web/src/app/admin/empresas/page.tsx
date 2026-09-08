@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, Building2, Users, Eye, Trash2, ChevronLeft, ChevronRight, Filter, X, MessageSquare, KeyRound, CalendarClock } from 'lucide-react';
+import { Search, Building2, Users, Eye, Trash2, ChevronLeft, ChevronRight, Filter, X, MessageSquare, KeyRound, CalendarClock, Copy, Check } from 'lucide-react';
 import ImagenLightbox from '@/components/ui/ImagenLightbox';
 import { useModal } from '@/components/ui/Modal';
 import { EnviarMensajeEmpresaModal } from '@/components/EnviarMensajeEmpresaModal';
@@ -22,6 +22,14 @@ function ParticipantesModal({ empresa, onClose }: { empresa: { id: number; nombr
   const [loading, setLoading] = useState(true);
   const [credencial, setCredencial] = useState<{ correo: string; password: string } | null>(null);
   const [reiniciando, setReiniciando] = useState<number | null>(null);
+  const [copiada, setCopiada] = useState(false);
+
+  const copiarPassword = async () => {
+    if (!credencial || credencial.password.startsWith('ERROR:')) return;
+    await navigator.clipboard.writeText(credencial.password);
+    setCopiada(true);
+    window.setTimeout(() => setCopiada(false), 2500);
+  };
 
   const reiniciarPassword = async (p: any) => {
     setReiniciando(p.usuarioId);
@@ -59,7 +67,12 @@ function ParticipantesModal({ empresa, onClose }: { empresa: { id: number; nombr
         </div>
         <div className="flex-1 overflow-y-auto p-6">
           {credencial && <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-            <p className="font-bold">Nueva contraseña temporal</p><p className="mt-1 break-all">{credencial.correo}</p><code className="mt-2 block rounded bg-white p-2 font-bold">{credencial.password}</code>
+            <p className="font-bold">Nueva contraseña temporal</p><p className="mt-1 break-all">{credencial.correo}</p>
+            <div className="mt-2 flex items-center gap-2"><code className="min-w-0 flex-1 break-all rounded bg-white p-2 font-bold">{credencial.password}</code>
+              {!credencial.password.startsWith('ERROR:') && <button type="button" onClick={copiarPassword} className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-bold text-amber-800">
+                {copiada ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}{copiada ? 'Copiada' : 'Copiar'}
+              </button>}
+            </div>
             <p className="mt-2 text-xs">Cópiala ahora: por seguridad la contraseña anterior no se puede ver y esta clave solo se muestra en este momento.</p>
           </div>}
           {loading ? (

@@ -184,9 +184,8 @@ export default function PerfilEmpresaPage() {
 
         {/* Columna lateral — contacto + acciones */}
         <div className="space-y-5">
-          {/* Acciones (encargado) */}
-          {esEncargado && (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-2.5">
+          {/* Acciones disponibles para cualquier participante activo de la empresa */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-2.5">
               <p className="text-[11px] font-extrabold text-gray-400 uppercase tracking-wider mb-1">Acciones</p>
               <button
                 onClick={() => setModalSolicitar(true)}
@@ -194,14 +193,13 @@ export default function PerfilEmpresaPage() {
               >
                 <Send className="w-4 h-4" />Solicitar reunión
               </button>
-              <Link
+              {esEncargado && <Link
                 href={`/empresa/mensajes?con=${emp.empresaeventoId}&nombre=${encodeURIComponent(emp.nombre)}`}
                 className="w-full flex items-center justify-center gap-2 border-[1.5px] border-[#449D3A] text-[#449D3A] hover:bg-green-50 text-sm font-bold py-3 rounded-xl transition-colors"
               >
                 <MessageSquare className="w-4 h-4" />Enviar mensaje
-              </Link>
-            </div>
-          )}
+              </Link>}
+          </div>
 
           {/* Contacto */}
           {(emp.encargado || emp.correoCorporativo || waLink || emp.sitioWeb || emp.urlPdf) && (

@@ -108,27 +108,25 @@ export default function EmpresaPerfilEmpresaScreen() {
           </View>
         </View>
 
-        {/* Acciones (encargado) */}
-        {esEncargado && (
-          <View style={{ paddingHorizontal: 16, marginTop: 16, gap: 10 }}>
+        {/* Cualquier participante puede solicitar; los mensajes siguen a cargo del responsable. */}
+        <View style={{ paddingHorizontal: 16, marginTop: 16, gap: 10 }}>
             <TouchableOpacity
               style={s.btnPrimary}
-              onPress={() => navigation.navigate('Empresas', { solicitarEeId: emp.empresaeventoId, solicitarNombre: emp.nombre })}
+              onPress={() => navigation.navigate('EmpresaTabs', { screen: 'Empresas', params: { solicitarEeId: emp.empresaeventoId, solicitarNombre: emp.nombre } })}
               activeOpacity={0.85}
             >
               <Send size={16} color="#fff" style={{ marginRight: 8 }} />
               <Text style={s.btnPrimaryText}>Solicitar reunión</Text>
             </TouchableOpacity>
-            <TouchableOpacity
+            {esEncargado && <TouchableOpacity
               style={s.btnSecondary}
               onPress={() => navigation.navigate('Mensajes', { con: emp.empresaeventoId, nombre: emp.nombre })}
               activeOpacity={0.85}
             >
               <MessageSquare size={15} color={GREEN} style={{ marginRight: 8 }} />
               <Text style={s.btnSecondaryText}>Enviar mensaje</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+            </TouchableOpacity>}
+        </View>
 
         {/* Afinidad — didáctico */}
         {afin && (

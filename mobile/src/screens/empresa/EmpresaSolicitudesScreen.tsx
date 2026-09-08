@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, Pressable,
   ActivityIndicator, RefreshControl, StyleSheet, Modal, ScrollView,
@@ -371,7 +371,7 @@ const STATUS_BORDER: Record<string, string> = {
   CANCELADA: '#cbd5e1',
 };
 
-export default function EmpresaSolicitudesScreen() {
+export default function EmpresaSolicitudesScreen({ route }: any) {
   const navigation = useNavigation<any>();
   const [enviadas,   setEnviadas]   = useState<any[]>([]);
   const [recibidas,  setRecibidas]  = useState<any[]>([]);
@@ -384,6 +384,11 @@ export default function EmpresaSolicitudesScreen() {
   const [actionModal,  setActionModal]  = useState<{ sol: any; type: 'cancelar' | 'aceptar' | 'rechazar' } | null>(null);
 
   const user = userStore.get();
+
+  useEffect(() => {
+    const solicitada = route?.params?.tab;
+    if (solicitada === 'recibidas' || solicitada === 'enviadas') setTab(solicitada);
+  }, [route?.params?.tab]);
 
   const fetchData = useCallback(async () => {
     const eeId = user?.empresaeventoId;

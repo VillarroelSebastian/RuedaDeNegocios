@@ -370,7 +370,7 @@ export default function EmpresaDashboardPage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {[
               { href: "/empresa/empresas",   Icon: Building2,   label: "Ver empresas",  desc: "Perfiles de participantes",   soloEncargado: false },
-              { href: "/empresa/solicitudes",Icon: Send,        label: "Solicitudes",   desc: "Gestión de reuniones",        soloEncargado: true },
+              { href: "/empresa/solicitudes",Icon: Send,        label: "Solicitudes",   desc: "Gestión de reuniones",        soloEncargado: false },
               { href: "/empresa/reuniones",  Icon: Users,       label: "Mis reuniones", desc: "Citas confirmadas",           soloEncargado: false },
               { href: "/empresa/resultados", Icon: Star,        label: "Resultados",    desc: "Registra acuerdos",           soloEncargado: false },
               { href: "/empresa/eventos",    Icon: Calendar,    label: "Programa",      desc: "Actividades del evento",      soloEncargado: false },

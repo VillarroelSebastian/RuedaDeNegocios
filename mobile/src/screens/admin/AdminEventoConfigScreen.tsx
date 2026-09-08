@@ -6,7 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import {
-  Settings, Clock, Users, DollarSign, Timer, Save, RefreshCw, AlertCircle,
+  Settings, Clock, DollarSign, Timer, Save, RefreshCw, AlertCircle,
 } from 'lucide-react-native';
 import { API_URL } from '../../utils/userStore';
 import { useModal } from '../../components/AppModal';
@@ -26,10 +26,7 @@ interface ConfigField {
 const FIELDS: ConfigField[] = [
   { key: 'duracionReunion',              label: 'Duración de reunión',              sublabel: 'Minutos por reunión entre empresas',       icon: Clock,       keyboardType: 'numeric', min: 1,  unit: 'min' },
   { key: 'tiempoEntreReuniones',         label: 'Tiempo entre reuniones',           sublabel: 'Minutos de pausa entre cada reunión',      icon: Timer,       keyboardType: 'numeric', min: 0,  unit: 'min' },
-  { key: 'maxParticipantesPorEmpresa',   label: 'Máx. participantes por empresa',   sublabel: 'Límite total de personas por empresa',     icon: Users,       keyboardType: 'numeric', min: 1 },
-  { key: 'cantidadParticipantesIncluidos',label: 'Participantes incluidos',          sublabel: 'Cubiertos en la inscripción base',         icon: Users,       keyboardType: 'numeric', min: 0 },
-  { key: 'costoParticipanteExtra',       label: 'Costo participante extra (Bs.)',   sublabel: 'Precio por cupo adicional aprobado',      icon: DollarSign,  keyboardType: 'numeric', min: 0,  unit: 'Bs.' },
-  { key: 'montoBaseIncripcionBolivianos',label: 'Monto base inscripción (Bs.)',     sublabel: 'Costo de inscripción incluidos los cupos', icon: DollarSign,  keyboardType: 'numeric', min: 0,  unit: 'Bs.' },
+  { key: 'costoParticipanteExtra',       label: 'Participante adicional',            sublabel: 'Precio por cada cupo adicional aprobado', icon: DollarSign,  keyboardType: 'numeric', min: 0,  unit: 'Bs.' },
 ];
 
 export default function AdminEventoConfigScreen() {
@@ -121,7 +118,7 @@ export default function AdminEventoConfigScreen() {
         <View style={s.infoBox}>
           <AlertCircle size={14} color="#1e40af" style={{ marginRight: 8 }} />
           <Text style={s.infoText}>
-            Estos valores afectan el evento principal activo. Los cambios son inmediatos.
+            Los paquetes del panel web definen la inscripción. Aquí solo ajustas la duración de las reuniones y el precio de cupos adicionales.
           </Text>
         </View>
 
