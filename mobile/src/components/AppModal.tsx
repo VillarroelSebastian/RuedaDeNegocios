@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Modal, View, Text, TouchableOpacity,
-  StyleSheet, Animated, Pressable,
+  StyleSheet, Animated, Pressable, ActivityIndicator,
 } from 'react-native';
 import { CheckCircle, XCircle, AlertTriangle, HelpCircle, Info } from 'lucide-react-native';
 
@@ -14,9 +14,10 @@ export interface ModalConfig {
   message: string;
   confirmText?: string;
   cancelText?: string;
-  onConfirm?: () => void;
+  onConfirm?: () => void | Promise<void>;
   onCancel?: () => void;
   confirmColor?: string;
+  waitForConfirm?: boolean;
 }
 
 interface AppModalProps extends ModalConfig {
@@ -72,12 +73,13 @@ const TYPE_CONFIG: Record<ModalType, {
 // ─── Componente ───────────────────────────────────────────────────────────────
 export function AppModal({
   visible, type, title, message,
-  confirmText, cancelText, onConfirm, onCancel, confirmColor, onClose,
+  confirmText, cancelText, onConfirm, onCancel, confirmColor, waitForConfirm = false, onClose,
 }: AppModalProps) {
   const cfg   = TYPE_CONFIG[type];
   const Icon  = cfg.icon;
   const scale = useRef(new Animated.Value(0.85)).current;
   const opacity = useRef(new Animated.Value(0)).current;
+  const [confirming, setConfirming] = useState(false);
 
   useEffect(() => {
     if (visible) {
@@ -93,7 +95,21 @@ export function AppModal({
     }
   }, [visible]);
 
-  const handleConfirm = () => { onClose(); onConfirm?.(); };
+  useEffect(() => { setConfirming(false); }, [visible, type, title]);
+
+  const handleConfirm = async () => {
+    if (!waitForConfirm) {
+      onClose();
+      onConfirm?.();
+      return;
+    }
+    setConfirming(true);
+    try {
+      await onConfirm?.();
+    } finally {
+      setConfirming(false);
+    }
+  };
   const handleCancel  = () => { onClose(); onCancel?.();  };
 
   return (
@@ -118,6 +134,7 @@ export function AppModal({
               <TouchableOpacity
                 style={[s.btn, s.btnOutline]}
                 onPress={handleCancel}
+                disabled={confirming}
                 activeOpacity={0.8}
               >
                 <Text style={s.btnOutlineText}>{cancelText || 'Cancelar'}</Text>
@@ -126,9 +143,12 @@ export function AppModal({
             <TouchableOpacity
               style={[s.btn, { backgroundColor: confirmColor || cfg.confirmBg }]}
               onPress={handleConfirm}
+              disabled={confirming}
               activeOpacity={0.8}
             >
-              <Text style={s.btnPrimaryText}>{confirmText || 'Entendido'}</Text>
+              {confirming
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Text style={s.btnPrimaryText}>{confirmText || 'Entendido'}</Text>}
             </TouchableOpacity>
           </View>
         </Animated.View>
@@ -160,6 +180,7 @@ export function useModal() {
       onConfirm={state.onConfirm}
       onCancel={state.onCancel}
       confirmColor={state.confirmColor}
+      waitForConfirm={state.waitForConfirm}
       onClose={hide}
     />
   );

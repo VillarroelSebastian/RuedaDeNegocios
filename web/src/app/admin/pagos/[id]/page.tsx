@@ -42,11 +42,13 @@ export default function PagoDetailPage() {
           } else {
             showSuccess('Pago aprobado', 'La empresa ha sido habilitada y se enviaron las credenciales por correo.');
           }
-          setTimeout(() => router.push('/admin/pagos'), 1500);
+          const pagoActualizado = await fetch(`${API}/admin/pagos/${id}`);
+          if (pagoActualizado.ok) setPago(await pagoActualizado.json());
         } catch { showError('Error', 'No se pudo aprobar el pago.'); }
         finally { setSubmitting(false); }
       },
-      'success'
+      'success',
+      true,
     );
   };
 

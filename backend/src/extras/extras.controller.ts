@@ -798,7 +798,8 @@ export class ExtrasController {
     const mensaje = this.texto(body.mensaje, 500, 'Anuncio')!;
     const actividad = await this.prisma.actividadprograma.findFirst({ where: { id: actividadId, estaActivo: 1 } });
     const usuario = await this.prisma.usuario.findFirst({ where: { id: usuarioId, estaActivo: 1, rolEvento: { in: ['ADMINISTRADOR', 'TECNICO', 'TECNICO_EVENTOS'] } } });
-    if (!actividad || !usuario || usuario.evento_id !== actividad.evento_id) throw new BadRequestException('No tienes acceso a esta actividad.');
+    const eventoId = await this.eventoPrincipalId();
+    if (!actividad || !usuario || actividad.evento_id !== eventoId) throw new BadRequestException('No tienes acceso a esta actividad.');
     const anuncio = await this.prisma.anuncioactividad.create({ data: { actividad_id: actividadId, usuario_id: usuarioId, mensaje } });
     const subs = await this.prisma.suscripcionactividad.findMany({ where: { actividad_id: actividadId, estaActivo: 1 }, select: { empresaevento_id: true } });
     if (subs.length) await this.prisma.notificacion.createMany({ data: subs.map((s) => ({
@@ -813,7 +814,8 @@ export class ExtrasController {
   async eliminarAnuncioActividad(@Param('id') id: string, @Query('usuarioId') usuarioId: string) {
     const usuario = await this.prisma.usuario.findFirst({ where: { id: Number(usuarioId), estaActivo: 1, rolEvento: { in: ['ADMINISTRADOR', 'TECNICO', 'TECNICO_EVENTOS'] } } });
     const anuncio = await this.prisma.anuncioactividad.findUnique({ where: { id: Number(id) }, include: { actividad: true } });
-    if (!usuario || !anuncio || usuario.evento_id !== anuncio.actividad.evento_id) throw new BadRequestException('Anuncio no encontrado.');
+    const eventoId = await this.eventoPrincipalId();
+    if (!usuario || !anuncio || anuncio.actividad.evento_id !== eventoId) throw new BadRequestException('Anuncio no encontrado.');
     return this.prisma.anuncioactividad.update({ where: { id: anuncio.id }, data: { estaActivo: 0 } });
   }
 

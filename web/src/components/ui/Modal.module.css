@@ -161,6 +161,14 @@
   background: #e5e7eb;
 }
 
+.btnSuccess:disabled,
+.btnConfirm:disabled,
+.btnCancel:disabled,
+.closeBtn:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
 /* ─── Animations ─── */
 @keyframes fadeIn {
   from { opacity: 0; }

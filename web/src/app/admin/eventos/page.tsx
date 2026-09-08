@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, CalendarCheck, Star, Calendar } from 'lucide-react';
+import { Plus, Edit2, Trash2, CalendarCheck, Star, Calendar, Package } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Modal, { useModal } from '@/components/ui/Modal';
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
@@ -48,6 +48,10 @@ export default function EventosListPage() {
         try {
           const res = await fetch(`${API}/admin/eventos/${id}/set-principal`, { method: 'PUT' });
           const data = await res.json().catch(() => ({}));
+          if (!res.ok && res.status === 400 && String(data?.message ?? '').toLowerCase().includes('paquete')) {
+            router.push(`/admin/paquetes?eventoId=${id}&requerido=1`);
+            return;
+          }
           if (!res.ok) throw new Error(data?.message || 'No se pudo cambiar el evento principal.');
           fetchEventos();
         } catch (error: any) {
@@ -136,11 +140,18 @@ export default function EventosListPage() {
               >
                 <Edit2 className="w-3.5 h-3.5" /> Editar
               </button>
+
+              <button
+                onClick={() => router.push(`/admin/paquetes?eventoId=${evento.id}`)}
+                className="flex items-center justify-center gap-2 bg-green-50 text-[#5B9A27] px-3 py-2.5 rounded-lg text-xs font-bold hover:bg-green-100 transition-colors"
+              >
+                <Package className="w-3.5 h-3.5" /> Paquetes
+              </button>
               
               <button 
                 onClick={() => handleDelete(evento.id, evento.esPrincipal)}
                 disabled={evento.esPrincipal === 1}
-                className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-xs font-bold transition-colors ${evento.esPrincipal === 1 ? 'bg-gray-50 text-gray-300' : 'bg-red-50 text-red-600 hover:bg-red-100'}`}
+                className={`col-span-2 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-xs font-bold transition-colors ${evento.esPrincipal === 1 ? 'bg-gray-50 text-gray-300' : 'bg-red-50 text-red-600 hover:bg-red-100'}`}
               >
                 <Trash2 className="w-3.5 h-3.5" /> Eliminar
               </button>

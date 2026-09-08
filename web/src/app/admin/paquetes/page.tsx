@@ -60,10 +60,13 @@ export default function PaquetesPage() {
   const [eventoId, setEventoId] = useState<number | null>(null);
   const [eventoNombre, setEventoNombre] = useState("");
   const [queryReady, setQueryReady] = useState(false);
+  const [paquetesRequeridos, setPaquetesRequeridos] = useState(false);
 
   useEffect(() => {
-    const value = Number(new URLSearchParams(window.location.search).get("eventoId"));
+    const query = new URLSearchParams(window.location.search);
+    const value = Number(query.get("eventoId"));
     setEventoId(Number.isInteger(value) && value > 0 ? value : null);
+    setPaquetesRequeridos(query.get("requerido") === "1");
     setQueryReady(true);
   }, []);
 
@@ -201,6 +204,12 @@ export default function PaquetesPage() {
           <Plus className="w-4 h-4" /> Nuevo paquete
         </button>
       </div>
+
+      {paquetesRequeridos && (
+        <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Este evento todavía no puede activarse como principal. Crea al menos un paquete de inscripción para habilitarlo.
+        </div>
+      )}
 
       {loading ? (
         <p className="text-center text-gray-400 py-12">Cargando paquetes…</p>

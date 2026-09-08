@@ -12,10 +12,11 @@ interface ModalProps {
   type?: ModalType;
   title: string;
   message: string;
-  onConfirm?: () => void;
+  onConfirm?: () => void | Promise<void>;
   confirmText?: string;
   cancelText?: string;
   confirmTone?: 'danger' | 'success';
+  waitForConfirm?: boolean;
 }
 
 const iconMap = {
@@ -36,10 +37,28 @@ export default function Modal({
   confirmText = 'Confirmar',
   cancelText = 'Cancelar',
   confirmTone = 'danger',
+  waitForConfirm = false,
 }: ModalProps) {
+  const [confirming, setConfirming] = React.useState(false);
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (e.key === 'Escape') onClose();
-  }, [onClose]);
+    if (e.key === 'Escape' && !confirming) onClose();
+  }, [onClose, confirming]);
+
+  useEffect(() => { setConfirming(false); }, [isOpen, type, title]);
+
+  const handleConfirm = async () => {
+    if (!waitForConfirm) {
+      onClose();
+      onConfirm?.();
+      return;
+    }
+    setConfirming(true);
+    try {
+      await onConfirm?.();
+    } finally {
+      setConfirming(false);
+    }
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -57,9 +76,9 @@ export default function Modal({
   const { Icon, className: iconClass } = iconMap[type];
 
   return (
-    <div className={modalStyles.backdrop} onClick={onClose}>
+    <div className={modalStyles.backdrop} onClick={confirming ? undefined : onClose}>
       <div className={modalStyles.modal} onClick={(e) => e.stopPropagation()}>
-        <button className={modalStyles.closeBtn} onClick={onClose} aria-label="Cerrar">
+        <button className={modalStyles.closeBtn} onClick={onClose} aria-label="Cerrar" disabled={confirming}>
           <X size={18} />
         </button>
         <div className={`${modalStyles.iconContainer} ${iconClass}`}>
@@ -70,14 +89,15 @@ export default function Modal({
         <div className={modalStyles.actions}>
           {type === 'confirm' ? (
             <>
-              <button className={modalStyles.btnCancel} onClick={onClose}>
+              <button className={modalStyles.btnCancel} onClick={onClose} disabled={confirming}>
                 {cancelText}
               </button>
               <button
                 className={confirmTone === 'success' ? modalStyles.btnSuccess : modalStyles.btnConfirm}
-                onClick={() => { onConfirm?.(); onClose(); }}
+                onClick={handleConfirm}
+                disabled={confirming}
               >
-                {confirmText}
+                {confirming ? 'Procesando…' : confirmText}
               </button>
             </>
           ) : (
@@ -105,8 +125,9 @@ export interface ModalState {
   type: ModalType;
   title: string;
   message: string;
-  onConfirm?: () => void;
+  onConfirm?: () => void | Promise<void>;
   confirmTone?: 'danger' | 'success';
+  waitForConfirm?: boolean;
 }
 
 export function useModal() {
@@ -117,7 +138,7 @@ export function useModal() {
     message: '',
   });
 
-  const showModal = (type: ModalType, title: string, message: string, onConfirm?: () => void) => {
+  const showModal = (type: ModalType, title: string, message: string, onConfirm?: () => void | Promise<void>) => {
     setModal({ isOpen: true, type, title, message, onConfirm });
   };
 
@@ -127,8 +148,13 @@ export function useModal() {
   const showError   = (title: string, message: string) => showModal('error',   title, message);
   const showWarning = (title: string, message: string) => showModal('warning', title, message);
   const showInfo    = (title: string, message: string) => showModal('info',    title, message);
-  const showConfirm = (title: string, message: string, onConfirm: () => void, confirmTone: 'danger' | 'success' = 'danger') =>
-    setModal({ isOpen: true, type: 'confirm', title, message, onConfirm, confirmTone });
+  const showConfirm = (
+    title: string,
+    message: string,
+    onConfirm: () => void | Promise<void>,
+    confirmTone: 'danger' | 'success' = 'danger',
+    waitForConfirm = false,
+  ) => setModal({ isOpen: true, type: 'confirm', title, message, onConfirm, confirmTone, waitForConfirm });
 
   const ModalComponent = () => (
     <Modal
@@ -139,6 +165,7 @@ export function useModal() {
       message={modal.message}
       onConfirm={modal.onConfirm}
       confirmTone={modal.confirmTone}
+      waitForConfirm={modal.waitForConfirm}
     />
   );
 

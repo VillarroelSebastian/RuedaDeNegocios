@@ -90,6 +90,61 @@ describe('AppController - alcance operativo de actividades', () => {
   });
 });
 
+describe('AppController - agenda con rangos personalizados', () => {
+  it('valida al guardar con la misma grilla que mostró al usuario y conserva la pausa de mesa', async () => {
+    const inicio = new Date('2099-09-08T22:40:00.000Z'); // 18:40 en Bolivia
+    const fin = new Date('2099-09-08T23:00:00.000Z');
+    const evento = {
+      fechaInicioSolicitudes: null,
+      fechaFinSolicitudes: new Date('2099-09-09T00:00:00.000Z'),
+      fechaInicioEvento: new Date('2099-09-08T12:00:00.000Z'),
+      fechaFinEvento: new Date('2099-09-09T00:00:00.000Z'),
+      duracionReunion: 20,
+      tiempoEntreReuniones: 5,
+      horariosReunionJson: JSON.stringify([{
+        fecha: '2099-09-08', habilitado: true,
+        rangos: [{ desde: '09:00', hasta: '12:30' }, { desde: '14:30', hasta: '20:00' }],
+      }]),
+    };
+    const tx = {
+      $queryRaw: jest.fn().mockResolvedValue([{ locked: 1 }]),
+      reunion: { findFirst: jest.fn().mockResolvedValue(null) },
+      solicitudreunion: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({ id: 77 }),
+      },
+    };
+    const prisma = {
+      evento: { findFirst: jest.fn(), findUnique: jest.fn().mockResolvedValue(evento) },
+      empresa_usuario: { findFirst: jest.fn().mockResolvedValue({ id: 3 }) },
+      solicitudreunion: { findFirst: jest.fn().mockResolvedValue(null) },
+      mesa: { findFirst: jest.fn().mockResolvedValue({ id: 16 }) },
+      empresaevento: { findUnique: jest.fn().mockResolvedValue({ empresa: { nombre: 'Empresa A' } }) },
+      $transaction: jest.fn(async (callback: any) => callback(tx)),
+    };
+    const controller = new AppController({} as any, prisma as any, {} as any, {} as any) as any;
+    jest.spyOn(controller, 'getPrincipalEventoId').mockResolvedValue(11);
+    jest.spyOn(controller, 'verificarEE').mockResolvedValue(undefined);
+    jest.spyOn(controller, 'getHorariosDisponibles').mockResolvedValue({
+      agenda: [{ inicio: inicio.toISOString(), fin: fin.toISOString(), disponible: true }],
+    });
+    jest.spyOn(controller, 'notificar').mockResolvedValue(undefined);
+
+    await expect(controller.crearSolicitud({
+      eeId: 1, eeReceptoraId: 2, euId: 3, tipo: 'PRESENCIAL',
+      inicio: inicio.toISOString(), fin: fin.toISOString(), mesaId: 16,
+    })).resolves.toMatchObject({ id: 77, mesaId: 16 });
+
+    expect(prisma.evento.findUnique).toHaveBeenCalledWith(expect.objectContaining({
+      select: expect.objectContaining({ horariosReunionJson: true }),
+    }));
+    expect(tx.reunion.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({
+      fechaHoraInicioReunion: { lt: new Date('2099-09-08T23:05:00.000Z') },
+      fechaHoraFinReunion: { gt: new Date('2099-09-08T22:35:00.000Z') },
+    }) }));
+  });
+});
+
 describe('AppController - oportunidades priorizadas', () => {
   it('evita devolver todas las combinaciones posibles y mantiene crecimiento lineal', async () => {
     const inscripciones = Array.from({ length: 200 }, (_, indice) => ({

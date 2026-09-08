@@ -6408,6 +6408,7 @@ export class AppController implements OnModuleInit {
             fechaInicioSolicitudes: true, fechaFinSolicitudes: true,
             fechaInicioEvento: true, fechaFinEvento: true,
             duracionReunion: true, tiempoEntreReuniones: true,
+            horariosReunionJson: true,
           },
         })
       : null;
@@ -6447,7 +6448,15 @@ export class AppController implements OnModuleInit {
     if (tipoNormalizado === 'PRESENCIAL') {
       mesaAsignada = mesaId ? Number(mesaId) : await this.elegirMesaBalanceada(eventoId, iniDate, finDate);
       if (!mesaAsignada) throw new BadRequestException('No hay mesas disponibles para ese horario');
+      const mesaValida = await this.prisma.mesa.findFirst({
+        where: { id: mesaAsignada, evento_id: eventoId, estaActivo: 1, estaHabilitada: 1 },
+        select: { id: true },
+      });
+      if (!mesaValida) throw new BadRequestException('La mesa seleccionada no pertenece al evento activo o ya no está habilitada.');
     }
+    const bufferMesaMs = (eventoCfg.tiempoEntreReuniones ?? 0) * 60000;
+    const iniMesaConBuffer = new Date(iniDate.getTime() - bufferMesaMs);
+    const finMesaConBuffer = new Date(finDate.getTime() + bufferMesaMs);
     let sol: any;
     try {
       sol = await this.prisma.$transaction(async (tx) => {
@@ -6457,13 +6466,14 @@ export class AppController implements OnModuleInit {
             tx.reunion.findFirst({
               where: {
                 mesa_id: mesaAsignada, estaActivo: 1, estadoReunion: { not: 'CANCELADA' },
-                fechaHoraInicioReunion: { lt: finDate }, fechaHoraFinReunion: { gt: iniDate },
+                fechaHoraInicioReunion: { lt: finMesaConBuffer }, fechaHoraFinReunion: { gt: iniMesaConBuffer },
               },
             }),
             tx.solicitudreunion.findFirst({
               where: {
                 mesa_id: mesaAsignada, estaActivo: 1, estadoSolicitud: 'PENDIENTE', tipoReunion: 'PRESENCIAL',
-                fechaHoraInicioPropuesta: { lt: finDate }, fechaHoraFinPropuesta: { gt: iniDate },
+                fechaHoraInicioPropuesta: { lt: finMesaConBuffer }, fechaHoraFinPropuesta: { gt: iniMesaConBuffer },
+                empresaevento_solicitudreunion_empresaEvento_idToempresaevento: { evento_id: eventoId },
               },
             }),
           ]);
@@ -6611,7 +6621,15 @@ export class AppController implements OnModuleInit {
     if (tipoNormalizado === 'PRESENCIAL') {
       mesaAsignada = mesaId ? Number(mesaId) : await this.elegirMesaBalanceada(eventoId, iniDate, finDate, sol.id);
       if (!mesaAsignada) throw new BadRequestException('No hay mesas disponibles para ese horario');
+      const mesaValida = await this.prisma.mesa.findFirst({
+        where: { id: mesaAsignada, evento_id: eventoId, estaActivo: 1, estaHabilitada: 1 },
+        select: { id: true },
+      });
+      if (!mesaValida) throw new BadRequestException('La mesa seleccionada no pertenece al evento activo o ya no está habilitada.');
     }
+    const bufferMesaMs = (evento.tiempoEntreReuniones ?? 0) * 60000;
+    const iniMesaConBuffer = new Date(iniDate.getTime() - bufferMesaMs);
+    const finMesaConBuffer = new Date(finDate.getTime() + bufferMesaMs);
 
     let actualizada: any;
     try {
@@ -6621,12 +6639,13 @@ export class AppController implements OnModuleInit {
           const [reunionOcupada, solicitudOcupada] = await Promise.all([
             tx.reunion.findFirst({ where: {
               mesa_id: mesaAsignada, estaActivo: 1, estadoReunion: { not: 'CANCELADA' },
-              fechaHoraInicioReunion: { lt: finDate }, fechaHoraFinReunion: { gt: iniDate },
+              fechaHoraInicioReunion: { lt: finMesaConBuffer }, fechaHoraFinReunion: { gt: iniMesaConBuffer },
             } }),
             tx.solicitudreunion.findFirst({ where: {
               id: { not: sol.id }, mesa_id: mesaAsignada, estaActivo: 1,
               estadoSolicitud: 'PENDIENTE', tipoReunion: 'PRESENCIAL',
-              fechaHoraInicioPropuesta: { lt: finDate }, fechaHoraFinPropuesta: { gt: iniDate },
+              fechaHoraInicioPropuesta: { lt: finMesaConBuffer }, fechaHoraFinPropuesta: { gt: iniMesaConBuffer },
+              empresaevento_solicitudreunion_empresaEvento_idToempresaevento: { evento_id: eventoId },
             } }),
           ]);
           if (reunionOcupada || solicitudOcupada)

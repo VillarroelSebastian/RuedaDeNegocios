@@ -37,6 +37,7 @@ export default function PagoDetailScreen({ route, navigation }: any) {
       confirmText: 'Aprobar',
       confirmColor: '#449D3A',
       cancelText: 'Cancelar',
+      waitForConfirm: true,
       onConfirm: async () => {
         setSubmitting(true);
         try {
