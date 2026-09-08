@@ -1280,10 +1280,11 @@ export class AppController implements OnModuleInit {
     let ciudadRec = await this.prisma.ciudad.findFirst({ where: { nombre: ciudadNombre, pais_id: paisRec.id } });
     if (!ciudadRec) ciudadRec = await this.prisma.ciudad.create({ data: { nombre: ciudadNombre, pais_id: paisRec.id } });
 
-    // Crear o reusar empresa
+    // Crear o reusar empresa. Cuando el mismo correo corporativo participa en
+    // otro evento, prevalecen los datos enviados en la inscripción más reciente.
+    // Se conservan el código y los archivos ya guardados (foto/PDF).
     const registroCreado = await this.prisma.$transaction(async (tx) => {
-    const empresa = empresaExistente ?? await tx.empresa.create({
-      data: {
+    const datosEmpresaRegistro = {
         ciudad_id: ciudadRec.id,
         nombre: body.empresa.nombre,
         rubro: body.empresa.rubro,
@@ -1296,8 +1297,13 @@ export class AppController implements OnModuleInit {
         demanda: body.empresa.demanda || null,
         interesesBusqueda: body.empresa.interesesBusqueda || null,
         estaActivo: 1,
-      },
-    });
+    };
+    const empresa = empresaExistente
+      ? await tx.empresa.update({
+          where: { id: empresaExistente.id },
+          data: { ...datosEmpresaRegistro, creado_modificado_fecha: new Date() },
+        })
+      : await tx.empresa.create({ data: { ...datosEmpresaRegistro, urlFotoPerfil: '' } });
     // Crear empresaevento
     const ee = await tx.empresaevento.create({
       data: {

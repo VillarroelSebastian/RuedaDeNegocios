@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Armchair, Video, Search, Newspaper, Handshake,
-  UserCircle, LogOut, Shield, Menu, X, CalendarPlus, Radio, QrCode, Images,
+  UserCircle, LogOut, Shield, Menu, X, CalendarPlus, CalendarDays, Radio, QrCode, Images,
 } from 'lucide-react';
 
 const menuItems = [
@@ -18,7 +18,8 @@ const menuItems = [
   { name: 'Cronograma en Vivo', icon: Radio,         href: '/tecnico/cronograma-vivo' },
   { name: 'Galería del evento', icon: Images,        href: '/tecnico/galeria' },
   { name: 'Asistencia QR',    icon: QrCode,          href: '/tecnico/asistencia' },
-  { name: 'Comunicados y actividades', icon: Newspaper, href: '/tecnico/contenido' },
+  { name: 'Comunicados',      icon: Newspaper,         href: '/tecnico/notificaciones' },
+  { name: 'Actividades del cronograma', icon: CalendarDays, href: '/tecnico/eventos' },
   { name: 'Mi Perfil',        icon: UserCircle,      href: '/tecnico/perfil' },
 ];
 
