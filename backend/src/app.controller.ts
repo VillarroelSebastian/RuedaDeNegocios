@@ -1934,7 +1934,7 @@ export class AppController implements OnModuleInit {
 
   // ─── EMPRESAS ────────────────────────────────────────────────────────────────
 
-  @Get('admin/empresas')
+  @Get(['admin/empresas', 'tecnico/empresas'])
   async getEmpresas(
     @Query('search') search?: string,
     @Query('estadoPago') estadoPago?: string,
@@ -2153,7 +2153,7 @@ export class AppController implements OnModuleInit {
     return { ok: true, empresaId, inscripcionesDesactivadas: eeIds.length, participantesDesactivados: euIds.length };
   }
 
-  @Get('admin/empresas/:id/participantes')
+  @Get(['admin/empresas/:id/participantes', 'tecnico/empresas/:id/participantes'])
   async getAdminEmpresaParticipantes(@Param('id') id: string) {
     const eventoId = await this.getPrincipalEventoId();
     const registros = await this.prisma.empresa_usuario.findMany({
