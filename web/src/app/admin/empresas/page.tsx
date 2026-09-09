@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, Building2, Users, Eye, Trash2, ChevronLeft, ChevronRight, Filter, X, MessageSquare, KeyRound, CalendarClock, Copy, Check } from 'lucide-react';
+import { Search, Building2, Users, Eye, Trash2, ChevronLeft, ChevronRight, Filter, X, MessageSquare, CalendarClock } from 'lucide-react';
 import ImagenLightbox from '@/components/ui/ImagenLightbox';
 import { useModal } from '@/components/ui/Modal';
 import { EnviarMensajeEmpresaModal } from '@/components/EnviarMensajeEmpresaModal';
@@ -20,27 +20,6 @@ const ESTADOS_PAGO = [
 function ParticipantesModal({ empresa, onClose }: { empresa: { id: number; nombre: string } | null; onClose: () => void }) {
   const [participantes, setParticipantes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [credencial, setCredencial] = useState<{ correo: string; password: string } | null>(null);
-  const [reiniciando, setReiniciando] = useState<number | null>(null);
-  const [copiada, setCopiada] = useState(false);
-
-  const copiarPassword = async () => {
-    if (!credencial || credencial.password.startsWith('ERROR:')) return;
-    await navigator.clipboard.writeText(credencial.password);
-    setCopiada(true);
-    window.setTimeout(() => setCopiada(false), 2500);
-  };
-
-  const reiniciarPassword = async (p: any) => {
-    setReiniciando(p.usuarioId);
-    try {
-      const res = await fetch(`${API}/admin/participantes/${p.usuarioId}/password-temporal`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: '{}' });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'No se pudo cambiar la contraseña');
-      setCredencial({ correo: data.correo, password: data.nuevaContrasenia });
-    } catch (error: any) { setCredencial({ correo: p.correo, password: `ERROR: ${error.message}` }); }
-    finally { setReiniciando(null); }
-  };
 
   useEffect(() => {
     if (!empresa) return;
@@ -66,15 +45,6 @@ function ParticipantesModal({ empresa, onClose }: { empresa: { id: number; nombr
           </button>
         </div>
         <div className="flex-1 overflow-y-auto p-6">
-          {credencial && <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-            <p className="font-bold">Nueva contraseña temporal</p><p className="mt-1 break-all">{credencial.correo}</p>
-            <div className="mt-2 flex items-center gap-2"><code className="min-w-0 flex-1 break-all rounded bg-white p-2 font-bold">{credencial.password}</code>
-              {!credencial.password.startsWith('ERROR:') && <button type="button" onClick={copiarPassword} className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-bold text-amber-800">
-                {copiada ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}{copiada ? 'Copiada' : 'Copiar'}
-              </button>}
-            </div>
-            <p className="mt-2 text-xs">Cópiala ahora: por seguridad la contraseña anterior no se puede ver y esta clave solo se muestra en este momento.</p>
-          </div>}
           {loading ? (
             <div className="flex justify-center py-8">
               <div className="w-8 h-8 border-4 border-[#449D3A] border-t-transparent rounded-full animate-spin" />
@@ -101,7 +71,6 @@ function ParticipantesModal({ empresa, onClose }: { empresa: { id: number; nombr
                     <span className={`text-[10px] font-semibold ${p.estaActivo ? 'text-gray-400' : 'text-red-400'}`}>
                       {p.estaActivo ? 'Activo' : 'Inactivo'}
                     </span>
-                    {p.estaActivo && <button disabled={reiniciando === p.usuarioId} onClick={() => reiniciarPassword(p)} className="mt-1 inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-white px-2 py-1 text-[10px] font-bold text-amber-700 disabled:opacity-50"><KeyRound className="h-3 w-3" />Nueva clave</button>}
                   </div>
                 </div>
               ))}
@@ -135,8 +104,8 @@ function AgendaEmpresaModal({ empresa, onClose }: { empresa: { eeId: number; nom
 }
 
 /* ── Main Page ───────────────────────────────────────────────── */
-export default function EmpresasPage() {
-  const { modalState, showSuccess, showError, showConfirm, ModalComponent } = useModal();
+export function EmpresasRegistradasPage({ modoTecnico = false }: { modoTecnico?: boolean }) {
+  const { showSuccess, showError, showConfirm, ModalComponent } = useModal();
   const [fichaEmpresaId, setFichaEmpresaId] = useState<number | null>(null);
   const [empresas, setEmpresas] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
@@ -148,15 +117,15 @@ export default function EmpresasPage() {
   const [participantesEmpresa, setParticipantesEmpresa] = useState<{ id: number; nombre: string } | null>(null);
   const [mensajeEmpresa, setMensajeEmpresa] = useState<{ eeId: number; nombre: string } | null>(null);
   const [agendaEmpresa, setAgendaEmpresa] = useState<{ eeId: number; nombre: string } | null>(null);
-  const [adminUserId, setAdminUserId] = useState<number | null>(null);
+  const [staffUserId, setStaffUserId] = useState<number | null>(null);
   const limit = 10;
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem('adminUser');
-      if (raw) setAdminUserId(JSON.parse(raw).id ?? null);
+      const raw = localStorage.getItem(modoTecnico ? 'tecnicoUser' : 'adminUser');
+      if (raw) setStaffUserId(JSON.parse(raw).id ?? null);
     } catch {}
-  }, []);
+  }, [modoTecnico]);
 
   const fetchEmpresas = useCallback(async () => {
     setLoading(true);
@@ -232,11 +201,11 @@ export default function EmpresasPage() {
     <div className="p-8 max-w-7xl mx-auto">
       <ModalComponent />
       <ParticipantesModal empresa={participantesEmpresa} onClose={() => setParticipantesEmpresa(null)} />
-      <FichaEmpresaModal empresaId={fichaEmpresaId} onClose={() => setFichaEmpresaId(null)} />
+      {!modoTecnico && <FichaEmpresaModal empresaId={fichaEmpresaId} onClose={() => setFichaEmpresaId(null)} />}
       <AgendaEmpresaModal empresa={agendaEmpresa} onClose={() => setAgendaEmpresa(null)} />
-      {mensajeEmpresa && adminUserId && (
+      {mensajeEmpresa && staffUserId && (
         <EnviarMensajeEmpresaModal
-          usuarioId={adminUserId}
+          usuarioId={staffUserId}
           receptorEeId={mensajeEmpresa.eeId}
           empresaNombre={mensajeEmpresa.nombre}
           onClose={() => setMensajeEmpresa(null)}
@@ -315,9 +284,9 @@ export default function EmpresasPage() {
               ) : (
                 empresas.map((emp) => (
                   <tr key={emp.id}
-                    onClick={() => setFichaEmpresaId(emp.id)}
-                    title="Ver ficha completa"
-                    className="hover:bg-gray-50/50 transition-colors cursor-pointer">
+                    onClick={() => { if (!modoTecnico) setFichaEmpresaId(emp.id); }}
+                    title={modoTecnico ? undefined : 'Ver ficha completa'}
+                    className={`hover:bg-gray-50/50 transition-colors ${modoTecnico ? '' : 'cursor-pointer'}`}>
                     <td className="py-4 px-5">
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-lg bg-green-100 flex items-center justify-center shrink-0 overflow-hidden">
@@ -368,14 +337,14 @@ export default function EmpresasPage() {
                         >
                           <Users className="w-4 h-4" />
                         </button>
-                        {emp.empresaEventoId && (
+                        {!modoTecnico && emp.empresaEventoId && (
                           <a href={`/admin/pagos/${emp.empresaEventoId}`}>
                             <button className="p-1.5 rounded-lg text-gray-400 hover:text-[#449D3A] hover:bg-green-50 transition-colors" title="Ver pago">
                               <Eye className="w-4 h-4" />
                             </button>
                           </a>
                         )}
-                        {emp.empresaEventoId && emp.estadoHabilitacionAcceso === 'HABILITADO' && adminUserId && (
+                        {emp.empresaEventoId && emp.estadoHabilitacionAcceso === 'HABILITADO' && staffUserId && (
                           <button
                             onClick={() => setMensajeEmpresa({ eeId: emp.empresaEventoId, nombre: emp.nombre })}
                             className="p-1.5 rounded-lg text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 transition-colors"
@@ -385,13 +354,13 @@ export default function EmpresasPage() {
                           </button>
                         )}
                         {emp.empresaEventoId && <button onClick={() => setAgendaEmpresa({ eeId: emp.empresaEventoId, nombre: emp.nombre })} className="p-1.5 rounded-lg text-gray-400 hover:text-violet-600 hover:bg-violet-50" title="Ver agenda"><CalendarClock className="h-4 w-4" /></button>}
-                        <button
+                        {!modoTecnico && <button
                           onClick={() => handleDelete(emp.id, emp.nombre)}
                           className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
                           title="Eliminar empresa"
                         >
                           <Trash2 className="w-4 h-4" />
-                        </button>
+                        </button>}
                       </div>
                     </td>
                   </tr>
@@ -436,4 +405,8 @@ export default function EmpresasPage() {
       </div>
     </div>
   );
+}
+
+export default function EmpresasPage() {
+  return <EmpresasRegistradasPage />;
 }

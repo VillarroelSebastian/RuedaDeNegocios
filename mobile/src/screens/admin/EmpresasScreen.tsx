@@ -3,7 +3,7 @@ import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   ActivityIndicator, RefreshControl, Modal as RNModal
 } from 'react-native';
-import { Search, Building2, Users, Eye, X, MessageSquare, KeyRound, CalendarClock } from 'lucide-react-native';
+import { Search, Building2, Users, Eye, X, MessageSquare, CalendarClock } from 'lucide-react-native';
 import { API_URL } from '../../utils/userStore';
 import EnviarMensajeEmpresaModal from '../../components/EnviarMensajeEmpresaModal';
 
@@ -40,21 +40,9 @@ function AppModal({ visible, type, title, message, onClose, onConfirm }: any) {
 }
 
 /* ── Participants Modal ───────────────────────────────────────── */
-function ParticipantesModal({ empresa, onClose }: { empresa: { id: number; nombre: string } | null; onClose: () => void }) {
+export function ParticipantesModal({ empresa, onClose }: { empresa: { id: number; nombre: string } | null; onClose: () => void }) {
   const [participantes, setParticipantes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [credencial, setCredencial] = useState<any>(null);
-  const [reiniciando, setReiniciando] = useState<number | null>(null);
-
-  const reiniciarPassword = async (p: any) => {
-    setReiniciando(p.usuarioId);
-    try {
-      const res = await fetch(`${API_URL}/admin/participantes/${p.usuarioId}/password-temporal`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:'{}' });
-      const data = await res.json();
-      setCredencial(res.ok ? data : { correo:p.correo, nuevaContrasenia:`ERROR: ${data.message}` });
-    } catch { setCredencial({ correo:p.correo, nuevaContrasenia:'ERROR: no se pudo generar' }); }
-    finally { setReiniciando(null); }
-  };
 
   useEffect(() => {
     if (!empresa) return;
@@ -80,7 +68,6 @@ function ParticipantesModal({ empresa, onClose }: { empresa: { id: number; nombr
             </TouchableOpacity>
           </View>
           <ScrollView contentContainerStyle={{ padding: 20 }}>
-            {!!credencial && <View style={{backgroundColor:'#fffbeb',borderColor:'#fcd34d',borderWidth:1,borderRadius:14,padding:13,marginBottom:12}}><Text style={{fontWeight:'800',color:'#92400e'}}>Nueva contraseña temporal</Text><Text style={{fontSize:12,color:'#92400e',marginTop:4}}>{credencial.correo}</Text><Text selectable style={{fontSize:16,fontWeight:'800',color:'#111827',backgroundColor:'#fff',padding:9,borderRadius:8,marginTop:7}}>{credencial.nuevaContrasenia}</Text><Text style={{fontSize:10,color:'#92400e',marginTop:6}}>Cópiala ahora. La contraseña anterior está cifrada y no se puede mostrar.</Text></View>}
             {loading ? (
               <View style={{ paddingVertical: 32, alignItems: 'center' }}>
                 <ActivityIndicator color={GREEN} />
@@ -100,7 +87,7 @@ function ParticipantesModal({ empresa, onClose }: { empresa: { id: number; nombr
                       <Text style={{ fontSize: 11, color: '#9ca3af' }}>{p.correo}</Text>
                     </View>
                   </View>
-                  <View style={{alignItems:'flex-end',gap:5}}>{p.esResponsable && <View style={{ backgroundColor: '#dcfce7', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 }}><Text style={{ fontSize: 10, fontWeight: '700', color: '#166534' }}>Responsable</Text></View>}{p.estaActivo && <TouchableOpacity disabled={reiniciando===p.usuarioId} onPress={()=>reiniciarPassword(p)} style={{flexDirection:'row',alignItems:'center',gap:4,borderWidth:1,borderColor:'#fcd34d',borderRadius:8,paddingHorizontal:7,paddingVertical:5,opacity:reiniciando===p.usuarioId?.5:1}}><KeyRound size={12} color="#b45309"/><Text style={{fontSize:10,fontWeight:'700',color:'#b45309'}}>Nueva clave</Text></TouchableOpacity>}</View>
+                  <View style={{alignItems:'flex-end',gap:5}}>{p.esResponsable && <View style={{ backgroundColor: '#dcfce7', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 }}><Text style={{ fontSize: 10, fontWeight: '700', color: '#166534' }}>Responsable</Text></View>}<Text style={{fontSize:10,fontWeight:'600',color:p.estaActivo?'#9ca3af':'#ef4444'}}>{p.estaActivo?'Activo':'Inactivo'}</Text></View>
                 </View>
               ))
             )}

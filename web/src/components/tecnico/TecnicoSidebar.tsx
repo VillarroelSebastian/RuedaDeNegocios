@@ -5,12 +5,13 @@ import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Armchair, Video, Search, Newspaper, Handshake,
-  UserCircle, LogOut, Shield, Menu, X, CalendarPlus, CalendarDays, Radio, QrCode, Images,
+  UserCircle, LogOut, Shield, Menu, X, CalendarPlus, CalendarDays, Radio, QrCode, Images, Building2,
 } from 'lucide-react';
 
 const menuItems = [
   { name: 'Dashboard',        icon: LayoutDashboard, href: '/tecnico/dashboard' },
   { name: 'Agendar reunión',  icon: CalendarPlus,    href: '/tecnico/agendar' },
+  { name: 'Empresas',          icon: Building2,       href: '/tecnico/empresas' },
   { name: 'Mesas',            icon: Armchair,        href: '/tecnico/mesas' },
   { name: 'Virtuales',        icon: Video,           href: '/tecnico/virtuales' },
   { name: 'Buscador',         icon: Search,          href: '/tecnico/buscar' },
