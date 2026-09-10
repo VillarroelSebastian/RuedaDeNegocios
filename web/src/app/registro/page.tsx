@@ -456,6 +456,28 @@ export default function RegistroPage() {
     );
   }
 
+  const ahoraRegistro = new Date();
+  const registroAunNoAbre = Boolean(evento?.fechaInicioSolicitudes && ahoraRegistro < new Date(evento.fechaInicioSolicitudes));
+  const registroCerrado = Boolean(evento?.fechaFinSolicitudes && ahoraRegistro > new Date(evento.fechaFinSolicitudes));
+  if (registroAunNoAbre || registroCerrado) {
+    const limite = new Date(registroAunNoAbre ? evento.fechaInicioSolicitudes : evento.fechaFinSolicitudes)
+      .toLocaleString('es-BO', { timeZone: 'America/La_Paz' });
+    return (
+      <div className="min-h-screen bg-[#F9FAFB] flex items-center justify-center p-4">
+        <div className="w-full max-w-xl rounded-2xl border border-amber-300 bg-white p-8 text-center shadow-lg">
+          <AlertCircle className="mx-auto h-12 w-12 text-amber-500" />
+          <h1 className="mt-4 text-2xl font-extrabold text-gray-900">
+            {registroAunNoAbre ? 'Las inscripciones aún no están abiertas' : 'El período de inscripción terminó'}
+          </h1>
+          <p className="mt-3 text-gray-600">
+            {registroAunNoAbre ? `Podrás registrarte a partir del ${limite}.` : `El plazo para registrarse finalizó el ${limite}.`}
+          </p>
+          <Link href="/" className="mt-6 inline-flex rounded-xl bg-[#449D3A] px-5 py-3 font-bold text-white hover:bg-[#367d2e]">Volver al inicio</Link>
+        </div>
+      </div>
+    );
+  }
+
   // "Otro" abre un campo de texto: la lista fija no cubre todos los países.
   // Si el país es "Otro", la ciudad también se escribe (no hay lista que ofrecer).
   const paisEsOtro = empresa.pais === OTRO;

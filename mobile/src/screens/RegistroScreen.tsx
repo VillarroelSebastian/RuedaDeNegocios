@@ -36,6 +36,8 @@ interface EventoPublico {
   ciudadEvento: string | null;
   paisEvento: string | null;
   montoBaseIncripcionBolivianos: number | null;
+  fechaInicioSolicitudes: string | null;
+  fechaFinSolicitudes: string | null;
   eventoreglaqr: ReglaqR[];
 }
 interface ReglaqR { id: number; rangoDesde: number; rangoHasta: number; monto: number; urlQR: string }
@@ -354,6 +356,24 @@ export default function RegistroScreen({ navigation }: any) {
         <Text style={{ color: '#6b7280', marginTop: 12 }}>Cargando…</Text>
       </SafeAreaView>
     );
+  }
+
+  const ahoraRegistro = new Date();
+  const registroAunNoAbre = Boolean(evento?.fechaInicioSolicitudes && ahoraRegistro < new Date(evento.fechaInicioSolicitudes));
+  const registroCerrado = Boolean(evento?.fechaFinSolicitudes && ahoraRegistro > new Date(evento.fechaFinSolicitudes));
+  if (registroAunNoAbre || registroCerrado) {
+    const valorFecha = registroAunNoAbre ? evento?.fechaInicioSolicitudes : evento?.fechaFinSolicitudes;
+    const fecha = new Date(valorFecha as string).toLocaleString('es-BO', { timeZone: 'America/La_Paz' });
+    return <SafeAreaView style={{ flex: 1, backgroundColor: '#f9fafb', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      <View style={{ width: '100%', maxWidth: 480, backgroundColor: '#fff', borderWidth: 1, borderColor: '#f59e0b', borderRadius: 18, padding: 24 }}>
+        <Text style={{ fontSize: 22, fontWeight: '800', color: '#92400e', textAlign: 'center' }}>
+          {registroAunNoAbre ? 'Las inscripciones aún no están abiertas' : 'El período de inscripción terminó'}
+        </Text>
+        <Text style={{ marginTop: 12, fontSize: 15, color: '#78350f', textAlign: 'center', lineHeight: 22 }}>
+          {registroAunNoAbre ? `Podrás registrarte a partir del ${fecha}.` : `El plazo para registrarse finalizó el ${fecha}.`}
+        </Text>
+      </View>
+    </SafeAreaView>;
   }
 
   const paisList = [...Object.keys(SOUTH_AMERICA), OTRO];

@@ -181,3 +181,14 @@ describe('AppController - oportunidades priorizadas', () => {
     expect(controller.hayCoincidenciaTexto('Soluciones de tecnología', 'Tecnologia financiera')).toBe(true);
   });
 });
+
+describe('AppController - estadísticas económicas', () => {
+  it('convierte los rangos a una estimación conservadora sin inventar acuerdos', () => {
+    const controller = new AppController({} as any, {} as any, {} as any, {} as any) as any;
+
+    expect(controller.valorAproximadoRango('Sin acuerdo')).toBe(0);
+    expect(controller.valorAproximadoRango('Hasta $us 5.000')).toBe(5000);
+    expect(controller.valorAproximadoRango('Hasta $us 100.000')).toBe(100000);
+    expect(controller.valorAproximadoRango('Más de $us 100.000')).toBe(100000);
+  });
+});

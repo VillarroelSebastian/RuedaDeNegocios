@@ -17,6 +17,7 @@ export default function Dashboard() {
   const [stats, setStats] = useState<any[]>([]);
   const [activities, setActivities] = useState<any[]>([]);
   const [pagosPendientes, setPagosPendientes] = useState(0);
+  const [topEmpresas, setTopEmpresas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -26,6 +27,7 @@ export default function Dashboard() {
         setStats(data.stats);
         setActivities(data.recentActivity);
         setPagosPendientes(data.pagosPendientesCount || 0);
+        setTopEmpresas(data.topEmpresas || []);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -93,6 +95,20 @@ export default function Dashboard() {
             </div>
           );
         })}
+      </div>
+
+      <div className="mb-8 rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+        <div className="mb-4 flex items-center justify-between">
+          <div><h2 className="font-bold text-gray-900">Top 5 empresas con más reuniones</h2><p className="text-xs text-gray-500">Reuniones no canceladas del evento actual</p></div>
+          <Link href="/admin/reportes" className="text-sm font-semibold text-[#449D3A]">Ver reporte →</Link>
+        </div>
+        {topEmpresas.length === 0 ? <p className="py-5 text-center text-sm text-gray-400">Aún no hay reuniones registradas.</p> : <div className="space-y-3">
+          {topEmpresas.map((empresa, indice) => <div key={empresa.empresaEventoId} className="flex items-center gap-3">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-green-50 text-sm font-extrabold text-[#449D3A]">{indice + 1}</span>
+            <span className="min-w-0 flex-1 truncate text-sm font-semibold text-gray-800">{empresa.nombre}</span>
+            <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">{empresa.reuniones} reunión(es)</span>
+          </div>)}
+        </div>}
       </div>
 
       {/* Recent Activity */}

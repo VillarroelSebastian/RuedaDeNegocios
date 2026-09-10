@@ -1118,6 +1118,21 @@ export class AppController implements OnModuleInit {
     const evento = await this.prisma.evento.findUnique({ where: { id: eventoId } });
     if (!evento) throw new BadRequestException('Evento no encontrado.');
 
+    // Estos campos se conservan por compatibilidad, pero representan el período
+    // de inscripción. La agenda de reuniones se controla exclusivamente con
+    // horariosReunionJson y las fechas propias del evento.
+    const ahora = new Date();
+    if (evento.fechaInicioSolicitudes && ahora < new Date(evento.fechaInicioSolicitudes)) {
+      throw new BadRequestException(
+        `Las inscripciones abren el ${new Date(evento.fechaInicioSolicitudes).toLocaleString('es-BO', { timeZone: EVENT_TIME_ZONE })}`,
+      );
+    }
+    if (evento.fechaFinSolicitudes && ahora > new Date(evento.fechaFinSolicitudes)) {
+      throw new BadRequestException(
+        `El período de inscripción cerró el ${new Date(evento.fechaFinSolicitudes).toLocaleString('es-BO', { timeZone: EVENT_TIME_ZONE })}`,
+      );
+    }
+
     // ── Saneamiento y validación defensiva de lo que escribe el usuario ──
     const emp = body.empresa || {};
     const nombreLimpio = String(emp.nombre ?? '').replace(/\s+/g, ' ').trim();
@@ -1611,6 +1626,7 @@ export class AppController implements OnModuleInit {
       ? await this.prisma.mesa.count({ where: { estaActivo: 1, evento_id: eventoId } })
       : 0;
     const eventosCount = await this.prisma.evento.count({ where: { estaActivo: { not: 0 } } });
+    const impacto = evento ? await this.resumenImpactoEvento(evento) : null;
 
     const recentActivityRaw = await this.prisma.empresaevento.findMany({
       take: 5,
@@ -1645,6 +1661,11 @@ export class AppController implements OnModuleInit {
       ],
       recentActivity,
       pagosPendientesCount,
+      topEmpresas: (impacto?.ranking ?? []).slice(0, 5).map((fila: any) => ({
+        empresaEventoId: fila.empresaEventoId,
+        nombre: fila.nombre,
+        reuniones: fila.reuniones,
+      })),
     };
   }
 
@@ -1785,6 +1806,11 @@ export class AppController implements OnModuleInit {
     };
     const fechaInicioEvento = fechaBolivia(body.fechaInicioEvento);
     const fechaFinEvento = fechaBolivia(body.fechaFinEvento);
+    const fechaInicioInscripciones = body.fechaInicioSolicitudes ? fechaBolivia(body.fechaInicioSolicitudes) : null;
+    const fechaFinInscripciones = body.fechaFinSolicitudes ? fechaBolivia(body.fechaFinSolicitudes) : null;
+    if (fechaInicioInscripciones && fechaFinInscripciones && fechaInicioInscripciones >= fechaFinInscripciones) {
+      throw new BadRequestException('El inicio del período de inscripciones debe ser anterior a su fecha límite.');
+    }
     const fechas = this.fechasEvento({ fechaInicioEvento, fechaFinEvento });
     const inicioHHMM = horaMinutoBolivia(fechaInicioEvento).hhmm;
     const finPartes = horaMinutoBolivia(fechaFinEvento);
@@ -1806,8 +1832,8 @@ export class AppController implements OnModuleInit {
       descripcion: orNull(body.descripcion),
       fechaInicioEvento,
       fechaFinEvento,
-      fechaInicioSolicitudes: body.fechaInicioSolicitudes ? fechaBolivia(body.fechaInicioSolicitudes) : null,
-      fechaFinSolicitudes: body.fechaFinSolicitudes ? fechaBolivia(body.fechaFinSolicitudes) : null,
+      fechaInicioSolicitudes: fechaInicioInscripciones,
+      fechaFinSolicitudes: fechaFinInscripciones,
       duracionReunion: Number(body.duracionReunion) || 20,
       tiempoEntreReuniones: Number(body.tiempoEntreReuniones) || 5,
       ...(horariosReunion !== undefined ? { horariosReunionJson: JSON.stringify(horariosReunion) } : {}),
@@ -3511,6 +3537,146 @@ export class AppController implements OnModuleInit {
 
   // ─── ESTADÍSTICAS ────────────────────────────────────────────────────────────
 
+  private valorAproximadoRango(rango: string | null | undefined): number {
+    const valor = String(rango ?? '').toLowerCase();
+    if (!valor || valor.includes('sin acuerdo')) return 0;
+    const numeros = valor.match(/\d[\d.,]*/g) ?? [];
+    const importes = numeros.map((n) => Number(n.replace(/[.,]/g, ''))).filter(Number.isFinite);
+    if (importes.length === 0) return 0;
+    // Para "más de" se usa el piso del rango: estimación deliberadamente conservadora.
+    return Math.max(...importes);
+  }
+
+  private async resumenImpactoEvento(evento: any) {
+    const reunionOperativa = this.filtroReunionOperativa(evento);
+    const [inscripciones, reuniones, resultados, asistencias] = await Promise.all([
+      this.prisma.empresaevento.findMany({
+        where: { evento_id: evento.id, estaActivo: 1 },
+        select: {
+          id: true,
+          empresa: { select: { nombre: true, codigo: true } },
+          empresa_usuario: { where: { estaActivo: 1 }, select: { id: true } },
+        },
+      }),
+      this.prisma.reunion.findMany({
+        where: { AND: [reunionOperativa, { estadoReunion: { not: 'CANCELADA' } }] },
+        select: {
+          id: true, estadoReunion: true,
+          solicitudreunion: { select: { empresaEvento_id: true, empresaEventorReceptora_id: true } },
+        },
+      }),
+      this.prisma.resultadoreunion.findMany({
+        where: { estaActivo: 1, reunion: reunionOperativa },
+        orderBy: { id: 'asc' },
+        select: {
+          id: true, reunion_id: true, empresaeventoCalificadora_id: true,
+          calificacionReunion: true, rangoAcuerdoComercial: true,
+        },
+      }),
+      this.prisma.asistenciaevento.findMany({
+        where: { evento_id: evento.id, estaActivo: 1 },
+        orderBy: { fechaHoraAsistencia: 'asc' },
+        select: {
+          fechaHoraAsistencia: true,
+          empresa_usuario: { select: { empresaevento_id: true } },
+        },
+      }),
+    ]);
+
+    const empresas = new Map<number, any>();
+    for (const ee of inscripciones) {
+      empresas.set(ee.id, {
+        empresaEventoId: ee.id,
+        nombre: ee.empresa.nombre,
+        codigo: ee.empresa.codigo ?? '—',
+        participantes: ee.empresa_usuario.length,
+        reuniones: 0,
+        estrellasDadas: 0,
+        evaluacionesDadas: 0,
+        promedioCalificacionDada: 0,
+        dineroGenerado: 0,
+        asistencias: [] as Date[],
+      });
+    }
+
+    for (const reunion of reuniones) {
+      const solicitud = reunion.solicitudreunion;
+      for (const eeId of [solicitud?.empresaEvento_id, solicitud?.empresaEventorReceptora_id]) {
+        const fila = eeId ? empresas.get(eeId) : null;
+        if (fila) fila.reuniones += 1;
+      }
+    }
+
+    const resultadoElegidoPorReunion = new Map<number, typeof resultados[number]>();
+    for (const resultado of resultados) {
+      const fila = empresas.get(resultado.empresaeventoCalificadora_id);
+      if (fila) {
+        fila.estrellasDadas += resultado.calificacionReunion;
+        fila.evaluacionesDadas += 1;
+        fila.dineroGenerado += this.valorAproximadoRango(resultado.rangoAcuerdoComercial);
+      }
+      const elegido = resultadoElegidoPorReunion.get(resultado.reunion_id);
+      if (!elegido || resultado.calificacionReunion > elegido.calificacionReunion) {
+        resultadoElegidoPorReunion.set(resultado.reunion_id, resultado);
+      }
+    }
+
+    for (const asistencia of asistencias) {
+      const fila = empresas.get(asistencia.empresa_usuario.empresaevento_id);
+      if (fila) fila.asistencias.push(asistencia.fechaHoraAsistencia);
+    }
+
+    const ranking = [...empresas.values()].map((fila) => ({
+      ...fila,
+      promedioCalificacionDada: fila.evaluacionesDadas > 0
+        ? Number((fila.estrellasDadas / fila.evaluacionesDadas).toFixed(2))
+        : 0,
+    }));
+    ranking.sort((a, b) => b.reuniones - a.reuniones || b.estrellasDadas - a.estrellasDadas || a.nombre.localeCompare(b.nombre, 'es'));
+
+    // El total global cuenta una sola estimación por reunión: la enviada con la
+    // mayor calificación (en empate, la primera respuesta por id). El ranking sí
+    // refleja lo reportado individualmente por cada empresa.
+    const totalGenerado = [...resultadoElegidoPorReunion.values()].reduce(
+      (suma, resultado) => suma + this.valorAproximadoRango(resultado.rangoAcuerdoComercial), 0,
+    );
+    const promedioCalificacion = resultados.length > 0
+      ? Number((resultados.reduce((suma, r) => suma + r.calificacionReunion, 0) / resultados.length).toFixed(2))
+      : 0;
+    const empresasAsistentes = ranking.filter((fila) => fila.asistencias.length > 0).length;
+    const reunionesFinalizadas = reuniones.filter((r) => r.estadoReunion === 'FINALIZADA').length;
+    const tasaRealizacion = reuniones.length > 0 ? reunionesFinalizadas / reuniones.length : 0;
+    const tasaAsistencia = ranking.length > 0 ? empresasAsistentes / ranking.length : 0;
+    const satisfaccion = promedioCalificacion / 5;
+    const coberturaEncuestas = reunionesFinalizadas > 0
+      ? Math.min(1, resultadoElegidoPorReunion.size / reunionesFinalizadas)
+      : 0;
+    const indiceExito = Math.round((tasaRealizacion * 0.35 + tasaAsistencia * 0.25 + satisfaccion * 0.25 + coberturaEncuestas * 0.15) * 100);
+
+    return {
+      ranking,
+      totalGenerado,
+      acuerdosRegistrados: [...resultadoElegidoPorReunion.values()].filter(
+        (resultado) => this.valorAproximadoRango(resultado.rangoAcuerdoComercial) > 0,
+      ).length,
+      evaluacionesRegistradas: resultados.length,
+      promedioCalificacion,
+      empresasAsistentes,
+      registrosAsistencia: asistencias.length,
+      calificaciones: [1, 2, 3, 4, 5].map((estrella) => ({
+        estrella,
+        total: resultados.filter((r) => r.calificacionReunion === estrella).length,
+      })),
+      indiceExito,
+      componentesIndice: {
+        realizacion: Math.round(tasaRealizacion * 100),
+        asistencia: Math.round(tasaAsistencia * 100),
+        satisfaccion: Math.round(satisfaccion * 100),
+        coberturaEncuestas: Math.round(coberturaEncuestas * 100),
+      },
+    };
+  }
+
   @Get('admin/estadisticas')
   async getEstadisticas() {
     const evento = await this.getPrincipalEvento();
@@ -3527,7 +3693,6 @@ export class AppController implements OnModuleInit {
       reunionesEnCurso,
       reunionesCanceladas,
       reunionesReprogramadas,
-      acuerdosRegistrados,
       pagosVerificados,
       pagosPendientes,
       pagosObservados,
@@ -3544,9 +3709,6 @@ export class AppController implements OnModuleInit {
       reunionOperativa ? this.prisma.reunion.count({ where: { AND: [reunionOperativa, { estadoReunion: 'EN_CURSO' }] } }) : Promise.resolve(0),
       reunionOperativa ? this.prisma.reunion.count({ where: { AND: [reunionOperativa, { estadoReunion: 'CANCELADA' }] } }) : Promise.resolve(0),
       reunionOperativa ? this.prisma.reunion.count({ where: { AND: [reunionOperativa, { estadoReunion: 'REPROGRAMADA' }] } }) : Promise.resolve(0),
-      reunionOperativa
-        ? this.prisma.resultadoreunion.count({ where: { estaActivo: 1, reunion: reunionOperativa } })
-        : Promise.resolve(0),
       this.prisma.empresaevento.count({ where: { ...ef, estadoVerificacionPago: 'COMPLETADO', estaActivo: 1 } }),
       this.prisma.empresaevento.count({ where: { ...ef, estadoVerificacionPago: 'PENDIENTE', estaActivo: 1 } }),
       this.prisma.empresaevento.count({ where: { ...ef, estadoVerificacionPago: 'OBSERVADO', estaActivo: 1 } }),
@@ -3555,33 +3717,8 @@ export class AppController implements OnModuleInit {
       evento ? this.prisma.actividadprograma.count({ where: this.filtroActividadOperativa(evento) }) : Promise.resolve(0),
     ]);
 
-    // Top 5 empresas con más reuniones (no canceladas)
-    const reunionesConEmpresas = reunionOperativa
-      ? await this.prisma.reunion.findMany({
-          where: { AND: [reunionOperativa, { estadoReunion: { not: 'CANCELADA' } }] },
-          select: {
-            solicitudreunion: {
-              select: {
-                empresaevento_solicitudreunion_empresaEvento_idToempresaevento: { select: { id: true, empresa: { select: { nombre: true } } } },
-                empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento: { select: { id: true, empresa: { select: { nombre: true } } } },
-              },
-            },
-          },
-        })
-      : [];
-    const conteoEmpresas = new Map<number, { nombre: string; total: number }>();
-    for (const r of reunionesConEmpresas) {
-      const sol = (r as any).solicitudreunion;
-      for (const ee of [
-        sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento,
-        sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento,
-      ]) {
-        if (!ee) continue;
-        const prev = conteoEmpresas.get(ee.id);
-        conteoEmpresas.set(ee.id, { nombre: ee.empresa?.nombre ?? '—', total: (prev?.total ?? 0) + 1 });
-      }
-    }
-    const topEmpresas = [...conteoEmpresas.values()].sort((a, b) => b.total - a.total).slice(0, 5);
+    const impacto = evento ? await this.resumenImpactoEvento(evento) : null;
+    const topEmpresas = (impacto?.ranking ?? []).slice(0, 5).map((fila: any) => ({ nombre: fila.nombre, total: fila.reuniones }));
 
     const reunionesNoCanceladas = reunionesProgramadas + reunionesFinalizadas + reunionesEnCurso + reunionesReprogramadas;
     const reunionesTotal = reunionesNoCanceladas + reunionesCanceladas;
@@ -3627,14 +3764,19 @@ export class AppController implements OnModuleInit {
         reunionesProgramadas,
         reunionesNoCanceladas,
         reunionesRealizadas: reunionesFinalizadas,
-        acuerdosRegistrados,
-        tasaAcuerdos: reunionesFinalizadas > 0 ? Math.round((acuerdosRegistrados / reunionesFinalizadas) * 100) : 0,
+        acuerdosRegistrados: impacto?.acuerdosRegistrados ?? 0,
+        evaluacionesRegistradas: impacto?.evaluacionesRegistradas ?? 0,
+        tasaAcuerdos: reunionesFinalizadas > 0 ? Math.round(((impacto?.acuerdosRegistrados ?? 0) / reunionesFinalizadas) * 100) : 0,
         tasaRealizacion: reunionesNoCanceladas > 0 ? Math.round((reunionesFinalizadas / reunionesNoCanceladas) * 100) : 0,
         pagosVerificados,
         pagosPendientes,
         mesasHabilitadas: mesasActivas,
         eventosInternos,
         asistentesHoy: participantesHoy + auspiciadoresHoy,
+        empresasAsistentes: impacto?.empresasAsistentes ?? 0,
+        totalGeneradoAprox: impacto?.totalGenerado ?? 0,
+        promedioCalificacion: impacto?.promedioCalificacion ?? 0,
+        indiceExito: impacto?.indiceExito ?? 0,
       },
       reunionesPorEstado: {
         programadas: reunionesProgramadas,
@@ -3645,6 +3787,19 @@ export class AppController implements OnModuleInit {
         total: reunionesTotal,
       },
       topEmpresas,
+      rankingEmpresas: impacto?.ranking ?? [],
+      calificaciones: impacto?.calificaciones ?? [],
+      asistencia: {
+        empresasRegistradas: empresasTotal,
+        empresasAsistentes: impacto?.empresasAsistentes ?? 0,
+        empresasSinAsistencia: Math.max(0, empresasTotal - (impacto?.empresasAsistentes ?? 0)),
+        registros: impacto?.registrosAsistencia ?? 0,
+      },
+      indiceExito: {
+        valor: impacto?.indiceExito ?? 0,
+        componentes: impacto?.componentesIndice ?? { realizacion: 0, asistencia: 0, satisfaccion: 0, coberturaEncuestas: 0 },
+        descripcion: 'Índice compuesto: realización de reuniones (35%), asistencia empresarial (25%), satisfacción (25%) y cobertura de encuestas (15%).',
+      },
       pagosPorEstado: {
         verificados: pagosVerificados,
         pendientes: pagosPendientes,
@@ -3719,6 +3874,46 @@ export class AppController implements OnModuleInit {
       };
     }
 
+    if (tipo === 'ranking') {
+      const impacto = await this.resumenImpactoEvento(evento);
+      return {
+        tipo,
+        filas: impacto.ranking.map((fila: any) => ({
+          Empresa: fila.nombre,
+          Codigo: fila.codigo,
+          Reuniones: fila.reuniones,
+          EstrellasDadas: fila.estrellasDadas,
+          EvaluacionesDadas: fila.evaluacionesDadas,
+          PromedioCalificacionDada: fila.promedioCalificacionDada,
+          DineroGeneradoAproxUSD: fila.dineroGenerado,
+        })),
+      };
+    }
+
+    if (tipo === 'asistencia') {
+      const impacto = await this.resumenImpactoEvento(evento);
+      return {
+        tipo,
+        filas: impacto.ranking.map((fila: any) => {
+          const dias = new Set((fila.asistencias as Date[]).map((fecha) =>
+            new Intl.DateTimeFormat('en-CA', { timeZone: EVENT_TIME_ZONE }).format(new Date(fecha)),
+          ));
+          return {
+            Empresa: fila.nombre,
+            Codigo: fila.codigo,
+            ParticipantesRegistrados: fila.participantes,
+            RegistrosAsistencia: fila.asistencias.length,
+            DiasConAsistencia: dias.size,
+            HorariosIngreso: fila.asistencias.length > 0
+              ? fila.asistencias.map((fecha: Date) => new Date(fecha).toLocaleString('es-BO', {
+                  timeZone: EVENT_TIME_ZONE, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+                })).join(' | ')
+              : 'Sin asistencia',
+          };
+        }),
+      };
+    }
+
     if (tipo === 'resultados') {
       const resultados = await this.prisma.resultadoreunion.findMany({
         where: { estaActivo: 1, reunion: reunionOperativa },
@@ -3747,7 +3942,7 @@ export class AppController implements OnModuleInit {
       };
     }
 
-    throw new BadRequestException('tipo debe ser: empresas, reuniones o resultados');
+    throw new BadRequestException('tipo debe ser: empresas, reuniones, resultados, ranking o asistencia');
   }
 
   // ─── TÉCNICO ─────────────────────────────────────────────────────────────────
@@ -4836,12 +5031,14 @@ export class AppController implements OnModuleInit {
 
   // Perfil completo de UNA empresa participante, para la vista dedicada de perfil
   // (separada de la solicitud de reunión). Incluye afinidad respecto al que mira.
-  @Get('empresa/perfil-empresa/:eeId')
+  @Get(['empresa/perfil-empresa/:eeId', 'staff/empresas/:eeId/perfil'])
   async getPerfilEmpresaDetalle(@Param('eeId') eeId: string, @Query('miEeId') miEeId?: string) {
     const id = Number(eeId);
     if (!id) throw new BadRequestException('eeId requerido');
-    const ee: any = await this.prisma.empresaevento.findUnique({
-      where: { id },
+    const eventoId = await this.getPrincipalEventoId();
+    if (!eventoId) throw new BadRequestException('No hay evento activo');
+    const ee: any = await this.prisma.empresaevento.findFirst({
+      where: { id, evento_id: eventoId, estaActivo: 1 },
       include: {
         empresa: { include: { ciudad: { include: { pais: true } } } },
         empresa_usuario: {
@@ -6400,12 +6597,11 @@ export class AppController implements OnModuleInit {
     const iniDate = new Date(inicio);
     const finDate = new Date(fin);
 
-    // Ventana de solicitudes: si el evento define fechaInicio/FinSolicitudes, se respeta.
+    // La disponibilidad se rige por las jornadas de reunión configuradas.
     const eventoCfg = eventoId
       ? await this.prisma.evento.findUnique({
           where: { id: eventoId },
           select: {
-            fechaInicioSolicitudes: true, fechaFinSolicitudes: true,
             fechaInicioEvento: true, fechaFinEvento: true,
             duracionReunion: true, tiempoEntreReuniones: true,
             horariosReunionJson: true,
@@ -6421,17 +6617,6 @@ export class AppController implements OnModuleInit {
     if (!disponibilidad.agenda?.some((slot: any) =>
       slot.disponible && new Date(slot.inicio).getTime() === iniDate.getTime() && new Date(slot.fin).getTime() === finDate.getTime()
     )) throw new BadRequestException('Ese horario ya no está disponible para una de las empresas. Actualiza la agenda y elige otro.');
-    if (eventoCfg?.fechaInicioSolicitudes && ahora < new Date(eventoCfg.fechaInicioSolicitudes)) {
-      throw new BadRequestException(
-        `Las solicitudes de reunión abren el ${new Date(eventoCfg.fechaInicioSolicitudes).toLocaleString('es-BO', { timeZone: 'America/La_Paz' })}`,
-      );
-    }
-    if (eventoCfg?.fechaFinSolicitudes && ahora > new Date(eventoCfg.fechaFinSolicitudes)) {
-      throw new BadRequestException(
-        `El plazo para solicitar reuniones cerró el ${new Date(eventoCfg.fechaFinSolicitudes).toLocaleString('es-BO', { timeZone: 'America/La_Paz' })}`,
-      );
-    }
-
     // Evitar duplicado exacto: mismo emisor → mismo receptor, mismo horario, estado activo
     const duplicado = await this.prisma.solicitudreunion.findFirst({
       where: {

@@ -106,7 +106,7 @@ export default function Header() {
 
       <div className="flex items-center space-x-4 flex-1 justify-end shrink-0">
         {/* Search */}
-        <div ref={searchRef} className="relative max-w-sm w-full hidden lg:block">
+        <div ref={searchRef} className="relative w-48 md:block lg:w-80 hidden">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <Search className="h-4 w-4 text-gray-400" />
           </div>
@@ -122,7 +122,7 @@ export default function Header() {
               {searchResults.map((emp) => (
                 <Link
                   key={emp.id}
-                  href={`/admin/empresas`}
+                  href={`/admin/empresas?empresaId=${emp.id}`}
                   onClick={() => { setShowSearch(false); setSearch(''); }}
                   className="flex items-center px-4 py-3 hover:bg-gray-50 border-b border-gray-50 last:border-0"
                 >

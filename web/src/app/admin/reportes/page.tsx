@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { FileText, Download, Printer, Building2, CalendarDays, Star, RefreshCw } from "lucide-react";
+import { FileText, Download, Printer, Building2, CalendarDays, Star, RefreshCw, Trophy, ScanLine } from "lucide-react";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
@@ -9,6 +9,8 @@ const TIPOS = [
   { key: "empresas",   label: "Empresas participantes", Icon: Building2 },
   { key: "reuniones",  label: "Reuniones",              Icon: CalendarDays },
   { key: "resultados", label: "Resultados y acuerdos",  Icon: Star },
+  { key: "ranking",    label: "Ranking de empresas",    Icon: Trophy },
+  { key: "asistencia", label: "Asistencia por QR",      Icon: ScanLine },
 ];
 
 function exportarCSV(filas: any[], nombre: string) {
@@ -34,6 +36,7 @@ export default function ReportesPage() {
   const [filas, setFilas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filtro, setFiltro] = useState("");
+  const [ordenRanking, setOrdenRanking] = useState("reuniones");
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -51,9 +54,16 @@ export default function ReportesPage() {
   useEffect(() => { setFiltro(""); cargar(); }, [cargar]);
 
   const columnas = filas.length > 0 ? Object.keys(filas[0]) : [];
-  const filtradas = filtro.trim()
+  const filtradasBase = filtro.trim()
     ? filas.filter((f) => Object.values(f).some((v) => String(v).toLowerCase().includes(filtro.toLowerCase())))
     : filas;
+  const filtradas = tipo === 'ranking'
+    ? [...filtradasBase].sort((a, b) => {
+        if (ordenRanking === 'estrellas') return Number(b.EstrellasDadas) - Number(a.EstrellasDadas);
+        if (ordenRanking === 'dinero') return Number(b.DineroGeneradoAproxUSD) - Number(a.DineroGeneradoAproxUSD);
+        return Number(b.Reuniones) - Number(a.Reuniones);
+      })
+    : filtradasBase;
 
   return (
     <div className="report-print-area p-6 space-y-5">
@@ -94,14 +104,21 @@ export default function ReportesPage() {
         ))}
       </div>
 
-      {/* Buscador */}
-      <input
-        type="text"
-        placeholder="Filtrar por cualquier columna..."
-        value={filtro}
-        onChange={(e) => setFiltro(e.target.value)}
-        className="w-full sm:w-80 px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A] print:hidden"
-      />
+      {/* Buscador y orden del ranking */}
+      <div className="flex flex-wrap gap-3 print:hidden">
+        <input
+          type="text"
+          placeholder="Filtrar por cualquier columna..."
+          value={filtro}
+          onChange={(e) => setFiltro(e.target.value)}
+          className="w-full sm:w-80 px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A]"
+        />
+        {tipo === 'ranking' && <select value={ordenRanking} onChange={(e) => setOrdenRanking(e.target.value)} className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm">
+          <option value="reuniones">Ordenar por reuniones</option>
+          <option value="estrellas">Ordenar por estrellas dadas</option>
+          <option value="dinero">Ordenar por dinero generado</option>
+        </select>}
+      </div>
 
       {/* Título para impresión */}
       <div className="hidden print:block">

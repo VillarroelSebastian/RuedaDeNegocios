@@ -1,10 +1,11 @@
 "use client";
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, Building2, Users, Eye, Trash2, ChevronLeft, ChevronRight, Filter, X, MessageSquare, KeyRound, CalendarClock, Copy, Check } from 'lucide-react';
+import { Search, Building2, Users, Eye, Trash2, ChevronLeft, ChevronRight, Filter, X, MessageSquare, KeyRound, CalendarClock, Copy, Check, CreditCard } from 'lucide-react';
 import ImagenLightbox from '@/components/ui/ImagenLightbox';
 import { useModal } from '@/components/ui/Modal';
 import { EnviarMensajeEmpresaModal } from '@/components/EnviarMensajeEmpresaModal';
 import FichaEmpresaModal from '@/components/admin/FichaEmpresaModal';
+import PerfilEmpresaStaffModal from '@/components/PerfilEmpresaStaffModal';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
@@ -23,6 +24,8 @@ function ParticipantesModal({ empresa, onClose, permitirCambiarPassword = true }
   const [credencial, setCredencial] = useState<{ correo: string; password: string } | null>(null);
   const [reiniciando, setReiniciando] = useState<number | null>(null);
   const [copiada, setCopiada] = useState(false);
+  const [participanteManual, setParticipanteManual] = useState<any | null>(null);
+  const [passwordManual, setPasswordManual] = useState('');
 
   const copiarPassword = async () => {
     if (!credencial || credencial.password.startsWith('ERROR:')) return;
@@ -31,13 +34,14 @@ function ParticipantesModal({ empresa, onClose, permitirCambiarPassword = true }
     window.setTimeout(() => setCopiada(false), 2500);
   };
 
-  const reiniciarPassword = async (p: any) => {
+  const reiniciarPassword = async (p: any, nuevaContrasenia?: string) => {
     setReiniciando(p.usuarioId);
     try {
-      const res = await fetch(`${API}/admin/participantes/${p.usuarioId}/password-temporal`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      const res = await fetch(`${API}/admin/participantes/${p.usuarioId}/password-temporal`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(nuevaContrasenia ? { nuevaContrasenia } : {}) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'No se pudo cambiar la contraseña');
       setCredencial({ correo: data.correo, password: data.nuevaContrasenia });
+      setParticipanteManual(null); setPasswordManual('');
     } catch (error: any) { setCredencial({ correo: p.correo, password: `ERROR: ${error.message}` }); }
     finally { setReiniciando(null); }
   };
@@ -78,6 +82,15 @@ function ParticipantesModal({ empresa, onClose, permitirCambiarPassword = true }
             </div>
             <p className="mt-2 text-xs">Cópiala ahora: por seguridad la contraseña anterior no se puede ver y la nueva solo se muestra en este momento.</p>
           </div>}
+          {permitirCambiarPassword && participanteManual && <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
+            <p className="text-sm font-bold text-blue-900">Escribir nueva contraseña para {participanteManual.nombres}</p>
+            <p className="mt-1 text-xs text-blue-700">Mínimo 12 caracteres, con mayúscula, minúscula, número y símbolo.</p>
+            <input type="text" autoComplete="new-password" value={passwordManual} onChange={(e) => setPasswordManual(e.target.value)} placeholder="Nueva contraseña" className="mt-3 w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500" />
+            <div className="mt-3 flex gap-2">
+              <button type="button" disabled={reiniciando === participanteManual.usuarioId || !passwordManual} onClick={() => reiniciarPassword(participanteManual, passwordManual)} className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">Guardar contraseña</button>
+              <button type="button" onClick={() => { setParticipanteManual(null); setPasswordManual(''); }} className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-bold text-blue-700">Cancelar</button>
+            </div>
+          </div>}
           {loading ? (
             <div className="flex justify-center py-8">
               <div className="w-8 h-8 border-4 border-[#449D3A] border-t-transparent rounded-full animate-spin" />
@@ -104,7 +117,10 @@ function ParticipantesModal({ empresa, onClose, permitirCambiarPassword = true }
                     <span className={`text-[10px] font-semibold ${p.estaActivo ? 'text-gray-400' : 'text-red-400'}`}>
                       {p.estaActivo ? 'Activo' : 'Inactivo'}
                     </span>
-                    {permitirCambiarPassword && p.estaActivo && <button disabled={reiniciando === p.usuarioId} onClick={() => reiniciarPassword(p)} className="mt-1 inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-white px-2 py-1 text-[10px] font-bold text-amber-700 disabled:opacity-50"><KeyRound className="h-3 w-3" />Nueva contraseña</button>}
+                    {permitirCambiarPassword && p.estaActivo && <div className="mt-1 flex gap-1">
+                      <button disabled={reiniciando === p.usuarioId} onClick={() => reiniciarPassword(p)} className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-white px-2 py-1 text-[10px] font-bold text-amber-700 disabled:opacity-50"><KeyRound className="h-3 w-3" />Generar</button>
+                      <button disabled={reiniciando === p.usuarioId} onClick={() => { setParticipanteManual(p); setPasswordManual(''); setCredencial(null); }} className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-white px-2 py-1 text-[10px] font-bold text-blue-700 disabled:opacity-50">Escribir</button>
+                    </div>}
                   </div>
                 </div>
               ))}
@@ -141,6 +157,7 @@ function AgendaEmpresaModal({ empresa, onClose }: { empresa: { eeId: number; nom
 export function EmpresasRegistradasPage({ modoTecnico = false }: { modoTecnico?: boolean }) {
   const { showSuccess, showError, showConfirm, ModalComponent } = useModal();
   const [fichaEmpresaId, setFichaEmpresaId] = useState<number | null>(null);
+  const [perfilTecnicoEeId, setPerfilTecnicoEeId] = useState<number | null>(null);
   const [empresas, setEmpresas] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -183,6 +200,14 @@ export function EmpresasRegistradasPage({ modoTecnico = false }: { modoTecnico?:
   }, [page, search, estadoPago, rubro, modoTecnico]);
 
   useEffect(() => { fetchEmpresas(); }, [fetchEmpresas]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const empresaId = Number(params.get('empresaId'));
+    const eeId = Number(params.get('eeId'));
+    if (modoTecnico && eeId) setPerfilTecnicoEeId(eeId);
+    if (!modoTecnico && empresaId) setFichaEmpresaId(empresaId);
+  }, [modoTecnico]);
 
   const handleDelete = (id: number, nombre: string) => {
     showConfirm(
@@ -236,6 +261,7 @@ export function EmpresasRegistradasPage({ modoTecnico = false }: { modoTecnico?:
       <ModalComponent />
       <ParticipantesModal empresa={participantesEmpresa} onClose={() => setParticipantesEmpresa(null)} permitirCambiarPassword={!modoTecnico} />
       {!modoTecnico && <FichaEmpresaModal empresaId={fichaEmpresaId} onClose={() => setFichaEmpresaId(null)} />}
+      {modoTecnico && <PerfilEmpresaStaffModal empresaEventoId={perfilTecnicoEeId} onClose={() => setPerfilTecnicoEeId(null)} />}
       <AgendaEmpresaModal empresa={agendaEmpresa} onClose={() => setAgendaEmpresa(null)} />
       {mensajeEmpresa && staffUserId && (
         <EnviarMensajeEmpresaModal
@@ -365,6 +391,13 @@ export function EmpresasRegistradasPage({ modoTecnico = false }: { modoTecnico?:
                     <td className="py-4 px-5" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center gap-2">
                         <button
+                          onClick={() => modoTecnico ? setPerfilTecnicoEeId(emp.empresaEventoId ?? null) : setFichaEmpresaId(emp.id)}
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-[#449D3A] hover:bg-green-50 transition-colors"
+                          title="Ver perfil"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button
                           onClick={() => setParticipantesEmpresa({ id: emp.id, nombre: emp.nombre })}
                           className="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 transition-colors"
                           title="Ver participantes"
@@ -374,7 +407,7 @@ export function EmpresasRegistradasPage({ modoTecnico = false }: { modoTecnico?:
                         {!modoTecnico && emp.empresaEventoId && (
                           <a href={`/admin/pagos/${emp.empresaEventoId}`}>
                             <button className="p-1.5 rounded-lg text-gray-400 hover:text-[#449D3A] hover:bg-green-50 transition-colors" title="Ver pago">
-                              <Eye className="w-4 h-4" />
+                              <CreditCard className="w-4 h-4" />
                             </button>
                           </a>
                         )}

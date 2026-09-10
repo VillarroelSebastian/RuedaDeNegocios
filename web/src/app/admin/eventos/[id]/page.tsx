@@ -243,6 +243,10 @@ export default function ConfiguracionDeEventoPage() {
       showModal('warning', 'Horarios incompletos', 'Todos los días del evento deben tener al menos un rango de reuniones válido.');
       return;
     }
+    if (formData.fechaInicioSolicitudes && formData.fechaFinSolicitudes && formData.fechaInicioSolicitudes >= formData.fechaFinSolicitudes) {
+      showModal('warning', 'Período de inscripción inválido', 'El inicio del período de inscripciones debe ser anterior a la fecha límite.');
+      return;
+    }
     setSaving(true);
     
     // Helper: convert empty strings to null for optional fields
@@ -382,14 +386,14 @@ export default function ConfiguracionDeEventoPage() {
               <input required type="datetime-local" name="fechaFinEvento" value={formData.fechaFinEvento} onChange={handleChange} className={styles.input} />
             </div>
             <div>
-              <label className={styles.label}>Apertura de solicitudes de reunión</label>
+              <label className={styles.label}>Inicio del período de inscripciones</label>
               <input type="datetime-local" name="fechaInicioSolicitudes" value={formData.fechaInicioSolicitudes} onChange={handleChange} className={styles.input} />
-              <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>Opcional. Antes de esta fecha las empresas no podrán solicitar reuniones.</p>
+              <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>Opcional. Antes de esta fecha no se permitirán nuevas inscripciones.</p>
             </div>
             <div>
-              <label className={styles.label}>Cierre de solicitudes de reunión</label>
+              <label className={styles.label}>Límite para inscribirse</label>
               <input type="datetime-local" name="fechaFinSolicitudes" value={formData.fechaFinSolicitudes} onChange={handleChange} className={styles.input} />
-              <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>Opcional. Después de esta fecha ya no se aceptarán nuevas solicitudes.</p>
+              <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>Opcional. Después de esta fecha no se aceptarán nuevas inscripciones.</p>
             </div>
             <div>
               <label className={styles.label}>País del evento</label>

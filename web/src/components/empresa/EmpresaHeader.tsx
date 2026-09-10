@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { LogOut, ChevronDown, Bell, Menu, Clock, Newspaper, UserCircle } from 'lucide-react';
+import { LogOut, ChevronDown, Bell, Menu, Clock, Newspaper, UserCircle, Search } from 'lucide-react';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
@@ -36,8 +36,12 @@ export default function EmpresaHeader({ onMenuClick, eeId }: { onMenuClick?: () 
   const [showNotifs, setShowNotifs] = useState(false);
   const [unread, setUnread] = useState(0);
   const [notifs, setNotifs] = useState<any[]>([]);
+  const [search, setSearch] = useState('');
+  const [empresas, setEmpresas] = useState<any[]>([]);
+  const [showSearch, setShowSearch] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
   const notifsRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const raw = localStorage.getItem('empresaUser');
@@ -45,6 +49,11 @@ export default function EmpresaHeader({ onMenuClick, eeId }: { onMenuClick?: () 
       try { setUser(JSON.parse(raw)); } catch {}
     }
   }, []);
+
+  useEffect(() => {
+    if (!eeId) return;
+    fetch(`${API}/empresa/directorio?eeId=${eeId}`).then((r) => r.ok ? r.json() : []).then((data) => setEmpresas(Array.isArray(data) ? data : [])).catch(() => setEmpresas([]));
+  }, [eeId]);
 
   // Historial de notificaciones persistentes (campanita)
   const cargarNotifs = useCallback(async () => {
@@ -95,6 +104,7 @@ export default function EmpresaHeader({ onMenuClick, eeId }: { onMenuClick?: () 
     const handler = (e: MouseEvent) => {
       if (profileRef.current && !profileRef.current.contains(e.target as Node)) setShowProfile(false);
       if (notifsRef.current && !notifsRef.current.contains(e.target as Node)) setShowNotifs(false);
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setShowSearch(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -130,9 +140,20 @@ export default function EmpresaHeader({ onMenuClick, eeId }: { onMenuClick?: () 
         >
           <Menu className="w-5 h-5 text-gray-700" />
         </button>
-        <h1 className="text-xl font-bold text-gray-800 hidden sm:block truncate">Rueda de Negocios — Panel Empresa</h1>
+        <h1 className="text-xl font-bold text-gray-800 hidden lg:block truncate">Rueda de Negocios — Panel Empresa</h1>
       </div>
       <div className="flex-1" />
+
+      <div ref={searchRef} className="relative mr-3 hidden w-48 md:block lg:w-72">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+        <input value={search} onChange={(e) => { setSearch(e.target.value); setShowSearch(e.target.value.trim().length >= 2); }} placeholder="Buscar empresa…" className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2 pl-9 pr-3 text-sm outline-none focus:border-[#449D3A] focus:bg-white" />
+        {showSearch && <div className="absolute top-full mt-1 w-full overflow-hidden rounded-xl border border-gray-100 bg-white shadow-xl">
+          {empresas.filter((empresa) => `${empresa.nombre} ${empresa.codigo ?? ''} ${empresa.rubro ?? ''}`.toLowerCase().includes(search.toLowerCase())).slice(0, 5).map((empresa) => <button key={empresa.empresaeventoId} onClick={() => { setShowSearch(false); setSearch(''); router.push(`/empresa/empresas/${empresa.empresaeventoId}`); }} className="block w-full border-b border-gray-50 px-4 py-3 text-left hover:bg-gray-50">
+            <p className="truncate text-sm font-bold text-gray-900">{empresa.nombre}</p><p className="truncate text-xs text-gray-500">{empresa.codigo} · {empresa.rubro}</p>
+          </button>)}
+          {empresas.filter((empresa) => `${empresa.nombre} ${empresa.codigo ?? ''} ${empresa.rubro ?? ''}`.toLowerCase().includes(search.toLowerCase())).length === 0 && <p className="p-4 text-xs text-gray-400">Sin resultados</p>}
+        </div>}
+      </div>
 
       {/* Bell con historial de notificaciones */}
       <div ref={notifsRef} className="relative mr-2">

@@ -305,7 +305,7 @@ function DetalleSolicitudModal({ sol, tab, eeId, onClose, onAceptar, onRechazar,
               </button>
             )}
             <button onClick={onClose}
-              className="w-full py-2.5 rounded-xl border border-gray-100 hover:bg-gray-50 text-sm font-bold text-gray-400 transition-colors">
+              className="w-full py-2.5 rounded-xl border-2 border-gray-300 bg-white hover:bg-gray-100 text-sm font-bold text-gray-800 shadow-sm transition-colors">
               Cerrar
             </button>
           </div>

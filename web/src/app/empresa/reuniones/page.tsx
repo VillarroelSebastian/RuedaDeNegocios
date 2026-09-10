@@ -426,7 +426,7 @@ function DetalleReunionModal({ reunion, eeId, onClose, onCambiarHorario, onRefre
           <div className="space-y-2 pt-1">
             {puedeIniciar && (
               <>
-                {msgIni && <p className="text-xs text-gray-600 text-center bg-gray-50 rounded-lg py-2 px-3">{msgIni}</p>}
+                {msgIni && <p className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-3 text-center text-sm font-semibold text-blue-800">{msgIni}</p>}
                 {yoPediIniciar ? (
                   <div className="w-full text-center text-sm font-semibold text-[#449D3A] bg-green-50 rounded-xl py-2.5">
                     Esperando que la otra empresa confirme el inicio…
@@ -507,7 +507,7 @@ function DetalleReunionModal({ reunion, eeId, onClose, onCambiarHorario, onRefre
               </Link>
             )}
             <button onClick={onClose}
-              className="w-full py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-500 hover:bg-gray-50">
+              className="w-full py-2.5 rounded-xl border-2 border-gray-300 bg-white text-sm font-bold text-gray-800 shadow-sm hover:bg-gray-100">
               Cerrar
             </button>
           </div>
