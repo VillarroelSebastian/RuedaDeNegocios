@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { LayoutDashboard, Armchair, Video, Search, Newspaper, UserCircle, Handshake } from 'lucide-react-native';
+import { LayoutDashboard, Armchair, Video, Search, Newspaper, UserCircle, Handshake, Bell } from 'lucide-react-native';
 
 import TecnicoDashboardScreen  from '../screens/tecnico/TecnicoDashboardScreen';
 import TecnicoMesasScreen      from '../screens/tecnico/TecnicoMesasScreen';
@@ -46,6 +46,7 @@ const IconMesas      = ({ color }: { color: string }) => <Armchair         color
 const IconVirtuales  = ({ color }: { color: string }) => <Video            color={color} size={22} />;
 const IconBuscador   = ({ color }: { color: string }) => <Search           color={color} size={22} />;
 const IconNoticias   = ({ color }: { color: string }) => <Newspaper        color={color} size={22} />;
+const IconAlertas    = ({ color }: { color: string }) => <Bell             color={color} size={22} />;
 const IconPerfil     = ({ color }: { color: string }) => <UserCircle       color={color} size={22} />;
 const IconOportunidades = ({ color }: { color: string }) => <Handshake color={color} size={22} />;
 
@@ -63,7 +64,7 @@ function TecnicoTabs() {
       <Tab.Screen name="TecnicoOportunidades" component={OportunidadesStaffScreen}
         options={{ title: 'Oportun.', tabBarIcon: IconOportunidades }} />
       <Tab.Screen name="TecnicoContenido"  component={TecnicoContenidoScreen}
-        options={{ title: 'Contenido', tabBarIcon: IconNoticias }} />
+        options={{ title: 'Alertas', tabBarIcon: IconAlertas }} />
       <Tab.Screen name="TecnicoPerfil"     component={TecnicoPerfilScreen}
         options={{ title: 'Mi Perfil', tabBarIcon: IconPerfil }} />
     </Tab.Navigator>
@@ -72,7 +73,7 @@ function TecnicoTabs() {
 
 function TecnicoEventosTabs() {
   return <Tab.Navigator screenOptions={tabOptions}>
-    <Tab.Screen name="TecnicoContenido" component={TecnicoContenidoScreen} options={{ title: 'Contenido', tabBarIcon: IconNoticias }} />
+    <Tab.Screen name="TecnicoContenido" component={TecnicoContenidoScreen} options={{ title: 'Alertas', tabBarIcon: IconAlertas }} />
     <Tab.Screen name="TecnicoGaleria" component={TecnicoGaleriaScreen} options={{ title: 'Fotos', tabBarIcon: ({color}) => <Newspaper color={color} size={22}/> }} />
     <Tab.Screen name="TecnicoPerfil" component={TecnicoPerfilScreen} options={{ title: 'Mi Perfil', tabBarIcon: IconPerfil }} />
   </Tab.Navigator>;
@@ -91,6 +92,7 @@ export default function TecnicoNavigator() {
     socket.on('staff:reunion-sin-enlace-30m', recibir);
     socket.on('staff:reunion-sin-enlace-urgente', recibir);
     socket.on('staff:reunion-teams-iniciar', recibir);
+    socket.on('staff:reunion-teams-responsable', recibir);
     return () => { socket.disconnect(); };
   }, []);
 

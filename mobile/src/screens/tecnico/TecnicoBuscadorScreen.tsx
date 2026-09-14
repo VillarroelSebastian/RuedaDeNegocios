@@ -4,11 +4,12 @@ import {
   TextInput, Image, Linking, Modal as RNModal,
 } from 'react-native';
 import {
-  Search, Building2, Armchair, CalendarCheck, Video, MapPin, X, MessageSquare, CalendarClock, Users,
+  Search, Building2, Armchair, CalendarCheck, Video, MapPin, X, MessageSquare, CalendarClock, Users, Eye,
 } from 'lucide-react-native';
 import { API_URL } from '../../utils/userStore';
 import EnviarMensajeEmpresaModal from '../../components/EnviarMensajeEmpresaModal';
 import { ParticipantesModal } from '../admin/EmpresasScreen';
+import PerfilEmpresaStaffModal from '../../components/PerfilEmpresaStaffModal';
 
 const GREEN = '#449D3A';
 
@@ -31,7 +32,7 @@ function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString('es-BO', { day: 'numeric', month: 'short' });
 }
 
-function EmpresaCard({ e, onMensaje, onAgenda, onParticipantes }: { e: any; onMensaje: (e: any) => void; onAgenda: (e:any)=>void; onParticipantes:(e:any)=>void }) {
+function EmpresaCard({ e, onMensaje, onAgenda, onParticipantes, onPerfil }: { e: any; onMensaje: (e: any) => void; onAgenda: (e:any)=>void; onParticipantes:(e:any)=>void; onPerfil:(e:any)=>void }) {
   const puedeMensaje = e.empresaeventoId && e.estadoHabilitacionAcceso === 'HABILITADO';
   return (
     <View style={{ backgroundColor:'#fff', borderRadius:14, borderWidth:1, borderColor:'#f1f5f9',
@@ -70,6 +71,7 @@ function EmpresaCard({ e, onMensaje, onAgenda, onParticipantes }: { e: any; onMe
           <Text style={{ fontSize:12, fontWeight:'700', color:GREEN }}>Enviar mensaje</Text>
         </TouchableOpacity>}
         {e.empresaeventoId && <TouchableOpacity onPress={()=>onAgenda(e)} style={{flex:1,minWidth:105,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:6,borderWidth:1,borderColor:'#c4b5fd',borderRadius:10,paddingVertical:9}}><CalendarClock size={14} color="#7c3aed"/><Text style={{fontSize:12,fontWeight:'700',color:'#7c3aed'}}>Agenda</Text></TouchableOpacity>}
+        {e.empresaeventoId && <TouchableOpacity onPress={()=>onPerfil(e)} style={{flex:1,minWidth:105,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:6,borderWidth:1,borderColor:'#86efac',borderRadius:10,paddingVertical:9}}><Eye size={14} color={GREEN}/><Text style={{fontSize:12,fontWeight:'700',color:GREEN}}>Perfil</Text></TouchableOpacity>}
       </View>
     </View>
   );
@@ -183,6 +185,7 @@ export default function TecnicoBuscadorScreen() {
   const [participantesEmpresa, setParticipantesEmpresa] = useState<{ id: number; nombre: string } | null>(null);
   const [agendaEmpresa,setAgendaEmpresa]=useState<any>(null);
   const [agenda,setAgenda]=useState<any>(null);
+  const [perfilEmpresaId,setPerfilEmpresaId]=useState<number|null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const buscar = useCallback(async (q: string) => {
@@ -267,7 +270,7 @@ export default function TecnicoBuscadorScreen() {
           <View style={{ marginBottom:16 }}>
             <SectionHeader icon={<Building2 color={GREEN} size={16} />} label="Empresas" count={empresas.length} />
             {empresas.map((e: any) => (
-              <EmpresaCard key={e.id} e={e} onMensaje={(emp) => setMensajeEmpresa({ eeId: emp.empresaeventoId, nombre: emp.nombre })} onAgenda={abrirAgenda} onParticipantes={(emp)=>setParticipantesEmpresa({id:emp.id,nombre:emp.nombre})} />
+              <EmpresaCard key={e.id} e={e} onMensaje={(emp) => setMensajeEmpresa({ eeId: emp.empresaeventoId, nombre: emp.nombre })} onAgenda={abrirAgenda} onParticipantes={(emp)=>setParticipantesEmpresa({id:emp.id,nombre:emp.nombre})} onPerfil={(emp)=>setPerfilEmpresaId(emp.empresaeventoId)} />
             ))}
           </View>
         )}
@@ -297,6 +300,7 @@ export default function TecnicoBuscadorScreen() {
         />
       )}
       <ParticipantesModal empresa={participantesEmpresa} onClose={() => setParticipantesEmpresa(null)} permitirCambiarPassword={false} />
+      <PerfilEmpresaStaffModal empresaEventoId={perfilEmpresaId} onClose={()=>setPerfilEmpresaId(null)} />
       <RNModal visible={!!agendaEmpresa} transparent animationType="slide" onRequestClose={()=>setAgendaEmpresa(null)}><View style={{flex:1,backgroundColor:'rgba(0,0,0,.5)',justifyContent:'flex-end'}}><View style={{backgroundColor:'#fff',borderTopLeftRadius:24,borderTopRightRadius:24,maxHeight:'85%',padding:20}}><View style={{flexDirection:'row',justifyContent:'space-between',marginBottom:12}}><View><Text style={{fontSize:17,fontWeight:'800'}}>Agenda de {agendaEmpresa?.nombre}</Text><Text style={{fontSize:12,color:'#64748b'}}>Reuniones del evento activo</Text></View><TouchableOpacity onPress={()=>setAgendaEmpresa(null)}><X size={20} color="#64748b"/></TouchableOpacity></View><ScrollView>{!agenda?<ActivityIndicator color={GREEN} style={{marginVertical:40}}/>:!agenda.reuniones?.length?<Text style={{textAlign:'center',color:'#94a3b8',marginVertical:40}}>Sin reuniones registradas.</Text>:agenda.reuniones.map((r:any)=>{const sol=r.solicitudreunion;const a=sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa;const b=sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento?.empresa;const otra=sol?.empresaEvento_id===agendaEmpresa?.empresaeventoId?b:a;return <View key={r.id} style={{borderWidth:1,borderColor:'#e5e7eb',borderRadius:14,padding:12,marginBottom:9}}><Text style={{fontWeight:'800'}}>{otra?.nombre??'Empresa'}</Text><Text style={{fontSize:11,color:'#64748b',marginTop:4}}>{new Date(r.fechaHoraInicioReunion).toLocaleString('es-BO',{timeZone:'America/La_Paz'})} · {r.mesa?`Mesa ${r.mesa.numeroMesa}`:r.tipoReunion} · {r.estadoReunion}</Text></View>})}</ScrollView></View></View></RNModal>
     </View>
   );

@@ -213,8 +213,8 @@ const dm = StyleSheet.create({
   btnRechazarTxt: { color: '#dc2626', fontSize: 14, fontWeight: '700' },
   btnCancelar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#fef2f2', borderRadius: 14, height: 48, borderWidth: 1, borderColor: '#fca5a5' },
   btnCancelarTxt: { color: '#dc2626', fontSize: 14, fontWeight: '700' },
-  btnCerrar:  { alignItems: 'center', justifyContent: 'center', height: 44, borderRadius: 14, borderWidth: 1, borderColor: '#e2e8f0' },
-  btnCerrarTxt: { fontSize: 14, fontWeight: '700', color: '#9ca3af' },
+  btnCerrar:  { alignItems: 'center', justifyContent: 'center', height: 44, borderRadius: 14, borderWidth: 1.5, borderColor: '#94a3b8', backgroundColor: '#f8fafc' },
+  btnCerrarTxt: { fontSize: 14, fontWeight: '800', color: '#334155' },
 });
 
 // ── Action Confirm Modal ────────────────────────────────────────────────────

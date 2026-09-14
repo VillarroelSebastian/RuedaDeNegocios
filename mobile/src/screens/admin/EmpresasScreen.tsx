@@ -6,6 +6,8 @@ import {
 import { Search, Building2, Users, Eye, X, MessageSquare, KeyRound, CalendarClock } from 'lucide-react-native';
 import { API_URL } from '../../utils/userStore';
 import EnviarMensajeEmpresaModal from '../../components/EnviarMensajeEmpresaModal';
+import * as Clipboard from 'expo-clipboard';
+import PerfilEmpresaStaffModal from '../../components/PerfilEmpresaStaffModal';
 
 const GREEN = '#449D3A';
 
@@ -45,13 +47,19 @@ export function ParticipantesModal({ empresa, onClose, permitirCambiarPassword =
   const [loading, setLoading] = useState(true);
   const [credencial, setCredencial] = useState<any>(null);
   const [reiniciando, setReiniciando] = useState<number | null>(null);
+  const [passwordManual, setPasswordManual] = useState('');
 
-  const reiniciarPassword = async (p: any) => {
+  const reiniciarPassword = async (p: any, manual = false) => {
+    if (manual && passwordManual.trim().length < 8) {
+      setCredencial({ correo: p.correo, nuevaContrasenia: 'ERROR: la contraseña escrita debe cumplir las reglas de seguridad (mínimo 8 caracteres).' });
+      return;
+    }
     setReiniciando(p.usuarioId);
     try {
-      const res = await fetch(`${API_URL}/admin/participantes/${p.usuarioId}/password-temporal`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:'{}' });
+      const res = await fetch(`${API_URL}/admin/participantes/${p.usuarioId}/password-temporal`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(manual ? { nuevaContrasenia: passwordManual.trim() } : {}) });
       const data = await res.json();
       setCredencial(res.ok ? data : { correo:p.correo, nuevaContrasenia:`ERROR: ${data.message}` });
+      if (res.ok) setPasswordManual('');
     } catch { setCredencial({ correo:p.correo, nuevaContrasenia:'ERROR: no se pudo generar' }); }
     finally { setReiniciando(null); }
   };
@@ -60,6 +68,7 @@ export function ParticipantesModal({ empresa, onClose, permitirCambiarPassword =
     if (!empresa) return;
     setLoading(true);
     setCredencial(null);
+    setPasswordManual('');
     const prefix = permitirCambiarPassword ? 'admin' : 'tecnico';
     fetch(`${API_URL}/${prefix}/empresas/${empresa.id}/participantes`)
       .then(r => r.json())
@@ -82,7 +91,8 @@ export function ParticipantesModal({ empresa, onClose, permitirCambiarPassword =
             </TouchableOpacity>
           </View>
           <ScrollView contentContainerStyle={{ padding: 20 }}>
-            {permitirCambiarPassword && !!credencial && <View style={{backgroundColor:'#fffbeb',borderColor:'#fcd34d',borderWidth:1,borderRadius:14,padding:13,marginBottom:12}}><Text style={{fontWeight:'800',color:'#92400e'}}>Nueva contraseña</Text><Text style={{fontSize:12,color:'#92400e',marginTop:4}}>{credencial.correo}</Text><Text selectable style={{fontSize:16,fontWeight:'800',color:'#111827',backgroundColor:'#fff',padding:9,borderRadius:8,marginTop:7}}>{credencial.nuevaContrasenia}</Text><Text style={{fontSize:10,color:'#92400e',marginTop:6}}>Cópiala ahora. La contraseña anterior está cifrada y no se puede mostrar.</Text></View>}
+            {permitirCambiarPassword && !!credencial && <View style={{backgroundColor:'#fffbeb',borderColor:'#fcd34d',borderWidth:1,borderRadius:14,padding:13,marginBottom:12}}><Text style={{fontWeight:'800',color:'#92400e'}}>Nueva contraseña</Text><Text style={{fontSize:12,color:'#92400e',marginTop:4}}>{credencial.correo}</Text><View style={{flexDirection:'row',gap:7,alignItems:'center',marginTop:7}}><Text selectable style={{flex:1,fontSize:16,fontWeight:'800',color:'#111827',backgroundColor:'#fff',padding:9,borderRadius:8}}>{credencial.nuevaContrasenia}</Text><TouchableOpacity onPress={() => Clipboard.setStringAsync(credencial.nuevaContrasenia)} style={{borderWidth:1,borderColor:'#f59e0b',borderRadius:8,padding:9}}><Text style={{color:'#92400e',fontWeight:'800',fontSize:11}}>Copiar</Text></TouchableOpacity></View><Text style={{fontSize:10,color:'#92400e',marginTop:6}}>Cópiala ahora. La contraseña anterior está cifrada y no se puede mostrar.</Text></View>}
+            {permitirCambiarPassword && <View style={{ backgroundColor:'#f8fafc', borderWidth:1, borderColor:'#e2e8f0', borderRadius:12, padding:11, marginBottom:12 }}><Text style={{fontSize:11,fontWeight:'800',color:'#475569'}}>Contraseña manual (opcional)</Text><TextInput secureTextEntry value={passwordManual} onChangeText={setPasswordManual} placeholder="Escribe una contraseña segura" style={{backgroundColor:'#fff',borderWidth:1,borderColor:'#e2e8f0',borderRadius:9,padding:9,marginTop:6}}/><Text style={{fontSize:10,color:'#64748b',marginTop:5}}>Escríbela aquí y usa “Aplicar escrita” en la persona correspondiente; o usa “Generar” para crearla automáticamente.</Text></View>}
             {loading ? (
               <View style={{ paddingVertical: 32, alignItems: 'center' }}>
                 <ActivityIndicator color={GREEN} />
@@ -102,7 +112,7 @@ export function ParticipantesModal({ empresa, onClose, permitirCambiarPassword =
                       <Text style={{ fontSize: 11, color: '#9ca3af' }}>{p.correo}</Text>
                     </View>
                   </View>
-                  <View style={{alignItems:'flex-end',gap:5}}>{p.esResponsable && <View style={{ backgroundColor: '#dcfce7', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 }}><Text style={{ fontSize: 10, fontWeight: '700', color: '#166534' }}>Responsable</Text></View>}<Text style={{fontSize:10,fontWeight:'600',color:p.estaActivo?'#9ca3af':'#ef4444'}}>{p.estaActivo?'Activo':'Inactivo'}</Text>{permitirCambiarPassword && p.estaActivo && <TouchableOpacity disabled={reiniciando===p.usuarioId} onPress={()=>reiniciarPassword(p)} style={{flexDirection:'row',alignItems:'center',gap:4,borderWidth:1,borderColor:'#fcd34d',borderRadius:8,paddingHorizontal:7,paddingVertical:5,opacity:reiniciando===p.usuarioId?0.5:1}}><KeyRound size={12} color="#b45309"/><Text style={{fontSize:10,fontWeight:'700',color:'#b45309'}}>Nueva contraseña</Text></TouchableOpacity>}</View>
+                  <View style={{alignItems:'flex-end',gap:5}}>{p.esResponsable && <View style={{ backgroundColor: '#dcfce7', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 }}><Text style={{ fontSize: 10, fontWeight: '700', color: '#166534' }}>Responsable</Text></View>}<Text style={{fontSize:10,fontWeight:'600',color:p.estaActivo?'#9ca3af':'#ef4444'}}>{p.estaActivo?'Activo':'Inactivo'}</Text>{permitirCambiarPassword && p.estaActivo && <><TouchableOpacity disabled={reiniciando===p.usuarioId} onPress={()=>reiniciarPassword(p)} style={{flexDirection:'row',alignItems:'center',gap:4,borderWidth:1,borderColor:'#fcd34d',borderRadius:8,paddingHorizontal:7,paddingVertical:5,opacity:reiniciando===p.usuarioId?0.5:1}}><KeyRound size={12} color="#b45309"/><Text style={{fontSize:10,fontWeight:'700',color:'#b45309'}}>Generar</Text></TouchableOpacity><TouchableOpacity disabled={reiniciando===p.usuarioId || !passwordManual.trim()} onPress={()=>reiniciarPassword(p, true)} style={{borderWidth:1,borderColor:GREEN,borderRadius:8,paddingHorizontal:7,paddingVertical:5,opacity:passwordManual.trim()?1:.4}}><Text style={{fontSize:10,fontWeight:'700',color:GREEN}}>Aplicar escrita</Text></TouchableOpacity></>}</View>
                 </View>
               ))
             )}
@@ -149,6 +159,7 @@ export default function EmpresasScreen({ navigation }: any) {
   const [participantesEmpresa, setParticipantesEmpresa] = useState<{ id: number; nombre: string } | null>(null);
   const [mensajeEmpresa, setMensajeEmpresa] = useState<{ eeId: number; nombre: string } | null>(null);
   const [agendaEmpresa, setAgendaEmpresa] = useState<{ eeId:number; nombre:string } | null>(null);
+  const [perfilEmpresaId, setPerfilEmpresaId] = useState<number | null>(null);
   const [appModal, setAppModal] = useState<{ visible: boolean; type: string; title: string; message: string; onConfirm?: () => void }>({
     visible: false, type: 'confirm', title: '', message: '',
   });
@@ -194,6 +205,7 @@ export default function EmpresasScreen({ navigation }: any) {
       <AppModal {...appModal} onClose={closeModal} onConfirm={appModal.onConfirm} />
       <ParticipantesModal empresa={participantesEmpresa} onClose={() => setParticipantesEmpresa(null)} />
       <AgendaEmpresaModal empresa={agendaEmpresa} onClose={() => setAgendaEmpresa(null)} />
+      <PerfilEmpresaStaffModal empresaEventoId={perfilEmpresaId} onClose={() => setPerfilEmpresaId(null)} />
       {mensajeEmpresa && (
         <EnviarMensajeEmpresaModal
           receptorEeId={mensajeEmpresa.eeId}
@@ -286,6 +298,7 @@ export default function EmpresasScreen({ navigation }: any) {
                 </TouchableOpacity>
               )}
               {emp.empresaEventoId && <TouchableOpacity onPress={()=>setAgendaEmpresa({eeId:emp.empresaEventoId,nombre:emp.nombre})} style={{flexDirection:'row',alignItems:'center',justifyContent:'center',gap:6,paddingVertical:9,marginTop:8,borderWidth:1,borderColor:'#c4b5fd',borderRadius:12}}><CalendarClock size={14} color="#7c3aed"/><Text style={{fontSize:12,fontWeight:'700',color:'#7c3aed'}}>Ver agenda</Text></TouchableOpacity>}
+              {emp.empresaEventoId && <TouchableOpacity onPress={()=>setPerfilEmpresaId(emp.empresaEventoId)} style={{flexDirection:'row',alignItems:'center',justifyContent:'center',gap:6,paddingVertical:9,marginTop:8,borderWidth:1,borderColor:'#86efac',borderRadius:12}}><Building2 size={14} color={GREEN}/><Text style={{fontSize:12,fontWeight:'700',color:GREEN}}>Ver perfil empresarial</Text></TouchableOpacity>}
             </View>
           ))}
 

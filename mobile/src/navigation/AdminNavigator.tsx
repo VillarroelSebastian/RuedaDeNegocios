@@ -5,6 +5,7 @@ import {
   LayoutDashboard, Building2, CreditCard, Armchair, MoreHorizontal,
   CalendarCheck, Newspaper, Users, BarChart3, Settings, ListChecks,
   CalendarRange, PlusCircle, SlidersHorizontal, Handshake,
+  Package, QrCode, FileText, Bell,
 } from 'lucide-react-native';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -28,6 +29,10 @@ import TecnicoReunionesScreen     from '../screens/tecnico/TecnicoReunionesScree
 import TecnicoGaleriaScreen       from '../screens/tecnico/TecnicoGaleriaScreen';
 import OportunidadesStaffScreen   from '../screens/shared/OportunidadesStaffScreen';
 import TecnicoAgendarScreen       from '../screens/tecnico/TecnicoAgendarScreen';
+import PaquetesScreen             from '../screens/admin/PaquetesScreen';
+import ReportesScreen             from '../screens/admin/ReportesScreen';
+import CredencialesScreen         from '../screens/admin/CredencialesScreen';
+import StaffNotificacionesScreen  from '../screens/shared/StaffNotificacionesScreen';
 
 const Tab        = createBottomTabNavigator();
 const AdminStack = createNativeStackNavigator();
@@ -53,6 +58,8 @@ const tabOptions = {
 function MenuScreen({ navigation }: any) {
   const menuItems = [
     { name: 'Eventos',          icon: CalendarRange,     screen: 'Eventos',           desc: 'Gestión de eventos',      highlight: true },
+    { name: 'Paquetes',         icon: Package,           screen: 'Paquetes',          desc: 'Precios, cupos y beneficios' },
+    { name: 'Notificaciones',   icon: Bell,              screen: 'Notificaciones',    desc: 'Pagos y empresas pendientes' },
     { name: 'Pagos Adicionales',icon: PlusCircle,        screen: 'PagosAdicionales',  desc: 'Cupos extra de empresas'  },
     { name: 'Config. Evento',   icon: SlidersHorizontal, screen: 'EventoConfig',       desc: 'Reglas del evento'        },
     { name: 'Cronograma en vivo', icon: CalendarCheck,   screen: 'Actividades',       desc: 'CRUD y estado en tiempo real' },
@@ -65,6 +72,8 @@ function MenuScreen({ navigation }: any) {
     { name: 'Galería',          icon: Newspaper,         screen: 'Galeria',           desc: 'Fotos y moderación'       },
     { name: 'Técnicos',         icon: Users,             screen: 'Tecnicos',          desc: 'Gestión de técnicos'      },
     { name: 'Estadísticas',     icon: BarChart3,         screen: 'Estadisticas',      desc: 'Reportes del evento'      },
+    { name: 'Reportes',         icon: FileText,          screen: 'Reportes',          desc: 'Exportación por módulo'   },
+    { name: 'Credenciales QR',  icon: QrCode,            screen: 'Credenciales',      desc: 'Consultar y compartir'    },
     { name: 'Configuración',    icon: Settings,          screen: 'Configuracion',     desc: 'Mi perfil y cuenta'       },
   ];
 
@@ -189,12 +198,16 @@ export default function AdminNavigator() {
     <AdminStack.Navigator screenOptions={screenOptions}>
       <AdminStack.Screen name="AdminTabs"    component={AdminTabs}          options={{ headerShown: false }} />
       <AdminStack.Screen name="Eventos"      component={EventConfigScreen}  options={{ title: 'Gestión de Eventos' }} />
+      <AdminStack.Screen name="Paquetes"     component={PaquetesScreen}      options={{ title: 'Paquetes' }} />
+      <AdminStack.Screen name="Notificaciones" component={StaffNotificacionesScreen} options={{ title: 'Notificaciones' }} />
       <AdminStack.Screen name="Actividades"  component={ActividadesScreen}  options={{ title: 'Actividades del Programa' }} />
       <AdminStack.Screen name="Auspiciadores" component={AuspiciadoresScreen} options={{ title: 'Auspiciadores' }} />
       <AdminStack.Screen name="Noticias"     component={NoticiasScreen}     options={{ title: 'Noticias y Comunicados' }} />
       <AdminStack.Screen name="Galeria"      component={TecnicoGaleriaScreen} options={{ title: 'Galería del evento' }} />
       <AdminStack.Screen name="Tecnicos"     component={TecnicosScreen}     options={{ title: 'Técnicos' }} />
       <AdminStack.Screen name="Estadisticas" component={EstadisticasScreen} options={{ title: 'Estadísticas' }} />
+      <AdminStack.Screen name="Reportes"     component={ReportesScreen}      options={{ title: 'Reportes' }} />
+      <AdminStack.Screen name="Credenciales" component={CredencialesScreen}  options={{ title: 'Credenciales QR' }} />
       <AdminStack.Screen name="Configuracion"component={ConfiguracionScreen}options={{ title: 'Configuración' }} />
       <AdminStack.Screen name="Agenda"       component={AgendaScreen}       options={{ title: 'Agenda de Mesas' }} />
       <AdminStack.Screen name="Oportunidades" component={OportunidadesStaffScreen} options={{ title: 'Oportunidades' }} />

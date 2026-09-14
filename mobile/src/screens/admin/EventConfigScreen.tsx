@@ -89,7 +89,7 @@ function ImageField({
 }
 
 // ── Pantalla principal ─────────────────────────────────────────────────────────
-export default function EventConfigScreen() {
+export default function EventConfigScreen({ navigation }: any) {
   const { show, modal } = useModal();
   const [viewState, setViewState] = useState<'lista' | 'formulario'>('lista');
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -111,6 +111,10 @@ export default function EventConfigScreen() {
     fechaFinEvento: '',
     horaInicioEvento: '08:00',
     horaFinEvento: '18:00',
+    fechaInicioInscripciones: '',
+    fechaFinInscripciones: '',
+    horaInicioInscripciones: '08:00',
+    horaFinInscripciones: '18:00',
     duracionReunion: '20',
     tiempoEntreReuniones: '5',
     cantidadTotalMesasEvento: '50',
@@ -236,6 +240,7 @@ export default function EventConfigScreen() {
     if (id === 'nuevo') {
       setFormData({
         id: 0, nombre: '', edicion: '', descripcion: '', fechaInicioEvento: '', fechaFinEvento: '', horaInicioEvento: '08:00', horaFinEvento: '18:00',
+        fechaInicioInscripciones: '', fechaFinInscripciones: '', horaInicioInscripciones: '08:00', horaFinInscripciones: '18:00',
         duracionReunion: '20', tiempoEntreReuniones: '5', cantidadTotalMesasEvento: '50',
         capacidadPersonasPorMesa: '4', maxParticipantesPorEmpresa: '5',
         montoBaseIncripcionBolivianos: '500',
@@ -259,6 +264,9 @@ export default function EventConfigScreen() {
         const finEvento = new Date(data.fechaFinEvento);
         const legado = inicioEvento.getUTCHours() === 0 && inicioEvento.getUTCMinutes() === 0 && finEvento.getUTCHours() === 0 && finEvento.getTime() - inicioEvento.getTime() === 86400000;
         const fechaLocal = (valor: string) => new Date(valor).toLocaleDateString('en-CA', { timeZone: 'America/La_Paz' });
+        const horaLocal = (valor: string) => new Date(valor).toLocaleTimeString('en-GB', { timeZone: 'America/La_Paz', hour: '2-digit', minute: '2-digit' });
+        const inicioInscripciones = data.fechaInicioSolicitudes || data.fechaInicioEvento;
+        const finInscripciones = data.fechaFinSolicitudes || data.fechaFinEvento;
         setFormData({
           id: data.id,
           nombre: data.nombre || '', edicion: data.edicion || '', descripcion: data.descripcion || '',
@@ -266,6 +274,10 @@ export default function EventConfigScreen() {
           fechaFinEvento: legado ? data.fechaInicioEvento.substring(0, 10) : fechaLocal(data.fechaFinEvento),
           horaInicioEvento: legado ? '08:00' : inicioEvento.toLocaleTimeString('en-GB', { timeZone: 'America/La_Paz', hour: '2-digit', minute: '2-digit' }),
           horaFinEvento: legado ? '18:00' : finEvento.toLocaleTimeString('en-GB', { timeZone: 'America/La_Paz', hour: '2-digit', minute: '2-digit' }),
+          fechaInicioInscripciones: fechaLocal(inicioInscripciones),
+          fechaFinInscripciones: fechaLocal(finInscripciones),
+          horaInicioInscripciones: horaLocal(inicioInscripciones),
+          horaFinInscripciones: horaLocal(finInscripciones),
           duracionReunion: String(data.duracionReunion || 20),
           tiempoEntreReuniones: String(data.tiempoEntreReuniones || 5),
           cantidadTotalMesasEvento: String(data.cantidadTotalMesasEvento || 50),
@@ -321,14 +333,14 @@ export default function EventConfigScreen() {
     setReglasQR((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const rangosDia = (fecha: string) => horariosReunion.find((d) => d.fecha === fecha)?.rangos || [{ desde: formData.horaInicioEvento, hasta: formData.horaFinEvento }];
+  const rangosDia = (fecha: string) => horariosReunion.find((d) => d.fecha === fecha)?.rangos || [{ desde: formData.horaInicioInscripciones, hasta: formData.horaFinInscripciones }];
   const actualizarRangosDia = (fecha: string, rangos: Array<{ desde: string; hasta: string }>) =>
     setHorariosReunion((actuales) => {
       const existe = actuales.some((d) => d.fecha === fecha);
       return existe ? actuales.map((d) => d.fecha === fecha ? { ...d, rangos } : d) : [...actuales, { fecha, rangos }];
     });
   const copiarPrimerHorario = () => {
-    const fechas = fechasEntre(formData.fechaInicioEvento, formData.fechaFinEvento);
+    const fechas = fechasEntre(formData.fechaInicioInscripciones, formData.fechaFinInscripciones);
     if (!fechas.length) return;
     const primero = rangosDia(fechas[0]).map((r) => ({ ...r }));
     setHorariosReunion(fechas.map((fecha) => ({ fecha, rangos: primero.map((r) => ({ ...r })) })));
@@ -337,17 +349,25 @@ export default function EventConfigScreen() {
 
   // ── Guardar ──────────────────────────────────────────────────────────────────
   const handleSave = async () => {
-    if (!formData.nombre || !formData.fechaInicioEvento || !formData.fechaFinEvento) {
-      show({ type: 'warning', title: 'Campos obligatorios', message: 'Por favor completa: Nombre, Fecha Inicio y Fecha Fin.' });
+    if (!formData.nombre || !formData.fechaInicioEvento || !formData.fechaFinEvento || !formData.fechaInicioInscripciones || !formData.fechaFinInscripciones) {
+      show({ type: 'warning', title: 'Campos obligatorios', message: 'Completa el nombre y las fechas del evento y del período de inscripciones.' });
+      return;
+    }
+    const inicioEvento = new Date(`${formData.fechaInicioEvento}T${formData.horaInicioEvento}:00-04:00`);
+    const finEvento = new Date(`${formData.fechaFinEvento}T${formData.horaFinEvento}:00-04:00`);
+    const inicioInscripciones = new Date(`${formData.fechaInicioInscripciones}T${formData.horaInicioInscripciones}:00-04:00`);
+    const finInscripciones = new Date(`${formData.fechaFinInscripciones}T${formData.horaFinInscripciones}:00-04:00`);
+    if ([inicioEvento, finEvento, inicioInscripciones, finInscripciones].some((fecha) => Number.isNaN(fecha.getTime())) || inicioEvento >= finEvento || inicioInscripciones >= finInscripciones) {
+      show({ type: 'warning', title: 'Fechas inválidas', message: 'Cada inicio debe ser anterior a su final. Usa horas en formato de 24 horas (00:00 a 23:59).' });
       return;
     }
     if (Number(formData.duracionReunion) <= 0 || Number(formData.cantidadTotalMesasEvento) <= 0) {
       show({ type: 'warning', title: 'Datos inválidos', message: 'La duración y número de mesas deben ser mayores a 0.' });
       return;
     }
-    const fechas = fechasEntre(formData.fechaInicioEvento, formData.fechaFinEvento);
+    const fechas = fechasEntre(formData.fechaInicioInscripciones, formData.fechaFinInscripciones);
     const horariosNormalizados = fechas.map((fecha) => horariosReunion.find((d) => d.fecha === fecha) || {
-      fecha, rangos: [{ desde: formData.horaInicioEvento, hasta: formData.horaFinEvento }],
+      fecha, rangos: [{ desde: formData.horaInicioInscripciones, hasta: formData.horaFinInscripciones }],
     });
     if (horariosNormalizados.some((d) => d.rangos.length === 0 || d.rangos.some((r) => !r.desde || !r.hasta || r.desde >= r.hasta))) {
       show({ type: 'warning', title: 'Horarios de reuniones', message: 'Todos los días deben tener al menos un rango válido para reuniones.' });
@@ -360,6 +380,8 @@ export default function EventConfigScreen() {
       descripcion: orNull(formData.descripcion),
       fechaInicioEvento: `${formData.fechaInicioEvento}T${formData.horaInicioEvento}:00-04:00`,
       fechaFinEvento: `${formData.fechaFinEvento}T${formData.horaFinEvento}:00-04:00`,
+      fechaInicioSolicitudes: `${formData.fechaInicioInscripciones}T${formData.horaInicioInscripciones}:00-04:00`,
+      fechaFinSolicitudes: `${formData.fechaFinInscripciones}T${formData.horaFinInscripciones}:00-04:00`,
       duracionReunion: Number(formData.duracionReunion),
       tiempoEntreReuniones: Number(formData.tiempoEntreReuniones),
       horariosReunion: horariosNormalizados,
@@ -393,7 +415,15 @@ export default function EventConfigScreen() {
       const method = editingId === 'nuevo' ? 'POST' : 'PUT';
       const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       if (res.ok) {
-        show({ type: 'success', title: 'Evento configurado', message: 'El evento se guardó. Configura al menos un paquete desde el panel web antes de activarlo como principal.', onConfirm: () => setViewState('lista') });
+        const guardado = await res.json().catch(() => ({ id: formData.id }));
+        const eventoGuardadoId = Number(guardado?.id || formData.id);
+        const paquetesRes = eventoGuardadoId ? await fetch(`${API_URL}/admin/paquetes?eventoId=${eventoGuardadoId}`) : null;
+        const paquetes = paquetesRes?.ok ? await paquetesRes.json() : [];
+        if (!Array.isArray(paquetes) || paquetes.length === 0) {
+          show({ type: 'success', title: 'Evento configurado', message: 'El evento se guardó, pero necesita al menos un paquete antes de activarse como principal.', onConfirm: () => navigation.navigate('Paquetes', { eventoId: eventoGuardadoId }) });
+        } else {
+          show({ type: 'success', title: 'Evento actualizado', message: 'Los cambios se guardaron correctamente.', onConfirm: () => setViewState('lista') });
+        }
       } else {
         const errorData = await res.json().catch(() => null);
         show({ type: 'error', title: 'Error al guardar', message: errorData?.message || 'Error desconocido.' });
@@ -630,6 +660,31 @@ export default function EventConfigScreen() {
             </View>
           </View>
 
+          <View className="bg-green-50 border border-green-200 rounded-xl p-3 mb-4">
+            <Text className="text-xs font-bold text-green-800">Período de inscripciones y reuniones</Text>
+            <Text className="text-[11px] text-green-700 mt-1">Controla el registro de empresas y los días disponibles en la logística de reuniones.</Text>
+          </View>
+          <View className="flex-row gap-3 mb-3">
+            <View className="flex-1">
+              <Text className="text-[11px] font-bold text-gray-700 mb-2">Inicio inscripciones *</Text>
+              <TextInput value={formData.fechaInicioInscripciones} onChangeText={(t) => handleChange('fechaInicioInscripciones', t)} className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-3 py-3 text-sm" placeholder="YYYY-MM-DD" />
+            </View>
+            <View className="w-24">
+              <Text className="text-[11px] font-bold text-gray-700 mb-2">Hora (24 h)</Text>
+              <TextInput value={formData.horaInicioInscripciones} onChangeText={(t) => handleChange('horaInicioInscripciones', t)} keyboardType="numbers-and-punctuation" maxLength={5} className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-3 py-3 text-sm" placeholder="08:00" />
+            </View>
+          </View>
+          <View className="flex-row gap-3 mb-4">
+            <View className="flex-1">
+              <Text className="text-[11px] font-bold text-gray-700 mb-2">Límite para inscribirse *</Text>
+              <TextInput value={formData.fechaFinInscripciones} onChangeText={(t) => handleChange('fechaFinInscripciones', t)} className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-3 py-3 text-sm" placeholder="YYYY-MM-DD" />
+            </View>
+            <View className="w-24">
+              <Text className="text-[11px] font-bold text-gray-700 mb-2">Hora (24 h)</Text>
+              <TextInput value={formData.horaFinInscripciones} onChangeText={(t) => handleChange('horaFinInscripciones', t)} keyboardType="numbers-and-punctuation" maxLength={5} className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-3 py-3 text-sm" placeholder="18:00" />
+            </View>
+          </View>
+
           {/* País y Ciudad */}
           <View className="flex-row gap-3 mb-4">
             <View className="flex-1">
@@ -731,12 +786,12 @@ export default function EventConfigScreen() {
             <Text className="text-base font-bold text-gray-900 ml-1">Logística de Reuniones</Text>
           </View>
           <View className="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-4">
-            <Text className="text-xs text-blue-800">El horario del evento y el horario para reuniones son independientes. Cada día debe tener al menos un rango.</Text>
+            <Text className="text-xs text-blue-800">Los días se toman del período de inscripciones. Escribe los rangos en formato de 24 horas, por ejemplo 13:00 a 20:00.</Text>
           </View>
           <TouchableOpacity onPress={copiarPrimerHorario} className="self-end border border-green-200 rounded-lg px-3 py-2 mb-3 flex-row items-center">
             <Text style={{ color: GREEN, fontSize: 12, fontWeight: '700' }}>Copiar primer día a todos</Text>
           </TouchableOpacity>
-          {fechasEntre(formData.fechaInicioEvento, formData.fechaFinEvento).map((fecha) => {
+          {fechasEntre(formData.fechaInicioInscripciones, formData.fechaFinInscripciones).map((fecha) => {
             const rangos = rangosDia(fecha);
             return <View key={fecha} className="border border-gray-100 rounded-xl p-3 mb-3">
               <Text className="text-sm font-bold text-gray-800 mb-2">{new Date(`${fecha}T12:00:00`).toLocaleDateString('es-BO', { weekday: 'long', day: '2-digit', month: 'long' })}</Text>
@@ -783,7 +838,7 @@ export default function EventConfigScreen() {
           </View>
           <View className="bg-green-50 border border-green-200 rounded-xl p-3 mb-4">
             <Text className="text-xs font-bold text-green-800">Los paquetes son el sistema oficial de inscripción.</Text>
-            <Text className="text-[11px] text-gray-600 mt-1">Configura precio, credenciales, modalidad y QR desde Paquetes en el panel web.</Text>
+            <Text className="text-[11px] text-gray-600 mt-1">Configura precio, credenciales, modalidad y QR desde la sección Paquetes.</Text>
           </View>
           <Text className="text-xs font-bold text-gray-700 mb-2">Precio por participante adicional (Bs.) *</Text>
           <TextInput value={formData.costoParticipanteExtra} onChangeText={(t) => handleChange('costoParticipanteExtra', t)}

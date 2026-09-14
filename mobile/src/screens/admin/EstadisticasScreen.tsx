@@ -1,148 +1,45 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl
-} from 'react-native';
-import { Building2, Users, CalendarCheck, Handshake, Shield, Clock, TrendingUp, CalendarDays } from 'lucide-react-native';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, RefreshControl, ScrollView, Share, Text, TouchableOpacity, View } from 'react-native';
+import { Award, Building2, CalendarCheck, Download, Handshake, Star, TrendingUp, Users, Wallet } from 'lucide-react-native';
 import { API_URL } from '../../utils/userStore';
 
 const GREEN = '#449D3A';
+
+function Barra({ etiqueta, valor, maximo, color = GREEN }: { etiqueta: string; valor: number; maximo: number; color?: string }) {
+  return <View style={{ marginBottom: 12 }}><View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 }}><Text style={{ color: '#475569', fontSize: 13, flex: 1 }}>{etiqueta}</Text><Text style={{ color: '#0f172a', fontWeight: '800' }}>{valor}</Text></View><View style={{ height: 10, backgroundColor: '#f1f5f9', borderRadius: 99, overflow: 'hidden' }}><View style={{ width: `${Math.max(0, Math.min(100, (valor / Math.max(maximo, 1)) * 100))}%`, height: '100%', backgroundColor: color, borderRadius: 99 }} /></View></View>;
+}
 
 export default function EstadisticasScreen() {
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const cargar = async () => { try { const res = await fetch(`${API_URL}/admin/estadisticas`); if (!res.ok) throw new Error(); setStats(await res.json()); } catch { setStats(null); } finally { setLoading(false); setRefreshing(false); } };
+  useEffect(() => { cargar(); }, []);
 
-  const fetchStats = async () => {
-    try {
-      const res = await fetch(`${API_URL}/admin/estadisticas`);
-      setStats(await res.json());
-    } catch {}
-    finally { setLoading(false); setRefreshing(false); }
+  const compartir = async () => {
+    if (!stats) return;
+    const k = stats.kpis;
+    const filas: any[][] = [['Métrica', 'Valor'], ['Empresas registradas', k.empresasRegistradas], ['Personas registradas', k.participantesTotales], ['Empresas asistentes', k.empresasAsistentes], ['Personas asistentes', k.personasAsistentes], ['Reuniones realizadas', k.reunionesRealizadas], ['Acuerdos registrados', k.acuerdosRegistrados], ['Movimiento aproximado (Bs.)', k.totalGeneradoAprox], ['Promedio de calificación', k.promedioCalificacion], ['Índice de éxito (%)', k.indiceExito], [], ['Empresa', 'Reuniones', 'Estrellas otorgadas', 'Generado (Bs.)'], ...(stats.rankingEmpresas || []).map((e: any) => [e.nombre, e.reuniones, e.estrellasOtorgadas, e.montoGenerado])];
+    await Share.share({ title: 'Estadísticas del evento', message: filas.map((fila) => fila.join(';')).join('\n') });
   };
 
-  useEffect(() => { fetchStats(); }, []);
+  if (loading) return <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f8fafc' }}><ActivityIndicator color={GREEN} size="large" /></View>;
+  if (!stats) return <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}><Text style={{ color: '#64748b' }}>No se pudieron cargar las estadísticas.</Text><TouchableOpacity onPress={cargar} style={{ marginTop: 14 }}><Text style={{ color: GREEN, fontWeight: '800' }}>Reintentar</Text></TouchableOpacity></View>;
 
-  if (loading) {
-    return <View className="flex-1 justify-center items-center bg-[#F9FAFB]"><ActivityIndicator color={GREEN} size="large" /></View>;
-  }
+  const k = stats.kpis;
+  const tarjetas: any[][] = [['Empresas registradas', k.empresasRegistradas, Building2, GREEN], ['Personas registradas', k.participantesTotales, Users, '#2563eb'], ['Empresas asistentes', k.empresasAsistentes, Building2, '#0891b2'], ['Personas asistentes', k.personasAsistentes, Users, '#0d9488'], ['Reuniones realizadas', k.reunionesRealizadas, Handshake, '#7c3aed'], ['Acuerdos', k.acuerdosRegistrados, CalendarCheck, '#db2777'], ['Promedio', `${k.promedioCalificacion || 0}/5`, Star, '#d97706'], ['Movimiento aprox.', `Bs. ${Number(k.totalGeneradoAprox || 0).toLocaleString('es-BO')}`, Wallet, '#059669'], ['Índice de éxito', `${k.indiceExito || 0}%`, Award, '#6d28d9'], ['Tasa de acuerdos', `${k.tasaAcuerdos || 0}%`, TrendingUp, '#be123c']];
+  const reuniones: any[][] = [['Programadas', stats.reunionesPorEstado.programadas, '#60a5fa'], ['En curso', stats.reunionesPorEstado.enCurso, '#fb923c'], ['Finalizadas', stats.reunionesPorEstado.finalizadas, GREEN], ['Reprogramadas', stats.reunionesPorEstado.reprogramadas, '#a78bfa'], ['Canceladas', stats.reunionesPorEstado.canceladas, '#ef4444']];
+  const maxReuniones = Math.max(...reuniones.map((r) => Number(r[1])), 1);
+  const top = stats.topEmpresas || [];
 
-  if (!stats) {
-    return (
-      <View className="flex-1 justify-center items-center">
-        <Text className="text-gray-400">No se pudieron cargar las estadísticas</Text>
-        <TouchableOpacity onPress={fetchStats} className="mt-3">
-          <Text style={{ color: GREEN }} className="font-semibold">Reintentar</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  const kpiCards = [
-    { label: 'Empresas', value: stats.kpis.empresasRegistradas, icon: Building2, color: GREEN },
-    { label: 'Participantes', value: stats.kpis.participantesTotales, icon: Users, color: '#2563eb' },
-    { label: 'Asistentes hoy', value: stats.kpis.asistentesHoy ?? 0, icon: CalendarCheck, color: GREEN },
-    { label: 'Programadas', value: stats.kpis.reunionesProgramadas, icon: CalendarCheck, color: '#7c3aed' },
-    { label: 'Realizadas', value: stats.kpis.reunionesRealizadas, icon: Handshake, color: '#7c3aed' },
-    { label: 'P. Verificados', value: stats.kpis.pagosVerificados, icon: Shield, color: '#059669' },
-    { label: 'P. Pendientes', value: stats.kpis.pagosPendientes, icon: Clock, color: '#ea580c' },
-    { label: 'Tasa acuerdos', value: `${stats.kpis.tasaAcuerdos ?? 0}%`, icon: TrendingUp, color: '#db2777' },
-    { label: 'Eventos', value: stats.kpis.eventosInternos, icon: CalendarDays, color: '#0891b2' },
-  ];
-
-  const { reunionesPorEstado, pagosPorEstado } = stats;
-  const maxR = Math.max(reunionesPorEstado.programadas, reunionesPorEstado.enCurso, reunionesPorEstado.finalizadas, 1);
-
-  return (
-    <ScrollView
-      className="flex-1 bg-[#F9FAFB]"
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchStats(); }} tintColor={GREEN} />}
-    >
-      <View className="p-4 space-y-4">
-        {/* KPI Grid */}
-        <View>
-          <Text className="font-bold text-gray-900 mb-3">Estadísticas del evento</Text>
-          <View className="flex-row flex-wrap gap-2">
-            {kpiCards.map((k) => {
-              const Icon = k.icon;
-              return (
-                <View key={k.label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 w-[47.5%]">
-                  <Icon color={k.color} size={22} />
-                  <Text className="text-2xl font-bold text-gray-900 mt-2">{k.value}</Text>
-                  <Text className="text-xs text-gray-500 mt-0.5 uppercase font-semibold">{k.label}</Text>
-                </View>
-              );
-            })}
-          </View>
-        </View>
-
-        {/* Reuniones por estado */}
-        <View className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-          <Text className="font-bold text-gray-900 mb-4">Reuniones por estado</Text>
-          {[
-            { label: 'Programadas', value: reunionesPorEstado.programadas, color: '#60a5fa' },
-            { label: 'En curso', value: reunionesPorEstado.enCurso, color: '#fb923c' },
-            { label: 'Finalizadas', value: reunionesPorEstado.finalizadas, color: GREEN },
-          ].map((b) => (
-            <View key={b.label} className="mb-3">
-              <View className="flex-row justify-between mb-1.5">
-                <Text className="text-sm text-gray-600">{b.label}</Text>
-                <Text className="text-sm font-bold text-gray-900">{b.value}</Text>
-              </View>
-              <View className="h-3 bg-gray-100 rounded-full overflow-hidden">
-                <View style={{ width: `${(b.value / maxR) * 100}%`, backgroundColor: b.color, height: '100%', borderRadius: 999 }} />
-              </View>
-            </View>
-          ))}
-        </View>
-
-        {/* Pagos por estado */}
-        <View className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-          <Text className="font-bold text-gray-900 mb-4">Pagos por estado</Text>
-          {[
-            { label: 'Verificados', value: pagosPorEstado.verificados, pct: pagosPorEstado.porcentajeVerificados, color: GREEN },
-            { label: 'Pendientes', value: pagosPorEstado.pendientes, pct: pagosPorEstado.porcentajePendientes, color: '#fb923c' },
-            { label: 'Observados', value: pagosPorEstado.observados, pct: pagosPorEstado.porcentajeObservados, color: '#fbbf24' },
-          ].map((s) => (
-            <View key={s.label} className="flex-row items-center justify-between py-2.5 border-b border-gray-50 last:border-0">
-              <View className="flex-row items-center gap-2">
-                <View style={{ backgroundColor: s.color, width: 10, height: 10, borderRadius: 999 }} />
-                <Text className="text-sm text-gray-600">{s.label}</Text>
-              </View>
-              <View className="flex-row items-center gap-3">
-                <Text className="text-sm font-bold text-gray-900">{s.value}</Text>
-                <Text className="text-xs text-gray-400">({s.pct}%)</Text>
-              </View>
-            </View>
-          ))}
-          <View className="flex-row justify-between pt-3">
-            <Text className="text-sm font-bold text-gray-900">Total</Text>
-            <Text className="text-sm font-bold text-gray-900">{pagosPorEstado.total}</Text>
-          </View>
-        </View>
-
-        {/* Empresas por rubro */}
-        {stats.empresasPorRubro && stats.empresasPorRubro.length > 0 && (
-          <View className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-            <Text className="font-bold text-gray-900 mb-4">Empresas por sector</Text>
-            {stats.empresasPorRubro.map((r: any) => {
-              const maxR2 = stats.empresasPorRubro[0].count;
-              return (
-                <View key={r.rubro} className="mb-3">
-                  <View className="flex-row justify-between mb-1">
-                    <Text className="text-sm text-gray-600" numberOfLines={1}>{r.rubro}</Text>
-                    <Text className="text-sm font-bold text-gray-900">{r.count}</Text>
-                  </View>
-                  <View className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
-                    <View style={{ width: `${(r.count / maxR2) * 100}%`, backgroundColor: GREEN, height: '100%', borderRadius: 999 }} />
-                  </View>
-                </View>
-              );
-            })}
-          </View>
-        )}
-
-        <View className="h-8" />
-      </View>
-    </ScrollView>
-  );
+  return <ScrollView style={{ flex: 1, backgroundColor: '#f8fafc' }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); cargar(); }} tintColor={GREEN} />}><View style={{ padding: 16, gap: 16 }}>
+    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}><View style={{ flex: 1 }}><Text style={{ fontSize: 22, fontWeight: '900', color: '#0f172a' }}>Estadísticas del evento</Text><Text style={{ color: '#64748b', fontSize: 12, marginTop: 3 }}>Resumen operativo e impacto de la rueda</Text></View><TouchableOpacity onPress={compartir} style={{ backgroundColor: GREEN, borderRadius: 12, padding: 11 }}><Download size={20} color="#fff" /></TouchableOpacity></View>
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>{tarjetas.map(([label, value, Icon, color]: any) => <View key={label} style={{ width: '48%', minHeight: 118, backgroundColor: '#fff', borderRadius: 16, padding: 15, borderWidth: 1, borderColor: '#e2e8f0' }}><Icon size={21} color={color} /><Text style={{ fontSize: 20, fontWeight: '900', color: '#0f172a', marginTop: 8 }} numberOfLines={2}>{value}</Text><Text style={{ fontSize: 10, fontWeight: '700', color: '#64748b', marginTop: 3, textTransform: 'uppercase' }}>{label}</Text></View>)}</View>
+    <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 17, borderWidth: 1, borderColor: '#e2e8f0' }}><Text style={{ fontWeight: '900', color: '#0f172a', marginBottom: 15 }}>Reuniones por estado</Text>{reuniones.map(([label, value, color]: any) => <Barra key={label} etiqueta={label} valor={value} maximo={maxReuniones} color={color} />)}</View>
+    <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 17, borderWidth: 1, borderColor: '#e2e8f0' }}><Text style={{ fontWeight: '900', color: '#0f172a', marginBottom: 12 }}>Asistencia</Text><Barra etiqueta="Empresas que asistieron" valor={stats.asistencia.empresasAsistentes} maximo={stats.asistencia.empresasRegistradas} /><Barra etiqueta="Personas que asistieron" valor={stats.asistencia.personasAsistentes} maximo={stats.asistencia.personasRegistradas} color="#0891b2" /><Text style={{ color: '#64748b', fontSize: 12 }}>{stats.asistencia.registros} escaneos. Cada persona se cuenta una sola vez como asistente.</Text></View>
+    {top.length > 0 && <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 17, borderWidth: 1, borderColor: '#e2e8f0' }}><Text style={{ fontWeight: '900', color: '#0f172a', marginBottom: 15 }}>Top 5 empresas por reuniones</Text>{top.map((e: any, i: number) => <Barra key={`${e.nombre}-${i}`} etiqueta={`${i + 1}. ${e.nombre}`} valor={e.total} maximo={top[0]?.total || 1} />)}</View>}
+    {(stats.calificaciones || []).length > 0 && <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 17, borderWidth: 1, borderColor: '#e2e8f0' }}><Text style={{ fontWeight: '900', color: '#0f172a', marginBottom: 15 }}>Distribución de calificaciones</Text>{stats.calificaciones.map((c: any) => <Barra key={c.estrellas} etiqueta={`${c.estrellas} estrella${c.estrellas === 1 ? '' : 's'}`} valor={c.total} maximo={Math.max(...stats.calificaciones.map((v: any) => v.total), 1)} color="#f59e0b" />)}</View>}
+    <View style={{ backgroundColor: '#f5f3ff', borderRadius: 16, padding: 18, borderWidth: 1, borderColor: '#ddd6fe' }}><Text style={{ color: '#5b21b6', fontWeight: '900' }}>Índice integral de la rueda</Text><Text style={{ color: '#4c1d95', fontSize: 36, fontWeight: '900', marginVertical: 8 }}>{stats.indiceExito.valor}%</Text><Text style={{ color: '#5b21b6', fontSize: 12, lineHeight: 18 }}>{stats.indiceExito.descripcion}</Text>{Object.entries(stats.indiceExito.componentes || {}).map(([clave, valor]: any) => <View key={clave} style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}><Text style={{ color: '#6d28d9', textTransform: 'capitalize' }}>{clave.replace(/([A-Z])/g, ' $1')}</Text><Text style={{ color: '#4c1d95', fontWeight: '800' }}>{valor}%</Text></View>)}</View>
+    <View style={{ height: 20 }} />
+  </View></ScrollView>;
 }

@@ -47,6 +47,7 @@ export default function DashboardScreen() {
   const [evento,     setEvento]     = useState<any>(null);
   const [stats,      setStats]      = useState<any[]>([]);
   const [activities, setActivities] = useState<any[]>([]);
+  const [topEmpresas, setTopEmpresas] = useState<any[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -66,6 +67,7 @@ export default function DashboardScreen() {
       if (ev && ev.id && ev.nombre) setEvento(ev);
       setStats(Array.isArray(dash.stats) ? dash.stats : []);
       setActivities(Array.isArray(dash.recentActivity) ? dash.recentActivity : []);
+      setTopEmpresas(Array.isArray(dash.topEmpresas) ? dash.topEmpresas : []);
     } catch { /* sin conexión */ } finally {
       setLoading(false);
       setRefreshing(false);
@@ -221,6 +223,19 @@ export default function DashboardScreen() {
               </View>
             );
           })}
+        </View>
+
+        <View style={s.sectionHeader}>
+          <Text style={s.sectionTitle}>Top 5 empresas por reuniones</Text>
+        </View>
+        <View style={s.activityCard}>
+          {topEmpresas.length === 0 ? <Text style={s.emptyText}>Aún no hay reuniones registradas.</Text> : topEmpresas.map((empresa, i) => (
+            <View key={empresa.empresaEventoId || i} style={[s.activityRow, i < topEmpresas.length - 1 && s.activityRowBorder]}>
+              <View style={[s.actAvatar, { backgroundColor: '#dcfce7' }]}><Text style={[s.actAvatarText, { color: GREEN_DARK }]}>{i + 1}</Text></View>
+              <Text style={[s.actUser, { flex: 1 }]}>{empresa.nombre}</Text>
+              <Text style={{ color: GREEN, fontWeight: '900' }}>{empresa.reuniones} reunión{empresa.reuniones === 1 ? '' : 'es'}</Text>
+            </View>
+          ))}
         </View>
 
         {/* ════════════════════ ACTIVIDAD RECIENTE ═══════════ */}

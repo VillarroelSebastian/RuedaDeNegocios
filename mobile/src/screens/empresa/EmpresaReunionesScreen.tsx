@@ -476,6 +476,7 @@ function DetalleReunionModal({ reunion, eeId, navigation, onClose, onCambiarHora
             )}
 
             {/* Actions */}
+            {esProgramada && <View style={dm.scheduleNotice}><CalendarDays size={16} color="#1d4ed8" /><Text style={dm.scheduleNoticeText}>La reunión está programada para {fmtTime(reunion.inicio)}. Puedes solicitar el inicio anticipado hasta 10 minutos antes.</Text></View>}
             <View style={dm.actions}>
               {puedeIniciar && (
                 <>
@@ -616,8 +617,10 @@ const dm = StyleSheet.create({
   primaryBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
   secondaryBtn: { flexDirection: 'row', borderRadius: 14, height: 46, borderWidth: 1.5, borderColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc' },
   secondaryBtnText: { fontSize: 14, fontWeight: '700', color: '#374151' },
-  closeBtn: { borderRadius: 14, height: 46, borderWidth: 1.5, borderColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' },
-  closeBtnText: { fontSize: 14, fontWeight: '700', color: '#64748b' },
+  closeBtn: { borderRadius: 14, height: 46, borderWidth: 1.5, borderColor: '#94a3b8', backgroundColor: '#f8fafc', alignItems: 'center', justifyContent: 'center' },
+  closeBtnText: { fontSize: 14, fontWeight: '800', color: '#334155' },
+  scheduleNotice: { flexDirection: 'row', gap: 8, alignItems: 'flex-start', borderWidth: 1, borderColor: '#93c5fd', backgroundColor: '#eff6ff', borderRadius: 12, padding: 11 },
+  scheduleNoticeText: { flex: 1, color: '#1e3a8a', fontSize: 12, lineHeight: 17, fontWeight: '600' },
   finalizarBtn: { flexDirection: 'row', backgroundColor: '#f97316', borderRadius: 14, height: 50, alignItems: 'center', justifyContent: 'center' },
   finalizarBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
   iniciarBtn: { flexDirection: 'row', backgroundColor: GREEN, borderRadius: 14, height: 50, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },

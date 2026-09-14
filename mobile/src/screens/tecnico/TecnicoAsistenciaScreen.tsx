@@ -19,42 +19,46 @@ export default function TecnicoAsistenciaScreen() {
   const [escaneando, setEscaneando] = useState(false);
   const [procesando, setProcesando] = useState(false);
   const [pendiente, setPendiente] = useState<any>(null);
+  const [registroCompletado, setRegistroCompletado] = useState(false);
+  const [empresaEscaneada, setEmpresaEscaneada] = useState<any>(null);
   const [asistencias, setAsistencias] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const escaneoBloqueadoRef = useRef(false);
+  const registroBloqueadoRef = useRef(false);
   const { show, modal } = useModal();
   const tecnicoId = userStore.get()?.id;
 
-  const cargar = useCallback(async () => {
+  const cargar = useCallback(async (empresa = empresaEscaneada) => {
     if (!tecnicoId) return;
+    if (!empresa) {
+      setAsistencias([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
     try {
-      const [res, resAusp] = await Promise.all([
-        fetch(`${API_URL}/tecnico/asistencias`),
-        fetch(`${API_URL}/tecnico/asistencias-auspiciadores`),
-      ]);
-      const data = await res.json();
-      const dataAusp = await resAusp.json();
-      const normales = (Array.isArray(data) ? data : []).map((a: any) => ({
-        ...a,
-        tipo: "PARTICIPANTE",
-      }));
-      const auspiciadores = (Array.isArray(dataAusp) ? dataAusp : []).map(
-        (a: any) => ({ ...a, tipo: "AUSPICIADOR" }),
-      );
-      setAsistencias(
-        [...normales, ...auspiciadores].sort(
+      if (empresa.tipo === "PARTICIPANTE") {
+        const res = await fetch(`${API_URL}/tecnico/asistencias?empresaEventoId=${empresa.id}`);
+        const data = await res.json();
+        setAsistencias((Array.isArray(data) ? data : []).map((a: any) => ({ ...a, tipo: "PARTICIPANTE" })));
+      } else {
+        const res = await fetch(`${API_URL}/tecnico/asistencias-auspiciadores`);
+        const data = await res.json();
+        setAsistencias((Array.isArray(data) ? data : []).filter((a: any) =>
+          a.auspiciadorpersona?.auspiciador?.nombreEmpresa === empresa.nombre,
+        ).map((a: any) => ({ ...a, tipo: "AUSPICIADOR" })).sort(
           (a, b) =>
             +new Date(b.fechaHoraAsistencia) - +new Date(a.fechaHoraAsistencia),
-        ),
-      );
+        ));
+      }
     } finally {
       setLoading(false);
     }
-  }, [tecnicoId]);
+  }, [empresaEscaneada, tecnicoId]);
 
   useFocusEffect(
     useCallback(() => {
-      cargar();
+      cargar(empresaEscaneada);
     }, [cargar]),
   );
 
@@ -96,6 +100,12 @@ export default function TecnicoAsistenciaScreen() {
         tipo: auspiciador ? "AUSPICIADOR" : "PARTICIPANTE",
         ...data,
       });
+      setRegistroCompletado(false);
+      const empresa = auspiciador
+        ? { tipo: "AUSPICIADOR", id: Number(partes[1]), nombre: data.empresa }
+        : { tipo: "PARTICIPANTE", id: data.empresa?.empresaEventoId, nombre: data.empresa?.nombre };
+      setEmpresaEscaneada(empresa);
+      await cargar(empresa);
     } catch (e: any) {
       show({
         type: "error",
@@ -110,7 +120,8 @@ export default function TecnicoAsistenciaScreen() {
   };
 
   const registrarAsistencia = async () => {
-    if (!pendiente || procesando) return;
+    if (!pendiente || procesando || registroCompletado || registroBloqueadoRef.current) return;
+    registroBloqueadoRef.current = true;
     setProcesando(true);
     try {
       const esAuspiciador = pendiente.tipo === "AUSPICIADOR";
@@ -129,10 +140,11 @@ export default function TecnicoAsistenciaScreen() {
       const data = await res.json();
       if (!res.ok)
         throw new Error(data?.message || "No se pudo registrar la asistencia.");
+      setRegistroCompletado(true);
       setPendiente((actual: any) => ({
         ...actual,
         asistencia: {
-          registrada: data.usosRestantes === 0,
+          registrada: true,
           fechaHoraAsistencia: data.fechaHoraAsistencia,
           usosHoy: data.usosHoy,
           usosRestantes: data.usosRestantes,
@@ -142,9 +154,11 @@ export default function TecnicoAsistenciaScreen() {
       show({
         type: "success",
         title: "Asistencia registrada",
-        message: `${data.participante.nombre} · uso ${data.usosHoy} de ${data.limiteDiario}. ${data.usosRestantes ? `Queda ${data.usosRestantes} registro hoy.` : "Se alcanzó el límite diario."}`,
+        message: data.yaRegistrada
+          ? "Este escaneo ya había sido registrado. No se consumió un uso adicional."
+          : `${data.participante.nombre} · uso ${data.usosHoy} de ${data.limiteDiario}. Para registrar otro ingreso debes volver a escanear la credencial.`,
       });
-      cargar();
+      cargar(empresaEscaneada);
     } catch (e: any) {
       show({
         type: "error",
@@ -153,6 +167,7 @@ export default function TecnicoAsistenciaScreen() {
       });
     } finally {
       setProcesando(false);
+      registroBloqueadoRef.current = false;
     }
   };
 
@@ -261,7 +276,12 @@ export default function TecnicoAsistenciaScreen() {
           Solo el personal técnico puede verificar y registrar asistencias.
         </Text>
         <TouchableOpacity
-          onPress={() => setEscaneando(true)}
+          onPress={() => {
+            setPendiente(null);
+            setRegistroCompletado(false);
+            escaneoBloqueadoRef.current = false;
+            setEscaneando(true);
+          }}
           style={{
             marginTop: 14,
             backgroundColor: GREEN,
@@ -322,13 +342,15 @@ export default function TecnicoAsistenciaScreen() {
               ["Empresa", pendiente.empresa?.nombre || pendiente.empresa],
               ["Tipo", pendiente.tipo === "AUSPICIADOR" ? "Auspiciador" : pendiente.participante?.esResponsable ? "Encargado" : "Participante"],
               ["Cargo", pendiente.participante?.cargo || pendiente.cargo || "No indicado"],
-              ["Lugar", pendiente.lugar || [pendiente.evento?.ciudad, pendiente.evento?.pais].filter(Boolean).join(", ") || "Lugar del evento"],
+              ["Lugar", pendiente.tipo === "AUSPICIADOR"
+                ? (pendiente.lugar || "No indicado")
+                : ([pendiente.empresa?.ciudad, pendiente.empresa?.pais].filter(Boolean).join(", ") || "No indicado")],
               ["Evento", pendiente.evento?.nombre || pendiente.evento || "Evento actual"],
             ].map(([etiqueta, valor]) => <View key={etiqueta} style={{ backgroundColor: "#f8fafc", borderRadius: 10, padding: 10 }}><Text style={{ color: "#94a3b8", fontSize: 10 }}>{etiqueta}</Text><Text style={{ color: "#334155", fontWeight: "700", fontSize: 13 }}>{valor}</Text></View>)}
           </View>
           {pendiente.asistencia?.fechaHoraAsistencia && <View style={{ marginTop: 12, padding: 11, borderRadius: 10, backgroundColor: "#f0fdf4", borderWidth: 1, borderColor: "#bbf7d0" }}><Text style={{ color: "#166534", fontWeight: "700", textAlign: "center", fontSize: 12 }}>Último registro: {new Date(pendiente.asistencia.fechaHoraAsistencia).toLocaleString("es-BO", { timeZone: "America/La_Paz" })}. Usos de hoy: {pendiente.asistencia.usosHoy} de {pendiente.asistencia.limiteDiario || 2}.</Text></View>}
           <View style={{ gap: 8, marginTop: 18 }}>
-            {!pendiente.asistencia?.registrada && <TouchableOpacity
+            {!registroCompletado && !pendiente.asistencia?.registrada && <TouchableOpacity
               onPress={registrarAsistencia}
               disabled={procesando}
               style={{ width: "100%", backgroundColor: GREEN, borderRadius: 12, padding: 14, alignItems: "center", opacity: procesando ? 0.5 : 1 }}
@@ -336,7 +358,11 @@ export default function TecnicoAsistenciaScreen() {
               <Text style={{ fontWeight: "800", color: "#fff" }}>{procesando ? "Registrando..." : "Registrar asistencia"}</Text>
             </TouchableOpacity>}
             <TouchableOpacity
-              onPress={() => setPendiente(null)}
+              onPress={() => {
+                setPendiente(null);
+                setRegistroCompletado(false);
+                if (registroCompletado || pendiente.asistencia?.registrada) setEscaneando(true);
+              }}
               style={{
                 width: "100%",
                 borderWidth: 1,
@@ -347,7 +373,7 @@ export default function TecnicoAsistenciaScreen() {
               }}
             >
               <Text style={{ fontWeight: "800", color: "#475569" }}>
-                {pendiente.asistencia?.registrada ? "Escanear otra credencial" : "Cancelar"}
+                {registroCompletado || pendiente.asistencia?.registrada ? "Escanear otra credencial" : "Cancelar"}
               </Text>
             </TouchableOpacity>
           </View>
@@ -363,7 +389,9 @@ export default function TecnicoAsistenciaScreen() {
             <Text
               style={{ textAlign: "center", color: "#94a3b8", marginTop: 50 }}
             >
-              Todavía no registraste asistencias.
+              {empresaEscaneada
+                ? `Todavía no hay asistencias registradas para ${empresaEscaneada.nombre}.`
+                : "Escanea una credencial para consultar únicamente las asistencias de esa empresa."}
             </Text>
           }
           renderItem={({ item }) => (
@@ -389,7 +417,9 @@ export default function TecnicoAsistenciaScreen() {
                   {item.tipo === "AUSPICIADOR" ? item.auspiciadorpersona?.auspiciador?.nombreEmpresa : item.empresa_usuario?.empresa?.nombre}
                 </Text>
                 <Text style={{ color: "#94a3b8", fontSize: 11, marginTop: 3 }}>
-                  {new Date(item.fechaHoraAsistencia).toLocaleString("es-BO")} · {[item.evento?.ciudadEvento, item.evento?.paisEvento].filter(Boolean).join(", ") || "Lugar del evento"}
+                  {new Date(item.fechaHoraAsistencia).toLocaleString("es-BO", { timeZone: "America/La_Paz" })} · Uso {item.numeroUso || "—"} · {item.tipo === "AUSPICIADOR"
+                    ? ([item.evento?.ciudadEvento, item.evento?.paisEvento].filter(Boolean).join(", ") || "No indicado")
+                    : ([item.empresa_usuario?.empresa?.ciudad?.nombre, item.empresa_usuario?.empresa?.ciudad?.pais?.nombre].filter(Boolean).join(", ") || "No indicado")}
                 </Text>
               </View>
             </View>
