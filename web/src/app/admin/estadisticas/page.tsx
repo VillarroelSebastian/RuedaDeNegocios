@@ -25,6 +25,8 @@ export default function EstadisticasPage() {
       ['Métrica', 'Valor'],
       ['Empresas registradas', stats.kpis.empresasRegistradas],
       ['Empresas con asistencia', stats.kpis.empresasAsistentes],
+      ['Personas registradas', stats.kpis.participantesTotales],
+      ['Personas con asistencia', stats.kpis.personasAsistentes],
       ['Reuniones realizadas', stats.kpis.reunionesRealizadas],
       ['Promedio de calificación', stats.kpis.promedioCalificacion],
       ['Dinero generado aproximado (USD)', stats.kpis.totalGeneradoAprox],
@@ -80,6 +82,7 @@ export default function EstadisticasPage() {
     { label: 'EVENTOS INTERNOS', value: stats.kpis.eventosInternos, icon: CalendarDays, color: 'text-teal-600', bg: 'bg-teal-50' },
     { label: 'ACUERDOS REGISTRADOS', value: stats.kpis.acuerdosRegistrados ?? 0, icon: Handshake, color: 'text-amber-600', bg: 'bg-amber-50' },
     { label: 'EMPRESAS QUE ASISTIERON', value: stats.kpis.empresasAsistentes ?? 0, icon: Users, color: 'text-cyan-600', bg: 'bg-cyan-50' },
+    { label: 'PERSONAS QUE ASISTIERON', value: stats.kpis.personasAsistentes ?? 0, icon: CalendarCheck, color: 'text-teal-600', bg: 'bg-teal-50' },
     { label: 'CALIFICACIÓN PROMEDIO', value: `${Number(stats.kpis.promedioCalificacion ?? 0).toFixed(2)}/5`, icon: Star, color: 'text-yellow-600', bg: 'bg-yellow-50' },
     { label: 'DINERO GENERADO APROX.', value: `$us ${Number(stats.kpis.totalGeneradoAprox ?? 0).toLocaleString('es-BO')}`, icon: DollarSign, color: 'text-emerald-700', bg: 'bg-emerald-50' },
     { label: 'ÍNDICE DE ÉXITO', value: `${stats.kpis.indiceExito ?? 0}%`, icon: Award, color: 'text-violet-600', bg: 'bg-violet-50' },
@@ -137,7 +140,7 @@ export default function EstadisticasPage() {
   };
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-8 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Estadísticas del evento</h1>
@@ -285,7 +288,7 @@ export default function EstadisticasPage() {
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
           <h2 className="font-bold text-gray-900 mb-1">Asistencia empresarial</h2>
           <p className="text-xs text-gray-500 mb-5">Empresas registradas frente a empresas con al menos un ingreso por QR.</p>
-          <div className="flex items-center gap-6">
+          <div className="flex flex-col items-center gap-6 sm:flex-row">
             <div className="relative w-32 h-32 rounded-full flex items-center justify-center"
               style={{ background: `conic-gradient(#449D3A 0 ${(stats.asistencia.empresasAsistentes / Math.max(stats.asistencia.empresasRegistradas, 1)) * 100}%, #e5e7eb 0)` }}>
               <div className="w-20 h-20 rounded-full bg-white flex flex-col items-center justify-center">
@@ -297,6 +300,9 @@ export default function EstadisticasPage() {
               <p><span className="font-bold text-gray-900">{stats.asistencia.empresasRegistradas}</span> registradas</p>
               <p><span className="font-bold text-green-700">{stats.asistencia.empresasAsistentes}</span> con asistencia</p>
               <p><span className="font-bold text-gray-500">{stats.asistencia.empresasSinAsistencia}</span> sin asistencia</p>
+              <p className="pt-2"><span className="font-bold text-gray-900">{stats.asistencia.personasRegistradas}</span> personas registradas</p>
+              <p><span className="font-bold text-teal-700">{stats.asistencia.personasAsistentes}</span> personas que asistieron</p>
+              <p><span className="font-bold text-gray-500">{stats.asistencia.personasSinAsistencia}</span> personas sin asistencia</p>
               <p className="text-xs text-gray-400">{stats.asistencia.registros} lecturas QR registradas</p>
             </div>
           </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   CheckCircle2, Building2, MapPin, Calendar, User, ShieldCheck,
@@ -31,7 +31,9 @@ export default function CredencialPage() {
   const [estado, setEstado] = useState<"cargando" | "ok" | "error">("cargando");
   const [registrando, setRegistrando] = useState(false);
   const [resultado, setResultado] = useState("");
+  const [registroCompletado, setRegistroCompletado] = useState(false);
   const [tecnico, setTecnico] = useState<any>(null);
+  const registroBloqueadoRef = useRef(false);
 
   useEffect(() => {
     let sesion: any = null;
@@ -55,7 +57,8 @@ export default function CredencialPage() {
   }, [euId, t, router]);
 
   const registrarAsistencia = async () => {
-    if (!tecnico?.token || registrando) return;
+    if (!tecnico?.token || registrando || registroCompletado || registroBloqueadoRef.current) return;
+    registroBloqueadoRef.current = true;
     setRegistrando(true); setResultado("");
     try {
       const res = await fetch(`${API}/tecnico/asistencias`, {
@@ -72,9 +75,12 @@ export default function CredencialPage() {
         usosRestantes: respuesta.usosRestantes,
         limiteDiario: respuesta.limiteDiario,
       } }));
-      setResultado(`Asistencia registrada. Uso ${respuesta.usosHoy} de ${respuesta.limiteDiario}; ${respuesta.usosRestantes ? `queda ${respuesta.usosRestantes} registro hoy` : "límite diario alcanzado"}.`);
+      setRegistroCompletado(true);
+      setResultado(respuesta.yaRegistrada
+        ? "Este escaneo ya había sido procesado y no consumió otro uso."
+        : `Asistencia registrada. Uso ${respuesta.usosHoy} de ${respuesta.limiteDiario}; ${respuesta.usosRestantes ? `queda ${respuesta.usosRestantes} registro hoy. Para usarlo, escanea nuevamente la credencial` : "límite diario alcanzado"}.`);
     } catch (e: any) { setResultado(e.message); }
-    finally { setRegistrando(false); }
+    finally { setRegistrando(false); registroBloqueadoRef.current = false; }
   };
 
   if (estado === "cargando") {
@@ -152,7 +158,7 @@ export default function CredencialPage() {
                 )}
               </div>
             </div>
-            {habilitado && !data.asistencia?.registrada && (
+            {habilitado && !data.asistencia?.registrada && !registroCompletado && (
               <button onClick={registrarAsistencia} disabled={registrando}
                 className="basis-full w-full rounded-xl bg-[#449D3A] text-white font-bold px-4 py-3 flex items-center justify-center gap-2 disabled:opacity-50">
                 <CheckCircle2 className="w-5 h-5" />
@@ -160,6 +166,7 @@ export default function CredencialPage() {
               </button>
             )}
             {(resultado || data.asistencia?.fechaHoraAsistencia) && <div className="basis-full w-full rounded-xl bg-green-50 border border-green-200 text-green-800 text-sm font-semibold p-3 text-center break-words">{resultado || `Último registro: ${new Date(data.asistencia.fechaHoraAsistencia).toLocaleString("es-BO", { timeZone: "America/La_Paz" })}. Usos de hoy: ${data.asistencia.usosHoy} de ${data.asistencia.limiteDiario || 2}.`}</div>}
+            {registroCompletado && <button onClick={() => router.push('/tecnico/asistencia')} className="basis-full w-full rounded-xl border-2 border-gray-300 bg-white px-4 py-3 font-bold text-gray-800 hover:bg-gray-50">Escanear otra credencial</button>}
           </div>
 
           {/* Empresa */}

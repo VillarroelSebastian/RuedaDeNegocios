@@ -38,6 +38,7 @@ export default function StaffReunionAlerts() {
     socket.on("staff:reunion-sin-enlace", recibir);
     socket.on("staff:reunion-sin-enlace-30m", recibir);
     socket.on("staff:reunion-sin-enlace-urgente", recibir);
+    socket.on("staff:reunion-teams-responsable", (payload: any) => recibir({ ...payload, tipo: 'staff:reunion-teams-responsable' }));
     socket.on("staff:reunion-teams-iniciar", (payload: any) => recibir({ ...payload, tipo: 'staff:reunion-teams-iniciar' }));
     return () => { socket.disconnect(); };
   }, []);
@@ -59,7 +60,7 @@ export default function StaffReunionAlerts() {
           {alerta.referenciaId > 0 && (
             <Link href={`/tecnico/virtuales/${alerta.referenciaId}`} onClick={() => setAlerta(null)}
               className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-[#449D3A]">
-              {alerta.tipo === 'staff:reunion-teams-iniciar' ? 'Abrir reunión virtual' : 'Completar enlace'} <ExternalLink className="h-3 w-3" />
+              {alerta.tipo.startsWith('staff:reunion-teams') ? 'Abrir reunión virtual' : 'Completar enlace'} <ExternalLink className="h-3 w-3" />
             </Link>
           )}
         </div>

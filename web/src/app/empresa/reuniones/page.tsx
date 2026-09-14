@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -528,6 +528,7 @@ export default function ReunionesPage() {
   const [filtro, setFiltro] = useState<"todas" | "proximas" | "finalizadas">("todas");
   const [detalleModal, setDetalleModal] = useState<any>(null);
   const [cambiarModal, setCambiarModal] = useState<any>(null);
+  const deepLinkProcesadoRef = useRef(false);
 
   const cargarReuniones = useCallback((id: number) => {
     fetch(`${API}/empresa/reuniones?eeId=${id}`, { cache: "no-store" })
@@ -536,7 +537,8 @@ export default function ReunionesPage() {
         const lista = Array.isArray(data) ? data : [];
         setReuniones(lista);
         const reunionId = Number(new URLSearchParams(window.location.search).get("reunionId"));
-        if (Number.isFinite(reunionId) && reunionId > 0) {
+        if (!deepLinkProcesadoRef.current && Number.isFinite(reunionId) && reunionId > 0) {
+          deepLinkProcesadoRef.current = true;
           const solicitada = lista.find((r: any) => r.id === reunionId);
           if (solicitada) setDetalleModal(solicitada);
         }
@@ -636,18 +638,18 @@ export default function ReunionesPage() {
         />
       )}
 
-      <div className="p-6 space-y-5">
+      <div className="p-4 sm:p-6 space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-extrabold text-gray-900">Mis reuniones</h1>
             <p className="text-sm text-gray-400 mt-0.5">{reuniones.length} reuniones confirmadas</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button onClick={() => eeId && cargarReuniones(eeId)}
               className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-600 hover:bg-gray-50">
               <RefreshCw className="h-3.5 w-3.5" /> Actualizar
             </button>
-          <div className="flex bg-gray-100 rounded-xl p-1">
+          <div className="flex max-w-full overflow-x-auto bg-gray-100 rounded-xl p-1">
             {(["todas", "proximas", "finalizadas"] as const).map((f) => (
               <button key={f} onClick={() => setFiltro(f)}
                 className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${

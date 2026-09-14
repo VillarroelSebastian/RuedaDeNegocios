@@ -7,6 +7,7 @@ const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 export default function TecnicoAsistenciaPage() {
   const [valor, setValor] = useState("");
   const [asistencias, setAsistencias] = useState<any[]>([]);
+  const [empresaEscaneada, setEmpresaEscaneada] = useState<{ tipo: "PARTICIPANTE" | "AUSPICIADOR"; id: number; nombre: string } | null>(null);
   const [camara, setCamara] = useState(false);
   const [procesando, setProcesando] = useState(false);
   const [pendiente, setPendiente] = useState<any>(null);
@@ -17,22 +18,24 @@ export default function TecnicoAsistenciaPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const controlesRef = useRef<any>(null);
   const escaneoBloqueadoRef = useRef(false);
+  const registroBloqueadoRef = useRef(false);
   const tecnico =
     typeof window !== "undefined"
       ? JSON.parse(localStorage.getItem("tecnicoUser") || "null")
       : null;
-  const cargar = useCallback(() => {
-    if (tecnico?.id) Promise.all([
-      fetch(`${API}/tecnico/asistencias`).then((r) => r.json()),
-      fetch(`${API}/tecnico/asistencias-auspiciadores`).then((r) => r.json()),
-    ]).then(([personas, auspiciadores]) => setAsistencias([
-      ...(Array.isArray(personas) ? personas : []).map((a: any) => ({ ...a, tipo: "PARTICIPANTE" })),
-      ...(Array.isArray(auspiciadores) ? auspiciadores : []).map((a: any) => ({ ...a, tipo: "AUSPICIADOR" })),
-    ].sort((a, b) => +new Date(b.fechaHoraAsistencia) - +new Date(a.fechaHoraAsistencia)))).catch(() => {});
+  const cargar = useCallback((filtro?: { tipo: "PARTICIPANTE" | "AUSPICIADOR"; id: number; nombre: string } | null) => {
+    if (!tecnico?.id || !filtro) { setAsistencias([]); return; }
+    const url = filtro.tipo === "PARTICIPANTE"
+      ? `${API}/tecnico/asistencias?empresaEventoId=${filtro.id}`
+      : `${API}/tecnico/asistencias-auspiciadores`;
+    fetch(url).then((r) => r.json()).then((data) => {
+      const lista = Array.isArray(data) ? data : [];
+      const filtrada = filtro.tipo === "AUSPICIADOR"
+        ? lista.filter((a: any) => a.auspiciadorpersona?.auspiciador?.nombreEmpresa === filtro.nombre)
+        : lista;
+      setAsistencias(filtrada.map((a: any) => ({ ...a, tipo: filtro.tipo })));
+    }).catch(() => setAsistencias([]));
   }, [tecnico?.id]);
-  useEffect(() => {
-    cargar();
-  }, [cargar]);
   const extraerCredencial = (contenido: string) => {
     try {
       const url = new URL(contenido.trim());
@@ -72,7 +75,12 @@ export default function TecnicoAsistenciaPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || "No se pudo verificar.");
       cerrarCamara();
-      setPendiente({ ...(auspiciador ? { personaId: Number(partes[1]) } : { euId: Number(partes[1]) }), token, tipo: auspiciador ? "AUSPICIADOR" : "PARTICIPANTE", ...data });
+      const filtro = auspiciador
+        ? { tipo: "AUSPICIADOR" as const, id: Number(partes[1]), nombre: String(data.empresa || "Auspiciador") }
+        : { tipo: "PARTICIPANTE" as const, id: Number(data.empresa?.empresaEventoId), nombre: String(data.empresa?.nombre || "Empresa") };
+      setEmpresaEscaneada(filtro);
+      setPendiente({ ...(auspiciador ? { personaId: Number(partes[1]) } : { euId: Number(partes[1]) }), token, tipo: auspiciador ? "AUSPICIADOR" : "PARTICIPANTE", ...data, registroCompletado: false });
+      cargar(filtro);
     } catch (e: any) {
       setModal({ titulo: "No se pudo verificar", mensaje: e.message });
     } finally {
@@ -80,7 +88,8 @@ export default function TecnicoAsistenciaPage() {
     }
   };
   const registrar = async () => {
-    if (!pendiente || procesando) return;
+    if (!pendiente || procesando || registroBloqueadoRef.current) return;
+    registroBloqueadoRef.current = true;
     setProcesando(true);
     try {
       const esAuspiciador = pendiente.tipo === "AUSPICIADOR";
@@ -93,6 +102,7 @@ export default function TecnicoAsistenciaPage() {
       if (!res.ok) throw new Error(data?.message || "No se pudo registrar.");
       setPendiente((actual: any) => ({
         ...actual,
+        registroCompletado: true,
         asistencia: {
           registrada: data.usosRestantes === 0,
           fechaHoraAsistencia: data.fechaHoraAsistencia,
@@ -102,15 +112,18 @@ export default function TecnicoAsistenciaPage() {
         },
       }));
       setValor("");
-      cargar();
+      cargar(empresaEscaneada);
       setModal({
-        titulo: "Asistencia registrada",
-        mensaje: `${data.participante.nombre} · uso ${data.usosHoy} de ${data.limiteDiario}. ${data.usosRestantes ? `Queda ${data.usosRestantes} registro hoy.` : "Se alcanzó el límite diario."}`,
+        titulo: data.yaRegistrada ? "Asistencia ya procesada" : "Asistencia registrada",
+        mensaje: data.yaRegistrada
+          ? `${data.participante.nombre}: este escaneo ya había sido procesado y no consumió otro uso.`
+          : `${data.participante.nombre} · uso ${data.usosHoy} de ${data.limiteDiario}. ${data.usosRestantes ? `Queda ${data.usosRestantes} registro hoy; para usarlo se debe escanear nuevamente la credencial.` : "Se alcanzó el límite diario."}`,
       });
     } catch (e: any) {
       setModal({ titulo: "No se pudo registrar", mensaje: e.message });
     } finally {
       setProcesando(false);
+      registroBloqueadoRef.current = false;
     }
   };
   const abrirCamara = async () => {
@@ -205,9 +218,11 @@ export default function TecnicoAsistenciaPage() {
           <div>
             <CheckCircle2 className="w-12 h-12 text-green-600 mx-auto" />
             <p className="text-xs text-center font-bold text-green-700 uppercase mt-2">
-              {pendiente.asistencia?.registrada
-                ? "Límite diario alcanzado"
-                : `Credencial válida · ${pendiente.asistencia?.usosHoy || 0} de ${pendiente.asistencia?.limiteDiario || 2} usos`}
+              {pendiente.registroCompletado
+                ? "Registro completado"
+                : pendiente.asistencia?.registrada
+                  ? "Límite diario alcanzado"
+                  : `Credencial válida · ${pendiente.asistencia?.usosHoy || 0} de ${pendiente.asistencia?.limiteDiario || 2} usos`}
             </p>
             <h2 className="font-extrabold text-xl sm:text-2xl mt-1 text-center break-words">
               {pendiente.participante?.nombre || pendiente.nombreCompleto}
@@ -216,18 +231,18 @@ export default function TecnicoAsistenciaPage() {
               <div className="rounded-xl bg-gray-50 p-3 min-w-0"><p className="text-xs text-gray-400">Empresa</p><p className="font-bold break-words">{pendiente.empresa?.nombre || pendiente.empresa}</p></div>
               <div className="rounded-xl bg-gray-50 p-3"><p className="text-xs text-gray-400">Tipo de participante</p><p className="font-bold">{pendiente.tipo === "AUSPICIADOR" ? "Auspiciador" : pendiente.participante?.esResponsable ? "Encargado" : "Participante"}</p></div>
               <div className="rounded-xl bg-gray-50 p-3"><p className="text-xs text-gray-400">Cargo</p><p className="font-bold break-words">{pendiente.participante?.cargo || pendiente.cargo || "No indicado"}</p></div>
-              <div className="rounded-xl bg-gray-50 p-3"><p className="text-xs text-gray-400">Lugar</p><p className="font-bold break-words">{pendiente.lugar || [pendiente.evento?.ciudad, pendiente.evento?.pais].filter(Boolean).join(", ") || "Lugar del evento"}</p></div>
+              <div className="rounded-xl bg-gray-50 p-3"><p className="text-xs text-gray-400">Ciudad y país de la empresa</p><p className="font-bold break-words">{pendiente.tipo === "AUSPICIADOR" ? (pendiente.lugar || "No indicado") : ([pendiente.empresa?.ciudad, pendiente.empresa?.pais].filter(Boolean).join(", ") || "No indicado")}</p></div>
               {(pendiente.evento?.nombre || pendiente.evento) && <div className="rounded-xl bg-gray-50 p-3 sm:col-span-2"><p className="text-xs text-gray-400">Evento</p><p className="font-bold break-words">{pendiente.evento?.nombre || pendiente.evento} {pendiente.edicion || pendiente.evento?.edicion || ""}</p></div>}
             </div>
-            {pendiente.asistencia?.fechaHoraAsistencia && <div className="mt-4 rounded-xl bg-green-50 border border-green-200 p-3 text-center text-sm font-semibold text-green-800">Último registro: {new Date(pendiente.asistencia.fechaHoraAsistencia).toLocaleString("es-BO", { timeZone: "America/La_Paz" })}. Usos de hoy: {pendiente.asistencia.usosHoy} de {pendiente.asistencia.limiteDiario || 2}.</div>}
+            {pendiente.asistencia?.fechaHoraAsistencia && <div className="mt-4 rounded-xl bg-green-50 border border-green-200 p-3 text-center text-sm font-semibold text-green-800">Último registro: {new Date(pendiente.asistencia.fechaHoraAsistencia).toLocaleString("es-BO", { timeZone: "America/La_Paz" })}. Usos de hoy: {pendiente.asistencia.usosHoy} de {pendiente.asistencia.limiteDiario || 2}. Cada participante tiene su propio límite.</div>}
             <div className="flex flex-col-reverse sm:grid sm:grid-cols-2 gap-2 mt-5">
               <button
-                onClick={() => setPendiente(null)}
+                onClick={() => { setPendiente(null); setValor(""); escaneoBloqueadoRef.current = false; }}
                 className="w-full border rounded-xl px-4 py-3 font-bold text-gray-600"
               >
-                {pendiente.asistencia?.registrada ? "Escanear otra credencial" : "Cancelar"}
+                {pendiente.registroCompletado || pendiente.asistencia?.registrada ? "Escanear otra credencial" : "Cancelar"}
               </button>
-              {!pendiente.asistencia?.registrada && <button
+              {!pendiente.registroCompletado && !pendiente.asistencia?.registrada && <button
                 onClick={registrar}
                 disabled={procesando}
                 className="w-full rounded-xl bg-[#449D3A] text-white px-4 py-3 font-bold disabled:opacity-50"
@@ -284,9 +299,8 @@ export default function TecnicoAsistenciaPage() {
           </>
         )}
       </div>
-      <h2 className="font-extrabold mt-7 mb-3">
-        Asistencias ({asistencias.length})
-      </h2>
+      <h2 className="font-extrabold mt-7 mb-1">Asistencias de la empresa escaneada ({asistencias.length})</h2>
+      <p className="mb-3 text-xs text-gray-500">{empresaEscaneada ? empresaEscaneada.nombre : "Escanea una credencial para consultar únicamente la asistencia de su empresa."}</p>
       <div className="space-y-2">
         {asistencias.map((a) => (
           <div key={a.id} className="bg-white border rounded-xl p-4 flex gap-3">
@@ -298,8 +312,8 @@ export default function TecnicoAsistenciaPage() {
               <p className="text-xs text-gray-500 break-words">
                 {a.tipo === "AUSPICIADOR" ? a.auspiciadorpersona?.auspiciador?.nombreEmpresa : a.empresa_usuario?.empresa?.nombre}
               </p>
-              <p className="text-xs text-gray-400 mt-1">
-                {new Date(a.fechaHoraAsistencia).toLocaleString("es-BO")} · {[a.evento?.ciudadEvento, a.evento?.paisEvento].filter(Boolean).join(", ") || "Lugar del evento"}
+              <p className="text-xs text-gray-400 mt-1 break-words">
+                {new Date(a.fechaHoraAsistencia).toLocaleString("es-BO", { timeZone: "America/La_Paz" })} · {a.tipo === "AUSPICIADOR" ? ([a.evento?.ciudadEvento, a.evento?.paisEvento].filter(Boolean).join(", ") || "Lugar del evento") : ([a.empresa_usuario?.empresa?.ciudad?.nombre, a.empresa_usuario?.empresa?.ciudad?.pais?.nombre].filter(Boolean).join(", ") || "Ubicación no indicada")} · uso {a.numeroUso || 1}
               </p>
             </div>
           </div>

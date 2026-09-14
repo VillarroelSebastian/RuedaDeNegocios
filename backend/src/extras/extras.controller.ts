@@ -600,6 +600,19 @@ export class ExtrasController {
     const { fechaAsistencia } = this.contextoAsistenciaEvento(persona.auspiciador.evento);
     const resultado = await this.prisma.$transaction(async (tx) => {
       await tx.$queryRawUnsafe('SELECT 1 AS locked FROM pg_advisory_xact_lock($1, $2)', persona.auspiciador.evento_id, -personaId);
+      const registroReciente = await tx.asistenciaauspiciador.findFirst({
+        where: {
+          evento_id: persona.auspiciador.evento_id, auspiciadorpersona_id: personaId,
+          fechaAsistencia, estaActivo: 1, fechaHoraAsistencia: { gte: new Date(Date.now() - 60_000) },
+        },
+        orderBy: [{ fechaHoraAsistencia: 'desc' }, { id: 'desc' }],
+      });
+      if (registroReciente) {
+        const usosHoy = await tx.asistenciaauspiciador.count({
+          where: { evento_id: persona.auspiciador.evento_id, auspiciadorpersona_id: personaId, fechaAsistencia, estaActivo: 1 },
+        });
+        return { asistencia: registroReciente, usosHoy, duplicada: true };
+      }
       const usosHoy = await tx.asistenciaauspiciador.count({
         where: { evento_id: persona.auspiciador.evento_id, auspiciadorpersona_id: personaId, fechaAsistencia, estaActivo: 1 },
       });
@@ -611,10 +624,10 @@ export class ExtrasController {
           tecnico_id: tecnicoId, fechaAsistencia, numeroUso: usosHoy + 1,
         },
       });
-      return { asistencia, usosHoy: usosHoy + 1 };
+      return { asistencia, usosHoy: usosHoy + 1, duplicada: false };
     });
     return {
-      ok: true, yaRegistrada: false, fechaHoraAsistencia: resultado.asistencia.fechaHoraAsistencia,
+      ok: true, yaRegistrada: resultado.duplicada, fechaHoraAsistencia: resultado.asistencia.fechaHoraAsistencia,
       usosHoy: resultado.usosHoy,
       usosRestantes: LIMITE_ASISTENCIAS_DIARIAS - resultado.usosHoy,
       limiteDiario: LIMITE_ASISTENCIAS_DIARIAS,
