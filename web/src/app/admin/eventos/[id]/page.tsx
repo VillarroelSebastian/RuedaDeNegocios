@@ -8,6 +8,16 @@ import Modal, { useModal } from '@/components/ui/Modal';
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
 type DiaReunion = { fecha: string; habilitado: boolean; rangos: { desde: string; hasta: string }[] };
+const HORA_24_VALIDA = /^(?:[01]\d|2[0-3]):[0-5]\d$|^24:00$/;
+
+function normalizarHora24(valor: string) {
+  const coincidencia = valor.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!coincidencia) return valor;
+  const hora = Number(coincidencia[1]);
+  const minuto = Number(coincidencia[2]);
+  if (minuto > 59 || hora > 24 || (hora === 24 && minuto !== 0)) return valor;
+  return `${String(hora).padStart(2, '0')}:${coincidencia[2]}`;
+}
 
 function fechasEntre(inicio: string, fin: string): string[] {
   const desde = inicio.slice(0, 10), hasta = fin.slice(0, 10);
@@ -232,15 +242,20 @@ export default function ConfiguracionDeEventoPage() {
       return;
     }
 
-    const fechasEvento = fechasEntre(formData.fechaInicioEvento, formData.fechaFinEvento);
-    const desdeDefault = formData.fechaInicioEvento.slice(11, 16) || '08:00';
-    const hastaDefault = formData.fechaFinEvento.slice(11, 16) || '18:00';
+    const usaPeriodoInscripciones = Boolean(formData.fechaInicioSolicitudes && formData.fechaFinSolicitudes);
+    const inicioLogistica = usaPeriodoInscripciones ? formData.fechaInicioSolicitudes : formData.fechaInicioEvento;
+    const finLogistica = usaPeriodoInscripciones ? formData.fechaFinSolicitudes : formData.fechaFinEvento;
+    const fechasEvento = fechasEntre(inicioLogistica, finLogistica);
+    const desdeDefault = usaPeriodoInscripciones ? '08:00' : (inicioLogistica.slice(11, 16) || '08:00');
+    const hastaDefault = usaPeriodoInscripciones ? '18:00' : (finLogistica.slice(11, 16) || '18:00');
     const porFecha = new Map(horariosReunion.map((dia) => [dia.fecha, dia]));
     const horariosNormalizados = fechasEvento.map((fecha) => porFecha.get(fecha) ?? {
       fecha, habilitado: true, rangos: [{ desde: desdeDefault, hasta: hastaDefault }],
     });
-    if (horariosNormalizados.some((dia) => !dia.rangos.length || dia.rangos.some((r) => !r.desde || !r.hasta || r.desde >= r.hasta))) {
-      showModal('warning', 'Horarios incompletos', 'Todos los días del evento deben tener al menos un rango de reuniones válido.');
+    if (horariosNormalizados.some((dia) => !dia.rangos.length || dia.rangos.some((r) =>
+      !HORA_24_VALIDA.test(r.desde) || !HORA_24_VALIDA.test(r.hasta) || r.desde >= r.hasta
+    ))) {
+      showModal('warning', 'Horarios incompletos', 'Usa el formato de 24 horas HH:mm (por ejemplo, 13:00) y configura al menos un rango válido por día.');
       return;
     }
     if (formData.fechaInicioSolicitudes && formData.fechaFinSolicitudes && formData.fechaInicioSolicitudes >= formData.fechaFinSolicitudes) {
@@ -303,12 +318,17 @@ export default function ConfiguracionDeEventoPage() {
       if (res.ok) {
         const guardado = await res.json();
         const eventoId = Number(guardado?.id || formData.id);
+        const paquetesRes = await fetch(`${API}/admin/paquetes?eventoId=${eventoId}`);
+        const paquetes = paquetesRes.ok ? await paquetesRes.json().catch(() => null) : null;
+        const sinPaquetes = Array.isArray(paquetes) && paquetes.length === 0;
         showModal(
           'success',
           'Evento configurado',
-          'La configuración general quedó guardada. Ahora revisa los paquetes de inscripción: el evento necesita al menos uno antes de poder activarse como principal.',
+          sinPaquetes
+            ? 'La configuración quedó guardada. Ahora agrega al menos un paquete de inscripción para poder activar el evento como principal.'
+            : 'La configuración del evento quedó guardada correctamente.',
         );
-        setTimeout(() => router.push(`/admin/paquetes?eventoId=${eventoId}`), 1800);
+        if (sinPaquetes) setTimeout(() => router.push(`/admin/paquetes?eventoId=${eventoId}`), 1800);
       } else {
         const errorData = await res.json().catch(() => null);
         const msg = errorData?.message || 'Error desconocido del servidor.';
@@ -321,12 +341,18 @@ export default function ConfiguracionDeEventoPage() {
     }
   };
 
-  const diasReunion: DiaReunion[] = fechasEntre(formData.fechaInicioEvento, formData.fechaFinEvento).map((fecha) => {
+  const usaPeriodoInscripciones = Boolean(formData.fechaInicioSolicitudes && formData.fechaFinSolicitudes);
+  const inicioLogistica = usaPeriodoInscripciones ? formData.fechaInicioSolicitudes : formData.fechaInicioEvento;
+  const finLogistica = usaPeriodoInscripciones ? formData.fechaFinSolicitudes : formData.fechaFinEvento;
+  const diasReunion: DiaReunion[] = fechasEntre(inicioLogistica, finLogistica).map((fecha) => {
     const existente = horariosReunion.find((dia) => dia.fecha === fecha);
     return existente ?? {
       fecha,
       habilitado: true,
-      rangos: [{ desde: formData.fechaInicioEvento.slice(11, 16) || '08:00', hasta: formData.fechaFinEvento.slice(11, 16) || '18:00' }],
+      rangos: [{
+        desde: usaPeriodoInscripciones ? '08:00' : (inicioLogistica.slice(11, 16) || '08:00'),
+        hasta: usaPeriodoInscripciones ? '18:00' : (finLogistica.slice(11, 16) || '18:00'),
+      }],
     };
   });
 
@@ -377,23 +403,25 @@ export default function ConfiguracionDeEventoPage() {
               <textarea name="descripcion" value={formData.descripcion} onChange={handleChange} className={styles.input + " " + styles.textarea} placeholder="Añada detalles del evento..." />
             </div>
 
-            <div>
-              <label className={styles.label}>Inicio del evento (fecha y hora) *</label>
-              <input required type="datetime-local" name="fechaInicioEvento" value={formData.fechaInicioEvento} onChange={handleChange} className={styles.input} />
-            </div>
-            <div>
-              <label className={styles.label}>Fin del evento (fecha y hora) *</label>
-              <input required type="datetime-local" name="fechaFinEvento" value={formData.fechaFinEvento} onChange={handleChange} className={styles.input} />
-            </div>
-            <div>
-              <label className={styles.label}>Inicio del período de inscripciones</label>
-              <input type="datetime-local" name="fechaInicioSolicitudes" value={formData.fechaInicioSolicitudes} onChange={handleChange} className={styles.input} />
-              <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>Opcional. Antes de esta fecha no se permitirán nuevas inscripciones.</p>
-            </div>
-            <div>
-              <label className={styles.label}>Límite para inscribirse</label>
-              <input type="datetime-local" name="fechaFinSolicitudes" value={formData.fechaFinSolicitudes} onChange={handleChange} className={styles.input} />
-              <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>Opcional. Después de esta fecha no se aceptarán nuevas inscripciones.</p>
+            <div className={styles.colSpanAll + " " + styles.datesGrid}>
+              <div>
+                <label className={styles.label}>Inicio del evento *</label>
+                <input required type="datetime-local" lang="es-BO" name="fechaInicioEvento" value={formData.fechaInicioEvento} onChange={handleChange} className={styles.input} />
+              </div>
+              <div>
+                <label className={styles.label}>Fin del evento *</label>
+                <input required type="datetime-local" lang="es-BO" name="fechaFinEvento" value={formData.fechaFinEvento} onChange={handleChange} className={styles.input} />
+              </div>
+              <div>
+                <label className={styles.label}>Inicio de inscripciones</label>
+                <input type="datetime-local" lang="es-BO" name="fechaInicioSolicitudes" value={formData.fechaInicioSolicitudes} onChange={handleChange} className={styles.input} />
+                <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>Su fecha define el primer día de la logística; la hora controla la apertura de inscripciones.</p>
+              </div>
+              <div>
+                <label className={styles.label}>Fin de inscripciones</label>
+                <input type="datetime-local" lang="es-BO" name="fechaFinSolicitudes" value={formData.fechaFinSolicitudes} onChange={handleChange} className={styles.input} />
+                <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>Su fecha define el último día de la logística; la hora controla el cierre de inscripciones.</p>
+              </div>
             </div>
             <div>
               <label className={styles.label}>País del evento</label>
@@ -552,7 +580,7 @@ export default function ConfiguracionDeEventoPage() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
               <div>
                 <p style={{ fontWeight: 700, color: '#166534', fontSize: '0.875rem' }}>Horarios disponibles para reuniones *</p>
-                <p style={{ color: '#4b5563', fontSize: '0.75rem', marginTop: '0.2rem' }}>Son independientes de la duración total del evento. Todos los días deben tener al menos un rango.</p>
+                <p style={{ color: '#4b5563', fontSize: '0.75rem', marginTop: '0.2rem' }}>Los días se toman del período de inscripciones; las horas se definen aquí de forma independiente. Usa formato de 24 horas: 13:00 equivale a 1:00 p. m.</p>
               </div>
               <button type="button" onClick={copiarPrimerDia} className={styles.uploadButton} style={{ marginTop: 0 }}>Copiar primer día a todos</button>
             </div>
@@ -565,11 +593,13 @@ export default function ConfiguracionDeEventoPage() {
                   <div style={{ display: 'grid', gap: '0.5rem' }}>
                     {dia.rangos.map((rango, rangoIndex) => (
                       <div key={`${dia.fecha}-${rangoIndex}`} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        <input type="time" value={rango.desde} className={styles.input} style={{ flex: '1 1 130px' }}
-                          onChange={(e) => guardarDiasEnEstado(diasReunion.map((d, i) => i === diaIndex ? { ...d, rangos: d.rangos.map((r, j) => j === rangoIndex ? { ...r, desde: e.target.value } : r) } : d))} />
+                        <input type="text" inputMode="numeric" maxLength={5} pattern="(?:[01]\d|2[0-3]):[0-5]\d|24:00" placeholder="HH:mm" aria-label="Hora de inicio en formato de 24 horas" value={rango.desde} className={styles.input} style={{ flex: '1 1 130px' }}
+                          onChange={(e) => guardarDiasEnEstado(diasReunion.map((d, i) => i === diaIndex ? { ...d, rangos: d.rangos.map((r, j) => j === rangoIndex ? { ...r, desde: e.target.value } : r) } : d))}
+                          onBlur={(e) => guardarDiasEnEstado(diasReunion.map((d, i) => i === diaIndex ? { ...d, rangos: d.rangos.map((r, j) => j === rangoIndex ? { ...r, desde: normalizarHora24(e.target.value) } : r) } : d))} />
                         <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>hasta</span>
-                        <input type="time" value={rango.hasta} className={styles.input} style={{ flex: '1 1 130px' }}
-                          onChange={(e) => guardarDiasEnEstado(diasReunion.map((d, i) => i === diaIndex ? { ...d, rangos: d.rangos.map((r, j) => j === rangoIndex ? { ...r, hasta: e.target.value } : r) } : d))} />
+                        <input type="text" inputMode="numeric" maxLength={5} pattern="(?:[01]\d|2[0-3]):[0-5]\d|24:00" placeholder="HH:mm" aria-label="Hora de fin en formato de 24 horas" value={rango.hasta} className={styles.input} style={{ flex: '1 1 130px' }}
+                          onChange={(e) => guardarDiasEnEstado(diasReunion.map((d, i) => i === diaIndex ? { ...d, rangos: d.rangos.map((r, j) => j === rangoIndex ? { ...r, hasta: e.target.value } : r) } : d))}
+                          onBlur={(e) => guardarDiasEnEstado(diasReunion.map((d, i) => i === diaIndex ? { ...d, rangos: d.rangos.map((r, j) => j === rangoIndex ? { ...r, hasta: normalizarHora24(e.target.value) } : r) } : d))} />
                         {dia.rangos.length > 1 && (
                           <button type="button" onClick={() => guardarDiasEnEstado(diasReunion.map((d, i) => i === diaIndex ? { ...d, rangos: d.rangos.filter((_, j) => j !== rangoIndex) } : d))}
                             style={{ color: '#dc2626', padding: '0.4rem' }} aria-label="Eliminar rango"><Trash2 size={16} /></button>

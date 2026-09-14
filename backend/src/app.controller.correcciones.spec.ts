@@ -91,6 +91,50 @@ describe('AppController - alcance operativo de actividades', () => {
 });
 
 describe('AppController - agenda con rangos personalizados', () => {
+  it('toma los días de inscripciones y permite horarios de tarde independientes de sus horas', () => {
+    const controller = new AppController({} as any, {} as any, {} as any, {} as any) as any;
+    const body = {
+      nombre: 'Evento de prueba',
+      fechaInicioEvento: '2026-09-13T08:00:00-04:00',
+      fechaFinEvento: '2026-09-13T12:00:00-04:00',
+      fechaInicioSolicitudes: '2026-09-14T08:00:00-04:00',
+      fechaFinSolicitudes: '2026-09-14T12:00:00-04:00',
+      duracionReunion: 20,
+      tiempoEntreReuniones: 5,
+      horariosReunion: [{
+        fecha: '2026-09-14', habilitado: true,
+        rangos: [{ desde: '13:00', hasta: '23:59' }],
+      }],
+    };
+
+    const sanitizado = controller.sanitizeEventoData(body);
+    const evento = { ...body, ...sanitizado };
+
+    expect(controller.fechasEvento(evento)).toEqual(['2026-09-13']);
+    expect(controller.fechasReunionesEvento(evento)).toEqual(['2026-09-14']);
+    expect(JSON.parse(sanitizado.horariosReunionJson)).toEqual(body.horariosReunion);
+    expect(controller.ventanasDiariasReunionesEvento(evento)).toEqual([{
+      start: new Date('2026-09-14T17:00:00.000Z'),
+      end: new Date('2026-09-15T03:59:00.000Z'),
+    }]);
+  });
+
+  it('conserva los días de una logística histórica ya guardada', () => {
+    const controller = new AppController({} as any, {} as any, {} as any, {} as any) as any;
+    const evento = {
+      fechaInicioEvento: new Date('2026-09-13T12:00:00.000Z'),
+      fechaFinEvento: new Date('2026-09-13T16:00:00.000Z'),
+      fechaInicioSolicitudes: new Date('2026-09-14T12:00:00.000Z'),
+      fechaFinSolicitudes: new Date('2026-09-14T16:00:00.000Z'),
+      horariosReunionJson: JSON.stringify([{
+        fecha: '2026-09-13', habilitado: true,
+        rangos: [{ desde: '08:00', hasta: '12:00' }],
+      }]),
+    };
+
+    expect(controller.fechasReunionesEvento(evento)).toEqual(['2026-09-13']);
+  });
+
   it('valida al guardar con la misma grilla que mostró al usuario y conserva la pausa de mesa', async () => {
     const inicio = new Date('2099-09-08T22:40:00.000Z'); // 18:40 en Bolivia
     const fin = new Date('2099-09-08T23:00:00.000Z');

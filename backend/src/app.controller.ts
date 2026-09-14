@@ -1811,10 +1811,19 @@ export class AppController implements OnModuleInit {
     if (fechaInicioInscripciones && fechaFinInscripciones && fechaInicioInscripciones >= fechaFinInscripciones) {
       throw new BadRequestException('El inicio del período de inscripciones debe ser anterior a su fecha límite.');
     }
-    const fechas = this.fechasEvento({ fechaInicioEvento, fechaFinEvento });
-    const inicioHHMM = horaMinutoBolivia(fechaInicioEvento).hhmm;
-    const finPartes = horaMinutoBolivia(fechaFinEvento);
-    const finHHMM = finPartes.hora === 0 && finPartes.minuto === 0 ? '24:00' : finPartes.hhmm;
+    const eventoParaHorarios = {
+      fechaInicioEvento, fechaFinEvento,
+      fechaInicioSolicitudes: fechaInicioInscripciones,
+      fechaFinSolicitudes: fechaFinInscripciones,
+    };
+    const ventanaHorarios = this.ventanaReunionesEvento(eventoParaHorarios);
+    const fechas = this.fechasReunionesEvento(eventoParaHorarios);
+    const usaPeriodoInscripciones = Boolean(fechaInicioInscripciones && fechaFinInscripciones);
+    const inicioHHMM = usaPeriodoInscripciones ? '00:00' : horaMinutoBolivia(ventanaHorarios.start).hhmm;
+    const finPartes = horaMinutoBolivia(ventanaHorarios.end);
+    const finHHMM = usaPeriodoInscripciones || (finPartes.hora === 0 && finPartes.minuto === 0)
+      ? '24:00'
+      : finPartes.hhmm;
     const horariosReunion = body.horariosReunion === undefined
       ? undefined
       : this.normalizarHorariosPorDia(body.horariosReunion, fechas, inicioHHMM, finHHMM, true);
@@ -1824,7 +1833,7 @@ export class AppController implements OnModuleInit {
     if (horariosReunion?.some((dia) => dia.rangos.some((rango) =>
       rango.desde < inicioHHMM || rango.hasta > finHHMM
     ))) {
-      throw new BadRequestException('Los horarios de reuniones deben estar dentro del horario general del evento.');
+      throw new BadRequestException('Los horarios de reuniones deben estar dentro del día configurado para la logística.');
     }
     return {
       nombre: body.nombre,
@@ -4686,10 +4695,11 @@ export class AppController implements OnModuleInit {
     return eu;
   }
 
-  // Helper: genera franjas horarias del evento
-  private ventanaReunionesEvento(evento: any): { start: Date; end: Date } {
-    const originalStart = new Date(evento.fechaInicioEvento);
-    const originalEnd = new Date(evento.fechaFinEvento);
+  // Normaliza una ventana configurada y conserva compatibilidad con los eventos
+  // históricos que se guardaron únicamente como fechas (00:00 a 00:00).
+  private normalizarVentanaFechas(inicio: any, fin: any): { start: Date; end: Date } {
+    const originalStart = new Date(inicio);
+    const originalEnd = new Date(fin);
     // Compatibilidad con eventos guardados solo como fechas (00:00 a 00:00):
     // las fechas inicial y final son inclusivas, tal como se muestran en la
     // portada. Cada día usa la jornada predeterminada 08:00–18:00 BO.
@@ -4703,13 +4713,60 @@ export class AppController implements OnModuleInit {
     return { start, end };
   }
 
+  // Las jornadas de reuniones se configuran sobre el período de inscripciones.
+  // Si un evento histórico no tiene ambos límites, se mantienen sus fechas del
+  // evento como respaldo para no alterar agendas ya existentes.
+  private ventanaReunionesEvento(evento: any): { start: Date; end: Date } {
+    // Una logística ya guardada conserva sus propios días. Esto evita mover
+    // agendas históricas hasta que el administrador vuelva a guardar el evento.
+    try {
+      const diasGuardados = JSON.parse(evento.horariosReunionJson || '[]');
+      const fechasGuardadas = Array.isArray(diasGuardados)
+        ? diasGuardados
+            .filter((dia: any) => dia?.habilitado !== false && Array.isArray(dia?.rangos) && dia.rangos.length > 0)
+            .map((dia: any) => String(dia?.fecha || ''))
+            .filter((fecha: string) => /^\d{4}-\d{2}-\d{2}$/.test(fecha))
+            .sort()
+        : [];
+      if (fechasGuardadas.length > 0) {
+        return {
+          start: this.fechaHoraBolivia(fechasGuardadas[0], 0, 0),
+          end: this.fechaHoraBolivia(fechasGuardadas[fechasGuardadas.length - 1], 24, 0),
+        };
+      }
+    } catch { /* configuración antigua o corrupta: aplicar las fechas disponibles */ }
+    const tienePeriodoInscripciones = evento.fechaInicioSolicitudes && evento.fechaFinSolicitudes;
+    if (!tienePeriodoInscripciones) {
+      return this.normalizarVentanaFechas(evento.fechaInicioEvento, evento.fechaFinEvento);
+    }
+    // De las inscripciones se toman solamente los días. Las horas válidas son
+    // las que el administrador define debajo, en Logística de Reuniones.
+    const primerDia = claveFechaBolivia(new Date(evento.fechaInicioSolicitudes));
+    const ultimoDia = claveFechaBolivia(new Date(evento.fechaFinSolicitudes));
+    return {
+      start: this.fechaHoraBolivia(primerDia, 0, 0),
+      end: this.fechaHoraBolivia(ultimoDia, 24, 0),
+    };
+  }
+
+  private ventanaGeneralEvento(evento: any): { start: Date; end: Date } {
+    return this.normalizarVentanaFechas(evento.fechaInicioEvento, evento.fechaFinEvento);
+  }
+
   private fechaHoraBolivia(fecha: string, hora: number, minuto: number): Date {
     const [year, month, day] = fecha.split('-').map(Number);
     return new Date(Date.UTC(year, month - 1, day, hora + 4, minuto, 0, 0));
   }
 
   private fechasEvento(evento: any): string[] {
-    const { start, end } = this.ventanaReunionesEvento(evento);
+    return this.fechasDeVentana(this.ventanaGeneralEvento(evento));
+  }
+
+  private fechasReunionesEvento(evento: any): string[] {
+    return this.fechasDeVentana(this.ventanaReunionesEvento(evento));
+  }
+
+  private fechasDeVentana({ start, end }: { start: Date; end: Date }): string[] {
     const primera = claveFechaBolivia(start);
     const ultima = claveFechaBolivia(new Date(end.getTime() - 1));
     const [year, month, day] = primera.split('-').map(Number);
@@ -4749,7 +4806,7 @@ export class AppController implements OnModuleInit {
     const inicioHora = horaMinutoBolivia(ventana.start);
     const finHora = horaMinutoBolivia(ventana.end);
     const finEsMedianoche = finHora.hora === 0 && finHora.minuto === 0;
-    return this.fechasEvento(evento)
+    return this.fechasReunionesEvento(evento)
       .map((fecha) => {
         const start = this.fechaHoraBolivia(fecha, inicioHora.hora, inicioHora.minuto);
         const end = this.fechaHoraBolivia(fecha, finEsMedianoche ? 24 : finHora.hora, finHora.minuto);
@@ -4816,7 +4873,7 @@ export class AppController implements OnModuleInit {
     const PASO_MS = 5 * 60000;
     const durMs = evento.duracionReunion * 60000;
     const slots: { inicio: Date; fin: Date }[] = [];
-    for (const fecha of this.fechasEvento(evento)) {
+    for (const fecha of this.fechasReunionesEvento(evento)) {
       const start = this.fechaHoraBolivia(fecha, 8, 0);
       const end = this.fechaHoraBolivia(fecha, 24, 0);
       for (let current = start; current.getTime() + durMs <= end.getTime(); current = new Date(current.getTime() + PASO_MS)) {
@@ -6370,7 +6427,7 @@ export class AppController implements OnModuleInit {
     let dias: any[] = [];
     try { dias = JSON.parse(inscripcion.horariosDisponibilidadJson || '[]'); } catch { dias = []; }
     const configurado = Array.isArray(dias) && dias.length > 0;
-    if (!configurado) dias = this.fechasEvento(inscripcion.evento).map((fecha) => ({
+    if (!configurado) dias = this.fechasReunionesEvento(inscripcion.evento).map((fecha) => ({
       fecha, habilitado: true, rangos: porFecha.get(fecha) ?? [],
     }));
     return { configurado, dias };
@@ -6387,7 +6444,7 @@ export class AppController implements OnModuleInit {
     const primera = ventanas[0];
     const dias = this.normalizarHorariosPorDia(
       body.dias,
-      this.fechasEvento(inscripcion.evento),
+      this.fechasReunionesEvento(inscripcion.evento),
       primera ? horaMinutoBolivia(primera.start).hhmm : '08:00',
       primera ? horaMinutoBolivia(primera.end).hhmm : '18:00',
       false,
@@ -6603,6 +6660,7 @@ export class AppController implements OnModuleInit {
           where: { id: eventoId },
           select: {
             fechaInicioEvento: true, fechaFinEvento: true,
+            fechaInicioSolicitudes: true, fechaFinSolicitudes: true,
             duracionReunion: true, tiempoEntreReuniones: true,
             horariosReunionJson: true,
           },
