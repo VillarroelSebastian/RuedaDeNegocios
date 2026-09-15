@@ -23,6 +23,19 @@ function fechaISO(iso: string) {
   const d = new Date(iso);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
+function estadoInfo(estado: string | undefined) {
+  if (estado === 'OCUPADO') return { color: '#dc2626', bg: '#fef2f2', border: '#fca5a5', label: 'Una de las empresas ya tiene otra reunión confirmada a esta hora.' };
+  if (estado === 'PENDIENTE') return { color: '#d97706', bg: '#fffbeb', border: '#fde68a', label: 'Hay una solicitud pendiente que se cruza con este horario.' };
+  return { color: '#166534', bg: '#f0fdf4', border: '#bbf7d0', label: 'Disponible para ambas empresas.' };
+}
+function rangosDia(dias: any[], fecha: string | null) {
+  if (!fecha) return null;
+  const dia = dias.find((d: any) => d.fecha === fecha);
+  if (!dia) return 'Sin datos declarados';
+  if (dia.habilitado === false) return 'No declaró disponibilidad este día';
+  if (!Array.isArray(dia.rangos) || dia.rangos.length === 0) return 'Todo el día';
+  return dia.rangos.map((r: any) => `${r.desde}–${r.hasta}`).join(', ');
+}
 
 export default function TecnicoAgendarScreen() {
   const navigation = useNavigation<any>();
@@ -43,10 +56,19 @@ export default function TecnicoAgendarScreen() {
   const [fechaSel, setFechaSel] = useState<string | null>(null);
   const [horaSel, setHoraSel] = useState<number | null>(null);
   const [minutosStr, setMinutosStr] = useState('');
+  // Horarios que cada empresa declaró como su disponibilidad preferida — solo
+  // de referencia, no restringen las fechas/horas que el técnico puede elegir.
+  const [diasEmpA, setDiasEmpA] = useState<any[]>([]);
+  const [diasEmpB, setDiasEmpB] = useState<any[]>([]);
 
+  // Mesa (solo presencial) — se elige ANTES del horario porque la única razón
+  // real por la que una hora no estaría disponible es que esa mesa ya tenga
+  // otra reunión a esa hora (considerando duración + tiempo de limpieza).
   const [mesas, setMesas] = useState<any[]>([]);
-  const [mesa, setMesa] = useState<number | null>(null);
+  const [mesa, setMesa] = useState<number | null>(null); // null = "Automática"
   const [cargandoM, setCargandoM] = useState(false);
+  const [ocupacionMesa, setOcupacionMesa] = useState<{ inicio: string; fin: string }[]>([]);
+  const [cargandoOcup, setCargandoOcup] = useState(false);
 
   const [enlace, setEnlace] = useState('');
   const [mensaje, setMensaje] = useState('');
@@ -90,12 +112,23 @@ export default function TecnicoAgendarScreen() {
     if (!empA || !empB) return;
     setCargandoH(true);
     setHorarios([]); setFechaSel(null); setHoraSel(null); setMinutosStr('');
-    fetch(`${API_URL}/tecnico/horarios?eeId=${empA.eeId}&eeReceptoraId=${empB.eeId}`)
-      .then((r) => r.json())
-      .then((data) => {
-        const hrs: any[] = Array.isArray(data?.horarios) ? data.horarios : [];
+    Promise.all([
+      fetch(`${API_URL}/tecnico/horarios?eeId=${empA.eeId}&eeReceptoraId=${empB.eeId}`).then((r) => r.json()),
+      fetch(`${API_URL}/empresa/horarios-empresa/dias?eeId=${empA.eeId}`).then((r) => r.json()).catch(() => null),
+      fetch(`${API_URL}/empresa/horarios-empresa/dias?eeId=${empB.eeId}`).then((r) => r.json()).catch(() => null),
+    ])
+      .then(([data, diasA, diasB]) => {
+        // Se usan TODAS las franjas configuradas del evento (agenda), no solo
+        // el cruce en que ambas empresas están libres: el técnico/admin puede
+        // agendar a cualquier hora/fecha del evento; el estado de cada franja
+        // (disponible, ocupada, pendiente) queda solo como referencia visual.
+        const hrs: any[] = Array.isArray(data?.agenda)
+          ? data.agenda.filter((h: any) => h.estado !== 'PASADO')
+          : Array.isArray(data?.horarios) ? data.horarios : [];
         setHorarios(hrs);
         setDuracionMin(data?.duracionMinutos ?? 0);
+        setDiasEmpA(Array.isArray(diasA?.dias) ? diasA.dias : []);
+        setDiasEmpB(Array.isArray(diasB?.dias) ? diasB.dias : []);
         const fechas = [...new Set(hrs.map((h: any) => fechaISO(h.inicio)))].sort() as string[];
         const hoy = fechaISO(new Date().toISOString());
         const f = fechas.find((x) => x >= hoy) ?? fechas[0] ?? null;
@@ -116,15 +149,35 @@ export default function TecnicoAgendarScreen() {
       .finally(() => setCargandoH(false));
   }, [empA, empB]);
 
-  const cargarMesas = (h: any) => {
+  const cargarMesas = () => {
     setCargandoM(true);
     setMesas([]); setMesa(null);
-    fetch(`${API_URL}/tecnico/mesas-disponibles?inicio=${encodeURIComponent(h.inicio)}&fin=${encodeURIComponent(h.fin)}`)
+    fetch(`${API_URL}/tecnico/mesas`)
       .then((r) => r.json())
-      .then((d) => setMesas(Array.isArray(d) ? d : []))
+      .then((d) => setMesas(Array.isArray(d?.mesas) ? d.mesas : []))
       .catch(() => {})
       .finally(() => setCargandoM(false));
   };
+
+  // Ocupación real de la mesa elegida en la fecha elegida (ya incluye el
+  // tiempo de limpieza configurado). Es la única restricción dura del paso 3.
+  useEffect(() => {
+    if (tipo !== 'PRESENCIAL' || mesa === null || !fechaSel) { setOcupacionMesa([]); return; }
+    setCargandoOcup(true);
+    fetch(`${API_URL}/tecnico/mesas/${mesa}/ocupacion?fecha=${fechaSel}`)
+      .then((r) => r.json())
+      .then((d) => setOcupacionMesa(Array.isArray(d?.ocupado) ? d.ocupado : []))
+      .catch(() => setOcupacionMesa([]))
+      .finally(() => setCargandoOcup(false));
+  }, [tipo, mesa, fechaSel]);
+
+  const slotBloqueadoPorMesa = useCallback((h: any) => {
+    if (tipo !== 'PRESENCIAL' || mesa === null) return false;
+    const ini = new Date(h.inicio).getTime();
+    const fin = new Date(h.fin).getTime();
+    return ocupacionMesa.some((o) => new Date(o.inicio).getTime() < fin && new Date(o.fin).getTime() > ini);
+  }, [tipo, mesa, ocupacionMesa]);
+  const horarioBloqueado = horario ? slotBloqueadoPorMesa(horario) : false;
 
   const crear = async () => {
     if (!empA || !empB || !horario) return;
@@ -153,7 +206,8 @@ export default function TecnicoAgendarScreen() {
     setExito(''); setErr(''); setPaso(1);
     setEmpA(null); setEmpB(null); setTipo('PRESENCIAL');
     setHorarios([]); setFechaSel(null); setHoraSel(null); setMinutosStr('');
-    setMesas([]); setMesa(null); setEnlace(''); setMensaje('');
+    setDiasEmpA([]); setDiasEmpB([]);
+    setMesas([]); setMesa(null); setOcupacionMesa([]); setEnlace(''); setMensaje('');
   };
 
   const filtradas = empresas.filter(
@@ -162,7 +216,7 @@ export default function TecnicoAgendarScreen() {
       [e.nombre, e.rubro, e.codigo].some((v) => v && String(v).toLowerCase().includes(busqueda.toLowerCase()))
   );
 
-  const pasoLabels = ['Empresas', 'Modalidad', 'Horario', tipo === 'PRESENCIAL' ? 'Mesa y confirmar' : 'Confirmar'];
+  const pasoLabels = ['Empresas', 'Modalidad', tipo === 'PRESENCIAL' ? 'Mesa y horario' : 'Horario', 'Confirmar'];
 
   return (
     <SafeAreaView style={s.root} edges={['top']}>
@@ -329,13 +383,13 @@ export default function TecnicoAgendarScreen() {
                 {tipo === t && <Check size={18} color="#fff" />}
               </TouchableOpacity>
             ))}
-            <TouchableOpacity style={[s.btnPrimary, { marginTop: 12 }]} onPress={() => { setPaso(3); cargarHorarios(); }} activeOpacity={0.8}>
-              <Text style={s.btnText}>Siguiente: Elegir horario</Text>
+            <TouchableOpacity style={[s.btnPrimary, { marginTop: 12 }]} onPress={() => { setPaso(3); cargarHorarios(); if (tipo === 'PRESENCIAL') cargarMesas(); }} activeOpacity={0.8}>
+              <Text style={s.btnText}>Siguiente: {tipo === 'PRESENCIAL' ? 'Elegir mesa y horario' : 'Elegir horario'}</Text>
             </TouchableOpacity>
           </>
         )}
 
-        {/* ── Paso 3: horario ── */}
+        {/* ── Paso 3: mesa (presencial) + horario ── */}
         {paso === 3 && (
           <>
             <TouchableOpacity style={s.backBtn} onPress={() => setPaso(2)} activeOpacity={0.7}>
@@ -343,19 +397,54 @@ export default function TecnicoAgendarScreen() {
               <Text style={s.backText}>Atrás</Text>
             </TouchableOpacity>
 
+            {tipo === 'PRESENCIAL' && (
+              <View style={{ marginBottom: 14 }}>
+                <Text style={s.pickerLabel}>Mesa</Text>
+                <Text style={{ fontSize: 11, color: '#94a3b8', marginBottom: 8, lineHeight: 16 }}>
+                  Elige la mesa primero: así se marcan en rojo las horas en que esa mesa ya está ocupada.
+                </Text>
+                {cargandoM ? (
+                  <ActivityIndicator color={GREEN} size="small" style={{ marginBottom: 8 }} />
+                ) : (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }}>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <TouchableOpacity onPress={() => setMesa(null)}
+                        style={[s.chip, mesa === null && s.chipActive]} activeOpacity={0.8}>
+                        <Text style={[s.chipText, mesa === null && s.chipTextActive]}>Automática</Text>
+                      </TouchableOpacity>
+                      {mesas.map((m: any) => (
+                        <TouchableOpacity key={m.id} onPress={() => setMesa(m.id)}
+                          style={[s.chip, mesa === m.id && s.chipActive]} activeOpacity={0.8}>
+                          <Text style={[s.chipText, mesa === m.id && s.chipTextActive]}>Mesa {m.numeroMesa}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </ScrollView>
+                )}
+                {mesa !== null && cargandoOcup && (
+                  <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>Consultando ocupación de la mesa...</Text>
+                )}
+              </View>
+            )}
+
             {cargandoH ? (
               <View style={{ alignItems: 'center', paddingVertical: 28, gap: 10 }}>
                 <ActivityIndicator color={GREEN} size="small" />
                 <Text style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center' }}>
-                  Buscando horarios en que ambas empresas están libres...
+                  Cargando las franjas horarias del evento...
                 </Text>
               </View>
             ) : horarios.length === 0 ? (
               <View style={s.warnCard}>
-                <Text style={s.warnText}>No hay horarios en que ambas empresas estén disponibles.</Text>
+                <Text style={s.warnText}>El evento no tiene franjas de reuniones configuradas.</Text>
               </View>
             ) : (
               <>
+                <Text style={{ fontSize: 12, color: '#94a3b8', marginBottom: 10, lineHeight: 17 }}>
+                  {tipo === 'PRESENCIAL'
+                    ? 'Puedes elegir cualquier fecha y hora del evento; solo se bloquean los horarios en que la mesa elegida ya está ocupada.'
+                    : 'Puedes elegir cualquier fecha y hora dentro de lo configurado para el evento.'}
+                </Text>
                 {duracionMin > 0 && (
                   <View style={s.durBanner}><Text style={s.durText}>Las reuniones duran {duracionMin} minutos</Text></View>
                 )}
@@ -400,10 +489,12 @@ export default function TecnicoAgendarScreen() {
                       <View style={{ flexDirection: 'row', gap: 8 }}>
                         {minutosParaHora.map((m: number) => {
                           const mStr = String(m).padStart(2, '0');
+                          const slot = horariosDelDia.find((h: any) => new Date(h.inicio).getHours() === horaSel && new Date(h.inicio).getMinutes() === m);
+                          const bloqueado = slot ? slotBloqueadoPorMesa(slot) : false;
                           return (
-                            <TouchableOpacity key={m} onPress={() => setMinutosStr(mStr)}
-                              style={[s.chip, minutosStr === mStr && s.chipActive]} activeOpacity={0.8}>
-                              <Text style={[s.chipText, minutosStr === mStr && s.chipTextActive]}>:{mStr}</Text>
+                            <TouchableOpacity key={m} onPress={() => !bloqueado && setMinutosStr(mStr)} disabled={bloqueado}
+                              style={[s.chip, minutosStr === mStr && s.chipActive, bloqueado && s.chipBloqueado]} activeOpacity={0.8}>
+                              <Text style={[s.chipText, minutosStr === mStr && s.chipTextActive, bloqueado && s.chipTextBloqueado]}>:{mStr}</Text>
                             </TouchableOpacity>
                           );
                         })}
@@ -412,27 +503,50 @@ export default function TecnicoAgendarScreen() {
                   </>
                 )}
 
-                {horario && (
-                  <View style={s.okBox}>
-                    <CheckCircle2 size={13} color={GREEN} style={{ marginRight: 6 }} />
-                    <Text style={s.okText}>Ambas empresas libres: {fmtSoloFecha(fechaISO(horario.inicio))} a las {fmtTime(horario.inicio)}</Text>
+                {/* Referencia: horarios que cada empresa declaró (no restringe la elección) */}
+                {fechaSel && (
+                  <View style={s.refBox}>
+                    <Text style={s.refTitle}>Horarios declarados por las empresas (solo referencia)</Text>
+                    <Text style={s.refLinea}><Text style={{ fontWeight: '800' }}>{empA?.nombre}:</Text> {rangosDia(diasEmpA, fechaSel)}</Text>
+                    <Text style={s.refLinea}><Text style={{ fontWeight: '800' }}>{empB?.nombre}:</Text> {rangosDia(diasEmpB, fechaSel)}</Text>
                   </View>
                 )}
+
+                {horario && horarioBloqueado && (
+                  <View style={[s.okBox, { backgroundColor: '#fef2f2', borderColor: '#fca5a5' }]}>
+                    <AlertCircle size={13} color="#dc2626" style={{ marginRight: 6 }} />
+                    <Text style={[s.okText, { color: '#dc2626' }]}>
+                      Esa mesa ya tiene otra reunión a esa hora (con el tiempo de limpieza incluido). Elige otro horario u otra mesa.
+                    </Text>
+                  </View>
+                )}
+
+                {horario && !horarioBloqueado && (() => {
+                  const info = estadoInfo(horario.estado);
+                  return (
+                    <View style={[s.okBox, { backgroundColor: info.bg, borderColor: info.border }]}>
+                      <CheckCircle2 size={13} color={info.color} style={{ marginRight: 6 }} />
+                      <Text style={[s.okText, { color: info.color }]}>
+                        {fmtSoloFecha(fechaISO(horario.inicio))} a las {fmtTime(horario.inicio)} — {info.label}
+                      </Text>
+                    </View>
+                  );
+                })()}
               </>
             )}
 
             <TouchableOpacity
-              style={[s.btnPrimary, { marginTop: 12 }, !horario && { opacity: 0.4 }]}
-              onPress={() => { if (horario) { setPaso(4); if (tipo === 'PRESENCIAL') cargarMesas(horario); } }}
-              disabled={!horario}
+              style={[s.btnPrimary, { marginTop: 12 }, (!horario || horarioBloqueado) && { opacity: 0.4 }]}
+              onPress={() => { if (horario && !horarioBloqueado) setPaso(4); }}
+              disabled={!horario || horarioBloqueado}
               activeOpacity={0.8}
             >
-              <Text style={s.btnText}>Siguiente: {tipo === 'PRESENCIAL' ? 'Elegir mesa' : 'Confirmar'}</Text>
+              <Text style={s.btnText}>Siguiente: Confirmar</Text>
             </TouchableOpacity>
           </>
         )}
 
-        {/* ── Paso 4: mesa + confirmar ── */}
+        {/* ── Paso 4: confirmar ── */}
         {paso === 4 && (
           <>
             <TouchableOpacity style={s.backBtn} onPress={() => setPaso(3)} activeOpacity={0.7}>
@@ -444,33 +558,15 @@ export default function TecnicoAgendarScreen() {
             <View style={s.card}>
               <Text style={s.cardLabel}>Resumen</Text>
               <Text style={s.resumenLinea}><Text style={{ fontWeight: '800' }}>{empA?.nombre}</Text> con <Text style={{ fontWeight: '800' }}>{empB?.nombre}</Text></Text>
-              <Text style={s.resumenLinea}>{tipo === 'PRESENCIAL' ? 'Presencial' : 'Virtual'}</Text>
+              <Text style={s.resumenLinea}>
+                {tipo === 'PRESENCIAL'
+                  ? `Presencial · ${mesa !== null ? `Mesa ${mesas.find((m: any) => m.id === mesa)?.numeroMesa ?? ''}` : 'mesa automática'}`
+                  : 'Virtual'}
+              </Text>
               {horario && (
                 <Text style={s.resumenLinea}>{fmtSoloFecha(fechaISO(horario.inicio))} · {fmtTime(horario.inicio)} – {fmtTime(horario.fin)}</Text>
               )}
             </View>
-
-            {tipo === 'PRESENCIAL' && (
-              <View style={s.card}>
-                <Text style={s.cardLabel}>Mesa (opcional — si no eliges, se asigna automáticamente)</Text>
-                {cargandoM ? (
-                  <ActivityIndicator style={{ marginVertical: 10 }} color={GREEN} size="small" />
-                ) : (
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                    <TouchableOpacity onPress={() => setMesa(null)}
-                      style={[s.chip, mesa === null && s.chipActive]} activeOpacity={0.8}>
-                      <Text style={[s.chipText, mesa === null && s.chipTextActive]}>Automática</Text>
-                    </TouchableOpacity>
-                    {mesas.map((m: any) => (
-                      <TouchableOpacity key={m.id} onPress={() => setMesa(m.id)}
-                        style={[s.chip, mesa === m.id && s.chipActive]} activeOpacity={0.8}>
-                        <Text style={[s.chipText, mesa === m.id && s.chipTextActive]}>Mesa {m.numeroMesa}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-              </View>
-            )}
 
             {tipo === 'VIRTUAL' && (
               <View style={s.card}>
@@ -590,12 +686,20 @@ const s = StyleSheet.create({
   chipActive: { borderColor: GREEN, backgroundColor: '#f0fdf4' },
   chipText: { fontSize: 14, fontWeight: '700', color: '#475569' },
   chipTextActive: { color: '#166534' },
+  chipBloqueado: { borderColor: '#fca5a5', backgroundColor: '#fef2f2' },
+  chipTextBloqueado: { color: '#dc2626', textDecorationLine: 'line-through' },
   okBox: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: '#f0fdf4', borderRadius: 10, padding: 10,
     borderWidth: 1, borderColor: '#bbf7d0',
   },
   okText: { fontSize: 12, color: '#166534', fontWeight: '600', flex: 1 },
+  refBox: {
+    backgroundColor: '#f8fafc', borderRadius: 10, padding: 10, marginBottom: 10,
+    borderWidth: 1, borderColor: '#e2e8f0',
+  },
+  refTitle: { fontSize: 10, fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 6 },
+  refLinea: { fontSize: 12, color: '#475569', marginBottom: 2 },
 
   resumenLinea: { fontSize: 13, color: '#374151', marginBottom: 4 },
 

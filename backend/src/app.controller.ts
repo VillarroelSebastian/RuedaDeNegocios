@@ -4563,8 +4563,8 @@ export class AppController implements OnModuleInit {
     const iniDate = new Date(inicio);
     const finDate = new Date(iniDate.getTime() + evento.duracionReunion * 60000);
     if (Number.isNaN(iniDate.getTime()) || iniDate <= new Date() ||
-        !this.horarioDentroDe(this.generarFranjas(evento), iniDate, finDate))
-      throw new BadRequestException('El horario debe ser futuro y pertenecer a una franja de reuniones del evento.');
+        !this.horarioDentroDe(this.generarCandidatosInicioTecnico(evento), iniDate, finDate))
+      throw new BadRequestException('El horario debe ser futuro y pertenecer a un día configurado del evento.');
     const tipoNormalizado = String(tipo).toUpperCase();
     if (!['PRESENCIAL', 'VIRTUAL'].includes(tipoNormalizado))
       throw new BadRequestException('El tipo de reunión debe ser PRESENCIAL o VIRTUAL');
@@ -4946,15 +4946,17 @@ export class AppController implements OnModuleInit {
   }
 
   // Jornada operativa especial para el equipo técnico: puede crear reuniones
-  // desde las 08:00 hasta las 00:00 de Bolivia, aunque las empresas hayan
-  // declarado otros rangos. La última hora de inicio debe permitir que la
-  // reunión termine antes o exactamente a medianoche.
+  // a cualquier hora del día de Bolivia (00:00–24:00, cada 5 minutos), aunque
+  // las empresas hayan declarado otros rangos. La única disponibilidad real
+  // que se respeta es la de la mesa (ver /tecnico/mesas/:id/ocupacion). La
+  // última hora de inicio debe permitir que la reunión termine antes o
+  // exactamente a medianoche.
   private generarCandidatosInicioTecnico(evento: any): { inicio: Date; fin: Date }[] {
     const PASO_MS = 5 * 60000;
     const durMs = evento.duracionReunion * 60000;
     const slots: { inicio: Date; fin: Date }[] = [];
     for (const fecha of this.fechasReunionesEvento(evento)) {
-      const start = this.fechaHoraBolivia(fecha, 8, 0);
+      const start = this.fechaHoraBolivia(fecha, 0, 0);
       const end = this.fechaHoraBolivia(fecha, 24, 0);
       for (let current = start; current.getTime() + durMs <= end.getTime(); current = new Date(current.getTime() + PASO_MS)) {
         slots.push({ inicio: new Date(current), fin: new Date(current.getTime() + durMs) });
@@ -6402,7 +6404,7 @@ export class AppController implements OnModuleInit {
     @Query('eeId') eeId: string,
     @Query('eeReceptoraId') eeReceptoraId: string,
   ) {
-    return this.getHorariosDisponibles(eeId, eeReceptoraId, undefined, undefined, true, false);
+    return this.getHorariosDisponibles(eeId, eeReceptoraId, undefined, undefined, true, true);
   }
 
   @Get('empresa/mesas-disponibles')
@@ -6476,6 +6478,55 @@ export class AppController implements OnModuleInit {
     @Query('fin') fin: string,
   ) {
     return this.getMesasDisponiblesEmpresa(inicio, fin);
+  }
+
+  // Ventanas ocupadas de UNA mesa en UNA fecha (reuniones confirmadas +
+  // solicitudes pendientes), ya con el tiempo de limpieza (tiempoEntreReuniones)
+  // aplicado a cada lado. Es la única restricción real que el técnico debe
+  // respetar al agendar: puede elegir cualquier hora del día, salvo que choque
+  // con una de estas ventanas en la mesa elegida.
+  @Get('tecnico/mesas/:id/ocupacion')
+  async getOcupacionMesaTecnico(
+    @Param('id') id: string,
+    @Query('fecha') fecha: string,
+  ) {
+    if (!fecha) throw new BadRequestException('fecha requerida (YYYY-MM-DD)');
+    const eventoId = await this.getPrincipalEventoId();
+    if (!eventoId) return { ocupado: [] };
+    const evento = await this.prisma.evento.findUnique({
+      where: { id: eventoId },
+      select: { tiempoEntreReuniones: true },
+    });
+    const inicioDia = this.fechaHoraBolivia(fecha, 0, 0);
+    const finDia = this.fechaHoraBolivia(fecha, 24, 0);
+    const bufMs = (evento?.tiempoEntreReuniones ?? 0) * 60000;
+    const [reuniones, pendientes] = await Promise.all([
+      this.prisma.reunion.findMany({
+        where: {
+          mesa_id: Number(id), estaActivo: 1, estadoReunion: { not: 'CANCELADA' },
+          fechaHoraInicioReunion: { lt: finDia }, fechaHoraFinReunion: { gt: inicioDia },
+        },
+        select: { fechaHoraInicioReunion: true, fechaHoraFinReunion: true },
+      }),
+      this.prisma.solicitudreunion.findMany({
+        where: {
+          mesa_id: Number(id), estaActivo: 1, estadoSolicitud: 'PENDIENTE', tipoReunion: 'PRESENCIAL',
+          fechaHoraInicioPropuesta: { lt: finDia }, fechaHoraFinPropuesta: { gt: inicioDia },
+        },
+        select: { fechaHoraInicioPropuesta: true, fechaHoraFinPropuesta: true },
+      }),
+    ]);
+    const ocupado = [
+      ...reuniones.map((r) => ({
+        inicio: new Date(r.fechaHoraInicioReunion.getTime() - bufMs),
+        fin: new Date(r.fechaHoraFinReunion.getTime() + bufMs),
+      })),
+      ...pendientes.map((s) => ({
+        inicio: new Date(s.fechaHoraInicioPropuesta.getTime() - bufMs),
+        fin: new Date(s.fechaHoraFinPropuesta.getTime() + bufMs),
+      })),
+    ];
+    return { ocupado: ocupado.map((o) => ({ inicio: o.inicio.toISOString(), fin: o.fin.toISOString() })) };
   }
 
   // ── Horarios disponibles (blocklist) ──────────────────────────────────────

@@ -23,6 +23,7 @@ export interface ModalConfig {
 interface AppModalProps extends ModalConfig {
   visible: boolean;
   onClose: () => void;
+  generation: number;
 }
 
 // ─── Config visual por tipo ───────────────────────────────────────────────────
@@ -73,13 +74,20 @@ const TYPE_CONFIG: Record<ModalType, {
 // ─── Componente ───────────────────────────────────────────────────────────────
 export function AppModal({
   visible, type, title, message,
-  confirmText, cancelText, onConfirm, onCancel, confirmColor, waitForConfirm = false, onClose,
+  confirmText, cancelText, onConfirm, onCancel, confirmColor, waitForConfirm = false, onClose, generation,
 }: AppModalProps) {
   const cfg   = TYPE_CONFIG[type];
   const Icon  = cfg.icon;
   const scale = useRef(new Animated.Value(0.85)).current;
   const opacity = useRef(new Animated.Value(0)).current;
   const [confirming, setConfirming] = useState(false);
+
+  // Se actualiza en cada render (no en un efecto) para poder comparar,
+  // justo después de esperar a onConfirm, si mientras tanto se abrió
+  // otro modal encadenado (p. ej. un "¡Listo!" disparado desde el propio
+  // onConfirm) y así evitar cerrar por encima de ese modal nuevo.
+  const genRef = useRef(generation);
+  genRef.current = generation;
 
   useEffect(() => {
     if (visible) {
@@ -98,16 +106,15 @@ export function AppModal({
   useEffect(() => { setConfirming(false); }, [visible, type, title]);
 
   const handleConfirm = async () => {
-    if (!waitForConfirm) {
-      onClose();
-      onConfirm?.();
-      return;
-    }
-    setConfirming(true);
+    const startGen = genRef.current;
+    if (waitForConfirm) setConfirming(true);
     try {
       await onConfirm?.();
     } finally {
       setConfirming(false);
+      // Solo autocerrar si nadie más (dentro de onConfirm) ya mostró
+      // un modal nuevo; si lo hizo, generation cambió y lo dejamos como está.
+      if (genRef.current === startGen) onClose();
     }
   };
   const handleCancel  = () => { onClose(); onCancel?.();  };
@@ -165,9 +172,15 @@ export function useModal() {
     title: '',
     message: '',
   });
+  const generationRef = useRef(0);
+  const [generation, setGeneration] = useState(0);
 
-  const show = (config: ModalConfig) => setState({ visible: true, ...config });
-  const hide = ()                      => setState(prev => ({ ...prev, visible: false }));
+  const show = (config: ModalConfig) => {
+    generationRef.current += 1;
+    setGeneration(generationRef.current);
+    setState({ visible: true, ...config });
+  };
+  const hide = () => setState(prev => ({ ...prev, visible: false }));
 
   const modal = (
     <AppModal
@@ -182,6 +195,7 @@ export function useModal() {
       confirmColor={state.confirmColor}
       waitForConfirm={state.waitForConfirm}
       onClose={hide}
+      generation={generation}
     />
   );
 

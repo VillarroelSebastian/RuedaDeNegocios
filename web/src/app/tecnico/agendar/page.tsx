@@ -20,6 +20,19 @@ function fechaISO(iso: string) {
   const d = new Date(iso);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
+function estadoInfo(estado: string | undefined) {
+  if (estado === "OCUPADO") return { text: "text-red-700", bg: "bg-red-50", border: "border-red-200", label: "Una de las empresas ya tiene otra reunión confirmada a esta hora." };
+  if (estado === "PENDIENTE") return { text: "text-amber-700", bg: "bg-amber-50", border: "border-amber-200", label: "Hay una solicitud pendiente que se cruza con este horario." };
+  return { text: "text-green-700", bg: "bg-green-50", border: "border-green-100", label: "Disponible para ambas empresas." };
+}
+function rangosDia(dias: any[], fecha: string) {
+  if (!fecha) return null;
+  const dia = dias.find((d: any) => d.fecha === fecha);
+  if (!dia) return "Sin datos declarados";
+  if (dia.habilitado === false) return "No declaró disponibilidad este día";
+  if (!Array.isArray(dia.rangos) || dia.rangos.length === 0) return "Todo el día";
+  return dia.rangos.map((r: any) => `${r.desde}–${r.hasta}`).join(", ");
+}
 
 // Selector de empresa con buscador — usado para elegir Empresa A y Empresa B
 function SelectorEmpresa({ titulo, empresas, seleccionada, excluirEeId, onSelect }: {
@@ -104,11 +117,19 @@ export default function TecnicoAgendarPage() {
   const [fechaSelec, setFechaSelec] = useState("");
   const [horaSelec, setHoraSelec] = useState("");
   const [minutosStr, setMinutosStr] = useState("");
+  // Horarios que cada empresa declaró como su disponibilidad preferida — solo
+  // de referencia, no restringen las fechas/horas que el técnico puede elegir.
+  const [diasEmpA, setDiasEmpA] = useState<any[]>([]);
+  const [diasEmpB, setDiasEmpB] = useState<any[]>([]);
 
-  // Mesa
+  // Mesa (solo presencial) — se elige ANTES del horario porque la única razón
+  // real por la que una hora no estaría disponible es que esa mesa ya tenga
+  // otra reunión a esa hora (considerando duración + tiempo de limpieza).
   const [mesas, setMesas] = useState<any[]>([]);
-  const [mesa, setMesa] = useState<number | null>(null);
+  const [mesa, setMesa] = useState<number | null>(null); // null = "Automática"
   const [cargandoM, setCargandoM] = useState(false);
+  const [ocupacionMesa, setOcupacionMesa] = useState<{ inicio: string; fin: string }[]>([]);
+  const [cargandoOcup, setCargandoOcup] = useState(false);
 
   const [enlace, setEnlace] = useState("");
   const [mensaje, setMensaje] = useState("");
@@ -147,6 +168,14 @@ export default function TecnicoAgendarPage() {
     }) ?? null;
   }, [horariosDelDia, horaSelec, minutosStr]);
 
+  const slotBloqueadoPorMesa = (h: any) => {
+    if (tipo !== "PRESENCIAL" || mesa === null) return false;
+    const ini = new Date(h.inicio).getTime();
+    const fin = new Date(h.fin).getTime();
+    return ocupacionMesa.some((o) => new Date(o.inicio).getTime() < fin && new Date(o.fin).getTime() > ini);
+  };
+  const horarioBloqueado = horario ? slotBloqueadoPorMesa(horario) : false;
+
   useEffect(() => {
     setMinutosStr(minutosParaHora.length > 0 ? String(minutosParaHora[0]).padStart(2, "0") : "");
   }, [horaSelec, minutosParaHora]);
@@ -161,12 +190,23 @@ export default function TecnicoAgendarPage() {
     if (!empA || !empB) return;
     setCargandoH(true);
     setHorarios([]); setFechaSelec(""); setHoraSelec(""); setMinutosStr("");
-    fetch(`${API}/tecnico/horarios?eeId=${empA.eeId}&eeReceptoraId=${empB.eeId}`)
-      .then((r) => r.json())
-      .then((data) => {
-        const hrs: any[] = Array.isArray(data?.horarios) ? data.horarios : [];
+    Promise.all([
+      fetch(`${API}/tecnico/horarios?eeId=${empA.eeId}&eeReceptoraId=${empB.eeId}`).then((r) => r.json()),
+      fetch(`${API}/empresa/horarios-empresa/dias?eeId=${empA.eeId}`).then((r) => r.json()).catch(() => null),
+      fetch(`${API}/empresa/horarios-empresa/dias?eeId=${empB.eeId}`).then((r) => r.json()).catch(() => null),
+    ])
+      .then(([data, diasA, diasB]) => {
+        // Se usan TODAS las franjas configuradas del evento (agenda), no solo
+        // el cruce en que ambas empresas están libres: el técnico/admin puede
+        // agendar a cualquier hora/fecha del evento; el estado de cada franja
+        // (disponible, ocupada, pendiente) queda solo como referencia visual.
+        const hrs: any[] = Array.isArray(data?.agenda)
+          ? data.agenda.filter((h: any) => h.estado !== "PASADO")
+          : Array.isArray(data?.horarios) ? data.horarios : [];
         setHorarios(hrs);
         setDuracionMin(data?.duracionMinutos ?? 0);
+        setDiasEmpA(Array.isArray(diasA?.dias) ? diasA.dias : []);
+        setDiasEmpB(Array.isArray(diasB?.dias) ? diasB.dias : []);
         const fechas = [...new Set(hrs.map((h: any) => fechaISO(h.inicio)))].sort();
         const hoy = fechaISO(new Date().toISOString());
         setFechaSelec(fechas.find((f) => f >= hoy) ?? fechas[0] ?? "");
@@ -175,15 +215,27 @@ export default function TecnicoAgendarPage() {
       .finally(() => setCargandoH(false));
   };
 
-  const cargarMesas = (h: any) => {
+  const cargarMesas = () => {
     setCargandoM(true);
     setMesas([]); setMesa(null);
-    fetch(`${API}/tecnico/mesas-disponibles?inicio=${encodeURIComponent(h.inicio)}&fin=${encodeURIComponent(h.fin)}`)
+    fetch(`${API}/tecnico/mesas`)
       .then((r) => r.json())
-      .then((d) => setMesas(Array.isArray(d) ? d : []))
+      .then((d) => setMesas(Array.isArray(d?.mesas) ? d.mesas : []))
       .catch(() => {})
       .finally(() => setCargandoM(false));
   };
+
+  // Ocupación real de la mesa elegida en la fecha elegida (ya incluye el
+  // tiempo de limpieza configurado). Es la única restricción dura del paso 3.
+  useEffect(() => {
+    if (tipo !== "PRESENCIAL" || mesa === null || !fechaSelec) { setOcupacionMesa([]); return; }
+    setCargandoOcup(true);
+    fetch(`${API}/tecnico/mesas/${mesa}/ocupacion?fecha=${fechaSelec}`)
+      .then((r) => r.json())
+      .then((d) => setOcupacionMesa(Array.isArray(d?.ocupado) ? d.ocupado : []))
+      .catch(() => setOcupacionMesa([]))
+      .finally(() => setCargandoOcup(false));
+  }, [tipo, mesa, fechaSelec]);
 
   const crear = async () => {
     if (!empA || !empB || !horario) return;
@@ -212,14 +264,15 @@ export default function TecnicoAgendarPage() {
     setExito(null); setErr(null); setPaso(1);
     setEmpA(null); setEmpB(null); setTipo("PRESENCIAL");
     setHorarios([]); setFechaSelec(""); setHoraSelec(""); setMinutosStr("");
-    setMesas([]); setMesa(null); setEnlace(""); setMensaje("");
+    setDiasEmpA([]); setDiasEmpB([]);
+    setMesas([]); setMesa(null); setOcupacionMesa([]); setEnlace(""); setMensaje("");
   };
 
   const pasos = [
     { n: 1, label: "Empresas" },
     { n: 2, label: "Modalidad" },
-    { n: 3, label: "Horario" },
-    { n: 4, label: tipo === "PRESENCIAL" ? "Mesa y confirmar" : "Confirmar" },
+    { n: 3, label: tipo === "PRESENCIAL" ? "Mesa y horario" : "Horario" },
+    { n: 4, label: "Confirmar" },
   ];
 
   return (
@@ -318,32 +371,72 @@ export default function TecnicoAgendarPage() {
             ))}
           </div>
           <button
-            onClick={() => { setPaso(3); cargarHorarios(); }}
+            onClick={() => { setPaso(3); cargarHorarios(); if (tipo === "PRESENCIAL") cargarMesas(); }}
             className="w-full py-3 rounded-xl bg-[#449D3A] hover:bg-[#3a8531] text-white text-sm font-bold transition-colors"
           >
-            Siguiente: Elegir horario
+            Siguiente: {tipo === "PRESENCIAL" ? "Elegir mesa y horario" : "Elegir horario"}
           </button>
         </div>
       )}
 
-      {/* ── Paso 3: horario ── */}
+      {/* ── Paso 3: mesa (presencial) + horario ── */}
       {paso === 3 && (
         <div className="space-y-4">
           <button onClick={() => setPaso(2)} className="flex items-center gap-1 text-sm font-bold text-gray-500 hover:text-gray-700">
             <ChevronLeft className="w-4 h-4" />Atrás
           </button>
 
+          {tipo === "PRESENCIAL" && (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1 block">Mesa</label>
+              <p className="text-xs text-gray-400 mb-2">
+                Elige la mesa primero: así se marcan en rojo las horas en que esa mesa ya está ocupada.
+              </p>
+              {cargandoM ? (
+                <div className="flex items-center gap-2 text-sm text-gray-400 py-2">
+                  <div className="w-4 h-4 border-2 border-[#449D3A] border-t-transparent rounded-full animate-spin" />
+                  Cargando mesas...
+                </div>
+              ) : (
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  <button onClick={() => setMesa(null)}
+                    className={`shrink-0 px-3 py-2 rounded-xl border text-xs font-bold transition-all ${
+                      mesa === null ? "border-[#449D3A] bg-green-50 text-[#449D3A]" : "border-gray-200 text-gray-600 hover:border-green-300"
+                    }`}>
+                    Automática
+                  </button>
+                  {mesas.map((m: any) => (
+                    <button key={m.id} onClick={() => setMesa(m.id)}
+                      className={`shrink-0 px-3 py-2 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 ${
+                        mesa === m.id ? "border-[#449D3A] bg-green-50 text-[#449D3A]" : "border-gray-200 text-gray-600 hover:border-green-300"
+                      }`}>
+                      <Table2 className="w-3 h-3" />Mesa {m.numeroMesa}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {mesa !== null && cargandoOcup && (
+                <p className="text-[11px] text-gray-400 mt-2">Consultando ocupación de la mesa...</p>
+              )}
+            </div>
+          )}
+
           {cargandoH ? (
             <div className="flex items-center gap-2 text-sm text-gray-400 py-6 justify-center">
               <div className="w-4 h-4 border-2 border-[#449D3A] border-t-transparent rounded-full animate-spin" />
-              Buscando horarios en que ambas empresas están libres...
+              Cargando las franjas horarias del evento...
             </div>
           ) : horarios.length === 0 ? (
             <p className="text-sm text-amber-600 bg-amber-50 rounded-xl p-4">
-              No hay horarios en que ambas empresas estén disponibles. Prueba con otras empresas.
+              El evento no tiene franjas de reuniones configuradas.
             </p>
           ) : (
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+              <p className="text-xs text-gray-400 leading-relaxed">
+                {tipo === "PRESENCIAL"
+                  ? "Puedes elegir cualquier fecha y hora del evento; solo se bloquean los horarios en que la mesa elegida ya está ocupada."
+                  : "Puedes elegir cualquier fecha y hora dentro de lo configurado para el evento."}
+              </p>
               {duracionMin > 0 && (
                 <p className="text-xs text-[#449D3A] font-semibold bg-green-50 px-3 py-1.5 rounded-lg inline-block">
                   Las reuniones duran {duracionMin} minutos
@@ -361,52 +454,81 @@ export default function TecnicoAgendarPage() {
                 </select>
               </div>
               <div>
-                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2 block">Franja disponible</label>
+                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2 block">Hora</label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-72 overflow-y-auto pr-1">
                   {horariosDelDia.map((h: any) => {
                     const inicio = new Date(h.inicio);
                     const seleccionado = horario?.inicio === h.inicio;
+                    const bloqueado = slotBloqueadoPorMesa(h);
+                    const dotColor = h.estado === "OCUPADO" ? "bg-red-400" : h.estado === "PENDIENTE" ? "bg-amber-400" : "bg-green-400";
                     return (
                       <button
                         key={h.inicio}
                         type="button"
+                        disabled={bloqueado}
                         onClick={() => {
                           setHoraSelec(String(inicio.getHours()));
                           setMinutosStr(String(inicio.getMinutes()).padStart(2, "0"));
                         }}
                         className={`rounded-xl border px-3 py-3 text-left transition-all ${
-                          seleccionado
+                          bloqueado
+                            ? "border-red-200 bg-red-50 text-red-300 cursor-not-allowed line-through"
+                            : seleccionado
                             ? "border-[#449D3A] bg-green-50 text-green-800 ring-2 ring-green-100"
                             : "border-gray-200 bg-white text-gray-700 hover:border-green-300 hover:bg-green-50/40"
                         }`}
                       >
-                        <span className="block text-sm font-extrabold">{fmtTime(h.inicio)}</span>
+                        <span className="flex items-center gap-1.5 text-sm font-extrabold">
+                          {!bloqueado && <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />}
+                          {fmtTime(h.inicio)}
+                        </span>
                         <span className="block text-[11px] mt-0.5 opacity-70">hasta {fmtTime(h.fin)}</span>
                       </button>
                     );
                   })}
                 </div>
               </div>
-              {horario && (
-                <div className="flex items-center gap-2 bg-green-50 border border-green-100 rounded-xl p-2.5 text-xs text-green-700 font-semibold">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
-                  Ambas empresas libres: {fmtOnlyDate(horario.inicio)} a las {fmtTime(horario.inicio)}
+              {/* Referencia: horarios que cada empresa declaró (no restringe la elección) */}
+              {fechaSelec && (
+                <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs text-gray-600 space-y-1">
+                  <p className="font-extrabold text-gray-400 uppercase tracking-wider text-[10px] mb-1">
+                    Horarios declarados por las empresas (solo referencia)
+                  </p>
+                  <p><span className="font-bold">{empA?.nombre}:</span> {rangosDia(diasEmpA, fechaSelec)}</p>
+                  <p><span className="font-bold">{empB?.nombre}:</span> {rangosDia(diasEmpB, fechaSelec)}</p>
                 </div>
               )}
+
+              {horario && horarioBloqueado && (
+                <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl p-2.5 text-xs text-red-700 font-semibold">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  Esa mesa ya tiene otra reunión a esa hora (con el tiempo de limpieza incluido). Elige otro horario u otra mesa.
+                </div>
+              )}
+
+              {horario && !horarioBloqueado && (() => {
+                const info = estadoInfo(horario.estado);
+                return (
+                  <div className={`flex items-center gap-2 ${info.bg} border ${info.border} rounded-xl p-2.5 text-xs ${info.text} font-semibold`}>
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                    {fmtOnlyDate(horario.inicio)} a las {fmtTime(horario.inicio)} — {info.label}
+                  </div>
+                );
+              })()}
             </div>
           )}
 
           <button
-            onClick={() => { if (horario) { setPaso(4); if (tipo === "PRESENCIAL") cargarMesas(horario); } }}
-            disabled={!horario}
+            onClick={() => { if (horario && !horarioBloqueado) setPaso(4); }}
+            disabled={!horario || horarioBloqueado}
             className="w-full py-3 rounded-xl bg-[#449D3A] hover:bg-[#3a8531] text-white text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
-            Siguiente: {tipo === "PRESENCIAL" ? "Elegir mesa" : "Confirmar"}
+            Siguiente: Confirmar
           </button>
         </div>
       )}
 
-      {/* ── Paso 4: mesa (presencial) + confirmar ── */}
+      {/* ── Paso 4: confirmar ── */}
       {paso === 4 && (
         <div className="space-y-4">
           <button onClick={() => setPaso(3)} className="flex items-center gap-1 text-sm font-bold text-gray-500 hover:text-gray-700">
@@ -419,7 +541,11 @@ export default function TecnicoAgendarPage() {
             <div className="flex items-center gap-2 text-sm"><Building2 className="w-4 h-4 text-[#449D3A]" /><span className="font-bold">{empA?.nombre}</span><span className="text-gray-400">con</span><span className="font-bold">{empB?.nombre}</span></div>
             <div className="flex items-center gap-2 text-sm">
               {tipo === "PRESENCIAL" ? <Users className="w-4 h-4 text-blue-500" /> : <Monitor className="w-4 h-4 text-purple-500" />}
-              <span>{tipo === "PRESENCIAL" ? "Presencial" : "Virtual"}</span>
+              <span>
+                {tipo === "PRESENCIAL"
+                  ? `Presencial · ${mesa !== null ? `Mesa ${mesas.find((m: any) => m.id === mesa)?.numeroMesa ?? ""}` : "mesa automática"}`
+                  : "Virtual"}
+              </span>
             </div>
             {horario && (
               <div className="flex items-center gap-2 text-sm">
@@ -428,37 +554,6 @@ export default function TecnicoAgendarPage() {
               </div>
             )}
           </div>
-
-          {tipo === "PRESENCIAL" && (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2 block">
-                Mesa (opcional — si no eliges, se asigna automáticamente)
-              </label>
-              {cargandoM ? (
-                <div className="flex items-center gap-2 text-sm text-gray-400 py-2">
-                  <div className="w-4 h-4 border-2 border-[#449D3A] border-t-transparent rounded-full animate-spin" />
-                  Verificando mesas...
-                </div>
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  <button onClick={() => setMesa(null)}
-                    className={`px-3 py-2 rounded-xl border text-xs font-bold transition-all ${
-                      mesa === null ? "border-[#449D3A] bg-green-50 text-[#449D3A]" : "border-gray-200 text-gray-600 hover:border-green-300"
-                    }`}>
-                    Automática
-                  </button>
-                  {mesas.map((m: any) => (
-                    <button key={m.id} onClick={() => setMesa(m.id)}
-                      className={`px-3 py-2 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 ${
-                        mesa === m.id ? "border-[#449D3A] bg-green-50 text-[#449D3A]" : "border-gray-200 text-gray-600 hover:border-green-300"
-                      }`}>
-                      <Table2 className="w-3 h-3" />Mesa {m.numeroMesa}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
 
           {tipo === "VIRTUAL" && (
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
