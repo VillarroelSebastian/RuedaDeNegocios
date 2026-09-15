@@ -4,8 +4,9 @@ import {
   ActivityIndicator, RefreshControl, Modal
 } from 'react-native';
 import { useModal } from '../../components/AppModal';
-import { Plus, Clock, X } from 'lucide-react-native';
+import { Plus, Clock, X, Radio } from 'lucide-react-native';
 import { API_URL } from '../../utils/userStore';
+import CronogramaVivo from '../../components/CronogramaVivo';
 
 const GREEN = '#449D3A';
 
@@ -30,7 +31,7 @@ const defaultForm = {
   estadoActividad: 'Activo',
 };
 
-export default function ActividadesScreen() {
+export default function ActividadesScreen({ mostrarCronograma = true }: { mostrarCronograma?: boolean }) {
   const { show, modal } = useModal();
   const [actividades, setActividades] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -101,21 +102,6 @@ export default function ActividadesScreen() {
 
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
-  const cambiarEstadoEnVivo = async (id: number, estadoEnVivo: string) => {
-    try {
-      const res = await fetch(`${API_URL}/staff/cronograma-vivo/${id}`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ estadoEnVivo }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || 'No se pudo actualizar');
-      await fetchActividades();
-      show({ type: 'success', title: 'Cronograma actualizado', message: `La actividad ahora está ${estadoEnVivo === 'EN_VIVO' ? 'en vivo' : estadoEnVivo.toLowerCase()}.` });
-    } catch (e: any) {
-      show({ type: 'error', title: 'No se pudo actualizar', message: e.message });
-    }
-  };
-
   const tipoBadgeColor = (tipo: string) => {
     const map: Record<string, string> = { Seminario: '#7c3aed', Taller: '#2563eb', Actividad: GREEN, Conferencia: '#ea580c', Panel: '#db2777' };
     return map[tipo] || '#6b7280';
@@ -125,22 +111,43 @@ export default function ActividadesScreen() {
     <>
     {modal}
     <View className="flex-1 bg-[#F9FAFB]">
-      <View className="bg-white px-4 pt-4 pb-4 border-b border-gray-100 flex-row items-center justify-between">
-        <Text className="text-lg font-bold text-gray-900">Actividades ({actividades.length})</Text>
-        <TouchableOpacity
-          onPress={() => { setForm({ ...defaultForm }); setEditId(null); setShowForm(true); }}
-          style={{ backgroundColor: GREEN }}
-          className="flex-row items-center gap-1.5 px-4 py-2.5 rounded-xl"
-        >
-          <Plus color="white" size={16} />
-          <Text className="text-white font-semibold text-sm">Crear</Text>
-        </TouchableOpacity>
-      </View>
+      {mostrarCronograma && (
+        <View style={{ padding: 18, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e2e8f0', flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Radio size={22} color="#dc2626" />
+          <View>
+            <Text style={{ fontSize: 20, fontWeight: '900', color: '#0f172a' }}>Cronograma en vivo</Text>
+            <Text style={{ color: '#64748b', fontSize: 12 }}>Marca qué actividad está ocurriendo ahora. Los participantes lo ven al instante.</Text>
+          </View>
+        </View>
+      )}
 
       {loading ? (
         <View className="flex-1 justify-center items-center"><ActivityIndicator color={GREEN} size="large" /></View>
       ) : (
         <ScrollView className="flex-1" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchActividades(); }} tintColor={GREEN} />}>
+          {/* Mismo componente que usa el técnico (pestaña "En vivo") y la web: marcar
+              en vivo/finalizada y publicar anuncios. Se omite aquí cuando la pantalla
+              ya se muestra dentro de una pestaña "En vivo" propia, para no duplicarlo. */}
+          {mostrarCronograma && (
+            <View className="pt-4">
+              <CronogramaVivo staff onError={(m) => show({ type: 'error', title: 'No se pudo actualizar', message: m })} />
+            </View>
+          )}
+
+          <View className={`flex-row items-center justify-between mx-4 mb-1 ${mostrarCronograma ? 'mt-8 pt-4 border-t border-gray-200' : 'mt-4'}`}>
+            <Text className="text-sm font-extrabold text-gray-500 uppercase tracking-wide">
+              {mostrarCronograma ? `Gestionar actividades (${actividades.length})` : `Eventos del programa (${actividades.length})`}
+            </Text>
+            <TouchableOpacity
+              onPress={() => { setForm({ ...defaultForm }); setEditId(null); setShowForm(true); }}
+              style={{ backgroundColor: GREEN }}
+              className="flex-row items-center gap-1.5 px-3 py-2 rounded-xl"
+            >
+              <Plus color="white" size={14} />
+              <Text className="text-white font-semibold text-xs">Crear</Text>
+            </TouchableOpacity>
+          </View>
+
           {actividades.length === 0 ? (
             <View className="items-center py-16">
               <Text className="text-gray-400 text-sm">No hay actividades registradas</Text>
@@ -175,18 +182,6 @@ export default function ActividadesScreen() {
                       className="flex-1 py-2 bg-red-50 rounded-xl items-center">
                       <Text className="text-xs font-semibold text-red-600">Eliminar</Text>
                     </TouchableOpacity>
-                  </View>
-                  <Text className="text-[11px] font-bold text-gray-500 mt-4 mb-2 uppercase">Estado en vivo</Text>
-                  <View className="flex-row gap-2">
-                    {[
-                      ['PENDIENTE', 'Pendiente'], ['EN_VIVO', 'En vivo'], ['FINALIZADA', 'Finalizada'],
-                    ].map(([estado, label]) => (
-                      <TouchableOpacity key={estado} onPress={() => cambiarEstadoEnVivo(a.id, estado)}
-                        style={{ backgroundColor: a.estadoEnVivo === estado ? (estado === 'EN_VIVO' ? '#dc2626' : GREEN) : '#f3f4f6' }}
-                        className="flex-1 py-2 rounded-xl items-center">
-                        <Text style={{ color: a.estadoEnVivo === estado ? '#fff' : '#6b7280', fontSize: 10, fontWeight: '700' }}>{label}</Text>
-                      </TouchableOpacity>
-                    ))}
                   </View>
                 </View>
               );

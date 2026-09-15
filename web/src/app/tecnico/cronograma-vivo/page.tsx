@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { Radio } from "lucide-react";
 import CronogramaVivo from "@/components/CronogramaVivo";
 import { useModal } from "@/components/ui/Modal";
+import ActividadesPage from "../../admin/actividades/page";
 
 export default function TecnicoCronogramaVivoPage() {
   const { showError, ModalComponent } = useModal();
@@ -22,6 +23,9 @@ export default function TecnicoCronogramaVivoPage() {
         </p>
       </div>
       <CronogramaVivo staff usuarioId={usuarioId} onError={(m) => showError("No se pudo actualizar", m)} />
+      <div className="mt-10 border-t border-gray-200 pt-8">
+        <ActividadesPage />
+      </div>
     </div>
   );
 }
