@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Bell, Megaphone, Radio } from 'lucide-react-native';
 import NoticiasScreen from '../admin/NoticiasScreen';
 import ActividadesScreen from '../admin/ActividadesScreen';
@@ -18,9 +19,9 @@ const TABS = [
 
 export default function TecnicoContenidoScreen({ navigation }: any) {
   const [tab, setTab] = useState<'avisos' | 'comunicados' | 'vivo'>('avisos');
-  return <View style={{ flex: 1, backgroundColor: '#f8fafc' }}>
+  return <SafeAreaView style={{ flex: 1, backgroundColor: '#f8fafc' }} edges={['top']}>
     <View style={{ backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e2e8f0' }}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ padding: 12, gap: 8 }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 16, paddingBottom: 12, gap: 8 }}>
         {TABS.map(([id, label, Icon]) => {
           const activo = tab === id;
           return (
@@ -47,5 +48,5 @@ export default function TecnicoContenidoScreen({ navigation }: any) {
       {tab === 'comunicados' && <NoticiasScreen />}
       {tab === 'vivo' && <ActividadesScreen mostrarCronograma />}
     </View>
-  </View>;
+  </SafeAreaView>;
 }

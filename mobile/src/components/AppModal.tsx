@@ -122,7 +122,12 @@ export function AppModal({
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={handleCancel} statusBarTranslucent>
       <Pressable style={s.backdrop} onPress={type === 'confirm' ? undefined : handleCancel}>
-        <Animated.View style={[s.card, { transform: [{ scale }], opacity }]}>
+        {/* collapsable={false}: en Android, una vista animada con transform
+            puede "aplanar" a sus hijos como optimización nativa, y eso a
+            veces hace que el texto de un botón con fondo de color y bordes
+            redondeados (como el de confirmar) desaparezca. Desactivar el
+            aplanado aquí evita ese bug. */}
+        <Animated.View collapsable={false} style={[s.card, { transform: [{ scale }], opacity }]}>
           {/* Borde superior de color */}
           <View style={[s.topAccent, { backgroundColor: cfg.accentColor }]} />
 
@@ -150,10 +155,14 @@ export function AppModal({
             <TouchableOpacity
               style={[s.btn, { backgroundColor: confirmColor || cfg.confirmBg }]}
               onPress={handleConfirm}
-              disabled={confirming}
+              disabled={type === 'confirm' && confirming}
               activeOpacity={0.8}
             >
-              {confirming
+              {/* El spinner solo aplica a dialogos "confirm" con waitForConfirm;
+                  para el resto (exito/error/aviso/info) siempre se ve el texto,
+                  sin ninguna condicion de por medio, para evitar que quede en
+                  blanco si "confirming" llegara a quedar mal sincronizado. */}
+              {type === 'confirm' && confirming
                 ? <ActivityIndicator color="#fff" size="small" />
                 : <Text style={s.btnPrimaryText}>{confirmText || 'Entendido'}</Text>}
             </TouchableOpacity>
