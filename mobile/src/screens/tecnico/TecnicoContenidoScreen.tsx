@@ -1,21 +1,23 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
-import { Bell, Megaphone, CalendarCheck, Radio } from 'lucide-react-native';
+import { Bell, Megaphone, Radio } from 'lucide-react-native';
 import NoticiasScreen from '../admin/NoticiasScreen';
-import TecnicoEventosVivoScreen from './TecnicoEventosVivoScreen';
 import ActividadesScreen from '../admin/ActividadesScreen';
 import StaffNotificacionesScreen from '../shared/StaffNotificacionesScreen';
 
 const GREEN = '#449D3A';
+// "En vivo" incluye el cronograma Y el crear/editar eventos del programa,
+// igual que la pantalla del admin y que la página web — antes estaba
+// separado en dos pestañas ("Actividades" y "En vivo") y no coincidía
+// con ninguna de las otras versiones.
 const TABS = [
   ['avisos', 'Alertas', Bell],
   ['comunicados', 'Comunicados', Megaphone],
-  ['actividades', 'Actividades', CalendarCheck],
   ['vivo', 'En vivo', Radio],
 ] as const;
 
 export default function TecnicoContenidoScreen({ navigation }: any) {
-  const [tab, setTab] = useState<'avisos' | 'comunicados' | 'actividades' | 'vivo'>('avisos');
+  const [tab, setTab] = useState<'avisos' | 'comunicados' | 'vivo'>('avisos');
   return <View style={{ flex: 1, backgroundColor: '#f8fafc' }}>
     <View style={{ backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e2e8f0' }}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ padding: 12, gap: 8 }}>
@@ -43,8 +45,7 @@ export default function TecnicoContenidoScreen({ navigation }: any) {
     <View style={{ flex: 1 }}>
       {tab === 'avisos' && <StaffNotificacionesScreen navigation={navigation} />}
       {tab === 'comunicados' && <NoticiasScreen />}
-      {tab === 'actividades' && <ActividadesScreen mostrarCronograma={false} />}
-      {tab === 'vivo' && <TecnicoEventosVivoScreen />}
+      {tab === 'vivo' && <ActividadesScreen mostrarCronograma />}
     </View>
   </View>;
 }

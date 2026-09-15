@@ -753,21 +753,16 @@ export class ExtrasController {
   async cronogramaVivo(@Query('eeId') eeId?: string) {
     const evento = await this.prisma.evento.findFirst({
       where: { esPrincipal: 1, estaActivo: { not: 0 } },
-      select: { id: true, fechaInicioEvento: true, fechaFinEvento: true },
+      select: { id: true },
     });
     if (!evento) throw new BadRequestException('No hay un evento principal activo.');
     const eventoId = evento.id;
-    const primeraFecha = claveFechaBolivia(evento.fechaInicioEvento);
-    const ultimaFecha = claveFechaBolivia(new Date(evento.fechaFinEvento.getTime() - 1));
+    // Se muestran TODOS los eventos del programa activos del evento, sin
+    // filtrar por si su fecha cae dentro del rango fechaInicioEvento–
+    // fechaFinEvento: admin/técnico deben poder llevar al cronograma en vivo
+    // cualquier actividad que hayan registrado, tenga la fecha que tenga.
     const actividades = await this.prisma.actividadprograma.findMany({
-      where: {
-        evento_id: eventoId,
-        estaActivo: 1,
-        fechaActividad: {
-          gte: new Date(`${primeraFecha}T00:00:00.000Z`),
-          lte: new Date(`${ultimaFecha}T23:59:59.999Z`),
-        },
-      },
+      where: { evento_id: eventoId, estaActivo: 1 },
       orderBy: [{ fechaActividad: 'asc' }, { horaInicioActividad: 'asc' }],
       select: {
         id: true, nombreActividad: true, descripcionActividad: true, tipoActividad: true,
