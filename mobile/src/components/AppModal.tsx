@@ -161,10 +161,13 @@ export function AppModal({
               {/* El spinner solo aplica a dialogos "confirm" con waitForConfirm;
                   para el resto (exito/error/aviso/info) siempre se ve el texto,
                   sin ninguna condicion de por medio, para evitar que quede en
-                  blanco si "confirming" llegara a quedar mal sincronizado. */}
+                  blanco si "confirming" llegara a quedar mal sincronizado.
+                  Texto con className (NativeWind) en vez de StyleSheet: es el
+                  patron que sí renderiza de forma confiable en el resto de la
+                  app (botones de CronogramaVivo, etc.). */}
               {type === 'confirm' && confirming
                 ? <ActivityIndicator color="#fff" size="small" />
-                : <Text style={s.btnPrimaryText}>{confirmText || 'Entendido'}</Text>}
+                : <Text className="text-white text-[15px] font-bold">{confirmText || 'Entendido'}</Text>}
             </TouchableOpacity>
           </View>
         </Animated.View>
