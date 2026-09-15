@@ -6380,11 +6380,13 @@ export class AppController implements OnModuleInit {
         !dentroDeDisponibilidadPorDia(inscripcionB?.horariosDisponibilidadJson, f.inicio, f.fin)
       );
       const disponible = !pasado && !reunionOcupada && !solicitudPendiente && !fueraDisponibilidad;
+      // "pasado" va primero: una franja que ya pasó nunca debe mostrarse como
+      // seleccionable aunque también coincida con una reunión u otra causa.
       const estado = disponible ? 'DISPONIBLE'
+        : pasado ? 'PASADO'
         : solicitudPendiente ? 'PENDIENTE'
         : reunionOcupada ? 'OCUPADO'
-        : fueraDisponibilidad ? 'NO_DISPONIBLE'
-        : 'PASADO';
+        : 'NO_DISPONIBLE';
       return { inicio: f.inicio.toISOString(), fin: f.fin.toISOString(), disponible, estado };
     });
     const disponibles = agenda.filter((f) => f.disponible);
