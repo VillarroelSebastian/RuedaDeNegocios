@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  TextInput, ActivityIndicator, Linking, Image
+  TextInput, ActivityIndicator, Linking,
 } from 'react-native';
 import { CheckCircle, AlertCircle, FileText, Download, Eye, Info, XCircle } from 'lucide-react-native';
 import { API_URL } from '../../utils/userStore';
 import { useModal } from '../../components/AppModal';
 import FichaEmpresaModal from '../../components/FichaEmpresaModal';
+import ImagenLightbox from '../../components/ImagenLightbox';
 
 const GREEN = '#449D3A';
 
@@ -170,20 +171,20 @@ export default function PagoDetailScreen({ route, navigation }: any) {
           </View>
           {comprobante ? (
             <>
-              {comprobante.urlComprobantePagoInscripcion.match(/\.(jpg|jpeg|png|gif|webp)$/i) && (
-                <Image
-                  source={{ uri: comprobante.urlComprobantePagoInscripcion }}
-                  className="w-full h-48 rounded-xl mb-3"
-                  resizeMode="contain"
+              {comprobante.urlComprobantePagoInscripcion.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                <ImagenLightbox
+                  uri={comprobante.urlComprobantePagoInscripcion}
+                  style={{ width: '100%', height: 192, borderRadius: 12, marginBottom: 12, overflow: 'hidden', backgroundColor: '#f8fafc' }}
                 />
+              ) : (
+                <TouchableOpacity
+                  onPress={() => Linking.openURL(comprobante.urlComprobantePagoInscripcion)}
+                  className="flex-row items-center justify-center gap-2 py-2.5 border border-gray-200 rounded-xl"
+                >
+                  <Download color={GREEN} size={16} />
+                  <Text className="text-sm font-semibold" style={{ color: GREEN }}>Ver comprobante completo</Text>
+                </TouchableOpacity>
               )}
-              <TouchableOpacity
-                onPress={() => Linking.openURL(comprobante.urlComprobantePagoInscripcion)}
-                className="flex-row items-center justify-center gap-2 py-2.5 border border-gray-200 rounded-xl"
-              >
-                <Download color={GREEN} size={16} />
-                <Text className="text-sm font-semibold" style={{ color: GREEN }}>Ver comprobante completo</Text>
-              </TouchableOpacity>
             </>
           ) : (
             <View className="items-center py-8 border-2 border-dashed border-gray-200 rounded-xl">

@@ -2946,8 +2946,10 @@ export class AppController implements OnModuleInit {
       where: { evento_id: eventoId, estaActivo: 1 },
       orderBy: { numeroMesa: 'asc' },
       include: {
+        // Solo reuniones vigentes/futuras en la tarjeta de cada mesa; las
+        // finalizadas o canceladas no deben aparecer aquí (van al historial).
         reunion: {
-          where: this.filtroReunionOperativa(evento),
+          where: { ...this.filtroReunionOperativa(evento), estadoReunion: { notIn: ['FINALIZADA', 'CANCELADA'] } },
           orderBy: { fechaHoraInicioReunion: 'asc' },
           include: {
             solicitudreunion: {
@@ -4104,8 +4106,10 @@ export class AppController implements OnModuleInit {
         },
         orderBy: { numeroMesa: 'asc' },
         include: {
+          // Solo reuniones vigentes/futuras; las finalizadas o canceladas
+          // van al historial, no deben seguir apareciendo en la tarjeta.
           reunion: {
-            where: this.filtroReunionOperativa(eventoConfig),
+            where: { ...this.filtroReunionOperativa(eventoConfig), estadoReunion: { notIn: ['FINALIZADA', 'CANCELADA'] } },
             orderBy: { fechaHoraInicioReunion: 'asc' },
             include: this.reunionInclude(),
           },

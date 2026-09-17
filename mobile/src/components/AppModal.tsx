@@ -127,48 +127,49 @@ export function AppModal({
             veces hace que el texto de un botón con fondo de color y bordes
             redondeados (como el de confirmar) desaparezca. Desactivar el
             aplanado aquí evita ese bug. */}
-        <Animated.View collapsable={false} style={[s.card, { transform: [{ scale }], opacity }]}>
-          {/* Borde superior de color */}
-          <View style={[s.topAccent, { backgroundColor: cfg.accentColor }]} />
+        {/* La sombra (elevation, Android) va en esta vista exterior, SIN
+            overflow:hidden: combinar ambos en la misma vista es un bug
+            conocido de RN en Android que puede impedir que se pinte bien
+            el contenido de vistas hijas con su propio fondo + bordes
+            redondeados (justamente el botón de abajo). El recorte de
+            esquinas se hace en la vista interior, que no tiene elevation. */}
+        <Animated.View collapsable={false} style={[s.cardShadow, { transform: [{ scale }], opacity }]}>
+          <View style={s.card}>
+            {/* Borde superior de color */}
+            <View style={[s.topAccent, { backgroundColor: cfg.accentColor }]} />
 
-          {/* Ícono */}
-          <View style={[s.iconWrap, { backgroundColor: cfg.iconBg }]}>
-            <Icon size={32} color={cfg.iconColor} />
-          </View>
+            {/* Ícono */}
+            <View style={[s.iconWrap, { backgroundColor: cfg.iconBg }]}>
+              <Icon size={32} color={cfg.iconColor} />
+            </View>
 
-          {/* Texto */}
-          <Text style={s.title}>{title}</Text>
-          <Text style={s.message}>{message}</Text>
+            {/* Texto */}
+            <Text style={s.title}>{title}</Text>
+            <Text style={s.message}>{message}</Text>
 
-          {/* Botones */}
-          <View style={[s.btns, type === 'confirm' && s.btnsRow]}>
-            {type === 'confirm' && (
+            {/* Botones */}
+            <View style={[s.btns, type === 'confirm' && s.btnsRow]}>
+              {type === 'confirm' && (
+                <TouchableOpacity
+                  style={[s.btn, s.btnOutline]}
+                  onPress={handleCancel}
+                  disabled={confirming}
+                  activeOpacity={0.8}
+                >
+                  <Text style={s.btnOutlineText}>{cancelText || 'Cancelar'}</Text>
+                </TouchableOpacity>
+              )}
               <TouchableOpacity
-                style={[s.btn, s.btnOutline]}
-                onPress={handleCancel}
-                disabled={confirming}
+                style={[s.btn, { backgroundColor: confirmColor || cfg.confirmBg }]}
+                onPress={handleConfirm}
+                disabled={type === 'confirm' && confirming}
                 activeOpacity={0.8}
               >
-                <Text style={s.btnOutlineText}>{cancelText || 'Cancelar'}</Text>
+                {type === 'confirm' && confirming
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <Text style={s.btnPrimaryText}>{confirmText || 'Entendido'}</Text>}
               </TouchableOpacity>
-            )}
-            <TouchableOpacity
-              style={[s.btn, { backgroundColor: confirmColor || cfg.confirmBg }]}
-              onPress={handleConfirm}
-              disabled={type === 'confirm' && confirming}
-              activeOpacity={0.8}
-            >
-              {/* El spinner solo aplica a dialogos "confirm" con waitForConfirm;
-                  para el resto (exito/error/aviso/info) siempre se ve el texto,
-                  sin ninguna condicion de por medio, para evitar que quede en
-                  blanco si "confirming" llegara a quedar mal sincronizado.
-                  Texto con className (NativeWind) en vez de StyleSheet: es el
-                  patron que sí renderiza de forma confiable en el resto de la
-                  app (botones de CronogramaVivo, etc.). */}
-              {type === 'confirm' && confirming
-                ? <ActivityIndicator color="#fff" size="small" />
-                : <Text className="text-white text-[15px] font-bold">{confirmText || 'Entendido'}</Text>}
-            </TouchableOpacity>
+            </View>
           </View>
         </Animated.View>
       </Pressable>
@@ -223,20 +224,23 @@ const s = StyleSheet.create({
     justifyContent: 'center',
     padding: 28,
   },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 24,
+  cardShadow: {
     width: '100%',
     maxWidth: 360,
-    overflow: 'hidden',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingBottom: 24,
+    borderRadius: 24,
     shadowColor: '#000',
     shadowOpacity: 0.18,
     shadowRadius: 20,
     shadowOffset: { width: 0, height: 8 },
     elevation: 10,
+  },
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    overflow: 'hidden',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingBottom: 24,
   },
   topAccent: { width: '100%', height: 4, marginBottom: 28 },
   iconWrap: {

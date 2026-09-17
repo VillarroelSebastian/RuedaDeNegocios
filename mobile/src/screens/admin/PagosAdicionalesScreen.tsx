@@ -11,6 +11,9 @@ import {
 } from 'lucide-react-native';
 import { API_URL } from '../../utils/userStore';
 import { useModal } from '../../components/AppModal';
+import ImagenLightbox from '../../components/ImagenLightbox';
+
+const esPdf = (url?: string) => !!url && url.toLowerCase().endsWith('.pdf');
 
 const GREEN = '#449D3A';
 
@@ -255,18 +258,21 @@ export default function PagosAdicionalesScreen() {
                         </View>
                       )}
 
-                      {/* Comprobante */}
-                      <TouchableOpacity
-                        style={s.comprobanteBtn}
-                        onPress={() => openComprobante(p.urlComprobante)}
-                        activeOpacity={0.8}
-                      >
-                        <FileText color={p.urlComprobante ? GREEN : '#9ca3af'} size={14} style={{ marginRight: 6 }} />
-                        <Text style={[s.comprobanteBtnText, { color: p.urlComprobante ? GREEN : '#9ca3af' }]}>
-                          {p.urlComprobante ? 'Ver comprobante' : 'Comprobante no disponible'}
-                        </Text>
-                        {p.urlComprobante && <ExternalLink color={GREEN} size={12} style={{ marginLeft: 4 }} />}
-                      </TouchableOpacity>
+                      {/* Comprobante: se muestra la imagen ahí mismo (toca para ampliarla); si es PDF se abre aparte */}
+                      {!p.urlComprobante ? (
+                        <View style={s.comprobanteBtn}>
+                          <FileText color="#9ca3af" size={14} style={{ marginRight: 6 }} />
+                          <Text style={[s.comprobanteBtnText, { color: '#9ca3af' }]}>Comprobante no disponible</Text>
+                        </View>
+                      ) : esPdf(p.urlComprobante) ? (
+                        <TouchableOpacity style={s.comprobanteBtn} onPress={() => openComprobante(p.urlComprobante)} activeOpacity={0.8}>
+                          <FileText color={GREEN} size={14} style={{ marginRight: 6 }} />
+                          <Text style={[s.comprobanteBtnText, { color: GREEN }]}>Ver comprobante (PDF)</Text>
+                          <ExternalLink color={GREEN} size={12} style={{ marginLeft: 4 }} />
+                        </TouchableOpacity>
+                      ) : (
+                        <ImagenLightbox uri={p.urlComprobante} style={s.comprobanteImgBox} imgStyle={{ borderRadius: 10 }} />
+                      )}
 
                       {/* Botón gestionar */}
                       {p.estadoPago === 'PENDIENTE' && (
@@ -320,18 +326,21 @@ export default function PagosAdicionalesScreen() {
                   </View>
                 </View>
 
-                {/* Comprobante */}
-                <TouchableOpacity
-                  style={s.comprobanteBtn}
-                  onPress={() => openComprobante(selected.urlComprobante)}
-                  activeOpacity={0.8}
-                >
-                  <FileText color={selected.urlComprobante ? GREEN : '#9ca3af'} size={14} style={{ marginRight: 6 }} />
-                  <Text style={[s.comprobanteBtnText, { color: selected.urlComprobante ? GREEN : '#9ca3af' }]}>
-                    {selected.urlComprobante ? 'Ver comprobante' : 'Comprobante no disponible'}
-                  </Text>
-                  {selected.urlComprobante && <ExternalLink color={GREEN} size={12} style={{ marginLeft: 4 }} />}
-                </TouchableOpacity>
+                {/* Comprobante: se muestra la imagen ahí mismo (toca para ampliarla); si es PDF se abre aparte */}
+                {!selected.urlComprobante ? (
+                  <View style={s.comprobanteBtn}>
+                    <FileText color="#9ca3af" size={14} style={{ marginRight: 6 }} />
+                    <Text style={[s.comprobanteBtnText, { color: '#9ca3af' }]}>Comprobante no disponible</Text>
+                  </View>
+                ) : esPdf(selected.urlComprobante) ? (
+                  <TouchableOpacity style={s.comprobanteBtn} onPress={() => openComprobante(selected.urlComprobante)} activeOpacity={0.8}>
+                    <FileText color={GREEN} size={14} style={{ marginRight: 6 }} />
+                    <Text style={[s.comprobanteBtnText, { color: GREEN }]}>Ver comprobante (PDF)</Text>
+                    <ExternalLink color={GREEN} size={12} style={{ marginLeft: 4 }} />
+                  </TouchableOpacity>
+                ) : (
+                  <ImagenLightbox uri={selected.urlComprobante} style={s.comprobanteImgBox} imgStyle={{ borderRadius: 10 }} />
+                )}
 
                 {/* Observación */}
                 <Text style={s.obsLabel}>Observación / motivo (opcional para aprobar, requerido para observar o rechazar)</Text>
@@ -439,6 +448,10 @@ const s = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 8, marginTop: 8, backgroundColor: '#f8fafc',
   },
   comprobanteBtnText: { fontSize: 12, fontWeight: '600' },
+  comprobanteImgBox: {
+    width: '100%', height: 160, marginTop: 8, borderRadius: 10,
+    borderWidth: 1, borderColor: '#e2e8f0', overflow: 'hidden', backgroundColor: '#f8fafc',
+  },
 
   gestionarBtn: {
     backgroundColor: GREEN, borderRadius: 10, padding: 10, marginTop: 8,

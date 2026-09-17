@@ -2,6 +2,9 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { Check, X, Eye, AlertCircle, CheckCircle2, RefreshCw } from "lucide-react";
+import ImagenLightbox from "@/components/ui/ImagenLightbox";
+
+const esPdf = (url?: string) => !!url && url.toLowerCase().endsWith(".pdf");
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
@@ -227,10 +230,14 @@ export default function PagosAdicionalesAdminPage() {
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         {p.urlComprobante && (
-                          <a href={p.urlComprobante} target="_blank" rel="noreferrer"
-                            className="flex items-center gap-1 text-xs text-[#449D3A] font-bold hover:underline">
-                            <Eye className="w-3.5 h-3.5" />Ver
-                          </a>
+                          esPdf(p.urlComprobante) ? (
+                            <a href={p.urlComprobante} target="_blank" rel="noreferrer"
+                              className="flex items-center gap-1 text-xs text-[#449D3A] font-bold hover:underline">
+                              <Eye className="w-3.5 h-3.5" />Ver PDF
+                            </a>
+                          ) : (
+                            <ImagenLightbox src={p.urlComprobante} alt="Comprobante" className="w-10 h-10 rounded-lg border border-gray-200 bg-gray-50" />
+                          )
                         )}
                         {p.estadoPago === 'PENDIENTE' && (
                           <>

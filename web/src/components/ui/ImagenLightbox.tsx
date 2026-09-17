@@ -14,6 +14,7 @@ interface Props {
 export default function ImagenLightbox({ src, alt = "", className = "", imgClassName = "" }: Props) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [zoomed, setZoomed] = useState(false);
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -23,6 +24,9 @@ export default function ImagenLightbox({ src, alt = "", className = "", imgClass
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [open]);
+
+  // Se resetea el zoom cada vez que se abre la imagen ampliada.
+  useEffect(() => { if (open) setZoomed(false); }, [open]);
 
   return (
     <>
@@ -59,8 +63,10 @@ export default function ImagenLightbox({ src, alt = "", className = "", imgClass
           <img
             src={src}
             alt={alt}
-            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+            className={`max-w-full max-h-full object-contain rounded-lg shadow-2xl transition-transform duration-200 ${zoomed ? "scale-[2] cursor-zoom-out" : "cursor-zoom-in"}`}
             onClick={(e) => e.stopPropagation()}
+            onDoubleClick={(e) => { e.stopPropagation(); setZoomed((z) => !z); }}
+            title="Doble clic para hacer zoom"
           />
         </div>,
         document.body
