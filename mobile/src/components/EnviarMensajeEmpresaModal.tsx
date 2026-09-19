@@ -3,7 +3,8 @@ import {
   View, Text, TextInput, TouchableOpacity, Modal, ActivityIndicator, StyleSheet,
 } from 'react-native';
 import { MessageSquare, X, Send, CheckCircle2 } from 'lucide-react-native';
-import { API_URL, userStore } from '../utils/userStore';
+import { userStore } from '../utils/userStore';
+import { API } from '../utils/api';
 
 const GREEN = '#449D3A';
 
@@ -23,10 +24,10 @@ export default function EnviarMensajeEmpresaModal({ receptorEeId, empresaNombre,
     setEnviando(true);
     setErr('');
     try {
-      const res = await fetch(`${API_URL}/staff/mensajes`, {
+      const res = await fetch(`${API}/messages/staff`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ usuarioId, receptorEeId, contenido: texto.trim() }),
+        body: JSON.stringify({ receptorEeId, contenido: texto.trim() }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message ?? 'Error al enviar el mensaje');

@@ -15,6 +15,7 @@ import * as ImagePicker from "expo-image-picker";
 import { Camera, Images, X, Trash2 } from "lucide-react-native";
 import { API_URL, userStore } from "../../utils/userStore";
 import { useModal } from "../../components/AppModal";
+import { API } from '../../utils/api';
 
 const GREEN = "#449D3A";
 export default function TecnicoGaleriaScreen() {
@@ -31,7 +32,7 @@ export default function TecnicoGaleriaScreen() {
     try {
       // El filtro de fotos técnicas pertenece únicamente al landing público.
       // Dentro de la aplicación todos los roles ven el repositorio del evento.
-      const r = await fetch(`${API_URL}/galeria`);
+      const r = await fetch(`${API}/gallery`);
       setFotos(r.ok ? await r.json() : []);
     } finally {
       setRefreshing(false);
@@ -80,21 +81,20 @@ export default function TecnicoGaleriaScreen() {
         name: a.fileName || "foto-evento.jpg",
         type: a.mimeType || "image/jpeg",
       } as any);
-      const up = await fetch(`${API_URL}/${esEmpresa ? 'public' : 'admin'}/imagenes/upload`, {
+      const up = await fetch(`${API}/uploads`, {
         method: "POST",
         body: fd,
       });
       const ud = await up.json();
       if (!up.ok || !ud.url) throw new Error(ud.message || "No se pudo subir.");
       const u = userStore.get();
-      const pub = await fetch(`${API_URL}/galeria`, {
+      const pub = await fetch(`${API}/gallery`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        // El autor sale del token: ya no se declara quién publica.
         body: JSON.stringify({
           urlFoto: ud.url,
-          ...(esEmpresa ? { empresa_usuario_id: u?.empresaUsuarioId } : { usuario_id: u?.id }),
-          descripcion: descripcion.trim() || null,
-          autorNombre: `${u?.nombres || (esEmpresa ? "Participante" : "Técnico")} ${u?.apellidoPaterno || ""}`.trim(),
+          descripcion: descripcion.trim() || undefined,
         }),
       });
       if (!pub.ok)
@@ -118,7 +118,7 @@ export default function TecnicoGaleriaScreen() {
   };
   const eliminar = async (id: number) => {
     try {
-      const r = await fetch(`${API_URL}/galeria/${id}`, { method: "DELETE" });
+      const r = await fetch(`${API}/gallery/${id}`, { method: "DELETE" });
       if (!r.ok)
         throw new Error((await r.json()).message || "No se pudo eliminar.");
       setFotos((v) => v.filter((f) => f.id !== id));

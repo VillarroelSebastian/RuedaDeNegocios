@@ -5,7 +5,7 @@ import { Images } from "lucide-react";
 import GaleriaEvento from "@/components/GaleriaEvento";
 import { useModal } from "@/components/ui/Modal";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
+import { API } from "@/lib/api";
 
 export default function EmpresaGaleriaPage() {
   const { showError, showSuccess, ModalComponent } = useModal();
@@ -16,7 +16,7 @@ export default function EmpresaGaleriaPage() {
     const raw = localStorage.getItem("empresaUser");
     if (!raw) { setCargando(false); return; }
     const user = JSON.parse(raw);
-    fetch(`${API}/empresa/mi-empresa?usuarioId=${user.id}`)
+    fetch(`${API}/companies/me`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => setCtx(d))
       .catch(() => showError("Sin conexión", "No se pudo cargar tu información."))

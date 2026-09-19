@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { Package, Check, Users, Armchair, Star, Globe, X as XIcon } from "lucide-react";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
+import { API } from "@/lib/api";
 
 type MiPaquete = {
   paqueteId: number | null;
@@ -34,11 +34,11 @@ export default function MiPaquetePage() {
     const raw = localStorage.getItem("empresaUser");
     if (!raw) { setCargando(false); return; }
     const user = JSON.parse(raw);
-    fetch(`${API}/empresa/mi-empresa?usuarioId=${user.id}`)
+    fetch(`${API}/companies/me`)
       .then((r) => (r.ok ? r.json() : null))
       .then((ctx) => {
         if (!ctx?.empresaeventoId) return null;
-        return fetch(`${API}/empresa/mi-paquete?eeId=${ctx.empresaeventoId}`).then((r) => (r.ok ? r.json() : null));
+        return fetch(`${API}/packages/mine`).then((r) => (r.ok ? r.json() : null));
       })
       .then((d) => setDatos(d))
       .catch(() => {})

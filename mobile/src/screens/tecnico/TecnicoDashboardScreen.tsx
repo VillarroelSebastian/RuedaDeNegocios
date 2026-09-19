@@ -9,7 +9,8 @@ import {
   LayoutDashboard, Video, Armchair, CalendarCheck, Building2,
   Clock, Calendar, ChevronRight, X, CheckCircle, AlertCircle, MapPin, CalendarPlus, QrCode, Radio, Images,
 } from 'lucide-react-native';
-import { API_URL, userStore } from '../../utils/userStore';
+import { userStore } from '../../utils/userStore';
+import { API } from '../../utils/api';
 
 const GREEN = '#449D3A';
 
@@ -181,7 +182,7 @@ export default function TecnicoDashboardScreen() {
 
   const fetchData = useCallback(async () => {
     try {
-      const res  = await fetch(`${API_URL}/tecnico/dashboard`);
+      const res  = await fetch(`${API}/reports/dashboard/staff`);
       const json = await res.json();
       setData(json);
     } catch { setData(null); }
@@ -192,7 +193,7 @@ export default function TecnicoDashboardScreen() {
 
   const handleEstadoChange = async (reunionId: number, nuevoEstado: string) => {
     try {
-      const res = await fetch(`${API_URL}/tecnico/reuniones/${reunionId}/estado`, {
+      const res = await fetch(`${API}/meetings/${reunionId}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ estadoReunion: nuevoEstado }),

@@ -7,7 +7,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Building2, ChevronLeft, ChevronRight, MapPin, Search, Send, Sparkles, CheckCircle2 } from 'lucide-react-native';
 import ImagenLightbox from '../../components/ImagenLightbox';
-import { API_URL, userStore } from '../../utils/userStore';
+import { userStore } from '../../utils/userStore';
+import { API } from '../../utils/api';
 import { paisConBandera } from '../../utils/pais';
 
 const GREEN = '#449D3A';
@@ -27,7 +28,7 @@ export default function EmpresaOportunidadesScreen() {
     const eeId = user?.empresaeventoId;
     if (!eeId) { setLoading(false); return; }
     try {
-      const res = await fetch(`${API_URL}/empresa/oportunidades?eeId=${eeId}`);
+      const res = await fetch(`${API}/opportunities/mine`);
       const data = res.ok ? await res.json() : [];
       setOportunidades(Array.isArray(data) ? data : []);
     } catch {}

@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { User, Lock, Camera, Save, LogOut, Mail, KeyRound, CheckCircle2, X, Eye, EyeOff, Send, CheckCircle, AlertCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
+import { API } from "@/lib/api";
 
 type ResetStep = 'idle' | 'sending' | 'code' | 'success';
 
@@ -76,7 +76,7 @@ export default function TecnicoPerfilPage() {
     try {
       const fd = new FormData();
       fd.append('file', file);
-      const res = await fetch(`${API}/admin/imagenes/upload`, { method: 'POST', body: fd });
+      const res = await fetch(`${API}/uploads`, { method: 'POST', body: fd });
       const data = await res.json();
       setForm((f) => ({ ...f, urlFotoPerfil: data.url }));
     } catch { showError('Error', 'No se pudo subir la imagen.'); }
@@ -91,7 +91,7 @@ export default function TecnicoPerfilPage() {
     }
     setSaving(true);
     try {
-      const res = await fetch(`${API}/admin/perfil/${user.id}`, {
+      const res = await fetch(`${API}/profile`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
@@ -111,10 +111,10 @@ export default function TecnicoPerfilPage() {
     if (!user?.correo) return;
     setResetStep('sending');
     try {
-      await fetch(`${API}/auth/solicitar-reset`, {
+      await fetch(`${API}/auth/password-reset-requests`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ correo: user.correo }),
+        body: JSON.stringify({ email: user.correo }),
       });
       setResetStep('code');
       setCodigo(''); setNuevaPass(''); setConfirmar(''); setResetError('');
@@ -132,13 +132,16 @@ export default function TecnicoPerfilPage() {
     if (nuevaPass !== confirmar) { setResetError('Las contraseñas no coinciden.'); return; }
     setResetLoading(true);
     try {
-      const res = await fetch(`${API}/auth/confirmar-reset`, {
+      const res = await fetch(`${API}/auth/password-resets`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ correo: user.correo, codigo, nuevaContrasenia: nuevaPass }),
+        body: JSON.stringify({ email: user.correo, code: codigo, newPassword: nuevaPass }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || 'Código incorrecto o expirado.');
+      // Responde 204: solo hay cuerpo cuando algo falló.
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.message || 'Código incorrecto o expirado.');
+      }
       setResetStep('success');
     } catch (e: any) {
       setResetError(e.message);

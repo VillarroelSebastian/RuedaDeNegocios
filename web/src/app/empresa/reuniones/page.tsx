@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { fechaEvento, horaEvento, partesFechaEvento } from "@/lib/fechaEvento";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
+import { API } from "@/lib/api";
 
 function fmtDate(dt: string) {
   return fechaEvento(dt, { weekday: "long", day: "2-digit", month: "long" });
@@ -87,7 +87,7 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
   useEffect(() => {
     if (!reunion) return;
     const eeReceptoraId = reunion.solicitanteEeId === eeId ? reunion.receptoraEeId : reunion.solicitanteEeId;
-    fetch(`${API}/empresa/horarios?eeId=${eeId}&eeReceptoraId=${eeReceptoraId}&excludeReunionId=${reunion.id}`)
+    fetch(`${API}/schedule/agenda?receptoraId=${eeReceptoraId}&excludeReunionId=${reunion.id}`)
       .then((r) => r.json())
       .then((data) => {
         const hrs: any[] = Array.isArray(data?.horarios) ? data.horarios : [];
@@ -111,10 +111,10 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
     if (!seleccionado) { setErr("Selecciona un horario válido."); return; }
     setGuardando(true); setErr(null);
     try {
-      const res = await fetch(`${API}/empresa/reuniones/${reunion.id}/cambiar-horario`, {
+      const res = await fetch(`${API}/meetings/${reunion.id}/reschedule`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eeId, inicio: seleccionado.inicio, tipoReunion, mensaje }),
+        body: JSON.stringify({ inicio: seleccionado.inicio, tipoReunion, mensaje }),
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
       onOk();
@@ -304,7 +304,7 @@ function DetalleReunionModal({ reunion, eeId, onClose, onCambiarHorario, onRefre
   const handleIniciar = async () => {
     setIniciando(true); setMsgIni(null);
     try {
-      const res = await fetch(`${API}/empresa/reuniones/${reunion.id}/iniciar`, {
+      const res = await fetch(`${API}/meetings/${reunion.id}/start`, {
         method: "PUT", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ eeId }),
       });
@@ -319,7 +319,7 @@ function DetalleReunionModal({ reunion, eeId, onClose, onCambiarHorario, onRefre
     setConfirmandoFin(false);
     setFinalizando(true); setErrFin(null);
     try {
-      const res = await fetch(`${API}/empresa/reuniones/${reunion.id}/finalizar`, {
+      const res = await fetch(`${API}/meetings/${reunion.id}/completion`, {
         method: "PUT", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ eeId }),
       });
@@ -331,9 +331,9 @@ function DetalleReunionModal({ reunion, eeId, onClose, onCambiarHorario, onRefre
   const handleCancelarReunion = async () => {
     setCancelandoReunion(true); setErrFin(null);
     try {
-      const res = await fetch(`${API}/empresa/reuniones/${reunion.id}/cancelar`, {
+      const res = await fetch(`${API}/meetings/${reunion.id}/cancellation`, {
         method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eeId, motivo: motivoCancelacion }),
+        body: JSON.stringify({ motivo: motivoCancelacion }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || "No se pudo cancelar la reunión.");
@@ -531,7 +531,7 @@ export default function ReunionesPage() {
   const deepLinkProcesadoRef = useRef(false);
 
   const cargarReuniones = useCallback((id: number) => {
-    fetch(`${API}/empresa/reuniones?eeId=${id}`, { cache: "no-store" })
+    fetch(`${API}/meetings/mine`, { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => {
         const lista = Array.isArray(data) ? data : [];
@@ -553,7 +553,7 @@ export default function ReunionesPage() {
     let user: any;
     try { user = JSON.parse(raw); } catch { router.replace("/auth/login"); return; }
 
-    fetch(`${API}/empresa/mi-empresa?usuarioId=${user.id}`)
+    fetch(`${API}/companies/me`)
       .then((r) => r.json())
       .then((ctx) => {
         setEeId(ctx.empresaeventoId);
@@ -592,9 +592,9 @@ export default function ReunionesPage() {
   const responderCambio = async (cambioId: number, aceptar: boolean) => {
     if (!eeId) return;
     try {
-      const res = await fetch(`${API}/empresa/reuniones/cambios/${cambioId}/responder`, {
+      const res = await fetch(`${API}/meetings/reschedules/${cambioId}`, {
         method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eeId, aceptar }),
+        body: JSON.stringify({ aceptar }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message ?? "No se pudo responder la propuesta");

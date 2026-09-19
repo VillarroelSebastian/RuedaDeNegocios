@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Building2, Users, CalendarCheck, Handshake, Shield, Clock, TrendingUp, CalendarDays, RefreshCw, Download, Printer, DollarSign, Star, Award } from 'lucide-react';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
+import { API } from "@/lib/api";
 
 export default function EstadisticasPage() {
   const [stats, setStats] = useState<any>(null);
@@ -11,7 +11,7 @@ export default function EstadisticasPage() {
   const fetchStats = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API}/admin/estadisticas`);
+      const res = await fetch(`${API}/reports/statistics`);
       setStats(await res.json());
     } catch { setStats(null); }
     finally { setLoading(false); }

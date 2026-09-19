@@ -22,7 +22,8 @@ import EmpresaOportunidadesScreen from '../screens/empresa/EmpresaOportunidadesS
 import EmpresaMensajesScreen    from '../screens/empresa/EmpresaMensajesScreen';
 import EmpresaPerfilEmpresaScreen from '../screens/empresa/EmpresaPerfilEmpresaScreen';
 import TecnicoGaleriaScreen from '../screens/tecnico/TecnicoGaleriaScreen';
-import { userStore, API_URL }   from '../utils/userStore';
+import { userStore }   from '../utils/userStore';
+import { API } from '../utils/api';
 
 const Tab   = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -73,7 +74,7 @@ function BellButton() {
   const refresh = useCallback(async () => {
     try {
       const lastSeen = await AsyncStorage.getItem(LS_KEY);
-      const res = await fetch(`${API_URL}/empresa/comunicados`);
+      const res = await fetch(`${API}/news`);
       if (!res.ok) return;
       const data: any[] = await res.json();
       const n = lastSeen
@@ -212,7 +213,7 @@ export default function EmpresaNavigator() {
   useEffect(() => {
     const usuarioId = userStore.get()?.id;
     if (!usuarioId) return;
-    fetch(`${API_URL}/empresa/mi-empresa?usuarioId=${usuarioId}`)
+    fetch(`${API}/companies/me`)
       .then((r) => r.json())
       .then((ctx) => {
         if (ctx?.empresaeventoId) {

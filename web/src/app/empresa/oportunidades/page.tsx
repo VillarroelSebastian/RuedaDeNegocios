@@ -7,7 +7,7 @@ import { AlertCircle, Building2, CheckCircle2, ChevronLeft, ChevronRight, MapPin
 import ImagenLightbox from "@/components/ui/ImagenLightbox";
 import { paisConBandera } from "@/lib/pais";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
+import { API } from "@/lib/api";
 
 export default function OportunidadesPage() {
   const router = useRouter();
@@ -38,10 +38,10 @@ export default function OportunidadesPage() {
     let user: any;
     try { user = JSON.parse(raw); } catch { router.replace("/auth/login"); return; }
 
-    fetch(`${API}/empresa/mi-empresa?usuarioId=${user.id}`)
+    fetch(`${API}/companies/me`)
       .then((r) => r.json())
       .then((ctx) => {
-        return fetch(`${API}/empresa/oportunidades?eeId=${ctx.empresaeventoId}`);
+        return fetch(`${API}/opportunities/mine`);
       })
       .then((r) => r.json())
       .then((data) => setOportunidades(Array.isArray(data) ? data : []))

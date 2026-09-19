@@ -6,7 +6,7 @@ import { useModal } from '@/components/ui/Modal';
 import FichaEmpresaModal from '@/components/admin/FichaEmpresaModal';
 import Link from 'next/link';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
+import { API } from "@/lib/api";
 
 export default function PagoDetailPage() {
   const { id } = useParams();
@@ -21,7 +21,7 @@ export default function PagoDetailPage() {
   const [verFicha, setVerFicha] = useState(false);
 
   useEffect(() => {
-    fetch(`${API}/admin/pagos/${id}`)
+    fetch(`${API}/payments/${id}`)
       .then((r) => r.json())
       .then((data) => { setPago(data); setLoading(false); })
       .catch(() => setLoading(false));
@@ -34,7 +34,7 @@ export default function PagoDetailPage() {
       async () => {
         setSubmitting(true);
         try {
-          const res = await fetch(`${API}/admin/pagos/${id}/aprobar`, { method: 'PUT' });
+          const res = await fetch(`${API}/payments/${id}/approval`, { method: 'PUT' });
           const data = await res.json();
           if (!res.ok) throw new Error(data?.message || 'No se pudo aprobar el pago.');
           if (data.correosFallidos?.length) {
@@ -42,7 +42,7 @@ export default function PagoDetailPage() {
           } else {
             showSuccess('Pago aprobado', 'La empresa ha sido habilitada y se enviaron las credenciales por correo.');
           }
-          const pagoActualizado = await fetch(`${API}/admin/pagos/${id}`);
+          const pagoActualizado = await fetch(`${API}/payments/${id}`);
           if (pagoActualizado.ok) setPago(await pagoActualizado.json());
         } catch { showError('Error', 'No se pudo aprobar el pago.'); }
         finally { setSubmitting(false); }
@@ -63,7 +63,7 @@ export default function PagoDetailPage() {
       async () => {
         setSubmitting(true);
         try {
-          const res = await fetch(`${API}/admin/pagos/${id}/observar`, {
+          const res = await fetch(`${API}/payments/${id}/observation`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ observacion }),
@@ -88,7 +88,7 @@ export default function PagoDetailPage() {
       async () => {
         setSubmitting(true);
         try {
-          const res = await fetch(`${API}/admin/pagos/${id}/rechazar`, {
+          const res = await fetch(`${API}/payments/${id}/rejection`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ motivo }),

@@ -9,7 +9,8 @@ import {
   TrendingUp, TrendingDown, Minus, Calendar, MapPin,
   Users, LayoutGrid, Layers,
 } from 'lucide-react-native';
-import { API_URL, userStore } from '../../utils/userStore';
+import { userStore } from '../../utils/userStore';
+import { API } from '../../utils/api';
 
 const GREEN = '#449D3A';
 const GREEN_DARK = '#166534';
@@ -58,8 +59,8 @@ export default function DashboardScreen() {
     if (isRefresh) setRefreshing(true);
     try {
       const [evRes, dashRes] = await Promise.all([
-        fetch(`${API_URL}/public/evento`),
-        fetch(`${API_URL}/admin/dashboard/stats`),
+        fetch(`${API}/events/current`),
+        fetch(`${API}/reports/dashboard/admin`),
       ]);
       const ev   = evRes.ok   ? await evRes.json()   : null;
       const dash = dashRes.ok ? await dashRes.json() : {};

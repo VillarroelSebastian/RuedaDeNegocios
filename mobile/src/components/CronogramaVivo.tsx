@@ -3,7 +3,8 @@ import { View, Text, TouchableOpacity, TextInput, ActivityIndicator, Linking } f
 import {
   Radio, Clock, MapPin, User, CheckCircle2, Play, Square, ExternalLink, Megaphone,
 } from 'lucide-react-native';
-import { API_URL, userStore } from '../utils/userStore';
+import { userStore } from '../utils/userStore';
+import { API } from '../utils/api';
 
 // Mismo diseño y comportamiento que web/src/components/CronogramaVivo.tsx —
 // se mantienen ambos alineados a propósito (misma grilla de estados, mismos
@@ -59,7 +60,7 @@ export default function CronogramaVivo({
 
   const cargar = useCallback(async () => {
     try {
-      const r = await fetch(`${API_URL}/public/cronograma-vivo`);
+      const r = await fetch(`${API}/activities/live`);
       if (!r.ok) return;
       const d = await r.json();
       if (!vivoRef.current) return;
@@ -86,8 +87,8 @@ export default function CronogramaVivo({
     const mensaje = (anuncios[a.id] || '').trim();
     const usuarioId = userStore.get()?.id;
     if (!mensaje || !usuarioId) return onError?.('Escribe el anuncio antes de publicarlo.');
-    const r = await fetch(`${API_URL}/staff/cronograma-vivo/${a.id}/anuncios`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ usuarioId, mensaje }),
+    const r = await fetch(`${API}/activities/${a.id}/announcements`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mensaje }),
     });
     if (!r.ok) return onError?.((await r.json())?.message || 'No se pudo publicar el anuncio.');
     setAnuncios((n) => ({ ...n, [a.id]: '' }));
@@ -97,7 +98,7 @@ export default function CronogramaVivo({
   const cambiarEstado = async (id: number, estadoEnVivo: string) => {
     setCambiando(id);
     try {
-      const r = await fetch(`${API_URL}/staff/cronograma-vivo/${id}`, {
+      const r = await fetch(`${API}/activities/${id}/live-status`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estadoEnVivo }),
       });
       const d = await r.json();

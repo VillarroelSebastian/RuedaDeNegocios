@@ -10,7 +10,8 @@ import {
   CalendarDays, Clock, MapPin, Video, ExternalLink, AlertCircle,
   Edit2, X, CheckCircle2, ChevronRight, Star, AlertTriangle,
 } from 'lucide-react-native';
-import { API_URL, userStore } from '../../utils/userStore';
+import { userStore } from '../../utils/userStore';
+import { API } from '../../utils/api';
 import { fechaEvento, horaEvento, partesFechaEvento } from '../../utils/fechaEvento';
 
 const GREEN = '#449D3A';
@@ -78,7 +79,7 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
   useEffect(() => {
     if (!reunion) return;
     const eeReceptoraId = reunion.solicitanteEeId === eeId ? reunion.receptoraEeId : reunion.solicitanteEeId;
-    fetch(`${API_URL}/empresa/horarios?eeId=${eeId}&eeReceptoraId=${eeReceptoraId}&excludeReunionId=${reunion.id}`)
+    fetch(`${API}/schedule/agenda?receptoraId=${eeReceptoraId}&excludeReunionId=${reunion.id}`)
       .then((r) => r.json())
       .then((data) => {
         const hrs: any[] = Array.isArray(data?.horarios) ? data.horarios : [];
@@ -111,10 +112,10 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
     if (!horarioMatch) { setAppModal({ tipo: 'err', msg: 'Selecciona un horario válido.' }); return; }
     setGuardando(true);
     try {
-      const res = await fetch(`${API_URL}/empresa/reuniones/${reunion.id}/cambiar-horario`, {
+      const res = await fetch(`${API}/meetings/${reunion.id}/reschedule`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eeId, inicio: horarioMatch.inicio, tipoReunion, mensaje }),
+        body: JSON.stringify({ inicio: horarioMatch.inicio, tipoReunion, mensaje }),
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
       onOk();
@@ -333,9 +334,9 @@ function DetalleReunionModal({ reunion, eeId, navigation, onClose, onCambiarHora
   const handleIniciar = async () => {
     setIniciando(true); setMsgIni(null);
     try {
-      const res = await fetch(`${API_URL}/empresa/reuniones/${reunion.id}/iniciar`, {
+      const res = await fetch(`${API}/meetings/${reunion.id}/start`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eeId }),
+        body: JSON.stringify({}),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.message);
@@ -348,9 +349,9 @@ function DetalleReunionModal({ reunion, eeId, navigation, onClose, onCambiarHora
     setConfirmandoFin(false);
     setFinalizando(true); setErrFin(null);
     try {
-      const res = await fetch(`${API_URL}/empresa/reuniones/${reunion.id}/finalizar`, {
+      const res = await fetch(`${API}/meetings/${reunion.id}/completion`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eeId }),
+        body: JSON.stringify({}),
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
       onFinalizado();
@@ -360,9 +361,9 @@ function DetalleReunionModal({ reunion, eeId, navigation, onClose, onCambiarHora
   const handleCancelarReunion = async () => {
     setCancelandoReunion(true); setErrFin(null);
     try {
-      const res = await fetch(`${API_URL}/empresa/reuniones/${reunion.id}/cancelar`, {
+      const res = await fetch(`${API}/meetings/${reunion.id}/cancellation`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eeId, motivo: motivoCancelacion }),
+        body: JSON.stringify({ motivo: motivoCancelacion }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || 'No se pudo cancelar la reunión.');
@@ -656,7 +657,7 @@ export default function EmpresaReunionesScreen({ navigation }: any) {
     if (!id) { setLoading(false); return; }
     setError('');
     try {
-      const res = await fetch(`${API_URL}/empresa/reuniones?eeId=${id}`);
+      const res = await fetch(`${API}/meetings/mine`);
       if (!res.ok) throw new Error('Error cargando reuniones');
       const data = await res.json();
       setItems(Array.isArray(data) ? data : []);
@@ -678,10 +679,10 @@ export default function EmpresaReunionesScreen({ navigation }: any) {
   const responderCambio = async (cambioId: number, aceptar: boolean) => {
     if (!eeId) return;
     try {
-      const res = await fetch(`${API_URL}/empresa/reuniones/cambios/${cambioId}/responder`, {
+      const res = await fetch(`${API}/meetings/reschedules/${cambioId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eeId, aceptar }),
+        body: JSON.stringify({ aceptar }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message ?? 'No se pudo responder la propuesta');

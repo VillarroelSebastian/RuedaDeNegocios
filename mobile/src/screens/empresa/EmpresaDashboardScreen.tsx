@@ -9,7 +9,8 @@ import {
   Briefcase, CalendarDays, Send, Inbox,
   Newspaper, ChevronRight, AlertCircle, Star,
 } from 'lucide-react-native';
-import { API_URL, userStore } from '../../utils/userStore';
+import { userStore } from '../../utils/userStore';
+import { API } from '../../utils/api';
 
 const GREEN = '#449D3A';
 
@@ -37,7 +38,7 @@ export default function EmpresaDashboardScreen({ navigation }: any) {
     if (!user?.id) return;
     setError('');
     try {
-      const ctxRes = await fetch(`${API_URL}/empresa/mi-empresa?usuarioId=${user.id}`);
+      const ctxRes = await fetch(`${API}/companies/me`);
       if (!ctxRes.ok) throw new Error('No se pudo cargar la empresa');
       const ctxData = await ctxRes.json();
       setCtx(ctxData);
@@ -46,7 +47,7 @@ export default function EmpresaDashboardScreen({ navigation }: any) {
       userStore.set({ ...user, empresaeventoId: ctxData.empresaeventoId, empresaUsuarioId: ctxData.empresaUsuarioId, esResponsable: ctxData.esResponsable });
 
       if (ctxData.empresaeventoId) {
-        const statsRes = await fetch(`${API_URL}/empresa/dashboard-stats?eeId=${ctxData.empresaeventoId}`);
+        const statsRes = await fetch(`${API}/reports/dashboard/company`);
         if (statsRes.ok) setStats(await statsRes.json());
       }
     } catch (e: any) {

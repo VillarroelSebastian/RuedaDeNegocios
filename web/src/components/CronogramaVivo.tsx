@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { Radio, Clock, MapPin, User, CheckCircle2, Circle, Play, Square, ExternalLink, Bell, Megaphone } from "lucide-react";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
+import { API } from "@/lib/api";
 
 // Cada cuánto se vuelve a pedir el cronograma. El evento dura dos días y el
 // staff cambia el estado a mano, así que 15 s da sensación de tiempo real sin
@@ -56,15 +56,25 @@ export function useCronogramaVivo(eeId?: number | null) {
 
   const cargar = useCallback(async () => {
     try {
-      const res = await fetch(`${API}/public/cronograma-vivo${eeId ? `?eeId=${eeId}` : ''}`);
+      // El cronograma es público y ya no dice a qué está suscrita la empresa:
+      // eso se pide aparte y se une acá, para que la tarjeta no cambie.
+      const [res, suscritasRes] = await Promise.all([
+        fetch(`${API}/activities/live`),
+        eeId ? fetch(`${API}/activities/subscriptions`) : Promise.resolve(null),
+      ]);
       if (!res.ok) return;
       const data = await res.json();
+      const suscritas: number[] = suscritasRes?.ok
+        ? await suscritasRes.json().catch(() => [])
+        : [];
       if (!vivo.current) return;
       const ordenadas = Array.isArray(data.actividades)
-        ? [...data.actividades].sort((a, b) => {
-            const fecha = String(a.fechaActividad).localeCompare(String(b.fechaActividad));
-            return fecha || hora(a.horaInicioActividad).localeCompare(hora(b.horaInicioActividad));
-          })
+        ? [...data.actividades]
+            .map((a) => ({ ...a, suscrito: suscritas.includes(a.id) }))
+            .sort((a, b) => {
+              const fecha = String(a.fechaActividad).localeCompare(String(b.fechaActividad));
+              return fecha || hora(a.horaInicioActividad).localeCompare(hora(b.horaInicioActividad));
+            })
         : [];
       setActividades(ordenadas);
       setActualizado(new Date());
@@ -125,14 +135,14 @@ export default function CronogramaVivo({
 
   const suscribir = async (a: ActividadVivo) => {
     if (!eeId) return;
-    await fetch(`${API}/empresa/cronograma-vivo/${a.id}/suscripcion`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ eeId, suscrito: !a.suscrito }) });
+    await fetch(`${API}/activities/${a.id}/subscription`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ suscrito: !a.suscrito }) });
     recargar();
   };
 
   const publicarAnuncio = async (a: ActividadVivo) => {
     const mensaje = (anuncios[a.id] || '').trim();
     if (!mensaje || !usuarioId) return onError?.('Escribe el anuncio antes de publicarlo.');
-    const res = await fetch(`${API}/staff/cronograma-vivo/${a.id}/anuncios`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ usuarioId, mensaje }) });
+    const res = await fetch(`${API}/activities/${a.id}/announcements`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mensaje }) });
     if (!res.ok) return onError?.((await res.json())?.message || 'No se pudo publicar el anuncio.');
     setAnuncios((n) => ({ ...n, [a.id]: '' })); recargar();
   };
@@ -140,7 +150,7 @@ export default function CronogramaVivo({
   const cambiarEstado = async (id: number, estadoEnVivo: string) => {
     setCambiando(id);
     try {
-      const res = await fetch(`${API}/staff/cronograma-vivo/${id}`, {
+      const res = await fetch(`${API}/activities/${id}/live-status`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ estadoEnVivo }),

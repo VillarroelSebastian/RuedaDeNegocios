@@ -6,7 +6,7 @@ import {
 import {
   AlertTriangle, Building2, Clock, Video, Armchair, Search, Link2, X, CheckCircle2,
 } from 'lucide-react-native';
-import { API_URL } from '../../utils/userStore';
+import { API } from '../../utils/api';
 
 const GREEN = '#449D3A';
 
@@ -168,7 +168,7 @@ function LinkModal({ reunion, onClose, onGuardado }: { reunion: any; onClose: ()
     }
     setGuardando(true);
     try {
-      const res = await fetch(`${API_URL}/tecnico/reuniones/${reunion.id}/link`, {
+      const res = await fetch(`${API}/meetings/${reunion.id}/link`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enlace: limpio }),
@@ -241,8 +241,8 @@ export default function TecnicoVirtualesScreen() {
   const fetchReuniones = useCallback(async () => {
     try {
       const [resV, resM] = await Promise.all([
-        fetch(`${API_URL}/tecnico/reuniones?tipo=VIRTUAL`),
-        fetch(`${API_URL}/tecnico/reuniones?tipo=MIXTA`),
+        fetch(`${API}/meetings?tipo=VIRTUAL`),
+        fetch(`${API}/meetings?tipo=MIXTA`),
       ]);
       const [dataV, dataM] = await Promise.all([resV.json(), resM.json()]);
       const virtual  = Array.isArray(dataV) ? dataV : [];

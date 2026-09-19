@@ -4,7 +4,7 @@ import React, { useEffect, useState, useCallback, useRef } from "react";
 import { Package, Plus, Pencil, Trash2, X, Check, Users, Building2, Upload, QrCode } from "lucide-react";
 import { useModal } from "@/components/ui/Modal";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
+import { API } from "@/lib/api";
 
 type Paquete = {
   id: number;
@@ -75,10 +75,10 @@ export default function PaquetesPage() {
     setLoading(true);
     try {
       const suffix = eventoId ? `?eventoId=${eventoId}` : "";
-      const res = await fetch(`${API}/admin/paquetes${suffix}`);
+      const res = await fetch(`${API}/packages${suffix}`);
       setLista(res.ok ? await res.json() : []);
       if (eventoId) {
-        const eventoRes = await fetch(`${API}/admin/eventos/${eventoId}`);
+        const eventoRes = await fetch(`${API}/events/${eventoId}`);
         const evento = eventoRes.ok ? await eventoRes.json() : null;
         setEventoNombre(evento?.nombre ?? "");
       }
@@ -124,7 +124,7 @@ export default function PaquetesPage() {
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const res = await fetch(`${API}/admin/imagenes/upload`, { method: "POST", body: fd });
+      const res = await fetch(`${API}/uploads`, { method: "POST", body: fd });
       const data = await res.json();
       if (!res.ok || !data.url) throw new Error(data?.message || "No se pudo subir la imagen.");
       setForm((f) => ({ ...f, urlQR: data.url }));
@@ -146,7 +146,7 @@ export default function PaquetesPage() {
 
     setGuardando(true);
     try {
-      const url = editandoId ? `${API}/admin/paquetes/${editandoId}` : `${API}/admin/paquetes`;
+      const url = editandoId ? `${API}/packages/${editandoId}` : `${API}/packages`;
       const res = await fetch(url, {
         method: editandoId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
@@ -175,7 +175,7 @@ export default function PaquetesPage() {
   const eliminar = (p: Paquete) =>
     showConfirm("Eliminar paquete", `¿Quitar "${p.nombre}" del formulario de inscripción?`, async () => {
       try {
-        const res = await fetch(`${API}/admin/paquetes/${p.id}`, { method: "DELETE" });
+        const res = await fetch(`${API}/packages/${p.id}`, { method: "DELETE" });
         const data = await res.json();
         if (!res.ok) throw new Error(data?.message || "No se pudo eliminar.");
         await cargar();

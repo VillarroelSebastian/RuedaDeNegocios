@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, Share, Text, TouchableOpacity, View } from 'react-native';
 import { Award, Building2, CalendarCheck, Download, Handshake, Star, TrendingUp, Users, Wallet } from 'lucide-react-native';
-import { API_URL } from '../../utils/userStore';
+import { API } from '../../utils/api';
 
 const GREEN = '#449D3A';
 
@@ -13,7 +13,7 @@ export default function EstadisticasScreen() {
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const cargar = async () => { try { const res = await fetch(`${API_URL}/admin/estadisticas`); if (!res.ok) throw new Error(); setStats(await res.json()); } catch { setStats(null); } finally { setLoading(false); setRefreshing(false); } };
+  const cargar = async () => { try { const res = await fetch(`${API}/reports/statistics`); if (!res.ok) throw new Error(); setStats(await res.json()); } catch { setStats(null); } finally { setLoading(false); setRefreshing(false); } };
   useEffect(() => { cargar(); }, []);
 
   const compartir = async () => {

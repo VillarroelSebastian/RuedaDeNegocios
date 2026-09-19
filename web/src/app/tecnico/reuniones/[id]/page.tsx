@@ -7,7 +7,7 @@ import {
   MapPin, Video, Wifi, MessageSquare, Users,
 } from 'lucide-react';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
+import { API } from "@/lib/api";
 
 const ESTADO_CFG: Record<string, { badge: string; dot: string; label: string; animated?: boolean }> = {
   PROGRAMADA: { badge: 'bg-blue-100 text-blue-700',    dot: 'bg-blue-400',   label: 'Programada' },
@@ -93,7 +93,7 @@ export default function ReunionDetailPage() {
     setGuardandoLink(true);
     setLinkMsg(null);
     try {
-      const res = await fetch(`${API}/tecnico/reuniones/${id}/link`, {
+      const res = await fetch(`${API}/meetings/${id}/link`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enlace: nuevoLink.trim() }),
@@ -113,7 +113,7 @@ export default function ReunionDetailPage() {
     if (!id) return;
     setLoading(true);
     try {
-      const res = await fetch(`${API}/tecnico/reuniones/${id}`);
+      const res = await fetch(`${API}/meetings/${id}`);
       const data = await res.json();
       setReunion(data);
     } catch {

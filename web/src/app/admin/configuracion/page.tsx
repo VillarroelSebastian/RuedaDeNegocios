@@ -4,7 +4,7 @@ import { User, Lock, Camera, Save, LogOut, Mail, KeyRound, CheckCircle2, X, Eye,
 import { useRouter } from 'next/navigation';
 import { useModal } from '@/components/ui/Modal';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
+import { API } from "@/lib/api";
 
 type ResetStep = 'idle' | 'sending' | 'code' | 'success';
 
@@ -25,7 +25,7 @@ function TabEvento() {
   const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
   useEffect(() => {
-    fetch(`${API}/admin/evento/config`)
+    fetch(`${API}/events/current/config`)
       .then((r) => r.json())
       .then((d) => {
         setConfig(d);
@@ -43,7 +43,7 @@ function TabEvento() {
     setSaving(true);
     setMsg(null);
     try {
-      const res = await fetch(`${API}/admin/evento/config`, {
+      const res = await fetch(`${API}/events/current/config`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -167,7 +167,7 @@ export default function ConfiguracionPage() {
     try {
       const fd = new FormData();
       fd.append('file', file);
-      const res = await fetch(`${API}/admin/imagenes/upload`, { method: 'POST', body: fd });
+      const res = await fetch(`${API}/uploads`, { method: 'POST', body: fd });
       const data = await res.json();
       setForm((f) => ({ ...f, urlFotoPerfil: data.url }));
     } catch { showError('Error', 'No se pudo subir la imagen.'); }
@@ -187,7 +187,7 @@ export default function ConfiguracionPage() {
     }
     setSaving(true);
     try {
-      const res = await fetch(`${API}/admin/perfil/${user.id}`, {
+      const res = await fetch(`${API}/profile`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, confirmarResetCorreo }),
@@ -210,10 +210,10 @@ export default function ConfiguracionPage() {
     if (!user?.correo) return;
     setResetStep('sending');
     try {
-      await fetch(`${API}/auth/solicitar-reset`, {
+      await fetch(`${API}/auth/password-reset-requests`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ correo: user.correo }),
+        body: JSON.stringify({ email: user.correo }),
       });
       setResetStep('code');
       setCodigo(''); setNuevaPass(''); setConfirmar(''); setResetError('');
@@ -231,13 +231,16 @@ export default function ConfiguracionPage() {
     if (nuevaPass !== confirmar) { setResetError('Las contraseñas no coinciden.'); return; }
     setResetLoading(true);
     try {
-      const res = await fetch(`${API}/auth/confirmar-reset`, {
+      const res = await fetch(`${API}/auth/password-resets`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ correo: user.correo, codigo, nuevaContrasenia: nuevaPass }),
+        body: JSON.stringify({ email: user.correo, code: codigo, newPassword: nuevaPass }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || 'Código incorrecto o expirado.');
+      // Responde 204: solo hay cuerpo cuando algo falló.
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.message || 'Código incorrecto o expirado.');
+      }
       setResetStep('success');
     } catch (e: any) {
       setResetError(e.message);

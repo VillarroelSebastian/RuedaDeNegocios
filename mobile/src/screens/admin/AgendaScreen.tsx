@@ -6,7 +6,7 @@ import {
 import {
   Calendar, Building2, Video, MapPin, Link2, X, CheckCircle2,
 } from 'lucide-react-native';
-import { API_URL } from '../../utils/userStore';
+import { API } from '../../utils/api';
 
 const GREEN = '#449D3A';
 
@@ -40,7 +40,7 @@ export default function AgendaScreen() {
 
   const fetchAgenda = useCallback(async () => {
     try {
-      const res  = await fetch(`${API_URL}/admin/mesas/agenda`);
+      const res  = await fetch(`${API}/tables`);
       const data = await res.json();
       const mesas: any[] = data.mesas ?? (Array.isArray(data) ? data : []);
       const items: any[] = [];
@@ -232,7 +232,7 @@ function LinkModal({ reunion, onClose, onGuardado }: Readonly<{ reunion: any; on
     setGuardando(true);
     setErr('');
     try {
-      const res = await fetch(`${API_URL}/tecnico/reuniones/${reunion.id}/link`, {
+      const res = await fetch(`${API}/meetings/${reunion.id}/link`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enlace: enlace.trim() }),

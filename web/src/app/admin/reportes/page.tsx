@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { FileText, Download, Printer, Building2, CalendarDays, Star, RefreshCw, Trophy, ScanLine } from "lucide-react";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
+import { API } from "@/lib/api";
 
 const TIPOS = [
   { key: "empresas",   label: "Empresas participantes", Icon: Building2 },
@@ -41,7 +41,7 @@ export default function ReportesPage() {
   const cargar = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API}/admin/reportes?tipo=${tipo}`);
+      const res = await fetch(`${API}/reports/exports?tipo=${tipo}`);
       const data = await res.json();
       setFilas(Array.isArray(data.filas) ? data.filas : []);
     } catch {

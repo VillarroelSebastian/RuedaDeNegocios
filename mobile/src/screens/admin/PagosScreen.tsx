@@ -4,7 +4,7 @@ import {
   ActivityIndicator, RefreshControl
 } from 'react-native';
 import { CreditCard, ChevronRight, Clock, CheckCircle, AlertCircle } from 'lucide-react-native';
-import { API_URL } from '../../utils/userStore';
+import { API } from '../../utils/api';
 
 const GREEN = '#449D3A';
 
@@ -26,7 +26,7 @@ export default function PagosScreen({ navigation }: any) {
   const fetchPagos = useCallback(async () => {
     try {
       const params = new URLSearchParams({ page: '1', limit: '30', ...(tab && { estado: tab }) });
-      const res = await fetch(`${API_URL}/admin/pagos?${params}`);
+      const res = await fetch(`${API}/payments?${params}`);
       const data = await res.json();
       setPagos(data.data || []);
       setTotal(data.total || 0);

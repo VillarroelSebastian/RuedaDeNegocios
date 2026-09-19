@@ -13,7 +13,7 @@ import {
 import { LIMITES, correoValido, validarNombreEmpresa, limpiarEspacios } from "@/lib/validaciones";
 import { RUBROS, RUBROS_CON_OTRO, OTRO } from "@/lib/rubros";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
+import { API } from "@/lib/api";
 
 const ETIQUETA_MESA: Record<string, string> = {
   NORMAL: "Mesa de negocios estándar",
@@ -207,8 +207,8 @@ export default function RegistroPage() {
   /* ─── Load data ─────────────────────────────────────────────── */
   useEffect(() => {
     Promise.all([
-      fetch(`${API}/public/evento`).then((r) => r.json()).catch(() => null),
-      fetch(`${API}/public/paquetes`).then((r) => r.json()).catch(() => []),
+      fetch(`${API}/events/current`).then((r) => r.json()).catch(() => null),
+      fetch(`${API}/packages`).then((r) => r.json()).catch(() => []),
     ])
       .then(([ev, pqs]) => {
         if (ev?.id) setEvento(ev);
@@ -262,7 +262,7 @@ export default function RegistroPage() {
     setCheckingCorreo(true);
     setCorreoError(null);
     try {
-      const res = await fetch(`${API}/public/verificar-empresa?correo=${encodeURIComponent(correo)}`);
+      const res = await fetch(`${API}/registration/availability?correo=${encodeURIComponent(correo)}`);
       const data = await res.json();
       if (data.existe) {
         const msg = `La empresa "${data.nombreEmpresa}" ya está registrada con este correo para el evento actual.`;
@@ -278,7 +278,7 @@ export default function RegistroPage() {
     if (!validTel(telefono)) return null;
     try {
       const params = new URLSearchParams({ telefono, tipo, ...(correo ? { correo } : {}) });
-      const res = await fetch(`${API}/public/verificar-empresa?${params}`);
+      const res = await fetch(`${API}/registration/availability?${params}`);
       const data = await res.json();
       if (!data.existe) return null;
       return tipo === "empresa"
@@ -296,7 +296,7 @@ export default function RegistroPage() {
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const res = await fetch(`${API}/public/imagenes/upload`, { method: "POST", body: fd });
+      const res = await fetch(`${API}/uploads`, { method: "POST", body: fd });
       const data = await res.json();
       if (!res.ok || !data.url) throw new Error(data?.message || "No se pudo guardar el archivo.");
       setUrlComprobante(data.url);
@@ -427,7 +427,7 @@ export default function RegistroPage() {
           ...adicionales.map((a) => ({ ...limpiarPersona(a), esResponsable: false })),
         ],
       };
-      const res = await fetch(`${API}/public/registro`, {
+      const res = await fetch(`${API}/registration`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

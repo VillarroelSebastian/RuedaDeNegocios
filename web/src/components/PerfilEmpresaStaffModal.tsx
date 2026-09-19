@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { Building2, X, MapPin, Mail, Phone, Globe, Handshake } from 'lucide-react';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
+import { API } from "@/lib/api";
 
 export default function PerfilEmpresaStaffModal({ empresaEventoId, onClose }: { empresaEventoId: number | null; onClose: () => void }) {
   const [empresa, setEmpresa] = useState<any>(null);
@@ -12,7 +12,7 @@ export default function PerfilEmpresaStaffModal({ empresaEventoId, onClose }: { 
   useEffect(() => {
     if (!empresaEventoId) return;
     setEmpresa(null); setError('');
-    fetch(`${API}/staff/empresas/${empresaEventoId}/perfil`)
+    fetch(`${API}/directory/${empresaEventoId}`)
       .then(async (r) => { if (!r.ok) throw new Error((await r.json())?.message || 'No se pudo cargar el perfil.'); return r.json(); })
       .then(setEmpresa).catch((e) => setError(e.message));
   }, [empresaEventoId]);

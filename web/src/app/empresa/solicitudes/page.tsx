@@ -12,7 +12,7 @@ import { NuevaSolicitudModal } from "@/components/empresa/NuevaSolicitudModal";
 import { ModalExito } from "@/components/empresa/ModalExito";
 import { fechaEvento } from "@/lib/fechaEvento";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
+import { API } from "@/lib/api";
 const POLL_MS = 5000; // tabla polling cada 5 s
 
 function estadoBadge(estado: string) {
@@ -43,9 +43,9 @@ function RechazarModal({ sol, eeId, onClose, onOk }: { sol: any; eeId: number; o
   const ok = async () => {
     setLoading(true); setErr(null);
     try {
-      const res = await fetch(`${API}/empresa/solicitudes/${sol.id}/rechazar`, {
+      const res = await fetch(`${API}/meeting-requests/${sol.id}/rejection`, {
         method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eeId, motivo }),
+        body: JSON.stringify({ motivo }),
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
       onOk();
@@ -80,7 +80,7 @@ function AceptarModal({ sol, eeId, onClose, onOk }: { sol: any; eeId: number; on
   const ok = async () => {
     setEnviando(true); setErr(null);
     try {
-      const res = await fetch(`${API}/empresa/solicitudes/${sol.id}/aceptar`, {
+      const res = await fetch(`${API}/meeting-requests/${sol.id}/acceptance`, {
         method: "PUT", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ eeId }),
       });
@@ -337,12 +337,12 @@ function SolicitudesContent() {
   const [exitoMsg, setExitoMsg] = useState<string | null>(null);
 
   const cargarSolicitudes = useCallback((eeId: number) =>
-    fetch(`${API}/empresa/solicitudes?eeId=${eeId}`, { cache: "no-store" })
+    fetch(`${API}/meeting-requests`, { cache: "no-store" })
       .then((r) => r.json())
       .then((d) => setSolicitudes(Array.isArray(d) ? d : [])), []);
 
   const cargarEmpresas = (eeId: number) =>
-    fetch(`${API}/empresa/directorio?eeId=${eeId}`)
+    fetch(`${API}/directory`)
       .then((r) => r.json())
       .then((d) => setEmpresas(Array.isArray(d) ? d : []));
 
@@ -357,7 +357,7 @@ function SolicitudesContent() {
     let user: any;
     try { user = JSON.parse(raw); } catch { router.replace("/auth/login"); return; }
 
-    fetch(`${API}/empresa/mi-empresa?usuarioId=${user.id}`)
+    fetch(`${API}/companies/me`)
       .then((r) => r.json())
       .then((c) => {
         setCtx(c);
@@ -417,9 +417,9 @@ function SolicitudesContent() {
     if (!ctx) return;
     setCancelando(solId);
     try {
-      const res = await fetch(`${API}/empresa/solicitudes/${solId}/cancelar`, {
+      const res = await fetch(`${API}/meeting-requests/${solId}/cancellation`, {
         method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eeId: ctx.empresaeventoId }),
+        body: JSON.stringify({}),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.message ?? "Error al cancelar");

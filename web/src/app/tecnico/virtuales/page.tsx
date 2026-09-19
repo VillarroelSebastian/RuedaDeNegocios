@@ -6,7 +6,7 @@ import {
   Wifi, AlertCircle, RefreshCw,
 } from 'lucide-react';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
+import { API } from "@/lib/api";
 
 const ESTADO_CFG: Record<string, { badge: string; dot: string; label: string; animated?: boolean }> = {
   PROGRAMADA: { badge: 'bg-blue-100 text-blue-700',    dot: 'bg-blue-400',   label: 'Programada' },
@@ -61,8 +61,8 @@ export default function TecnicoVirtualesPage() {
       if (mostrarCarga) setLoading(true);
       try {
         const [resV, resM] = await Promise.all([
-          fetch(`${API}/tecnico/reuniones?tipo=VIRTUAL`, { cache: 'no-store' }),
-          fetch(`${API}/tecnico/reuniones?tipo=MIXTA`, { cache: 'no-store' }),
+          fetch(`${API}/meetings?tipo=VIRTUAL`, { cache: 'no-store' }),
+          fetch(`${API}/meetings?tipo=MIXTA`, { cache: 'no-store' }),
         ]);
         const dataV = await resV.json();
         const dataM = await resM.json();

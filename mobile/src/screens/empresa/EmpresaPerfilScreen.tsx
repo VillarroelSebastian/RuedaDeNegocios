@@ -12,7 +12,8 @@ import {
   ShieldCheck, Users, CreditCard, AlertCircle, Check, X, Upload,
   Hash, QrCode, ExternalLink, CheckCircle2, Camera,
 } from 'lucide-react-native';
-import { API_URL, userStore } from '../../utils/userStore';
+import { userStore } from '../../utils/userStore';
+import { API } from '../../utils/api';
 import { LIMITES } from '../../utils/validaciones';
 import { useModal } from '../../components/AppModal';
 
@@ -98,14 +99,14 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
     try {
       const fd = new FormData();
       fd.append('file', { uri: asset.uri, name: 'perfil.jpg', type: 'image/jpeg' } as any);
-      const up = await fetch(`${API_URL}/public/imagenes/upload`, { method: 'POST', body: fd });
+      const up = await fetch(`${API}/uploads`, { method: 'POST', body: fd });
       const upData = await up.json();
       if (!upData.url) throw new Error('No se pudo subir la imagen');
 
-      const res = await fetch(`${API_URL}/empresa/perfil`, {
+      const res = await fetch(`${API}/profile`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ euId: perfil?.empresaUsuarioId, urlFotoPerfil: upData.url }),
+        body: JSON.stringify({ urlFotoPerfil: upData.url }),
       });
       if (!res.ok) throw new Error('No se pudo guardar la foto');
       await userStore.set({ ...userStore.get(), urlFotoPerfil: upData.url });
@@ -133,13 +134,13 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
       const asset = result.assets[0];
       const fd = new FormData();
       fd.append('file', { uri: asset.uri, name: 'empresa.jpg', type: asset.mimeType || 'image/jpeg' } as any);
-      const up = await fetch(`${API_URL}/public/imagenes/upload`, { method: 'POST', body: fd });
+      const up = await fetch(`${API}/uploads`, { method: 'POST', body: fd });
       const upData = await up.json();
       if (!up.ok || !upData.url) throw new Error(upData?.message || 'No se pudo subir la imagen');
-      const res = await fetch(`${API_URL}/empresa/ficha/logo`, {
+      const res = await fetch(`${API}/companies/me/logo`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ euId: perfil.empresaUsuarioId, urlFotoPerfil: upData.url }),
+        body: JSON.stringify({ urlFotoPerfil: upData.url }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || 'No se pudo guardar la imagen de la empresa');
@@ -157,8 +158,8 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
     setError('');
     try {
       const [perfRes, ctxRes] = await Promise.all([
-        fetch(`${API_URL}/empresa/perfil?usuarioId=${user.id}`),
-        fetch(`${API_URL}/empresa/mi-empresa?usuarioId=${user.id}`),
+        fetch(`${API}/profile`),
+        fetch(`${API}/companies/me`),
       ]);
       const perfData = perfRes.ok ? await perfRes.json() : null;
       const ctxData  = ctxRes.ok  ? await ctxRes.json()  : null;
@@ -166,7 +167,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
       setEmpresa(ctxData);
 
       if (ctxData?.empresaeventoId) {
-        const partRes = await fetch(`${API_URL}/empresa/participantes?eeId=${ctxData.empresaeventoId}`);
+        const partRes = await fetch(`${API}/participants`);
         if (partRes.ok) setParticipantes(await partRes.json());
       }
     } catch (e: any) {
@@ -190,7 +191,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
   const handleSavePerfil = async () => {
     setSaveError(''); setSaving(true);
     try {
-      const res = await fetch(`${API_URL}/empresa/perfil`, {
+      const res = await fetch(`${API}/profile`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -221,7 +222,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
   const handleSaveComercial = async () => {
     setComercialError(''); setComercialSaving(true);
     try {
-      const res = await fetch(`${API_URL}/empresa/perfil-comercial`, {
+      const res = await fetch(`${API}/companies/me/commercial`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -256,7 +257,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
     setAddError(''); setAdding(true);
     try {
       const eeId = empresa?.empresaeventoId;
-      const res = await fetch(`${API_URL}/empresa/participantes`, {
+      const res = await fetch(`${API}/participants`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -283,10 +284,10 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
   const handleDeactivate = (eu: any) => {
     show({ type: 'confirm', title: 'Desactivar participante', message: `¿Deseas desactivar a ${eu.usuario?.nombres ?? 'este participante'}? No podrá iniciar sesión.`, cancelText: 'Cancelar', confirmText: 'Desactivar', onConfirm: async () => {
             try {
-              const res = await fetch(`${API_URL}/empresa/participantes/${eu.id ?? eu.euId}/desactivar`, {
+              const res = await fetch(`${API}/participants/${eu.id ?? eu.euId}/desactivar`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ eeId: empresa?.empresaeventoId, euEncargadoId: perfil?.empresaUsuarioId }),
+                body: JSON.stringify({}),
               });
               if (!res.ok) {
                 const d = await res.json();
@@ -308,7 +309,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
 
   useEffect(() => {
     if (!pagoModal || !empresa?.empresaeventoId) return;
-    fetch(`${API_URL}/empresa/pagos-adicionales/qr?eeId=${empresa.empresaeventoId}&cantidad=${parseInt(pagoCant,10)||1}`)
+    fetch(`${API}/top-ups/quote?cantidad=${parseInt(pagoCant,10)||1}`)
       .then((r) => r.json()).then((d) => { setPagoQr(d.urlQR || null); setPagoMonto(String(d.monto || '')); }).catch(() => setPagoQr(null));
   }, [pagoModal, pagoCant, empresa?.empresaeventoId]);
 
@@ -325,7 +326,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
     try {
       const fd = new FormData();
       fd.append('file', { uri: asset.uri, name: 'comprobante.jpg', type: 'image/jpeg' } as any);
-      const res = await fetch(`${API_URL}/public/imagenes/upload`, { method: 'POST', body: fd });
+      const res = await fetch(`${API}/uploads`, { method: 'POST', body: fd });
       const data = await res.json();
       if (!data.url) throw new Error('No se obtuvo URL');
       setPagoUrl(data.url);
@@ -342,7 +343,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
     setPagoError(''); setPagandoAd(true);
     try {
       const eeId = empresa?.empresaeventoId;
-      const res = await fetch(`${API_URL}/empresa/pagos-adicionales`, {
+      const res = await fetch(`${API}/top-ups`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -370,10 +371,10 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
     setPassStep('sending');
     setPassError('');
     try {
-      await fetch(`${API_URL}/auth/solicitar-reset`, {
+      await fetch(`${API}/auth/password-reset-requests`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ correo }),
+        body: JSON.stringify({ email: correo }),
       });
       setResetCodigo(''); setPassNueva(''); setPassConf('');
       setPassStep('code');
@@ -391,13 +392,16 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
     if (passNueva !== passConf)   { setPassError('Las contraseñas no coinciden.'); return; }
     setPassLoading(true);
     try {
-      const res = await fetch(`${API_URL}/auth/confirmar-reset`, {
+      // Responde 204: solo hay cuerpo cuando algo falló.
+      const res = await fetch(`${API}/auth/password-resets`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ correo: user?.correo, codigo: resetCodigo, nuevaContrasenia: passNueva }),
+        body: JSON.stringify({ email: user?.correo, code: resetCodigo, newPassword: passNueva }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || 'Código incorrecto o expirado.');
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.message || 'Código incorrecto o expirado.');
+      }
       setPassStep('success');
     } catch (e: any) {
       setPassError(e.message || 'Error de red');

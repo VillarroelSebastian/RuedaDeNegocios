@@ -9,7 +9,7 @@ import {
   CreditCard, Building2, Users, FileText, Check, X,
   AlertCircle, ExternalLink, ChevronDown, ChevronUp,
 } from 'lucide-react-native';
-import { API_URL } from '../../utils/userStore';
+import { API } from '../../utils/api';
 import { useModal } from '../../components/AppModal';
 
 const GREEN = '#449D3A';
@@ -53,8 +53,8 @@ export default function PagosAdicionalesScreen() {
   const fetchPagos = useCallback(async () => {
     try {
       const url = tab
-        ? `${API_URL}/admin/pagos-adicionales?estado=${tab}`
-        : `${API_URL}/admin/pagos-adicionales`;
+        ? `${API}/top-ups/review?estado=${tab}`
+        : `${API}/top-ups/review`;
       const res = await fetch(url);
       const data = await res.json();
       setPagos(Array.isArray(data) ? data : []);
@@ -86,7 +86,7 @@ export default function PagosAdicionalesScreen() {
       onConfirm: async () => {
         setActing(true);
         try {
-          const res = await fetch(`${API_URL}/admin/pagos-adicionales/${selected.id}/aprobar`, { method: 'PUT' });
+          const res = await fetch(`${API}/top-ups/${selected.id}/approval`, { method: 'PUT' });
           const data = await res.json();
           if (!res.ok) throw new Error(data?.message || 'Error al aprobar');
           show({ type: 'success', title: '¡Aprobado!', message: `Slots aumentados a ${data.nuevoTotalSlots ?? '?'}.` });
@@ -107,7 +107,7 @@ export default function PagosAdicionalesScreen() {
     }
     setActing(true);
     try {
-      const res = await fetch(`${API_URL}/admin/pagos-adicionales/${selected.id}/observar`, {
+      const res = await fetch(`${API}/top-ups/${selected.id}/observation`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ observacion: obs.trim() }),
@@ -137,7 +137,7 @@ export default function PagosAdicionalesScreen() {
       onConfirm: async () => {
         setActing(true);
         try {
-          const res = await fetch(`${API_URL}/admin/pagos-adicionales/${selected.id}/rechazar`, {
+          const res = await fetch(`${API}/top-ups/${selected.id}/rejection`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ motivo: obs.trim() }),

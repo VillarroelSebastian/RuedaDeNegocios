@@ -4,7 +4,7 @@ import {
   StatusBar, ActivityIndicator, Linking, ImageBackground, Image,
 } from 'react-native';
 import { Calendar, MapPin, Phone, Mail, Users, LayoutGrid, Layers, Building2 } from 'lucide-react-native';
-import { API_URL } from '../utils/userStore';
+import { API } from '../utils/api';
 import ImagenLightbox from '../components/ImagenLightbox';
 
 // ─── Paleta ────────────────────────────────────────────────────────────────
@@ -98,8 +98,8 @@ export default function HomeScreen({ navigation }: any) {
     const load = async () => {
       try {
         const [evRes, actsRes] = await Promise.all([
-          fetch(`${API_URL}/public/evento`),
-          fetch(`${API_URL}/public/actividades`),
+          fetch(`${API}/events/current`),
+          fetch(`${API}/activities`),
         ]);
         const ev   = evRes.ok   ? await evRes.json()   : null;
         const acts = actsRes.ok ? await actsRes.json() : [];

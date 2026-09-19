@@ -6,7 +6,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Mail, Lock, Eye, Check } from "lucide-react";
 import { correoValido, sinEspacios } from "@/lib/validaciones";
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
+import { apiPost } from "@/lib/api";
+import { desdeApi, guardarSesion, type RespuestaSesion } from "@/lib/sesion";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -34,33 +35,21 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ correo: correoLimpio, contrasenia }),
-      });
+      // La API entrega la sesión con sus propios nombres de campo. Se traduce
+      // una sola vez al guardarla, para que las pantallas la sigan leyendo igual.
+      const respuesta = await apiPost<RespuestaSesion>(
+        "/auth/sessions",
+        { email: correoLimpio, password: contrasenia },
+        { cerrarSesionEn401: false },
+      );
+      const clave = guardarSesion(desdeApi(respuesta));
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data?.message || "Credenciales inválidas");
-      }
-
-      const user = await res.json();
-
-      // Limpiar TODAS las sesiones previas antes de guardar la nueva
-      localStorage.removeItem("adminUser");
-      localStorage.removeItem("tecnicoUser");
-      localStorage.removeItem("empresaUser");
-
-      if (user.rolEvento === "ADMINISTRADOR") {
-        localStorage.setItem("adminUser", JSON.stringify(user));
+      if (clave === "adminUser") {
         router.push("/admin/dashboard");
-      } else if (["TECNICO", "TECNICO_EVENTOS"].includes(user.rolEvento)) {
-        localStorage.setItem("tecnicoUser", JSON.stringify(user));
+      } else if (clave === "tecnicoUser") {
         const siguiente = new URLSearchParams(window.location.search).get("next");
         router.push(siguiente?.startsWith("/credencial/") ? siguiente : "/tecnico/dashboard");
-      } else if (user.rolEvento === "EMPRESA") {
-        localStorage.setItem("empresaUser", JSON.stringify(user));
+      } else if (clave === "empresaUser") {
         router.push("/empresa/dashboard");
       } else {
         throw new Error("Acceso denegado: no tienes permisos de acceso");

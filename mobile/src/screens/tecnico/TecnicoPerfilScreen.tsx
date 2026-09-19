@@ -6,7 +6,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { UserCircle, Lock, LogOut, Eye, EyeOff, Shield, Camera } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { API_URL, userStore } from '../../utils/userStore';
+import { userStore } from '../../utils/userStore';
+import { API } from '../../utils/api';
 
 const GREEN = '#449D3A';
 
@@ -115,7 +116,7 @@ export default function TecnicoPerfilScreen({ navigation }: any) {
         type: asset.mimeType ?? 'image/jpeg',
       } as any);
 
-      const res  = await fetch(`${API_URL}/admin/imagenes/upload`, { method: 'POST', body: formData });
+      const res  = await fetch(`${API}/uploads`, { method: 'POST', body: formData });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message ?? 'Error al subir imagen');
       const newUrl: string = data.url ?? data.urlImagen ?? data.imageUrl ?? '';
@@ -135,7 +136,7 @@ export default function TecnicoPerfilScreen({ navigation }: any) {
     }
     setSavingPerfil(true);
     try {
-      const res = await fetch(`${API_URL}/admin/perfil/${user?.id}`, {
+      const res = await fetch(`${API}/profile`, {
         method:  'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -174,7 +175,7 @@ export default function TecnicoPerfilScreen({ navigation }: any) {
     }
     setSavingPw(true);
     try {
-      const res = await fetch(`${API_URL}/admin/perfil/${user?.id}`, {
+      const res = await fetch(`${API}/profile`, {
         method:  'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contraseniaActual: pwActual, nuevaContrasenia: pwNueva }),

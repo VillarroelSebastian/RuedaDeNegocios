@@ -11,7 +11,7 @@ import { paisConBandera } from "@/lib/pais";
 import { NuevaSolicitudModal } from "@/components/empresa/NuevaSolicitudModal";
 import { ModalExito } from "@/components/empresa/ModalExito";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
+import { API } from "@/lib/api";
 
 function afinidadInfo(afinidad: string | null) {
   if (afinidad === "alta")
@@ -46,11 +46,11 @@ export default function PerfilEmpresaPage() {
     let user: any;
     try { user = JSON.parse(raw); } catch { router.replace("/auth/login"); return; }
 
-    fetch(`${API}/empresa/mi-empresa?usuarioId=${user.id}`)
+    fetch(`${API}/companies/me`)
       .then((r) => r.json())
       .then((c) => {
         setCtx(c);
-        return fetch(`${API}/empresa/perfil-empresa/${eeId}?miEeId=${c.empresaeventoId}`);
+        return fetch(`${API}/directory/${eeId}`);
       })
       .then((r) => r.json())
       .then((d) => { if (d?.empresaeventoId) { setEmp(d); setEstado("ok"); } else setEstado("error"); })

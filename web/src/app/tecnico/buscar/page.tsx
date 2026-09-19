@@ -3,7 +3,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Search, Building2, Armchair, CalendarCheck, Video, MapPin, X, MessageSquare, CalendarClock } from 'lucide-react';
 import { EnviarMensajeEmpresaModal } from '@/components/EnviarMensajeEmpresaModal';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
+import { API } from "@/lib/api";
 
 const ESTADO_CFG: Record<string, { badge: string; dot: string; label: string }> = {
   PROGRAMADA: { badge:'bg-blue-100 text-blue-700',    dot:'bg-blue-400',   label:'Programada' },
@@ -65,7 +65,7 @@ export default function TecnicoBuscarPage() {
     if (trimmed.length < 2) { setResults(null); return; }
     setLoading(true);
     try {
-      const res  = await fetch(`${API}/tecnico/buscar?q=${encodeURIComponent(trimmed)}`);
+      const res  = await fetch(`${API}/reports/search?q=${encodeURIComponent(trimmed)}`);
       const data = await res.json();
       setResults(data);
     } catch { setResults(null); }
@@ -86,7 +86,7 @@ export default function TecnicoBuscarPage() {
 
   const abrirAgenda = async (empresa: any) => {
     setAgendaEmpresa(empresa); setAgenda(null);
-    try { const res = await fetch(`${API}/staff/empresas/${empresa.empresaeventoId}/agenda`); setAgenda(await res.json()); }
+    try { const res = await fetch(`${API}/meetings/agenda/${empresa.empresaeventoId}`); setAgenda(await res.json()); }
     catch { setAgenda({ reuniones: [] }); }
   };
 

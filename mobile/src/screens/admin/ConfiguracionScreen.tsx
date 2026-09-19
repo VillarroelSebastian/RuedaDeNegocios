@@ -5,7 +5,8 @@ import {
 } from 'react-native';
 import { User, Camera, Save, LogOut, Lock } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { API_URL, userStore } from '../../utils/userStore';
+import { userStore } from '../../utils/userStore';
+import { API } from '../../utils/api';
 import { useModal } from '../../components/AppModal';
 
 const GREEN = '#449D3A';
@@ -37,7 +38,7 @@ export default function ConfiguracionScreen({ navigation }: any) {
       try {
         const fd = new FormData();
         fd.append('file', { uri, name: 'photo.jpg', type: 'image/jpeg' } as any);
-        const res = await fetch(`${API_URL}/admin/imagenes/upload`, { method: 'POST', body: fd });
+        const res = await fetch(`${API}/uploads`, { method: 'POST', body: fd });
         const data = await res.json();
         setForm((f) => ({ ...f, urlFotoPerfil: data.url }));
       } catch { show({ type: 'error', title: 'Error', message: 'No se pudo subir la foto.' }); }
@@ -49,7 +50,7 @@ export default function ConfiguracionScreen({ navigation }: any) {
     if (!user) return;
     setSaving(true);
     try {
-      const res = await fetch(`${API_URL}/admin/perfil/${user.id}`, {
+      const res = await fetch(`${API}/profile`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
@@ -80,7 +81,7 @@ export default function ConfiguracionScreen({ navigation }: any) {
     }
     setSaving(true);
     try {
-      const res = await fetch(`${API_URL}/admin/perfil/${user.id}`, {
+      const res = await fetch(`${API}/profile`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, contraseniaActual: passForm.contraseniaActual, nuevaContrasenia: passForm.nuevaContrasenia }),

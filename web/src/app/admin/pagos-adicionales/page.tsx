@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Check, X, Eye, AlertCircle, CheckCircle2, RefreshCw } from "lucide-react";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
+import { API } from "@/lib/api";
 
 function estadoBadge(estado: string) {
   const map: Record<string, { cls: string; label: string }> = {
@@ -32,7 +32,7 @@ export default function PagosAdicionalesAdminPage() {
   const cargar = useCallback(async () => {
     setLoading(true);
     try {
-      const url = filtro ? `${API}/admin/pagos-adicionales?estado=${filtro}` : `${API}/admin/pagos-adicionales`;
+      const url = filtro ? `${API}/top-ups/review?estado=${filtro}` : `${API}/top-ups/review`;
       const r = await fetch(url);
       const d = await r.json();
       setPagos(Array.isArray(d) ? d : []);
@@ -51,7 +51,7 @@ export default function PagosAdicionalesAdminPage() {
     setModalAprobar(null);
     setProcesando(id);
     try {
-      const res = await fetch(`${API}/admin/pagos-adicionales/${id}/aprobar`, { method: "PUT" });
+      const res = await fetch(`${API}/top-ups/${id}/approval`, { method: "PUT" });
       const d = await res.json();
       if (!res.ok) throw new Error(d.message);
       setMensaje(`Pago aprobado. Nuevos cupos totales: ${d.nuevoTotalSlots}`);
@@ -68,7 +68,7 @@ export default function PagosAdicionalesAdminPage() {
     setModalRechazar(null); setMotivoRechazo("");
     setProcesando(id);
     try {
-      const res = await fetch(`${API}/admin/pagos-adicionales/${id}/rechazar`, {
+      const res = await fetch(`${API}/top-ups/${id}/rejection`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ motivo }),
@@ -86,7 +86,7 @@ export default function PagosAdicionalesAdminPage() {
     if (!observacion.trim()) { setMensajeErr("La observacion es requerida"); return; }
     setProcesando(modalObs.id);
     try {
-      const res = await fetch(`${API}/admin/pagos-adicionales/${modalObs.id}/observar`, {
+      const res = await fetch(`${API}/top-ups/${modalObs.id}/observation`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ observacion }),

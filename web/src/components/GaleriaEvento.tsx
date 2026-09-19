@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { Images, Upload, X, Trash2, Camera, User } from "lucide-react";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
+import { API } from "@/lib/api";
 
 export type Foto = {
   id: number;
@@ -47,8 +47,8 @@ export default function GaleriaEvento({
 
   const cargar = useCallback(async () => {
     try {
-      const ruta = (esStaff || empresaUsuarioId || puedeSubir) ? 'galeria' : 'public/galeria';
-      const res = await fetch(`${API}/${ruta}${soloTecnicos ? '?soloTecnicos=1' : ''}`);
+      // Una sola galería: quién la mira lo decide el token, no la ruta.
+      const res = await fetch(`${API}/gallery${soloTecnicos ? '?soloTecnicos=1' : ''}`);
       setFotos(res.ok ? await res.json() : []);
     } catch {
       onError?.("No se pudo cargar la galería.");
@@ -68,22 +68,19 @@ export default function GaleriaEvento({
     try {
       const fd = new FormData();
       fd.append("file", file);
-      // Las empresas no pueden llamar rutas /admin. El endpoint público aplica
-      // las mismas validaciones de tipo, firma, dimensiones y tamaño del archivo.
-      const uploadPath = esStaff || usuarioId ? "admin/imagenes/upload" : "public/imagenes/upload";
-      const up = await fetch(`${API}/${uploadPath}`, { method: "POST", body: fd });
+      // Un solo endpoint de subida para todos, con las mismas validaciones de
+      // tipo, firma, dimensiones y tamaño del archivo.
+      const up = await fetch(`${API}/uploads`, { method: "POST", body: fd });
       const upData = await up.json();
       if (!up.ok || !upData.url) throw new Error(upData?.message || "No se pudo subir la imagen.");
 
-      const res = await fetch(`${API}/galeria`, {
+      const res = await fetch(`${API}/gallery`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        // El autor sale del token: ya no se declara quién publica.
         body: JSON.stringify({
           urlFoto: upData.url,
-          autorNombre: autorNombre || "Participante",
-          empresa_usuario_id: empresaUsuarioId ?? null,
-          usuario_id: usuarioId ?? null,
-          descripcion: descripcion.trim() || null,
+          descripcion: descripcion.trim() || undefined,
         }),
       });
       const data = await res.json();
@@ -101,12 +98,12 @@ export default function GaleriaEvento({
 
   const eliminar = async (foto: Foto) => {
     try {
-      const params = new URLSearchParams();
-      if (esStaff) params.set("esStaff", "1");
-      if (empresaUsuarioId) params.set("empresa_usuario_id", String(empresaUsuarioId));
-      const res = await fetch(`${API}/galeria/${foto.id}?${params}`, { method: "DELETE" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || "No se pudo eliminar.");
+      // Quién puede borrarla lo decide el token. Responde 204, sin cuerpo.
+      const res = await fetch(`${API}/gallery/${foto.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.message || "No se pudo eliminar.");
+      }
       setFotos((prev) => prev.filter((f) => f.id !== foto.id));
       setAmpliada(null);
       onOk?.("Foto eliminada", "La foto se quitó de la galería.");

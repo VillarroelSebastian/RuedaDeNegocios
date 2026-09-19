@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { useModal } from "@/components/ui/Modal";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
+import { API } from "@/lib/api";
 
 type Persona = { id?: number; nombreCompleto: string; cargo: string; correo: string; urlCredencialQR?: string | null };
 type Paquete = { id: number; nombre: string; costo: number };
@@ -53,8 +53,8 @@ export default function AuspiciadoresPage() {
     setLoading(true);
     try {
       const [aRes, pRes] = await Promise.all([
-        fetch(`${API}/admin/auspiciadores`),
-        fetch(`${API}/admin/paquetes`),
+        fetch(`${API}/sponsors`),
+        fetch(`${API}/packages`),
       ]);
       setLista(aRes.ok ? await aRes.json() : []);
       setPaquetes(pRes.ok ? await pRes.json() : []);
@@ -124,7 +124,7 @@ export default function AuspiciadoresPage() {
 
     setGuardando(true);
     try {
-      const url = editandoId ? `${API}/admin/auspiciadores/${editandoId}` : `${API}/admin/auspiciadores`;
+      const url = editandoId ? `${API}/sponsors/${editandoId}` : `${API}/sponsors`;
       const res = await fetch(url, {
         method: editandoId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
@@ -167,7 +167,7 @@ export default function AuspiciadoresPage() {
       `¿Eliminar a "${a.nombreEmpresa}"? Sus ${a.personas.length} credencial(es) dejarán de ser válidas.`,
       async () => {
         try {
-          const res = await fetch(`${API}/admin/auspiciadores/${a.id}`, { method: "DELETE" });
+          const res = await fetch(`${API}/sponsors/${a.id}`, { method: "DELETE" });
           if (!res.ok) throw new Error((await res.json())?.message || "No se pudo eliminar.");
           await cargar();
           showSuccess("Auspiciador eliminado", `"${a.nombreEmpresa}" se quitó de la lista.`);

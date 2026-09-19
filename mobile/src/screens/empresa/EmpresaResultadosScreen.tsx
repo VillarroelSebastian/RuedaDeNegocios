@@ -6,7 +6,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Star, CheckCircle, AlertCircle, X } from 'lucide-react-native';
-import { API_URL, userStore } from '../../utils/userStore';
+import { userStore } from '../../utils/userStore';
+import { API } from '../../utils/api';
 
 const GREEN = '#449D3A';
 
@@ -52,7 +53,7 @@ export default function EmpresaResultadosScreen({ route }: any) {
       const usuarioId = userStore.get()?.id;
       if (usuarioId) {
         try {
-          const ctxRes = await fetch(`${API_URL}/empresa/mi-empresa?usuarioId=${usuarioId}`);
+          const ctxRes = await fetch(`${API}/companies/me`);
           const ctx = await ctxRes.json();
           if (ctx?.empresaeventoId) {
             await userStore.set({ ...userStore.get(), empresaeventoId: ctx.empresaeventoId, empresaUsuarioId: ctx.empresaUsuarioId });
@@ -65,8 +66,8 @@ export default function EmpresaResultadosScreen({ route }: any) {
     setError('');
     try {
       const [reuRes, resRes] = await Promise.all([
-        fetch(`${API_URL}/empresa/reuniones?eeId=${eeId}`),
-        fetch(`${API_URL}/empresa/resultados?eeId=${eeId}`),
+        fetch(`${API}/meetings/mine`),
+        fetch(`${API}/meetings/results`),
       ]);
       const reuData = reuRes.ok ? await reuRes.json() : [];
       const resData = resRes.ok ? await resRes.json() : [];
@@ -99,14 +100,11 @@ export default function EmpresaResultadosScreen({ route }: any) {
     setSaveError('');
     setSaving(true);
     try {
-      const eeId = userStore.get()?.empresaeventoId;
-      const res = await fetch(`${API_URL}/empresa/resultados`, {
+      // El resultado cuelga de su reunión; quién lo firma sale del token.
+      const res = await fetch(`${API}/meetings/${selectedReu.id}/result`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          reunionId: selectedReu.id,
-          eeId,
-          euId: userStore.get()?.empresaUsuarioId,
           calificacion,
           rango,
           observaciones: observacion.trim(),

@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { MessageSquare, X, Send, CheckCircle2, AlertCircle } from "lucide-react";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
+import { API } from "@/lib/api";
 
 // Modal para que admin/técnico envíe un mensaje directo a una empresa.
 // El mensaje aparece en la sección Mensajes de la empresa como "Equipo del evento".
@@ -20,10 +20,10 @@ export function EnviarMensajeEmpresaModal({ usuarioId, receptorEeId, empresaNomb
     setEnviando(true);
     setErr(null);
     try {
-      const res = await fetch(`${API}/staff/mensajes`, {
+      const res = await fetch(`${API}/messages/staff`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ usuarioId, receptorEeId, contenido: texto.trim() }),
+        body: JSON.stringify({ receptorEeId, contenido: texto.trim() }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message ?? "Error al enviar el mensaje");

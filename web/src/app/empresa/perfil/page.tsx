@@ -10,7 +10,7 @@ import {
 import ImagenLightbox from "@/components/ui/ImagenLightbox";
 import { LIMITES } from "@/lib/validaciones";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
+import { API } from "@/lib/api";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -40,10 +40,10 @@ function AgregarParticipanteModal({ eeId, euEncargadoId, slotsDisponibles, maxPe
     }
     setEnviando(true);
     try {
-      const res = await fetch(`${API}/empresa/participantes`, {
+      const res = await fetch(`${API}/participants`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eeId, euEncargadoId, ...form }),
+        body: JSON.stringify({ ...form }),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.message);
@@ -110,7 +110,7 @@ function PagoAdicionalModal({ eeId, euEncargadoId, maxPermitidos, slotsPagados, 
   const maxAdicionales = maxPermitidos - slotsPagados;
 
   useEffect(() => {
-    fetch(`${API}/empresa/pagos-adicionales/qr?eeId=${eeId}&cantidad=${cantidad}`).then((r) => r.json()).then((d) => { setQrPago(d.urlQR || null); setMontoCalculado(Number(d.monto || 0)); }).catch(() => setQrPago(null));
+    fetch(`${API}/top-ups/quote?cantidad=${cantidad}`).then((r) => r.json()).then((d) => { setQrPago(d.urlQR || null); setMontoCalculado(Number(d.monto || 0)); }).catch(() => setQrPago(null));
   }, [eeId, cantidad]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -121,7 +121,7 @@ function PagoAdicionalModal({ eeId, euEncargadoId, maxPermitidos, slotsPagados, 
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const res = await fetch(`${API}/public/imagenes/upload`, { method: "POST", body: fd });
+      const res = await fetch(`${API}/uploads`, { method: "POST", body: fd });
       const data = await res.json();
       if (!data.url) throw new Error("No se obtuvo URL del archivo");
       setUrlComprobante(data.url);
@@ -140,10 +140,10 @@ function PagoAdicionalModal({ eeId, euEncargadoId, maxPermitidos, slotsPagados, 
     if (cantidad < 1) { setErr("La cantidad debe ser al menos 1"); return; }
     setEnviando(true);
     try {
-      const res = await fetch(`${API}/empresa/pagos-adicionales`, {
+      const res = await fetch(`${API}/top-ups`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eeId, euEncargadoId, cantidadParticipantes: cantidad, urlComprobante }),
+        body: JSON.stringify({ cantidadParticipantes: cantidad, urlComprobante }),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.message);
@@ -255,11 +255,11 @@ export default function EmpresaPerfilPage() {
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const up = await fetch(`${API}/public/imagenes/upload`, { method: "POST", body: fd });
+      const up = await fetch(`${API}/uploads`, { method: "POST", body: fd });
       const upData = await up.json();
       if (!upData.url) throw new Error("No se pudo subir la imagen");
 
-      const res = await fetch(`${API}/empresa/perfil`, {
+      const res = await fetch(`${API}/profile`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ euId: ctx.empresaUsuarioId, urlFotoPerfil: upData.url }),
@@ -293,10 +293,10 @@ export default function EmpresaPerfilPage() {
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const up = await fetch(`${API}/public/imagenes/upload`, { method: "POST", body: fd });
+      const up = await fetch(`${API}/uploads`, { method: "POST", body: fd });
       const upData = await up.json();
       if (!up.ok || !upData.url) throw new Error(upData?.message || "No se pudo subir la imagen");
-      const res = await fetch(`${API}/empresa/ficha/logo`, {
+      const res = await fetch(`${API}/companies/me/logo`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ euId: ctx.empresaUsuarioId, urlFotoPerfil: upData.url }),
@@ -336,10 +336,10 @@ export default function EmpresaPerfilPage() {
     setErrComercial(null);
     setGuardandoComercial(true);
     try {
-      const res = await fetch(`${API}/empresa/perfil-comercial`, {
+      const res = await fetch(`${API}/companies/me/commercial`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ euId: ctx.empresaUsuarioId, ...formComercial }),
+        body: JSON.stringify({ ...formComercial }),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.message || "No se pudo guardar");
@@ -368,10 +368,10 @@ export default function EmpresaPerfilPage() {
     if (!correo) return;
     setResetStep("sending");
     try {
-      await fetch(`${API}/auth/solicitar-reset`, {
+      await fetch(`${API}/auth/password-reset-requests`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ correo }),
+        body: JSON.stringify({ email: correo }),
       });
       setResetCodigo(""); setResetNueva(""); setResetConf(""); setResetErr(null);
       setResetStep("code");
@@ -388,13 +388,16 @@ export default function EmpresaPerfilPage() {
     if (resetNueva !== resetConf)  { setResetErr("Las contraseñas no coinciden."); return; }
     setResetLoading(true);
     try {
-      const res = await fetch(`${API}/auth/confirmar-reset`, {
+      const res = await fetch(`${API}/auth/password-resets`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ correo: ctx?.usuario?.correo, codigo: resetCodigo, nuevaContrasenia: resetNueva }),
+        body: JSON.stringify({ email: ctx?.usuario?.correo, code: resetCodigo, newPassword: resetNueva }),
       });
-      const d = await res.json();
-      if (!res.ok) throw new Error(d?.message || "Código incorrecto o expirado.");
+      // Responde 204: solo hay cuerpo cuando algo falló.
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d?.message || "Código incorrecto o expirado.");
+      }
       setResetStep("success");
     } catch (e: any) {
       setResetErr(e.message);
@@ -412,7 +415,7 @@ export default function EmpresaPerfilPage() {
   const cargarParticipantes = useCallback(async (eeId: number) => {
     setLoadingParticipantes(true);
     try {
-      const r = await fetch(`${API}/empresa/participantes?eeId=${eeId}`);
+      const r = await fetch(`${API}/participants`);
       if (r.ok) setDataParticipantes(await r.json());
     } finally {
       setLoadingParticipantes(false);
@@ -425,7 +428,7 @@ export default function EmpresaPerfilPage() {
     let user: any;
     try { user = JSON.parse(raw); } catch { router.replace("/auth/login"); return; }
 
-    fetch(`${API}/empresa/perfil?usuarioId=${user.id}`)
+    fetch(`${API}/profile`)
       .then((r) => r.json())
       .then((data) => {
         setCtx(data);
@@ -454,10 +457,10 @@ export default function EmpresaPerfilPage() {
     if (!form.apellidoPaterno.trim()) { setErrForm("El apellido paterno es requerido."); return; }
     setGuardando(true);
     try {
-      const res = await fetch(`${API}/empresa/perfil`, {
+      const res = await fetch(`${API}/profile`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ euId: ctx.empresaUsuarioId, ...form }),
+        body: JSON.stringify({ ...form }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message ?? "Error al guardar");
@@ -485,10 +488,10 @@ export default function EmpresaPerfilPage() {
     setModalDesactivarEu(null);
     setDesactivando(euId);
     try {
-      const res = await fetch(`${API}/empresa/participantes/${euId}/desactivar`, {
+      const res = await fetch(`${API}/participants/${euId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eeId: ctx.empresaeventoId, euEncargadoId: ctx.empresaUsuarioId }),
+        body: undefined,
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.message);

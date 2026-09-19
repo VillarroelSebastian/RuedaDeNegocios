@@ -2,7 +2,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { CheckCircle2, ImageIcon, ScanLine, X } from "lucide-react";
 import { BrowserQRCodeReader } from "@zxing/browser";
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
+import { API } from "@/lib/api";
 
 export default function TecnicoAsistenciaPage() {
   const [valor, setValor] = useState("");
@@ -26,8 +26,8 @@ export default function TecnicoAsistenciaPage() {
   const cargar = useCallback((filtro?: { tipo: "PARTICIPANTE" | "AUSPICIADOR"; id: number; nombre: string } | null) => {
     if (!tecnico?.id || !filtro) { setAsistencias([]); return; }
     const url = filtro.tipo === "PARTICIPANTE"
-      ? `${API}/tecnico/asistencias?empresaEventoId=${filtro.id}`
-      : `${API}/tecnico/asistencias-auspiciadores`;
+      ? `${API}/attendance?empresaEventoId=${filtro.id}`
+      : `${API}/sponsors/attendance`;
     fetch(url).then((r) => r.json()).then((data) => {
       const lista = Array.isArray(data) ? data : [];
       const filtrada = filtro.tipo === "AUSPICIADOR"
@@ -70,8 +70,8 @@ export default function TecnicoAsistenciaPage() {
     try {
       const { auspiciador, partes, token } = credencial;
       const res = await fetch(auspiciador
-        ? `${API}/tecnico/credenciales-auspiciador/verificar?personaId=${partes[1]}&token=${encodeURIComponent(token)}`
-        : `${API}/tecnico/credenciales/verificar?euId=${partes[1]}&token=${encodeURIComponent(token)}`);
+        ? `${API}/sponsors/attendance/check?personaId=${partes[1]}&token=${encodeURIComponent(token)}`
+        : `${API}/attendance/check?companyUserId=${partes[1]}&token=${encodeURIComponent(token)}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || "No se pudo verificar.");
       cerrarCamara();
@@ -96,7 +96,7 @@ export default function TecnicoAsistenciaPage() {
       const res = await fetch(`${API}/${esAuspiciador ? "tecnico/asistencias-auspiciadores" : "tecnico/asistencias"}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(esAuspiciador ? { personaId: pendiente.personaId, token: pendiente.token } : { euId: pendiente.euId, token: pendiente.token }),
+        body: JSON.stringify(esAuspiciador ? { personaId: pendiente.personaId, token: pendiente.token } : { companyUserId: pendiente.euId, token: pendiente.token }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || "No se pudo registrar.");

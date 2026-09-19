@@ -7,7 +7,7 @@ import { EnviarMensajeEmpresaModal } from '@/components/EnviarMensajeEmpresaModa
 import FichaEmpresaModal from '@/components/admin/FichaEmpresaModal';
 import PerfilEmpresaStaffModal from '@/components/PerfilEmpresaStaffModal';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
+import { API } from "@/lib/api";
 
 const ESTADOS_PAGO = [
   { value: '', label: 'Todos los estados' },
@@ -37,7 +37,7 @@ function ParticipantesModal({ empresa, onClose, permitirCambiarPassword = true }
   const reiniciarPassword = async (p: any, nuevaContrasenia?: string) => {
     setReiniciando(p.usuarioId);
     try {
-      const res = await fetch(`${API}/admin/participantes/${p.usuarioId}/password-temporal`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(nuevaContrasenia ? { nuevaContrasenia } : {}) });
+      const res = await fetch(`${API}/participants/${p.usuarioId}/temporary-password`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(nuevaContrasenia ? { nuevaContrasenia } : {}) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'No se pudo cambiar la contraseña');
       setCredencial({ correo: data.correo, password: data.nuevaContrasenia });
@@ -140,7 +140,7 @@ function AgendaEmpresaModal({ empresa, onClose }: { empresa: { eeId: number; nom
   useEffect(() => {
     if (!empresa) return;
     setData(null);
-    fetch(`${API}/staff/empresas/${empresa.eeId}/agenda`).then((r) => r.json()).then(setData).catch(() => setData({ reuniones: [] }));
+    fetch(`${API}/meetings/agenda/${empresa.eeId}`).then((r) => r.json()).then(setData).catch(() => setData({ reuniones: [] }));
   }, [empresa]);
   if (!empresa) return null;
   return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}><div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6" onClick={(e) => e.stopPropagation()}>
@@ -215,7 +215,7 @@ export function EmpresasRegistradasPage({ modoTecnico = false }: { modoTecnico?:
       'Esta acción desactivará la empresa del sistema.',
       async () => {
         try {
-          const res = await fetch(`${API}/admin/empresas/${id}`, { method: 'DELETE' });
+          const res = await fetch(`${API}/companies/${id}`, { method: 'DELETE' });
           const data = await res.json();
           if (!res.ok) throw new Error(data?.message || 'No se pudo desactivar la empresa.');
           showSuccess('Empresa eliminada', 'La empresa fue desactivada correctamente.');

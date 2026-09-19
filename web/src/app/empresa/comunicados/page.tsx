@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { Newspaper, Clock, Tag, AlertCircle, User } from "lucide-react";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
+import { API } from "@/lib/api";
 
 function formatFecha(f: string) {
   return new Date(f).toLocaleDateString("es-BO", {
@@ -32,7 +32,7 @@ export default function EmpresaComunicadosPage() {
   }, []);
 
   useEffect(() => {
-    fetch(`${API}/empresa/comunicados`)
+    fetch(`${API}/news`)
       .then((r) => r.json())
       .then((data) => setComunicados(Array.isArray(data) ? data : []))
       .catch(() => setError("No se pudo cargar los comunicados."))

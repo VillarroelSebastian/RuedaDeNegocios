@@ -2,13 +2,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Printer, Search } from "lucide-react";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
+import { API } from "@/lib/api";
 
 export default function CredencialesPage() {
   const [data, setData] = useState<any>({ credenciales: [] });
   const [buscar, setBuscar] = useState("");
   const [imprimirId, setImprimirId] = useState<number | null>(null);
-  useEffect(() => { fetch(`${API}/admin/credenciales-imprimibles`).then((r) => r.json()).then(setData); }, []);
+  useEffect(() => { fetch(`${API}/credentials/printable`).then((r) => r.json()).then(setData); }, []);
   useEffect(() => {
     const limpiar = () => setImprimirId(null);
     window.addEventListener("afterprint", limpiar);

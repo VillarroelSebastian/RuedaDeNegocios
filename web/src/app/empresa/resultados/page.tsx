@@ -4,7 +4,7 @@ import React, { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Star, CheckCircle2, AlertCircle, Calendar, Building2 } from "lucide-react";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
+import { API } from "@/lib/api";
 
 const RANGOS = [
   "Sin acuerdo",
@@ -70,8 +70,8 @@ function ResultadosContent() {
 
   const cargar = (eeId: number) =>
     Promise.all([
-      fetch(`${API}/empresa/reuniones?eeId=${eeId}`).then((r) => r.json()),
-      fetch(`${API}/empresa/resultados?eeId=${eeId}`).then((r) => r.json()),
+      fetch(`${API}/meetings/mine`).then((r) => r.json()),
+      fetch(`${API}/meetings/results`).then((r) => r.json()),
     ]).then(([reu, res]) => {
       setReuniones(Array.isArray(reu) ? reu : []);
       setResultados(Array.isArray(res) ? res : []);
@@ -83,7 +83,7 @@ function ResultadosContent() {
     let user: any;
     try { user = JSON.parse(raw); } catch { router.replace("/auth/login"); return; }
 
-    fetch(`${API}/empresa/mi-empresa?usuarioId=${user.id}`)
+    fetch(`${API}/companies/me`)
       .then((r) => r.json())
       .then((c) => { setCtx(c); return cargar(c.empresaeventoId); })
       .catch(() => setError("No se pudo cargar los datos."))
@@ -113,13 +113,10 @@ function ResultadosContent() {
 
     setGuardando(true);
     try {
-      const res = await fetch(`${API}/empresa/resultados`, {
+      const res = await fetch(`${API}/meetings/${formulario.reunionId}/result`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          eeId: ctx.empresaeventoId,
-          euId: ctx.empresaUsuarioId,
-          reunionId: formulario.reunionId,
           calificacion: formulario.calificacion,
           rango: formulario.rango,
           observaciones: formulario.observaciones,

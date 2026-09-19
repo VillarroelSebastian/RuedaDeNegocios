@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Building2, Clock, Video, MapPin, CheckCircle, AlertCircle, X, ChevronDown, Star } from 'lucide-react';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
+import { API } from "@/lib/api";
 
 const ESTADO_CFG: Record<string, { color: string; bg: string; dot: string; badge: string; label: string }> = {
   PROGRAMADA: { color:'text-blue-700',   bg:'bg-blue-50',    dot:'bg-blue-400',   badge:'bg-blue-100 text-blue-700',   label:'Programada' },
@@ -201,7 +201,7 @@ export default function TecnicoReunionesPage() {
       const params = new URLSearchParams();
       if (filtroEst !== 'TODOS') params.set('estado', filtroEst);
       if (filtroTip !== 'TODOS') params.set('tipo',   filtroTip);
-      const res  = await fetch(`${API}/tecnico/reuniones?${params}`);
+      const res  = await fetch(`${API}/meetings?${params}`);
       const data = await res.json();
       setReuniones(Array.isArray(data) ? data : []);
     } catch { setReuniones([]); }
@@ -217,7 +217,7 @@ export default function TecnicoReunionesPage() {
       return;
     }
     try {
-      const res = await fetch(`${API}/tecnico/reuniones/${id}/estado`, {
+      const res = await fetch(`${API}/meetings/${id}/status`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ estadoReunion: estado }),
       });
@@ -237,7 +237,7 @@ export default function TecnicoReunionesPage() {
     }
     setGuardandoEvaluacion(true);
     try {
-      const res = await fetch(`${API}/tecnico/reuniones/${evaluando.id}/finalizar-evaluar`, {
+      const res = await fetch(`${API}/meetings/${evaluando.id}/evaluation`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(evaluacion),
       });
       const data = await res.json().catch(() => ({}));

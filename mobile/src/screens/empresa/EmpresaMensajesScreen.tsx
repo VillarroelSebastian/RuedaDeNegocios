@@ -6,7 +6,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRoute } from '@react-navigation/native';
 import { MessageSquare, Send, Search, X, ChevronLeft, Plus, Building2 } from 'lucide-react-native';
-import { API_URL, userStore } from '../../utils/userStore';
+import { userStore } from '../../utils/userStore';
+import { API } from '../../utils/api';
 
 const GREEN = '#449D3A';
 const POLL_MS = 5000;
@@ -51,7 +52,7 @@ export default function EmpresaMensajesScreen() {
   const cargarConvs = useCallback(async () => {
     if (!eeId) { setLoading(false); return; }
     try {
-      const res = await fetch(`${API_URL}/empresa/mensajes/conversaciones?eeId=${eeId}`);
+      const res = await fetch(`${API}/messages`);
       const data = res.ok ? await res.json() : [];
       setConvs(Array.isArray(data) ? data : []);
     } catch {}
@@ -61,7 +62,7 @@ export default function EmpresaMensajesScreen() {
   const cargarMensajes = useCallback(async (otroEeId: number) => {
     if (!eeId) return;
     try {
-      const res = await fetch(`${API_URL}/empresa/mensajes?eeId=${eeId}&otroEeId=${otroEeId}`);
+      const res = await fetch(`${API}/messages/${otroEeId}`);
       const data = res.ok ? await res.json() : [];
       setMensajes(Array.isArray(data) ? data : []);
     } catch {}
@@ -96,7 +97,7 @@ export default function EmpresaMensajesScreen() {
     setBusqueda('');
     setCargandoEmp(true);
     try {
-      const res = await fetch(`${API_URL}/empresa/directorio?eeId=${eeId}`);
+      const res = await fetch(`${API}/directory`);
       const data = res.ok ? await res.json() : [];
       setEmpresas(Array.isArray(data) ? data : []);
     } catch {}
@@ -109,10 +110,10 @@ export default function EmpresaMensajesScreen() {
     setEnviando(true);
     setError('');
     try {
-      const res = await fetch(`${API_URL}/empresa/mensajes`, {
+      const res = await fetch(`${API}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eeId, euId, receptorEeId: activa.eeId, contenido: t }),
+        body: JSON.stringify({ receptorEeId: activa.eeId, contenido: t }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message ?? 'Error al enviar');

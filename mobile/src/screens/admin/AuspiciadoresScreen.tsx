@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Modal, RefreshControl, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Handshake, Plus, X } from 'lucide-react-native';
 import { useModal } from '../../components/AppModal';
-import { API_URL } from '../../utils/userStore';
+import { API } from '../../utils/api';
 
 const GREEN = '#449D3A';
 type Persona = { nombreCompleto: string; cargo: string; correo: string };
@@ -22,7 +22,7 @@ export default function AuspiciadoresScreen() {
 
   const cargar = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/admin/auspiciadores`);
+      const res = await fetch(`${API}/sponsors`);
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || 'No se pudo cargar');
       setLista(data);
@@ -70,7 +70,7 @@ export default function AuspiciadoresScreen() {
       return show({ type: 'warning', title: 'Persona incompleta', message: `Completa el nombre y un correo válido para la persona ${invalida + 1}.` });
     setSaving(true);
     try {
-      const res = await fetch(editId ? `${API_URL}/admin/auspiciadores/${editId}` : `${API_URL}/admin/auspiciadores`, {
+      const res = await fetch(editId ? `${API}/sponsors/${editId}` : `${API}/sponsors`, {
         method: editId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, montoAporte: form.montoAporte ? Number(form.montoAporte) : null, personas }),
       });
@@ -92,7 +92,7 @@ export default function AuspiciadoresScreen() {
     message: `¿Eliminar a “${a.nombreEmpresa}”? Sus credenciales dejarán de ser válidas.`,
     confirmText: 'Eliminar', cancelText: 'Cancelar', onConfirm: async () => {
       try {
-        const res = await fetch(`${API_URL}/admin/auspiciadores/${a.id}`, { method: 'DELETE' });
+        const res = await fetch(`${API}/sponsors/${a.id}`, { method: 'DELETE' });
         const data = await res.json(); if (!res.ok) throw new Error(data?.message || 'No se pudo eliminar');
         await cargar(); show({ type: 'success', title: 'Auspiciador eliminado', message: 'La eliminación lógica fue aplicada.' });
       } catch (e: any) { show({ type: 'error', title: 'No se pudo eliminar', message: e.message }); }

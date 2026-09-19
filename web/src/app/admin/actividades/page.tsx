@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Pencil, Trash2, Calendar, Clock, MapPin, X } from 'lucide-react';
 import { useModal } from '@/components/ui/Modal';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
+import { API } from "@/lib/api";
 
 const TIPOS = ['Seminario', 'Taller', 'Actividad', 'Conferencia', 'Panel'];
 const ESTADOS = ['Activo', 'Inactivo'];
@@ -51,7 +51,7 @@ export default function ActividadesPage() {
   const fetch_ = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API}/admin/actividades`);
+      const res = await fetch(`${API}/activities`);
       setActividades(await res.json());
     } catch { setActividades([]); }
     finally { setLoading(false); }
@@ -89,7 +89,7 @@ export default function ActividadesPage() {
     }
     setSaving(true);
     try {
-      const url = editId ? `${API}/admin/actividades/${editId}` : `${API}/admin/actividades`;
+      const url = editId ? `${API}/activities/${editId}` : `${API}/activities`;
       const method = editId ? 'PUT' : 'POST';
       await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
       showSuccess(editId ? 'Actividad actualizada' : 'Actividad creada', 'Los cambios se guardaron correctamente.');
@@ -102,7 +102,7 @@ export default function ActividadesPage() {
   const handleDelete = (id: number, nombre: string) => {
     showConfirm(`¿Eliminar "${nombre}"?`, 'Esta acción no se puede deshacer.', async () => {
       try {
-        await fetch(`${API}/admin/actividades/${id}`, { method: 'DELETE' });
+        await fetch(`${API}/activities/${id}`, { method: 'DELETE' });
         showSuccess('Eliminada', 'La actividad fue eliminada.');
         fetch_();
       } catch { showError('Error', 'No se pudo eliminar.'); }

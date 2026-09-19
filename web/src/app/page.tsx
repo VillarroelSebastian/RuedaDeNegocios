@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import InstalarAppButton from "@/components/InstalarAppButton";
 import GaleriaEvento from "@/components/GaleriaEvento";
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
+import { API } from "@/lib/api";
 const EVENT_VIDEO_URL = "https://www.youtube.com/watch?v=IHNXdK3Lrmw";
 const EVENT_VIDEO_EMBED_URL = "https://www.youtube.com/embed/IHNXdK3Lrmw?rel=0";
 
@@ -98,8 +98,8 @@ export default function HomePage() {
     const load = async () => {
       try {
         const [evRes, actsRes] = await Promise.all([
-          fetch(`${API}/public/evento`),
-          fetch(`${API}/public/actividades`),
+          fetch(`${API}/events/current`),
+          fetch(`${API}/activities`),
         ]);
         const ev = evRes.ok ? await evRes.json() : null;
         const acts = actsRes.ok ? await actsRes.json() : [];

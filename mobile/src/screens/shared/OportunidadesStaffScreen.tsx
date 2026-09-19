@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Building2, ChevronLeft, ChevronRight, Search, Sparkles } from 'lucide-react-native';
-import { API_URL } from '../../utils/userStore';
+import { API } from '../../utils/api';
 
 const GREEN = '#449D3A';
 const PAGE_SIZE = 10;
@@ -18,7 +18,7 @@ export default function OportunidadesStaffScreen() {
   const [rubro, setRubro] = useState('TODOS');
   const [orden, setOrden] = useState<'RELEVANCIA' | 'ALFABETICO'>('RELEVANCIA');
   const [pagina, setPagina] = useState(1);
-  const cargar = useCallback(async () => { try { const r = await fetch(`${API_URL}/staff/oportunidades`); const d = await r.json(); if (!r.ok) throw new Error(d?.message || 'No se pudieron cargar las coincidencias.'); setItems(Array.isArray(d) ? d : []); setError(''); } catch (e: any) { setError(e.message); } finally { setLoading(false); setRefreshing(false); } }, []);
+  const cargar = useCallback(async () => { try { const r = await fetch(`${API}/opportunities/pairings`); const d = await r.json(); if (!r.ok) throw new Error(d?.message || 'No se pudieron cargar las coincidencias.'); setItems(Array.isArray(d) ? d : []); setError(''); } catch (e: any) { setError(e.message); } finally { setLoading(false); setRefreshing(false); } }, []);
   useFocusEffect(useCallback(() => { cargar(); }, [cargar]));
 
   const rubros = useMemo(() => [...new Set(items.flatMap((item) => [item.empresaA.rubro, item.empresaB.rubro]).filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b, 'es')), [items]);

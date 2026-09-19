@@ -4,7 +4,7 @@ import {
   TextInput, ActivityIndicator, Linking, Image
 } from 'react-native';
 import { CheckCircle, AlertCircle, FileText, Download, Eye, Info, XCircle } from 'lucide-react-native';
-import { API_URL } from '../../utils/userStore';
+import { API } from '../../utils/api';
 import { useModal } from '../../components/AppModal';
 import FichaEmpresaModal from '../../components/FichaEmpresaModal';
 
@@ -21,7 +21,7 @@ export default function PagoDetailScreen({ route, navigation }: any) {
 
   const fetchPago = async () => {
     try {
-      const res = await fetch(`${API_URL}/admin/pagos/${id}`);
+      const res = await fetch(`${API}/payments/${id}`);
       setPago(await res.json());
     } catch {}
     finally { setLoading(false); }
@@ -41,7 +41,7 @@ export default function PagoDetailScreen({ route, navigation }: any) {
       onConfirm: async () => {
         setSubmitting(true);
         try {
-          const res = await fetch(`${API_URL}/admin/pagos/${id}/aprobar`, { method: 'PUT' });
+          const res = await fetch(`${API}/payments/${id}/approval`, { method: 'PUT' });
           const data = await res.json();
           if (!res.ok) throw new Error(data?.message || 'No se pudo aprobar el pago.');
           if (data.correosFallidos?.length) {
@@ -70,7 +70,7 @@ export default function PagoDetailScreen({ route, navigation }: any) {
       onConfirm: async () => {
         setSubmitting(true);
         try {
-          await fetch(`${API_URL}/admin/pagos/${id}/rechazar`, {
+          await fetch(`${API}/payments/${id}/rejection`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ motivo: observacion.trim() }),
@@ -91,7 +91,7 @@ export default function PagoDetailScreen({ route, navigation }: any) {
     }
     setSubmitting(true);
     try {
-      await fetch(`${API_URL}/admin/pagos/${id}/observar`, {
+      await fetch(`${API}/payments/${id}/observation`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ observacion }),

@@ -7,7 +7,7 @@ import {
   Activity, Newspaper,
 } from 'lucide-react';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
+import { API } from "@/lib/api";
 
 const ESTADO_CFG: Record<string, { color: string; bg: string; dot: string; badge: string; label: string }> = {
   PROGRAMADA: { color:'text-blue-700',   bg:'bg-blue-50',    dot:'bg-blue-400',   badge:'bg-blue-100 text-blue-700',    label:'Programada' },
@@ -110,7 +110,7 @@ export default function TecnicoDashboardPage() {
 
   const fetchData = useCallback(async () => {
     try {
-      const res  = await fetch(`${API}/tecnico/dashboard`);
+      const res  = await fetch(`${API}/reports/dashboard/staff`);
       const json = await res.json();
       setData(json);
     } catch { setData(null); }
@@ -122,7 +122,7 @@ export default function TecnicoDashboardPage() {
   const handleSaveEstado = async (id: number, estado: string) => {
     setEstadoModal({ visible:false, reunion:null });
     try {
-      const res = await fetch(`${API}/tecnico/reuniones/${id}/estado`, {
+      const res = await fetch(`${API}/meetings/${id}/status`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ estadoReunion: estado }),
       });

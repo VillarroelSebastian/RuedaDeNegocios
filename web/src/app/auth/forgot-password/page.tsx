@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Mail, ArrowLeft, KeyRound, Lock, Eye, EyeOff, CheckCircle2 } from "lucide-react";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
+import { API } from "@/lib/api";
 const GREEN = "#449D3A";
 
 type Step = "correo" | "codigo" | "nueva" | "exito";
@@ -39,10 +39,10 @@ export default function ForgotPasswordPage() {
     if (!correo) { setError("Ingresa tu correo electrónico."); return; }
     setLoading(true);
     try {
-      const res = await fetch(`${API}/auth/solicitar-reset`, {
+      const res = await fetch(`${API}/auth/password-reset-requests`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ correo }),
+        body: JSON.stringify({ email: correo }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -67,13 +67,16 @@ export default function ForgotPasswordPage() {
     if (nuevaContrasenia !== confirmar) { setError("Las contraseñas no coinciden."); return; }
     setLoading(true);
     try {
-      const res = await fetch(`${API}/auth/confirmar-reset`, {
+      const res = await fetch(`${API}/auth/password-resets`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ correo, codigo, nuevaContrasenia }),
+        body: JSON.stringify({ email: correo, code: codigo, newPassword: nuevaContrasenia }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || "Código incorrecto o expirado.");
+      // Responde 204: solo hay cuerpo cuando algo falló.
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.message || "Código incorrecto o expirado.");
+      }
       localStorage.removeItem(RESET_STORAGE_KEY);
       setStep("exito");
     } catch (err: any) {

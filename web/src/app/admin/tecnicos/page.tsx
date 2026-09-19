@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Mail, Plus, Pencil, Trash2, User, X, Upload } from 'lucide-react';
 import { useModal } from '@/components/ui/Modal';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
+import { API } from "@/lib/api";
 
 const defaultForm = {
   nombres: '',
@@ -29,7 +29,7 @@ export default function TecnicosPage() {
   const fetch_ = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API}/admin/tecnicos`);
+      const res = await fetch(`${API}/technicians`);
       setTecnicos(await res.json());
     } catch { setTecnicos([]); }
     finally { setLoading(false); }
@@ -51,7 +51,7 @@ export default function TecnicosPage() {
     try {
       const fd = new FormData();
       fd.append('file', file);
-      const res = await fetch(`${API}/admin/imagenes/upload`, { method: 'POST', body: fd });
+      const res = await fetch(`${API}/uploads`, { method: 'POST', body: fd });
       const data = await res.json();
       setForm((f) => ({ ...f, urlFotoPerfil: data.url }));
     } catch { showError('Error', 'No se pudo subir la foto.'); }
@@ -65,7 +65,7 @@ export default function TecnicosPage() {
     }
     setSaving(true);
     try {
-      const url = editId ? `${API}/admin/tecnicos/${editId}` : `${API}/admin/tecnicos`;
+      const url = editId ? `${API}/technicians/${editId}` : `${API}/technicians`;
       const res = await fetch(url, { method: editId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || 'No se pudo guardar.');
@@ -84,7 +84,7 @@ export default function TecnicosPage() {
   const handleDelete = (id: number, nombre: string) => {
     showConfirm(`¿Eliminar a "${nombre}"?`, 'El técnico no podrá acceder al sistema.', async () => {
       try {
-        await fetch(`${API}/admin/tecnicos/${id}`, { method: 'DELETE' });
+        await fetch(`${API}/technicians/${id}`, { method: 'DELETE' });
         showSuccess('Eliminado', 'El técnico fue desactivado.');
         fetch_();
       } catch { showError('Error', 'No se pudo eliminar.'); }
@@ -98,7 +98,7 @@ export default function TecnicosPage() {
       async () => {
         setResendingId(id);
         try {
-          const res = await fetch(`${API}/admin/tecnicos/${id}/reenviar-credenciales`, { method: 'POST' });
+          const res = await fetch(`${API}/technicians/${id}/credentials`, { method: 'POST' });
           const data = await res.json();
           if (!res.ok) throw new Error(data?.message || 'No se pudieron reenviar las credenciales.');
           showSuccess('Credenciales reenviadas', 'La nueva contraseña temporal fue enviada al correo del técnico.');

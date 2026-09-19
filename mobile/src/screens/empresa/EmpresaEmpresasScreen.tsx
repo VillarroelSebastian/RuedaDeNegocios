@@ -12,7 +12,8 @@ import {
   AlertCircle, ChevronLeft, Globe, Clock, RefreshCw, CheckCircle2, Star,
   Filter, Mail, Phone, FileText, Hash,
 } from 'lucide-react-native';
-import { API_URL, userStore } from '../../utils/userStore';
+import { userStore } from '../../utils/userStore';
+import { API } from '../../utils/api';
 import { fechaEvento, horaEvento, partesFechaEvento } from '../../utils/fechaEvento';
 import { paisConBandera } from '../../utils/pais';
 
@@ -130,7 +131,7 @@ export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?:
         const h = horarioSelRef.current;
         if (!h) return;
         try {
-          const url = `${API_URL}/empresa/mesas-disponibles?inicio=${encodeURIComponent(h.inicio)}&fin=${encodeURIComponent(h.fin)}`;
+          const url = `${API}/tables/available?inicio=${encodeURIComponent(h.inicio)}&fin=${encodeURIComponent(h.fin)}`;
           const res = await fetch(url);
           if (!res.ok) return;
           const data = await res.json();
@@ -167,7 +168,7 @@ export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?:
       if (filtroOferta.trim())  params.set('oferta',  filtroOferta.trim());
       if (filtroDemanda.trim()) params.set('demanda', filtroDemanda.trim());
       if (filtroLugar.trim())   params.set('lugar',   filtroLugar.trim());
-      const res = await fetch(`${API_URL}/empresa/directorio?${params}`);
+      const res = await fetch(`${API}/directory?${params}`);
       if (!res.ok) throw new Error('Error cargando empresas');
       const data = await res.json();
       setEmpresas(Array.isArray(data) ? data : []);
@@ -190,7 +191,7 @@ export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?:
       const params = new URLSearchParams({ eeId: String(eeId) });
       if (eeReceptoraId) params.set('eeReceptoraId', String(eeReceptoraId));
       if (solicitudId) params.set('solicitudId', String(solicitudId));
-      const res = await fetch(`${API_URL}/empresa/horarios?${params}`);
+      const res = await fetch(`${API}/schedule/agenda?${params}`);
       const data = res.ok ? await res.json() : {};
       const hrs: any[] = Array.isArray(data?.agenda)
         ? data.agenda
@@ -225,7 +226,7 @@ export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?:
     setMesaWarning('');
     setMesaLastUpdate(null);
     try {
-      const url = `${API_URL}/empresa/mesas-disponibles?inicio=${encodeURIComponent(inicio)}&fin=${encodeURIComponent(fin)}`;
+      const url = `${API}/tables/available?inicio=${encodeURIComponent(inicio)}&fin=${encodeURIComponent(fin)}`;
       const res = await fetch(url);
       const data = res.ok ? await res.json() : [];
       setMesas(Array.isArray(data) ? data : []);
@@ -337,7 +338,7 @@ export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?:
       // El enlace virtual lo asigna el equipo técnico después de la aceptación.
 
       const editando = selected?.solicitudEdicion;
-      const res = await fetch(editando ? `${API_URL}/empresa/solicitudes/${editando.id}/editar` : `${API_URL}/empresa/solicitudes`, {
+      const res = await fetch(editando ? `${API}/meeting-requests/${editando.id}` : `${API}/meeting-requests`, {
         method: editando ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),

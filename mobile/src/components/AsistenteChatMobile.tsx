@@ -5,7 +5,8 @@ import {
   Pressable,
 } from 'react-native';
 import { Bot, X, Send, User, MessageCircle } from 'lucide-react-native';
-import { API_URL, userStore } from '../utils/userStore';
+import { userStore } from '../utils/userStore';
+import { API } from '../utils/api';
 import ImagenLightbox from './ImagenLightbox';
 
 const GREEN = '#449D3A';
@@ -61,7 +62,7 @@ export default function AsistenteChatModal({ visible, onClose }: { visible: bool
     if (stored) { setEeId(stored); return; }
     const usuarioId = userStore.get()?.id;
     if (!usuarioId) return;
-    fetch(`${API_URL}/empresa/mi-empresa?usuarioId=${usuarioId}`)
+    fetch(`${API}/companies/me`)
       .then((r) => r.json())
       .then((ctx) => {
         if (ctx?.empresaeventoId) {
@@ -94,10 +95,10 @@ export default function AsistenteChatModal({ visible, onClose }: { visible: bool
     setMsgs(newMsgs);
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/empresa/asistente`, {
+      const res = await fetch(`${API}/assistant/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eeId, euId: userStore.get()?.empresaUsuarioId ?? undefined, mensaje: t, contexto }),
+        body: JSON.stringify({ mensaje: t, contexto }),
       });
       const data = await res.json();
       setContexto(data.contexto ?? null);

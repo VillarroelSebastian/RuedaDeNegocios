@@ -9,7 +9,7 @@ import {
   Star, ChevronDown, ChevronUp, History,
   Play, Square, XCircle, UserCheck, Lock, Unlock,
 } from 'lucide-react-native';
-import { API_URL } from '../../utils/userStore';
+import { API } from '../../utils/api';
 import { useModal } from '../../components/AppModal';
 
 const GREEN = '#449D3A';
@@ -193,7 +193,7 @@ export default function MesasScreen() {
 
   const fetchGrid = useCallback(async () => {
     try {
-      const [res, libresRes] = await Promise.all([fetch(`${API_URL}/admin/mesas`), fetch(`${API_URL}/staff/empresas-sin-reunion`)]);
+      const [res, libresRes] = await Promise.all([fetch(`${API}/tables`), fetch(`${API}/meetings/idle-companies`)]);
       const [data, libres] = await Promise.all([res.json(), libresRes.json()]);
       setMesas(Array.isArray(data) ? data : (data.mesas ?? []));
       setSinReunion(Array.isArray(libres?.empresas) ? libres.empresas : []);
@@ -206,8 +206,8 @@ export default function MesasScreen() {
     setLoadingHistorial(true);
     try {
       const url = q?.trim()
-        ? `${API_URL}/admin/mesas/historial?q=${encodeURIComponent(q)}`
-        : `${API_URL}/admin/mesas/historial`;
+        ? `${API}/meetings/history?q=${encodeURIComponent(q)}`
+        : `${API}/meetings/history`;
       const data = await (await fetch(url)).json();
       setHistorial(Array.isArray(data) ? data : []);
     } catch { setHistorial([]); }
@@ -232,7 +232,7 @@ export default function MesasScreen() {
       onConfirm: async () => {
         setToggling(true);
         try {
-          await fetch(`${API_URL}/admin/mesas/${mesa.id}/habilitar`, {
+          await fetch(`${API}/tables/${mesa.id}`, {
             method: 'PUT', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ estaHabilitada: nuevo }),
           });
@@ -250,7 +250,7 @@ export default function MesasScreen() {
     try {
       const body: any = { estadoReunion: estado };
       if (extra?.asistentes !== undefined) body.asistentes = extra.asistentes;
-      await fetch(`${API_URL}/admin/reuniones/${reunionId}/estado`, {
+      await fetch(`${API}/meetings/${reunionId}/status`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });

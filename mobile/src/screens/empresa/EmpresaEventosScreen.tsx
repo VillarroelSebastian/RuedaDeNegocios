@@ -6,7 +6,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { CalendarDays, Clock, MapPin, AlertCircle, Bell, ExternalLink, Megaphone } from 'lucide-react-native';
-import { API_URL, userStore } from '../../utils/userStore';
+import { userStore } from '../../utils/userStore';
+import { API } from '../../utils/api';
 
 const GREEN = '#449D3A';
 
@@ -40,14 +41,24 @@ export default function EmpresaEventosScreen() {
     setError('');
     try {
       const eeId = userStore.get()?.empresaeventoId ?? userStore.get()?.empresaEventoId;
-      const res = await fetch(`${API_URL}/public/cronograma-vivo${eeId ? `?eeId=${eeId}` : ''}`);
+      // El cronograma es público y ya no dice a qué está suscrita la empresa:
+      // eso se pide aparte y se une acá, para que la tarjeta no cambie.
+      const [res, suscritasRes] = await Promise.all([
+        fetch(`${API}/activities/live`),
+        eeId ? fetch(`${API}/activities/subscriptions`) : Promise.resolve(null),
+      ]);
       if (!res.ok) throw new Error('Error cargando actividades');
       const data = await res.json();
+      const suscritas: number[] = suscritasRes?.ok
+        ? await suscritasRes.json().catch(() => [])
+        : [];
       const ordenadas = Array.isArray(data?.actividades)
-        ? [...data.actividades].sort((a: any, b: any) => {
-            const fecha = String(a.fechaActividad || '').localeCompare(String(b.fechaActividad || ''));
-            return fecha || String(a.horaInicioActividad || '').localeCompare(String(b.horaInicioActividad || ''));
-          })
+        ? [...data.actividades]
+            .map((a: any) => ({ ...a, suscrito: suscritas.includes(a.id) }))
+            .sort((a: any, b: any) => {
+              const fecha = String(a.fechaActividad || '').localeCompare(String(b.fechaActividad || ''));
+              return fecha || String(a.horaInicioActividad || '').localeCompare(String(b.horaInicioActividad || ''));
+            })
         : [];
       setItems(ordenadas);
     } catch (e: any) {
@@ -63,7 +74,7 @@ export default function EmpresaEventosScreen() {
   const suscribir = async (item: any) => {
     const eeId = userStore.get()?.empresaeventoId ?? userStore.get()?.empresaEventoId;
     if (!eeId) return;
-    await fetch(`${API_URL}/empresa/cronograma-vivo/${item.id}/suscripcion`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ eeId, suscrito: !item.suscrito }) });
+    await fetch(`${API}/activities/${item.id}/subscription`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ suscrito: !item.suscrito }) });
     fetchData();
   };
 

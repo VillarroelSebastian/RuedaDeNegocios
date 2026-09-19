@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Building2, ChevronLeft, ChevronRight, Search, Sparkles } from "lucide-react";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
+import { API } from "@/lib/api";
 const PAGE_SIZE = 12;
 
 type EmpresaOportunidad = {
@@ -32,7 +32,7 @@ export default function OportunidadesStaff() {
   const [pagina, setPagina] = useState(1);
 
   useEffect(() => {
-    fetch(`${API}/staff/oportunidades`).then(async (r) => {
+    fetch(`${API}/opportunities/pairings`).then(async (r) => {
       const data = await r.json();
       if (!r.ok) throw new Error(data?.message || "No se pudieron cargar las coincidencias.");
       return data;

@@ -9,7 +9,7 @@ import {
   Search, Check, CheckCircle2, AlertCircle, Users, Video, ChevronLeft,
   CalendarPlus, Send, Building2,
 } from 'lucide-react-native';
-import { API_URL } from '../../utils/userStore';
+import { API } from '../../utils/api';
 
 const GREEN = '#449D3A';
 
@@ -77,7 +77,7 @@ export default function TecnicoAgendarScreen() {
   const [exito, setExito] = useState('');
 
   useEffect(() => {
-    fetch(`${API_URL}/tecnico/empresas-habilitadas`)
+    fetch(`${API}/meetings/eligible-companies`)
       .then((r) => r.json())
       .then((d) => setEmpresas(Array.isArray(d) ? d : []))
       .catch(() => {})
@@ -113,9 +113,9 @@ export default function TecnicoAgendarScreen() {
     setCargandoH(true);
     setHorarios([]); setFechaSel(null); setHoraSel(null); setMinutosStr('');
     Promise.all([
-      fetch(`${API_URL}/tecnico/horarios?eeId=${empA.eeId}&eeReceptoraId=${empB.eeId}`).then((r) => r.json()),
-      fetch(`${API_URL}/empresa/horarios-empresa/dias?eeId=${empA.eeId}`).then((r) => r.json()).catch(() => null),
-      fetch(`${API_URL}/empresa/horarios-empresa/dias?eeId=${empB.eeId}`).then((r) => r.json()).catch(() => null),
+      fetch(`${API}/schedule/staff-agenda?solicitanteId=${empA.eeId}&receptoraId=${empB.eeId}`).then((r) => r.json()),
+      fetch(`${API}/schedule/availability/days/${empA.eeId}`).then((r) => r.json()).catch(() => null),
+      fetch(`${API}/schedule/availability/days/${empB.eeId}`).then((r) => r.json()).catch(() => null),
     ])
       .then(([data, diasA, diasB]) => {
         // Se usan TODAS las franjas configuradas del evento (agenda), no solo
@@ -152,7 +152,7 @@ export default function TecnicoAgendarScreen() {
   const cargarMesas = () => {
     setCargandoM(true);
     setMesas([]); setMesa(null);
-    fetch(`${API_URL}/tecnico/mesas`)
+    fetch(`${API}/tables`)
       .then((r) => r.json())
       .then((d) => setMesas(Array.isArray(d?.mesas) ? d.mesas : []))
       .catch(() => {})
@@ -164,7 +164,7 @@ export default function TecnicoAgendarScreen() {
   useEffect(() => {
     if (tipo !== 'PRESENCIAL' || mesa === null || !fechaSel) { setOcupacionMesa([]); return; }
     setCargandoOcup(true);
-    fetch(`${API_URL}/tecnico/mesas/${mesa}/ocupacion?fecha=${fechaSel}`)
+    fetch(`${API}/tables/${mesa}/occupancy?fecha=${fechaSel}`)
       .then((r) => r.json())
       .then((d) => setOcupacionMesa(Array.isArray(d?.ocupado) ? d.ocupado : []))
       .catch(() => setOcupacionMesa([]))
@@ -184,7 +184,7 @@ export default function TecnicoAgendarScreen() {
     setErr('');
     setEnviando(true);
     try {
-      const res = await fetch(`${API_URL}/tecnico/reuniones/crear`, {
+      const res = await fetch(`${API}/meetings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

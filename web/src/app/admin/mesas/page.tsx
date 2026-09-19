@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { useModal } from '@/components/ui/Modal';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
+import { API } from "@/lib/api";
 
 const ESTADO_MESA: Record<string, { label: string; badge: string; grid: string }> = {
   LIBRE:     { label: 'Libre',     badge: 'bg-green-100 text-green-700',   grid: '#449D3A' },
@@ -165,7 +165,7 @@ export default function MesasPage() {
   const fetchGrid = useCallback(async () => {
     setLoading(true);
     try {
-      const [res, libresRes] = await Promise.all([fetch(`${API}/admin/mesas`), fetch(`${API}/staff/empresas-sin-reunion`)]);
+      const [res, libresRes] = await Promise.all([fetch(`${API}/tables`), fetch(`${API}/meetings/idle-companies`)]);
       const [data, libres] = await Promise.all([res.json(), libresRes.json()]);
       setMesas(Array.isArray(data) ? data : (data.mesas ?? []));
       setSinReunion(Array.isArray(libres?.empresas) ? libres.empresas : []);
@@ -177,7 +177,7 @@ export default function MesasPage() {
   const fetchHistorial = useCallback(async (q?: string) => {
     setLoadingHistorial(true);
     try {
-      const url = q?.trim() ? `${API}/admin/mesas/historial?q=${encodeURIComponent(q)}` : `${API}/admin/mesas/historial`;
+      const url = q?.trim() ? `${API}/meetings/history?q=${encodeURIComponent(q)}` : `${API}/meetings/history`;
       const data = await (await fetch(url)).json();
       setHistorial(Array.isArray(data) ? data : []);
     } catch { setHistorial([]); }
@@ -202,7 +202,7 @@ export default function MesasPage() {
       async () => {
         setToggling(true);
         try {
-          await fetch(`${API}/admin/mesas/${mesa.id}/habilitar`, {
+          await fetch(`${API}/tables/${mesa.id}`, {
             method: 'PUT', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ estaHabilitada: nuevo }),
           });
@@ -220,7 +220,7 @@ export default function MesasPage() {
     try {
       const body: any = { estadoReunion: estado };
       if (extra?.asistentes !== undefined) body.asistentes = extra.asistentes;
-      await fetch(`${API}/admin/reuniones/${reunionId}/estado`, {
+      await fetch(`${API}/meetings/${reunionId}/status`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });

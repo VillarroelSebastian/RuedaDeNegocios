@@ -10,7 +10,7 @@ import {
   Megaphone, Activity, VideoIcon,
 } from "lucide-react";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
+import { API } from "@/lib/api";
 
 type EstadoPago = "PENDIENTE" | "COMPLETADO" | "OBSERVADO" | "RECHAZADO";
 
@@ -52,12 +52,12 @@ export default function EmpresaDashboardPage() {
     let user: any;
     try { user = JSON.parse(raw); } catch { router.replace("/auth/login"); return; }
 
-    fetch(`${API}/empresa/mi-empresa?usuarioId=${user.id}`)
+    fetch(`${API}/companies/me`)
       .then((r) => { if (!r.ok) throw new Error("No se pudo obtener la información de tu empresa."); return r.json(); })
       .then(async (data) => {
         setInfo(data);
         // Cargar estadísticas reales
-        const sRes = await fetch(`${API}/empresa/dashboard-stats?eeId=${data.empresaeventoId}`);
+        const sRes = await fetch(`${API}/reports/dashboard/company`);
         if (sRes.ok) setStats(await sRes.json());
       })
       .catch((e) => setError(e.message))

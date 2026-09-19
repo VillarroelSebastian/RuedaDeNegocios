@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { CalendarDays, Clock, MapPin, Tag, AlertCircle, Bell, BellOff } from "lucide-react";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
+import { API } from "@/lib/api";
 
 function formatFecha(fecha: string | null | undefined) {
   if (!fecha) return "—";
@@ -40,14 +40,14 @@ export default function EmpresaEventosPage() {
     let usuarioId: number | null = null;
     try { usuarioId = JSON.parse(localStorage.getItem("empresaUser") || "null")?.id ?? null; } catch {}
     if (!usuarioId) { setError("No se pudo identificar tu empresa."); setLoading(false); return; }
-    fetch(`${API}/empresa/mi-empresa?usuarioId=${usuarioId}`)
+    fetch(`${API}/companies/me`)
       .then((r) => r.json())
       .then((ctx) => {
         if (!ctx?.empresaeventoId) throw new Error("Empresa no encontrada");
         setEeId(ctx.empresaeventoId);
         return Promise.all([
-          fetch(`${API}/empresa/evento`).then((r) => r.json()),
-          fetch(`${API}/public/cronograma-vivo?eeId=${ctx.empresaeventoId}`).then((r) => r.json()),
+          fetch(`${API}/events/current`).then((r) => r.json()),
+          fetch(`${API}/activities/live`).then((r) => r.json()),
         ]);
       })
       .then(([ev, acts]) => {
@@ -62,9 +62,9 @@ export default function EmpresaEventosPage() {
     if (!eeId || savingSubscription) return;
     setSavingSubscription(act.id);
     try {
-      const res = await fetch(`${API}/empresa/cronograma-vivo/${act.id}/suscripcion`, {
+      const res = await fetch(`${API}/activities/${act.id}/subscription`, {
         method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eeId, suscrito: !act.suscrito }),
+        body: JSON.stringify({ suscrito: !act.suscrito }),
       });
       if (!res.ok) throw new Error();
       setActividades((prev) => prev.map((a) => a.id === act.id ? { ...a, suscrito: !a.suscrito } : a));

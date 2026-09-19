@@ -8,7 +8,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import {
   Settings, Clock, DollarSign, Timer, Save, RefreshCw, AlertCircle,
 } from 'lucide-react-native';
-import { API_URL } from '../../utils/userStore';
+import { API } from '../../utils/api';
 import { useModal } from '../../components/AppModal';
 
 const GREEN = '#449D3A';
@@ -40,7 +40,7 @@ export default function AdminEventoConfigScreen() {
   const fetchConfig = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/admin/evento/config`);
+      const res = await fetch(`${API}/events/current/config`);
       if (!res.ok) throw new Error('No hay evento principal configurado');
       const data = await res.json();
       setEvento({ nombre: data.nombre, edicion: data.edicion });
@@ -74,7 +74,7 @@ export default function AdminEventoConfigScreen() {
     try {
       const body: Record<string, number> = {};
       FIELDS.forEach((f) => { body[f.key] = Number(config[f.key]); });
-      const res = await fetch(`${API_URL}/admin/evento/config`, {
+      const res = await fetch(`${API}/events/current/config`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),

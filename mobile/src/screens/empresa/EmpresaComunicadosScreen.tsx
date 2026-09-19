@@ -8,7 +8,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Newspaper, AlertCircle, Bell } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_URL, userStore } from '../../utils/userStore';
+import { userStore } from '../../utils/userStore';
+import { API } from '../../utils/api';
 
 const GREEN = '#449D3A';
 
@@ -32,7 +33,7 @@ export default function EmpresaComunicadosScreen() {
   const fetchData = useCallback(async () => {
     setError('');
     try {
-      const res = await fetch(`${API_URL}/empresa/comunicados`);
+      const res = await fetch(`${API}/news`);
       if (!res.ok) throw new Error('Error cargando comunicados');
       const data = await res.json();
       setItems(Array.isArray(data) ? data : []);
@@ -40,15 +41,15 @@ export default function EmpresaComunicadosScreen() {
       // Mis avisos personales (notificaciones persistentes) + marcar como leídas
       const eeId = userStore.get()?.empresaeventoId;
       if (eeId) {
-        const nRes = await fetch(`${API_URL}/empresa/notificaciones?eeId=${eeId}`);
+        const nRes = await fetch(`${API}/notifications`);
         if (nRes.ok) {
           const nData = await nRes.json();
           setAvisos(nData.notificaciones ?? []);
           if ((nData.noLeidas ?? 0) > 0) {
-            fetch(`${API_URL}/empresa/notificaciones/leidas`, {
+            fetch(`${API}/notifications/read`, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ eeId }),
+              body: JSON.stringify({}),
             }).catch(() => {});
           }
         }

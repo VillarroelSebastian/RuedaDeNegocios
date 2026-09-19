@@ -4,7 +4,7 @@ import { Search, Bell, ChevronDown, User, LogOut, Settings, X } from 'lucide-rea
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
+import { API } from "@/lib/api";
 
 interface Notificacion {
   id: string;
@@ -57,7 +57,7 @@ export default function Header() {
 
   const fetchNotificaciones = async () => {
     try {
-      const res = await fetch(`${API}/admin/notificaciones`);
+      const res = await fetch(`${API}/notifications/pending-work`);
       const data = await res.json();
       setNotificaciones(data.notificaciones || []);
       setTotalNoLeidas(data.totalNoLeidas || 0);
@@ -78,7 +78,7 @@ export default function Header() {
     setSearch(q);
     if (q.length < 2) { setSearchResults([]); setShowSearch(false); return; }
     try {
-      const res = await fetch(`${API}/admin/empresas?search=${encodeURIComponent(q)}&limit=5`);
+      const res = await fetch(`${API}/companies?search=${encodeURIComponent(q)}&limit=5`);
       const data = await res.json();
       setSearchResults(data.data || []);
       setShowSearch(true);

@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { API } from "@/lib/api";
 
 // Web App Manifest — hace que la web sea instalable como app (PWA).
 // En Android/Chrome muestra el instalador nativo; en iPhone se agrega a la
@@ -7,8 +8,8 @@ import type { MetadataRoute } from "next";
 export default async function manifest(): Promise<MetadataRoute.Manifest> {
   let eventIcon: string | null = null;
   try {
-    const api = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
-    const response = await fetch(`${api}/evento-principal`, { next: { revalidate: 300 } });
+    
+    const response = await fetch(`${API}/events/current/branding`, { next: { revalidate: 300 } });
     if (response.ok) eventIcon = (await response.json())?.urlLogoEvento || null;
   } catch {}
   return {

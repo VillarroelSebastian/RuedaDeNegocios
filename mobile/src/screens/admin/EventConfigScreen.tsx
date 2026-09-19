@@ -9,7 +9,7 @@ import {
   CalendarCheck, Star, Edit2, Calendar, ChevronLeft, ImageIcon, Camera,
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { API_URL } from '../../utils/userStore';
+import { API } from '../../utils/api';
 import { useModal } from '../../components/AppModal';
 
 const GREEN = '#449D3A';
@@ -148,7 +148,7 @@ export default function EventConfigScreen({ navigation }: any) {
   const fetchEventos = async () => {
     setLoadingList(true);
     try {
-      const res = await fetch(`${API_URL}/admin/eventos`);
+      const res = await fetch(`${API}/events`);
       const data = await res.json();
       setEventos(Array.isArray(data) ? data : []);
     } catch {}
@@ -173,7 +173,7 @@ export default function EventConfigScreen({ navigation }: any) {
     try {
       const fd = new FormData();
       fd.append('file', { uri, name: 'image.jpg', type: 'image/jpeg' } as any);
-      const res = await fetch(`${API_URL}/admin/imagenes/upload`, { method: 'POST', body: fd });
+      const res = await fetch(`${API}/uploads`, { method: 'POST', body: fd });
       const data = await res.json();
       if (!data.url) throw new Error('Sin URL');
 
@@ -199,7 +199,7 @@ export default function EventConfigScreen({ navigation }: any) {
       cancelText: 'Cancelar',
       onConfirm: async () => {
         try {
-          const res = await fetch(`${API_URL}/admin/eventos/${id}/set-principal`, { method: 'PUT' });
+          const res = await fetch(`${API}/events/${id}/principal`, { method: 'PUT' });
           const data = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(data?.message || 'No se pudo cambiar a principal.');
           fetchEventos();
@@ -224,7 +224,7 @@ export default function EventConfigScreen({ navigation }: any) {
       cancelText: 'Cancelar',
       onConfirm: async () => {
         try {
-          await fetch(`${API_URL}/admin/eventos/${id}`, { method: 'DELETE' });
+          await fetch(`${API}/events/${id}`, { method: 'DELETE' });
           fetchEventos();
         } catch {
           show({ type: 'error', title: 'Error', message: 'No se pudo eliminar el evento.' });
@@ -257,7 +257,7 @@ export default function EventConfigScreen({ navigation }: any) {
     }
     setLoadingForm(true);
     try {
-      const res = await fetch(`${API_URL}/admin/eventos/${id}`);
+      const res = await fetch(`${API}/events/${id}`);
       const data = await res.json();
       if (data?.id) {
         const inicioEvento = new Date(data.fechaInicioEvento);
@@ -411,13 +411,13 @@ export default function EventConfigScreen({ navigation }: any) {
       })),
     };
     try {
-      const url = editingId === 'nuevo' ? `${API_URL}/admin/eventos` : `${API_URL}/admin/eventos/${formData.id}`;
+      const url = editingId === 'nuevo' ? `${API}/events` : `${API}/events/${formData.id}`;
       const method = editingId === 'nuevo' ? 'POST' : 'PUT';
       const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       if (res.ok) {
         const guardado = await res.json().catch(() => ({ id: formData.id }));
         const eventoGuardadoId = Number(guardado?.id || formData.id);
-        const paquetesRes = eventoGuardadoId ? await fetch(`${API_URL}/admin/paquetes?eventoId=${eventoGuardadoId}`) : null;
+        const paquetesRes = eventoGuardadoId ? await fetch(`${API}/packages?eventId=${eventoGuardadoId}`) : null;
         const paquetes = paquetesRes?.ok ? await paquetesRes.json() : [];
         if (!Array.isArray(paquetes) || paquetes.length === 0) {
           show({ type: 'success', title: 'Evento configurado', message: 'El evento se guardó, pero necesita al menos un paquete antes de activarse como principal.', onConfirm: () => navigation.navigate('Paquetes', { eventoId: eventoGuardadoId }) });

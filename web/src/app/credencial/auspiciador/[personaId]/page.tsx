@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { BadgeCheck, Building2, BriefcaseBusiness, CheckCircle2, MapPin } from "lucide-react";
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
+import { API } from "@/lib/api";
 
 export default function CredencialAuspiciadorPage() {
   const { personaId } = useParams<{ personaId: string }>(); const query = useSearchParams();
@@ -21,7 +21,7 @@ export default function CredencialAuspiciadorPage() {
     }
     setTecnico(sesion);
     const token = query.get("t") || "";
-    fetch(`${API}/tecnico/credenciales-auspiciador/verificar?personaId=${personaId}&token=${encodeURIComponent(token)}`, {
+    fetch(`${API}/sponsors/attendance/check?personaId=${personaId}&token=${encodeURIComponent(token)}`, {
       headers: { Authorization: `Bearer ${sesion.token}` },
     }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d?.message || "Credencial no válida"); return d; }).then(setData).catch(e => setError(e.message));
   }, [personaId, query, router]);
@@ -29,9 +29,9 @@ export default function CredencialAuspiciadorPage() {
     setRegistrando(true); setResultado("");
     try {
       const token = query.get("t") || "";
-      const ver = await fetch(`${API}/tecnico/credenciales-auspiciador/verificar?personaId=${personaId}&token=${encodeURIComponent(token)}`, { headers: { Authorization: `Bearer ${tecnico.token}` } });
+      const ver = await fetch(`${API}/sponsors/attendance/check?personaId=${personaId}&token=${encodeURIComponent(token)}`, { headers: { Authorization: `Bearer ${tecnico.token}` } });
       if (!ver.ok) throw new Error((await ver.json())?.message || "No se pudo verificar la credencial.");
-      const res = await fetch(`${API}/tecnico/asistencias-auspiciadores`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${tecnico.token}` }, body: JSON.stringify({ personaId: Number(personaId), token }) });
+      const res = await fetch(`${API}/sponsors/attendance`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${tecnico.token}` }, body: JSON.stringify({ personaId: Number(personaId), token }) });
       const r = await res.json(); if (!res.ok) throw new Error(r?.message || "No se pudo registrar la asistencia.");
       setData((actual: any) => ({ ...actual, asistencia: { registrada: r.usosRestantes === 0, fechaHoraAsistencia: r.fechaHoraAsistencia, usosHoy: r.usosHoy, usosRestantes: r.usosRestantes, limiteDiario: r.limiteDiario } }));
       setResultado(`Asistencia registrada. Uso ${r.usosHoy} de ${r.limiteDiario}; ${r.usosRestantes ? `queda ${r.usosRestantes} registro hoy` : "límite diario alcanzado"}.`);

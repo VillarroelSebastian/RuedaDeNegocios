@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Newspaper, Calendar, ChevronDown, ChevronUp } from 'lucide-react';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
+import { API } from "@/lib/api";
 const PAGE_SIZE = 5;
 
 const TIPO_CFG: Record<string, { badge: string; label: string }> = {
@@ -83,7 +83,7 @@ export default function TecnicoNoticiasPage() {
     const load = async () => {
       setLoading(true);
       try {
-        const res = await fetch(`${API}/tecnico/noticias`);
+        const res = await fetch(`${API}/news/all`);
         const data = await res.json();
         setNoticias(Array.isArray(data) ? data : (data?.noticias ?? []));
       } catch {

@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { Mail, Plus, Pencil, Trash2, X, User } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { API_URL } from '../../utils/userStore';
+import { API } from '../../utils/api';
 import { useModal } from '../../components/AppModal';
 
 const GREEN = '#449D3A';
@@ -34,7 +34,7 @@ export default function TecnicosScreen() {
 
   const fetchTecnicos = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/admin/tecnicos`);
+      const res = await fetch(`${API}/technicians`);
       setTecnicos(await res.json());
     } catch {}
     finally { setLoading(false); setRefreshing(false); }
@@ -52,7 +52,7 @@ export default function TecnicosScreen() {
       try {
         const fd = new FormData();
         fd.append('file', { uri, name: 'photo.jpg', type: 'image/jpeg' } as any);
-        const res = await fetch(`${API_URL}/admin/imagenes/upload`, { method: 'POST', body: fd });
+        const res = await fetch(`${API}/uploads`, { method: 'POST', body: fd });
         const data = await res.json();
         setForm((f) => ({ ...f, urlFotoPerfil: data.url }));
       } catch { show({ type: 'error', title: 'Error', message: 'No se pudo subir la foto.' }); }
@@ -67,7 +67,7 @@ export default function TecnicosScreen() {
     }
     setSaving(true);
     try {
-      const url = editId ? `${API_URL}/admin/tecnicos/${editId}` : `${API_URL}/admin/tecnicos`;
+      const url = editId ? `${API}/technicians/${editId}` : `${API}/technicians`;
       const res = await fetch(url, { method: editId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Error al guardar');
@@ -87,7 +87,7 @@ export default function TecnicosScreen() {
       message: `¿Deseas eliminar a "${nombre}"? Esta acción no se puede deshacer.`,
       confirmText: 'Eliminar',
       cancelText: 'Cancelar',
-      onConfirm: async () => { await fetch(`${API_URL}/admin/tecnicos/${id}`, { method: 'DELETE' }); fetchTecnicos(); },
+      onConfirm: async () => { await fetch(`${API}/technicians/${id}`, { method: 'DELETE' }); fetchTecnicos(); },
     });
   };
 
@@ -101,7 +101,7 @@ export default function TecnicosScreen() {
       onConfirm: async () => {
         setResendingId(id);
         try {
-          const res = await fetch(`${API_URL}/admin/tecnicos/${id}/reenviar-credenciales`, { method: 'POST' });
+          const res = await fetch(`${API}/technicians/${id}/credentials`, { method: 'POST' });
           const data = await res.json();
           if (!res.ok) throw new Error(data?.message || 'No se pudieron reenviar las credenciales.');
           show({ type: 'success', title: 'Credenciales reenviadas', message: 'La nueva contraseña temporal fue enviada al correo del técnico.' });

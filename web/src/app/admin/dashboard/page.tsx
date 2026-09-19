@@ -11,7 +11,7 @@ const ICONS_MAP: Record<string, any> = {
   '📅': CalendarCheck,
 };
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
+import { API } from "@/lib/api";
 
 export default function Dashboard() {
   const [stats, setStats] = useState<any[]>([]);
@@ -21,7 +21,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`${API}/admin/dashboard/stats`)
+    fetch(`${API}/reports/dashboard/admin`)
       .then((r) => r.json())
       .then((data) => {
         setStats(data.stats);

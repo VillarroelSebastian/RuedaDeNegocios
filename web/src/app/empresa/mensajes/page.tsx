@@ -7,7 +7,7 @@ import {
   MessageSquare, Send, Search, X, Building2, ChevronLeft, AlertCircle, Plus,
 } from "lucide-react";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
+import { API } from "@/lib/api";
 const SOCKET_URL = API.replace(/\/api\/?$/, "");
 const POLL_MS = 5000;
 
@@ -30,7 +30,7 @@ function NuevaConversacionModal({ eeId, onClose, onElegir }: {
   const [cargando, setCargando] = useState(true);
 
   useEffect(() => {
-    fetch(`${API}/empresa/directorio?eeId=${eeId}`)
+    fetch(`${API}/directory`)
       .then((r) => r.json())
       .then((d) => setEmpresas(Array.isArray(d) ? d : []))
       .catch(() => {})
@@ -109,14 +109,14 @@ function MensajesContent() {
   useEffect(() => { activaRef.current = activa; }, [activa]);
 
   const cargarConvs = useCallback((eeId: number) => {
-    fetch(`${API}/empresa/mensajes/conversaciones?eeId=${eeId}`)
+    fetch(`${API}/messages`)
       .then((r) => r.json())
       .then((d) => setConvs(Array.isArray(d) ? d : []))
       .catch(() => {});
   }, []);
 
   const cargarMensajes = useCallback((eeId: number, otroEeId: number) => {
-    fetch(`${API}/empresa/mensajes?eeId=${eeId}&otroEeId=${otroEeId}`)
+    fetch(`${API}/messages/${otroEeId}`)
       .then((r) => r.json())
       .then((d) => setMensajes(Array.isArray(d) ? d : []))
       .catch(() => {});
@@ -128,7 +128,7 @@ function MensajesContent() {
     if (!raw) { router.replace("/auth/login"); return; }
     let user: any;
     try { user = JSON.parse(raw); } catch { router.replace("/auth/login"); return; }
-    fetch(`${API}/empresa/mi-empresa?usuarioId=${user.id}`)
+    fetch(`${API}/companies/me`)
       .then((r) => r.json())
       .then((c) => { setCtx(c); cargarConvs(c.empresaeventoId); })
       .catch(() => setError("No se pudo cargar la mensajería."))
@@ -185,7 +185,7 @@ function MensajesContent() {
     if (!t || !ctx || !activa || enviando) return;
     setEnviando(true);
     try {
-      const res = await fetch(`${API}/empresa/mensajes`, {
+      const res = await fetch(`${API}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

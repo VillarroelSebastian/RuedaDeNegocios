@@ -3,7 +3,7 @@ import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, View 
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { Download, RefreshCw } from 'lucide-react-native';
-import { API_URL } from '../../utils/userStore';
+import { API } from '../../utils/api';
 
 const GREEN = '#449D3A';
 const TIPOS = [
@@ -16,7 +16,7 @@ export default function ReportesScreen() {
   const [filtro, setFiltro] = useState('');
   const [orden, setOrden] = useState('reuniones');
   const [loading, setLoading] = useState(true);
-  const cargar = async () => { setLoading(true); try { const r = await fetch(`${API_URL}/admin/reportes?tipo=${tipo}`); const d = await r.json(); setFilas(r.ok && Array.isArray(d.filas) ? d.filas : []); } catch { setFilas([]); } finally { setLoading(false); } };
+  const cargar = async () => { setLoading(true); try { const r = await fetch(`${API}/reports/exports?tipo=${tipo}`); const d = await r.json(); setFilas(r.ok && Array.isArray(d.filas) ? d.filas : []); } catch { setFilas([]); } finally { setLoading(false); } };
   useEffect(() => { setFiltro(''); cargar(); }, [tipo]);
   const visibles = useMemo(() => {
     const base = filtro.trim() ? filas.filter((f) => Object.values(f).some((v) => String(v).toLowerCase().includes(filtro.toLowerCase()))) : filas;

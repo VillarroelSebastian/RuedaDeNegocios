@@ -8,7 +8,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Mail, Lock, Eye, EyeOff, X, KeyRound, CheckCircle } from 'lucide-react-native';
-import { API_URL, userStore } from '../../utils/userStore';
+import { userStore } from '../../utils/userStore';
+import { apiPost } from '../../utils/api';
+import { desdeApi, type RespuestaSesion } from '../../utils/sesion';
 import { correoValido, sinEspacios } from '../../utils/validaciones';
 
 const GREEN  = '#449D3A';
@@ -60,13 +62,9 @@ export default function LoginScreen({ navigation }: any) {
     if (!resetCorreo.trim()) { setResetError('Ingresa tu correo electrónico.'); return; }
     setResetError(''); setResetLoading(true);
     try {
-      const res = await fetch(`${API_URL}/auth/solicitar-reset`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ correo: resetCorreo.trim().toLowerCase() }),
+      await apiPost('/auth/password-reset-requests', {
+        email: resetCorreo.trim().toLowerCase(),
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.message || 'No se pudo enviar el correo.');
       await AsyncStorage.setItem(RESET_STORAGE_KEY, JSON.stringify({
         correo: resetCorreo.trim().toLowerCase(), vence: Date.now() + 15 * 60 * 1000,
       }));
@@ -81,13 +79,12 @@ export default function LoginScreen({ navigation }: any) {
     if (resetNueva !== resetConfirm) { setResetError('Las contraseñas no coinciden.'); return; }
     setResetError(''); setResetLoading(true);
     try {
-      const res = await fetch(`${API_URL}/auth/confirmar-reset`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ correo: resetCorreo.trim(), codigo: resetCodigo, nuevaContrasenia: resetNueva }),
+      // Responde 204: no hay cuerpo que leer.
+      await apiPost('/auth/password-resets', {
+        email: resetCorreo.trim(),
+        code: resetCodigo,
+        newPassword: resetNueva,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || 'Código incorrecto o expirado.');
       await AsyncStorage.removeItem(RESET_STORAGE_KEY);
       setResetStep('exito');
     } catch (err: any) { setResetError(err.message); }
@@ -108,13 +105,13 @@ export default function LoginScreen({ navigation }: any) {
     setError('');
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ correo: correoLimpio, contrasenia }),
+      // La API entrega la sesión con sus propios nombres de campo; se traduce
+      // una sola vez al guardarla, para que las pantallas la sigan leyendo igual.
+      const respuesta = await apiPost<RespuestaSesion>('/auth/sessions', {
+        email: correoLimpio,
+        password: contrasenia,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || 'Credenciales inválidas');
+      const data = desdeApi(respuesta);
       await userStore.set(data);
       if (data.rolEvento === 'ADMINISTRADOR') {
         navigation.replace('AdminRoot');

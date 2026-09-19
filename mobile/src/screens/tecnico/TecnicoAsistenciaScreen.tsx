@@ -11,6 +11,7 @@ import { CheckCircle2, QrCode } from "lucide-react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { API_URL, userStore } from "../../utils/userStore";
 import { useModal } from "../../components/AppModal";
+import { API } from '../../utils/api';
 
 const GREEN = "#449D3A";
 
@@ -38,11 +39,11 @@ export default function TecnicoAsistenciaScreen() {
     setLoading(true);
     try {
       if (empresa.tipo === "PARTICIPANTE") {
-        const res = await fetch(`${API_URL}/tecnico/asistencias?empresaEventoId=${empresa.id}`);
+        const res = await fetch(`${API}/attendance?empresaEventoId=${empresa.id}`);
         const data = await res.json();
         setAsistencias((Array.isArray(data) ? data : []).map((a: any) => ({ ...a, tipo: "PARTICIPANTE" })));
       } else {
-        const res = await fetch(`${API_URL}/tecnico/asistencias-auspiciadores`);
+        const res = await fetch(`${API}/sponsors/attendance`);
         const data = await res.json();
         setAsistencias((Array.isArray(data) ? data : []).filter((a: any) =>
           a.auspiciadorpersona?.auspiciador?.nombreEmpresa === empresa.nombre,
@@ -84,8 +85,8 @@ export default function TecnicoAsistenciaScreen() {
       const auspiciador = Boolean(matchAusp);
       const partes = matchAusp || match!;
       const url = auspiciador
-        ? `${API_URL}/tecnico/credenciales-auspiciador/verificar?personaId=${partes[1]}&token=${partes[2]}`
-        : `${API_URL}/tecnico/credenciales/verificar?euId=${partes[1]}&token=${partes[2]}`;
+        ? `${API}/sponsors/attendance/check?personaId=${partes[1]}&token=${partes[2]}`
+        : `${API}/attendance/check?companyUserId=${partes[1]}&token=${partes[2]}`;
       const res = await fetch(url);
       const data = await res.json();
       if (!res.ok)
@@ -126,7 +127,7 @@ export default function TecnicoAsistenciaScreen() {
     try {
       const esAuspiciador = pendiente.tipo === "AUSPICIADOR";
       const res = await fetch(
-        `${API_URL}/${esAuspiciador ? "tecnico/asistencias-auspiciadores" : "tecnico/asistencias"}`,
+        `${API}${esAuspiciador ? "/sponsors/attendance" : "/attendance"}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

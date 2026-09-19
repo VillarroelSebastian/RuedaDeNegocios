@@ -5,7 +5,8 @@ import {
 } from 'react-native';
 import { Plus, X, Newspaper } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { API_URL, userStore } from '../../utils/userStore';
+import { userStore } from '../../utils/userStore';
+import { API } from '../../utils/api';
 import { useModal } from '../../components/AppModal';
 import ImagenLightbox from '../../components/ImagenLightbox';
 
@@ -34,7 +35,7 @@ export default function NoticiasScreen() {
 
   const fetchNoticias = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/admin/noticias`);
+      const res = await fetch(`${API}/news/all`);
       setNoticias(await res.json());
     } catch {}
     finally { setLoading(false); setRefreshing(false); }
@@ -52,7 +53,7 @@ export default function NoticiasScreen() {
       try {
         const fd = new FormData();
         fd.append('file', { uri, name: 'image.jpg', type: 'image/jpeg' } as any);
-        const res = await fetch(`${API_URL}/admin/imagenes/upload`, { method: 'POST', body: fd });
+        const res = await fetch(`${API}/uploads`, { method: 'POST', body: fd });
         const data = await res.json();
         setForm((f) => ({ ...f, urlImagenNoticia: data.url }));
       } catch { show({ type: 'error', title: 'Error', message: 'No se pudo subir la imagen.' }); }
@@ -69,7 +70,7 @@ export default function NoticiasScreen() {
     try {
       const user = userStore.get();
       const payload = { ...form, usuario_id: user?.id || 1 };
-      const url = editId ? `${API_URL}/admin/noticias/${editId}` : `${API_URL}/admin/noticias`;
+      const url = editId ? `${API}/news/${editId}` : `${API}/news/all`;
       await fetch(url, { method: editId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       show({ type: 'success', title: '¡Listo!', message: editId ? 'Comunicado actualizado.' : 'Comunicado publicado.' });
       setShowForm(false);
@@ -85,7 +86,7 @@ export default function NoticiasScreen() {
       message: `¿Deseas eliminar "${titulo}"? Esta acción no se puede deshacer.`,
       confirmText: 'Eliminar',
       cancelText: 'Cancelar',
-      onConfirm: async () => { await fetch(`${API_URL}/admin/noticias/${id}`, { method: 'DELETE' }); fetchNoticias(); },
+      onConfirm: async () => { await fetch(`${API}/news/${id}`, { method: 'DELETE' }); fetchNoticias(); },
     });
   };
 

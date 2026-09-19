@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { useModal } from '../../components/AppModal';
 import { Plus, Clock, X, Radio } from 'lucide-react-native';
-import { API_URL } from '../../utils/userStore';
+import { API } from '../../utils/api';
 import CronogramaVivo from '../../components/CronogramaVivo';
 
 const GREEN = '#449D3A';
@@ -43,7 +43,7 @@ export default function ActividadesScreen({ mostrarCronograma = true }: { mostra
 
   const fetchActividades = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/admin/actividades`);
+      const res = await fetch(`${API}/activities`);
       setActividades(await res.json());
     } catch {}
     finally { setLoading(false); setRefreshing(false); }
@@ -77,7 +77,7 @@ export default function ActividadesScreen({ mostrarCronograma = true }: { mostra
     }
     setSaving(true);
     try {
-      const url = editId ? `${API_URL}/admin/actividades/${editId}` : `${API_URL}/admin/actividades`;
+      const url = editId ? `${API}/activities/${editId}` : `${API}/activities`;
       await fetch(url, { method: editId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
       show({ type: 'success', title: '¡Listo!', message: editId ? 'Actividad actualizada correctamente.' : 'Actividad creada correctamente.' });
       setShowForm(false);
@@ -94,7 +94,7 @@ export default function ActividadesScreen({ mostrarCronograma = true }: { mostra
       confirmText: 'Eliminar',
       cancelText: 'Cancelar',
       onConfirm: async () => {
-        await fetch(`${API_URL}/admin/actividades/${id}`, { method: 'DELETE' });
+        await fetch(`${API}/activities/${id}`, { method: 'DELETE' });
         fetchActividades();
       },
     });

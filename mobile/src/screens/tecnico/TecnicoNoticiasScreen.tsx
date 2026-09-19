@@ -4,7 +4,7 @@ import {
   RefreshControl, Image,
 } from 'react-native';
 import { Newspaper } from 'lucide-react-native';
-import { API_URL } from '../../utils/userStore';
+import { API } from '../../utils/api';
 
 const GREEN = '#449D3A';
 
@@ -91,7 +91,7 @@ export default function TecnicoNoticiasScreen() {
 
   const fetchNoticias = useCallback(async () => {
     try {
-      const res  = await fetch(`${API_URL}/tecnico/noticias`);
+      const res  = await fetch(`${API}/news/all`);
       const data = await res.json();
       setNoticias(Array.isArray(data) ? data : []);
     } catch {

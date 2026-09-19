@@ -7,7 +7,7 @@ import { ArrowRight, Building2, MapPin, Search, AlertCircle, Star, Filter, Grid2
 import ImagenLightbox from "@/components/ui/ImagenLightbox";
 import { paisConBandera } from "@/lib/pais";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
+import { API } from "@/lib/api";
 
 function afinidadBadge(afinidad: string | null) {
   if (afinidad === "alta") {
@@ -46,11 +46,11 @@ export default function EmpresasPage() {
 
   const cargar = useCallback((ee: number) => {
     setLoading(true);
-    const params = new URLSearchParams({ eeId: String(ee) });
+    const params = new URLSearchParams();
     if (filtroOferta.trim()) params.set("oferta", filtroOferta.trim());
     if (filtroDemanda.trim()) params.set("demanda", filtroDemanda.trim());
     if (filtroLugar.trim()) params.set("lugar", filtroLugar.trim());
-    fetch(`${API}/empresa/directorio?${params}`)
+    fetch(`${API}/directory?${params}`)
       .then((r) => r.json())
       .then((data) => setEmpresas(Array.isArray(data) ? data : []))
       .catch(() => setError("No se pudo cargar la lista de empresas."))
@@ -63,7 +63,7 @@ export default function EmpresasPage() {
     let user: any;
     try { user = JSON.parse(raw); } catch { router.replace("/auth/login"); return; }
 
-    fetch(`${API}/empresa/mi-empresa?usuarioId=${user.id}`)
+    fetch(`${API}/companies/me`)
       .then((r) => r.json())
       .then((c) => {
         setCtx(c);

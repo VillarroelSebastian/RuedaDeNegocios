@@ -7,7 +7,7 @@ import {
   Armchair, Building2, Clock, Video, MapPin, ChevronDown,
   ChevronUp, Timer, Star, History, Mail, Link2, Send, X,
 } from 'lucide-react-native';
-import { API_URL } from '../../utils/userStore';
+import { API } from '../../utils/api';
 import { useModal } from '../../components/AppModal';
 
 const GREEN = '#449D3A';
@@ -298,7 +298,7 @@ export default function TecnicoMesasScreen() {
 
   const fetchMesas = useCallback(async () => {
     try {
-      const [res, libresRes] = await Promise.all([fetch(`${API_URL}/tecnico/mesas`), fetch(`${API_URL}/staff/empresas-sin-reunion`)]);
+      const [res, libresRes] = await Promise.all([fetch(`${API}/tables`), fetch(`${API}/meetings/idle-companies`)]);
       const [data, libres] = await Promise.all([res.json(), libresRes.json()]);
       setMesas(data.mesas ?? []);
       setSinReunion(Array.isArray(libres?.empresas) ? libres.empresas : []);
@@ -310,7 +310,7 @@ export default function TecnicoMesasScreen() {
   const fetchHistorial = useCallback(async (q?: string) => {
     setLoadingHistorial(true);
     try {
-      const url = q?.trim() ? `${API_URL}/tecnico/mesas/historial?q=${encodeURIComponent(q)}` : `${API_URL}/tecnico/mesas/historial`;
+      const url = q?.trim() ? `${API}/meetings/history?q=${encodeURIComponent(q)}` : `${API}/meetings/history`;
       const data = await (await fetch(url)).json();
       setHistorial(Array.isArray(data) ? data : []);
     } catch { setHistorial([]); }
@@ -372,7 +372,7 @@ export default function TecnicoMesasScreen() {
     if (!msgModal || !msgText.trim()) return;
     setSending(true);
     try {
-      const res = await fetch(`${API_URL}/tecnico/reuniones/${msgModal.reunionId}/mensaje`, {
+      const res = await fetch(`${API}/meetings/${msgModal.reunionId}/messages`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ empresa: msgModal.empresa, mensaje: msgText.trim() }),
       });
@@ -387,7 +387,7 @@ export default function TecnicoMesasScreen() {
     if (!linkModal) return;
     setSavingLink(true);
     try {
-      const res = await fetch(`${API_URL}/tecnico/reuniones/${linkModal.reunion.id}/link`, {
+      const res = await fetch(`${API}/meetings/${linkModal.reunion.id}/link`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enlace: linkText.trim() }),
       });

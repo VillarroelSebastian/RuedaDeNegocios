@@ -4,7 +4,7 @@ import { Plus, Pencil, Trash2, X, Upload, Image as ImageIcon } from 'lucide-reac
 import ImagenLightbox from '@/components/ui/ImagenLightbox';
 import { useModal } from '@/components/ui/Modal';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
+import { API } from "@/lib/api";
 
 const TIPOS = ['COMUNICADO', 'NOTICIA', 'ANUNCIO', 'ALERTA'];
 
@@ -29,7 +29,7 @@ export default function NoticiasPage() {
   const fetch_ = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API}/admin/noticias`);
+      const res = await fetch(`${API}/news/all`);
       setNoticias(await res.json());
     } catch { setNoticias([]); }
     finally { setLoading(false); }
@@ -63,7 +63,7 @@ export default function NoticiasPage() {
     try {
       const fd = new FormData();
       fd.append('file', file);
-      const res = await fetch(`${API}/admin/imagenes/upload`, { method: 'POST', body: fd });
+      const res = await fetch(`${API}/uploads`, { method: 'POST', body: fd });
       const data = await res.json();
       setForm((f) => ({ ...f, urlImagenNoticia: data.url }));
     } catch { showError('Error', 'No se pudo subir la imagen.'); }
@@ -79,7 +79,7 @@ export default function NoticiasPage() {
     try {
     const user = JSON.parse(localStorage.getItem('adminUser') || localStorage.getItem('tecnicoUser') || '{}');
       const payload = { ...form, usuario_id: user.id || 1 };
-      const url = editId ? `${API}/admin/noticias/${editId}` : `${API}/admin/noticias`;
+      const url = editId ? `${API}/news/${editId}` : `${API}/news/all`;
       await fetch(url, { method: editId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       showSuccess(editId ? 'Comunicado actualizado' : 'Comunicado publicado', '');
       setShowForm(false);
@@ -91,7 +91,7 @@ export default function NoticiasPage() {
   const handleDelete = (id: number, titulo: string) => {
     showConfirm(`¿Eliminar "${titulo}"?`, 'Esta acción no se puede deshacer.', async () => {
       try {
-        await fetch(`${API}/admin/noticias/${id}`, { method: 'DELETE' });
+        await fetch(`${API}/news/${id}`, { method: 'DELETE' });
         showSuccess('Eliminado', 'El comunicado fue eliminado.');
         fetch_();
       } catch { showError('Error', 'No se pudo eliminar.'); }

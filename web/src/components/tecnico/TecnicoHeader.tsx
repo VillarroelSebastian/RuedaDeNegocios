@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Bell, Clock, LogOut, Search, User, UserCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
+import { API } from "@/lib/api";
 
 export default function TecnicoHeader() {
   const router = useRouter();
@@ -29,7 +29,7 @@ export default function TecnicoHeader() {
 
   const cargarNotificaciones = async () => {
     try {
-      const res = await fetch(`${API}/tecnico/notificaciones-reuniones`);
+      const res = await fetch(`${API}/notifications/staff`);
       if (res.ok) setNotificaciones(await res.json());
     } catch {}
   };
@@ -57,7 +57,7 @@ export default function TecnicoHeader() {
     setSearch(valor);
     if (valor.trim().length < 2) { setResultados([]); setShowSearch(false); return; }
     try {
-      const res = await fetch(`${API}/tecnico/empresas?search=${encodeURIComponent(valor)}&limit=5`);
+      const res = await fetch(`${API}/companies?search=${encodeURIComponent(valor)}&limit=5`);
       const data = await res.json();
       setResultados(data.data ?? []); setShowSearch(true);
     } catch {}

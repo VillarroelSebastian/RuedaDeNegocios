@@ -2,14 +2,15 @@ import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { Bell, CalendarClock } from 'lucide-react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { API_URL, userStore } from '../../utils/userStore';
+import { userStore } from '../../utils/userStore';
+import { API } from '../../utils/api';
 
 const GREEN = '#449D3A';
 export default function StaffNotificacionesScreen({ navigation }: any) {
   const admin = userStore.get()?.rolEvento === 'ADMINISTRADOR';
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const cargar = useCallback(async (mostrarCarga = true) => { if (mostrarCarga) setLoading(true); try { const r = await fetch(`${API_URL}/${admin ? 'admin/notificaciones' : 'tecnico/notificaciones-reuniones'}`); const d = await r.json(); setItems(admin ? (d.notificaciones || []) : (Array.isArray(d) ? d : [])); } catch { setItems([]); } finally { if (mostrarCarga) setLoading(false); } }, [admin]);
+  const cargar = useCallback(async (mostrarCarga = true) => { if (mostrarCarga) setLoading(true); try { const r = await fetch(`${API}${admin ? '/notifications/pending-work' : '/notifications/staff'}`); const d = await r.json(); setItems(admin ? (d.notificaciones || []) : (Array.isArray(d) ? d : [])); } catch { setItems([]); } finally { if (mostrarCarga) setLoading(false); } }, [admin]);
   useFocusEffect(useCallback(() => { cargar(); const timer = setInterval(() => cargar(false), 15000); return () => clearInterval(timer); }, [cargar]));
   const abrir = (n: any) => {
     if (!admin) { navigation.navigate('TecnicoTabs', { screen: 'TecnicoVirtuales' }); return; }

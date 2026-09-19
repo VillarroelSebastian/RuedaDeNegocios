@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, CalendarCheck, Star, Calendar, Package } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Modal, { useModal } from '@/components/ui/Modal';
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
+import { API } from "@/lib/api";
 
 function formatDate(iso: string) {
   if (!iso) return '';
@@ -21,7 +21,7 @@ export default function EventosListPage() {
 
   const fetchEventos = async () => {
     try {
-      const res = await fetch(`${API}/admin/eventos`);
+      const res = await fetch(`${API}/events`);
       if (res.ok) {
         const data = await res.json();
         setEventos(Array.isArray(data) ? data : []);
@@ -46,7 +46,7 @@ export default function EventosListPage() {
       'Al cambiar el evento principal, TODOS los módulos del sistema (empresas, pagos, mesas, técnicos, estadísticas) mostrarán únicamente datos de este evento. ¿Deseas continuar?',
       async () => {
         try {
-          const res = await fetch(`${API}/admin/eventos/${id}/set-principal`, { method: 'PUT' });
+          const res = await fetch(`${API}/events/${id}/principal`, { method: 'PUT' });
           const data = await res.json().catch(() => ({}));
           if (!res.ok && res.status === 400 && String(data?.message ?? '').toLowerCase().includes('paquete')) {
             router.push(`/admin/paquetes?eventoId=${id}&requerido=1`);
@@ -68,7 +68,7 @@ export default function EventosListPage() {
     }
     showModal('confirm', 'Eliminar Evento', '¿Estás seguro de que deseas eliminar este evento? Esta acción no se puede deshacer.', async () => {
       try {
-        await fetch(`${API}/admin/eventos/${id}`, { method: 'DELETE' });
+        await fetch(`${API}/events/${id}`, { method: 'DELETE' });
         fetchEventos();
       } catch (err) {
         showModal('error', 'Error', 'No se pudo eliminar el evento. Intenta de nuevo.');

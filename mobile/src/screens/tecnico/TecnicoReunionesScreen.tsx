@@ -8,7 +8,7 @@ import {
   ChevronUp, Search, X, Armchair, AlertTriangle,
   Star,
 } from 'lucide-react-native';
-import { API_URL } from '../../utils/userStore';
+import { API } from '../../utils/api';
 
 const GREEN = '#449D3A';
 
@@ -191,7 +191,7 @@ export default function TecnicoReunionesScreen() {
       const params = new URLSearchParams();
       if (filtroEst !== 'TODOS') params.set('estado', filtroEst);
       if (filtroTip !== 'TODOS') params.set('tipo',   filtroTip);
-      const res  = await fetch(`${API_URL}/tecnico/reuniones?${params}`);
+      const res  = await fetch(`${API}/meetings?${params}`);
       const data = await res.json();
       setReuniones(Array.isArray(data) ? data : []);
     } catch { setReuniones([]); }
@@ -206,7 +206,7 @@ export default function TecnicoReunionesScreen() {
       return;
     }
     try {
-      const res = await fetch(`${API_URL}/tecnico/reuniones/${id}/estado`, {
+      const res = await fetch(`${API}/meetings/${id}/status`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ estadoReunion: estado }),
       });
@@ -224,7 +224,7 @@ export default function TecnicoReunionesScreen() {
     }
     setGuardando(true);
     try {
-      const res = await fetch(`${API_URL}/tecnico/reuniones/${evaluando.id}/finalizar-evaluar`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(evaluacion) });
+      const res = await fetch(`${API}/meetings/${evaluando.id}/evaluation`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(evaluacion) });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message || 'No se pudo finalizar');
       setEvaluando(null); setEvaluacion({ calificacionA:0, rangoA:'', observacionesA:'', calificacionB:0, rangoB:'', observacionesB:'' });

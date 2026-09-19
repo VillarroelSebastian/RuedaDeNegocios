@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import ImagenLightbox from "@/components/ui/ImagenLightbox";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
+import { API } from "@/lib/api";
 
 const ETIQUETA_MESA: Record<string, string> = {
   NORMAL: "Mesa estándar",
@@ -79,7 +79,7 @@ export default function FichaEmpresaModal({
     if (!empresaId) { setDatos(null); return; }
     setCargando(true);
     setError(null);
-    fetch(`${API}/admin/empresas/${empresaId}`)
+    fetch(`${API}/companies/${empresaId}`)
       .then(async (r) => {
         if (!r.ok) throw new Error((await r.json())?.message || "No se pudo cargar la empresa.");
         return r.json();

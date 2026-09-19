@@ -8,7 +8,8 @@ import {
   Building2, MapPin, Hash, Star, Globe, Mail, Phone, FileText, Send,
   MessageSquare, ChevronLeft, Users, Sparkles, Target, Handshake, AlertCircle,
 } from 'lucide-react-native';
-import { API_URL, userStore } from '../../utils/userStore';
+import { userStore } from '../../utils/userStore';
+import { API } from '../../utils/api';
 import { paisConBandera } from '../../utils/pais';
 
 const GREEN = '#449D3A';
@@ -42,7 +43,7 @@ export default function EmpresaPerfilEmpresaScreen() {
 
   useEffect(() => {
     if (!eeId) { setEstado('error'); return; }
-    fetch(`${API_URL}/empresa/perfil-empresa/${eeId}?miEeId=${miEeId ?? ''}`)
+    fetch(`${API}/directory/${eeId}`)
       .then((r) => r.json())
       .then((d) => { if (d?.empresaeventoId) { setEmp(d); setEstado('ok'); } else setEstado('error'); })
       .catch(() => setEstado('error'));

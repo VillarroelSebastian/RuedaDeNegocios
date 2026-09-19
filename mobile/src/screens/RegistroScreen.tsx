@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { StatusBar } from 'expo-status-bar';
-import { API_URL } from '../utils/userStore';
+import { API } from '../utils/api';
 import { LIMITES, correoValido, validarNombreEmpresa, limpiarEspacios } from '../utils/validaciones';
 
 // Los rubros viven en ../constants/rubros para no repetirlos entre pantallas.
@@ -221,8 +221,8 @@ export default function RegistroScreen({ navigation }: any) {
   // Init
   useEffect(() => {
     Promise.all([
-      fetch(`${API_URL}/public/evento`).then(r => r.json()),
-      fetch(`${API_URL}/public/paquetes`).then(r => r.ok ? r.json() : []),
+      fetch(`${API}/events/current`).then(r => r.json()),
+      fetch(`${API}/packages`).then(r => r.ok ? r.json() : []),
     ])
       .then(([ev, lista]) => {
         setEvento(ev);
@@ -261,7 +261,7 @@ export default function RegistroScreen({ navigation }: any) {
     try {
       const formData = new FormData();
       formData.append('file', { uri: asset.uri, type: asset.mimeType ?? 'application/octet-stream', name: asset.name ?? 'comprobante' } as any);
-      const res = await fetch(`${API_URL}/public/imagenes/upload`, { method: 'POST', body: formData });
+      const res = await fetch(`${API}/uploads`, { method: 'POST', body: formData });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message ?? 'Error al subir');
       setComprobanteUrl(data.url);
@@ -335,7 +335,7 @@ export default function RegistroScreen({ navigation }: any) {
           ...adicionales.map(p => ({ nombreCompleto: limpiarEspacios(`${p.nombre} ${p.apellido}`), cargo: limpiarEspacios(p.cargo), correo: p.correo.trim(), telefono: p.telefono.trim(), esResponsable: false })),
         ],
       };
-      const res = await fetch(`${API_URL}/public/registro`, {
+      const res = await fetch(`${API}/registration`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

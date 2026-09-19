@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { fechaEvento, horaEvento, partesFechaEvento } from "@/lib/fechaEvento";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
+import { API } from "@/lib/api";
 const POLL_MS = 5000; // tabla polling cada 5 s
 
 // ── Mesa picker con polling ─────────────────────────────────────────────────
@@ -27,7 +27,7 @@ function MesaPicker({ inicio, fin, value, onChange, onUnavailable }: MesaPickerP
 
   const fetchMesas = async () => {
     try {
-      const r = await fetch(`${API}/empresa/mesas-disponibles?inicio=${inicio}&fin=${fin}`);
+      const r = await fetch(`${API}/tables/available?inicio=${inicio}&fin=${fin}`);
       const data = await r.json();
       const arr = Array.isArray(data) ? data : [];
       setMesas(arr);
@@ -142,10 +142,11 @@ export function NuevaSolicitudModal({ ctx, receptoraId, receptoraNombre, onClose
     }
     setCargando(true); setErr(null);
     setHorario(null); setFechaSelec(""); setMesa(null); setMesaInvalida(false);
-    const params = new URLSearchParams({ eeId: String(ctx.empresaeventoId) });
-    if (tieneReceptora) params.set("eeReceptoraId", String(receptoraId));
+    // La empresa que pregunta sale del token: solo viaja con quién se reúne.
+    const params = new URLSearchParams();
+    if (tieneReceptora) params.set("receptoraId", String(receptoraId));
     if (solicitud?.id) params.set("solicitudId", String(solicitud.id));
-    fetch(`${API}/empresa/horarios?${params}`)
+    fetch(`${API}/schedule/agenda?${params}`)
       .then((r) => r.json())
       .then((data) => {
         const disponibles: any[] = Array.isArray(data?.horarios) ? data.horarios : [];
@@ -171,11 +172,12 @@ export function NuevaSolicitudModal({ ctx, receptoraId, receptoraNombre, onClose
     if (tipo === "PRESENCIAL" && !mesa) { setErr("Selecciona una mesa."); return; }
     setEnviando(true);
     try {
-      const res = await fetch(solicitud ? `${API}/empresa/solicitudes/${solicitud.id}/editar` : `${API}/empresa/solicitudes`, {
+      const res = await fetch(solicitud ? `${API}/meeting-requests/${solicitud.id}` : `${API}/meeting-requests`, {
         method: solicitud ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          eeId: ctx.empresaeventoId, eeReceptoraId: receptoraId, euId: ctx.empresaUsuarioId,
+          // Al editar, la receptora ya está fijada en la solicitud.
+          ...(solicitud ? {} : { receptoraId }),
           tipo, inicio: horario.inicio, fin: horario.fin,
           mesaId: tipo === "PRESENCIAL" ? mesa : undefined,
           mensaje,

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Linking, Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { Building2, ExternalLink, X } from 'lucide-react-native';
-import { API_URL } from '../utils/userStore';
+import { API } from '../utils/api';
 import ImagenLightbox from './ImagenLightbox';
 
 const GREEN = '#449D3A';
@@ -34,7 +34,7 @@ export default function FichaEmpresaModal({ empresaId, onClose }: { empresaId: n
     if (!empresaId) return;
     setLoading(true);
     setError('');
-    fetch(`${API_URL}/admin/empresas/${empresaId}`)
+    fetch(`${API}/companies/${empresaId}`)
       .then(async (res) => {
         const data = await res.json();
         if (!res.ok) throw new Error(data?.message || 'No se pudo cargar la empresa.');

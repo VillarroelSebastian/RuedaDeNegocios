@@ -10,7 +10,8 @@ import {
   Calendar, Users, Monitor, Table2, ChevronRight, CheckCircle2, XCircle, Clock, Building2,
   Edit2,
 } from 'lucide-react-native';
-import { API_URL, userStore } from '../../utils/userStore';
+import { userStore } from '../../utils/userStore';
+import { API } from '../../utils/api';
 import { fechaEvento, horaEvento } from '../../utils/fechaEvento';
 import EmpresaEmpresasScreen from './EmpresaEmpresasScreen';
 
@@ -231,13 +232,17 @@ function ActionModal({ sol, type, onClose, onDone }: {
   const doAction = async () => {
     setErr(''); setActing(true);
     try {
-      const url = `${API_URL}/empresa/solicitudes/${sol.id}/${type}`;
+      // La empresa que actúa sale del token; cada acción es su propio recurso.
+      const accion = { aceptar: 'acceptance', rechazar: 'rejection', cancelar: 'cancellation' }[type];
+      const url = `${API}/meeting-requests/${sol.id}/${accion}`;
       const res = await fetch(url, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eeId: user?.empresaeventoId }),
+        body: JSON.stringify({}),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || `Error al ${type}`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.message || `Error al ${type}`);
+      }
       setOk(true);
       onDone();
     } catch (e: any) { setErr(e.message || 'Error de red'); }
@@ -395,7 +400,7 @@ export default function EmpresaSolicitudesScreen({ route }: any) {
     if (!eeId) { setLoading(false); return; }
     setError('');
     try {
-      const res = await fetch(`${API_URL}/empresa/solicitudes?eeId=${eeId}`);
+      const res = await fetch(`${API}/meeting-requests`);
       if (!res.ok) throw new Error('Error cargando solicitudes');
       const data = await res.json();
       if (Array.isArray(data)) {

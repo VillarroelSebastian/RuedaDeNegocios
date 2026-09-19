@@ -3,7 +3,8 @@ import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, Text
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { CalendarClock, CheckCircle2, Copy, Info, Plus, Power, Trash2 } from 'lucide-react-native';
-import { API_URL, userStore } from '../../utils/userStore';
+import { userStore } from '../../utils/userStore';
+import { API } from '../../utils/api';
 
 const GREEN = '#449D3A';
 type Rango = { desde: string; hasta: string };
@@ -21,7 +22,7 @@ export default function EmpresaHorariosScreen() {
     if (!eeId) { setLoading(false); return; }
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/empresa/horarios-empresa/dias?eeId=${eeId}`);
+      const res = await fetch(`${API}/schedule/availability/days`);
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || 'No se pudo cargar la agenda.');
       setDias(Array.isArray(data.dias) ? data.dias : []);
@@ -59,8 +60,8 @@ export default function EmpresaHorariosScreen() {
     }
     setGuardando(true);
     try {
-      const res = await fetch(`${API_URL}/empresa/horarios-empresa/dias`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ eeId, dias }),
+      const res = await fetch(`${API}/schedule/availability/days`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dias }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || 'No se pudo guardar la agenda.');

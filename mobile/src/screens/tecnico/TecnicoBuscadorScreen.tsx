@@ -6,7 +6,7 @@ import {
 import {
   Search, Building2, Armchair, CalendarCheck, Video, MapPin, X, MessageSquare, CalendarClock, Users, Eye,
 } from 'lucide-react-native';
-import { API_URL } from '../../utils/userStore';
+import { API } from '../../utils/api';
 import EnviarMensajeEmpresaModal from '../../components/EnviarMensajeEmpresaModal';
 import { ParticipantesModal } from '../admin/EmpresasScreen';
 import PerfilEmpresaStaffModal from '../../components/PerfilEmpresaStaffModal';
@@ -193,7 +193,7 @@ export default function TecnicoBuscadorScreen() {
     if (trimmed.length < 2) { setResults(null); return; }
     setLoading(true);
     try {
-      const res  = await fetch(`${API_URL}/tecnico/buscar?q=${encodeURIComponent(trimmed)}`);
+      const res  = await fetch(`${API}/reports/search?q=${encodeURIComponent(trimmed)}`);
       const data = await res.json();
       setResults(data);
     } catch { setResults(null); }
@@ -210,7 +210,7 @@ export default function TecnicoBuscadorScreen() {
   const reuniones = results?.reuniones ?? [];
   const mesas     = results?.mesas     ?? [];
   const total     = empresas.length + reuniones.length + mesas.length;
-  const abrirAgenda=async(e:any)=>{setAgendaEmpresa(e);setAgenda(null);try{const r=await fetch(`${API_URL}/staff/empresas/${e.empresaeventoId}/agenda`);setAgenda(await r.json());}catch{setAgenda({reuniones:[]});}};
+  const abrirAgenda=async(e:any)=>{setAgendaEmpresa(e);setAgenda(null);try{const r=await fetch(`${API}/meetings/agenda/${e.empresaeventoId}`);setAgenda(await r.json());}catch{setAgenda({reuniones:[]});}};
 
   return (
     <View style={{ flex:1, backgroundColor:'#f8fafc' }}>

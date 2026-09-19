@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Armchair, Calendar, Building2, Video, MapPin, RefreshCw, X, Link2, CheckCircle2, AlertCircle } from 'lucide-react';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
+import { API } from "@/lib/api";
 
 // Modal para agregar/cambiar el enlace virtual de una reunión (admin)
 function LinkModal({ reunion, onClose, onGuardado }: { reunion: any; onClose: () => void; onGuardado: () => void }) {
@@ -14,7 +14,7 @@ function LinkModal({ reunion, onClose, onGuardado }: { reunion: any; onClose: ()
     setGuardando(true);
     setErr('');
     try {
-      const res = await fetch(`${API}/tecnico/reuniones/${reunion.id}/link`, {
+      const res = await fetch(`${API}/meetings/${reunion.id}/link`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enlace: enlace.trim() }),
@@ -92,7 +92,7 @@ export default function AgendaMesasPage() {
   const fetchAgenda = useCallback(async () => {
     setLoading(true);
     try {
-      const res  = await fetch(`${API}/admin/mesas/agenda`);
+      const res  = await fetch(`${API}/tables`);
       const data = await res.json();
       const mesas: any[] = data.mesas ?? (Array.isArray(data) ? data : []);
       // Flatten to individual reservaciones (PROGRAMADA + EN_CURSO only)

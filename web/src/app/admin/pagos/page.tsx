@@ -4,7 +4,7 @@ import { CreditCard, Eye, ChevronLeft, ChevronRight, AlertCircle, CheckCircle, X
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
+import { API } from "@/lib/api";
 
 const TABS = [
   { value: '', label: 'Todos', icon: CreditCard },
@@ -28,7 +28,7 @@ function PagosPageContent() {
     setLoading(true);
     try {
       const params = new URLSearchParams({ page: String(page), limit: String(limit), ...(tab && { estado: tab }) });
-      const res = await fetch(`${API}/admin/pagos?${params}`);
+      const res = await fetch(`${API}/payments?${params}`);
       const data = await res.json();
       setPagos(data.data || []);
       setTotal(data.total || 0);

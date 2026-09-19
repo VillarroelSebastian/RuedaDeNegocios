@@ -6,7 +6,7 @@ import {
   ChevronLeft, Table2, CalendarPlus, Send,
 } from "lucide-react";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
+import { API } from "@/lib/api";
 
 type Paso = 1 | 2 | 3 | 4;
 
@@ -138,7 +138,7 @@ export default function TecnicoAgendarPage() {
   const [exito, setExito] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`${API}/tecnico/empresas-habilitadas`)
+    fetch(`${API}/meetings/eligible-companies`)
       .then((r) => r.json())
       .then((d) => setEmpresas(Array.isArray(d) ? d : []))
       .catch(() => {})
@@ -191,9 +191,9 @@ export default function TecnicoAgendarPage() {
     setCargandoH(true);
     setHorarios([]); setFechaSelec(""); setHoraSelec(""); setMinutosStr("");
     Promise.all([
-      fetch(`${API}/tecnico/horarios?eeId=${empA.eeId}&eeReceptoraId=${empB.eeId}`).then((r) => r.json()),
-      fetch(`${API}/empresa/horarios-empresa/dias?eeId=${empA.eeId}`).then((r) => r.json()).catch(() => null),
-      fetch(`${API}/empresa/horarios-empresa/dias?eeId=${empB.eeId}`).then((r) => r.json()).catch(() => null),
+      fetch(`${API}/schedule/staff-agenda?solicitanteId=${empA.eeId}&receptoraId=${empB.eeId}`).then((r) => r.json()),
+      fetch(`${API}/schedule/availability/days/${empA.eeId}`).then((r) => r.json()).catch(() => null),
+      fetch(`${API}/schedule/availability/days/${empB.eeId}`).then((r) => r.json()).catch(() => null),
     ])
       .then(([data, diasA, diasB]) => {
         // Se usan TODAS las franjas configuradas del evento (agenda), no solo
@@ -218,7 +218,7 @@ export default function TecnicoAgendarPage() {
   const cargarMesas = () => {
     setCargandoM(true);
     setMesas([]); setMesa(null);
-    fetch(`${API}/tecnico/mesas`)
+    fetch(`${API}/tables`)
       .then((r) => r.json())
       .then((d) => setMesas(Array.isArray(d?.mesas) ? d.mesas : []))
       .catch(() => {})
@@ -230,7 +230,7 @@ export default function TecnicoAgendarPage() {
   useEffect(() => {
     if (tipo !== "PRESENCIAL" || mesa === null || !fechaSelec) { setOcupacionMesa([]); return; }
     setCargandoOcup(true);
-    fetch(`${API}/tecnico/mesas/${mesa}/ocupacion?fecha=${fechaSelec}`)
+    fetch(`${API}/tables/${mesa}/occupancy?fecha=${fechaSelec}`)
       .then((r) => r.json())
       .then((d) => setOcupacionMesa(Array.isArray(d?.ocupado) ? d.ocupado : []))
       .catch(() => setOcupacionMesa([]))
@@ -242,7 +242,7 @@ export default function TecnicoAgendarPage() {
     setErr(null);
     setEnviando(true);
     try {
-      const res = await fetch(`${API}/tecnico/reuniones/crear`, {
+      const res = await fetch(`${API}/meetings`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

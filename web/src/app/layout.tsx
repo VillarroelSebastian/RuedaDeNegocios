@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import AuthFetch from "@/components/AuthFetch";
+import { API } from "@/lib/api";
 
 // Color de la barra del navegador / status bar cuando se instala como app.
 export const viewport: Viewport = {
@@ -37,10 +38,10 @@ export async function generateMetadata(): Promise<Metadata> {
     },
   };
   try {
-    const api = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
+    
     // El evento principal puede cambiar durante la operacion. No conservar su
     // titulo anterior en la pestana durante los primeros minutos de la sesion.
-    const res = await fetch(`${api}/evento-principal`, { cache: "no-store" });
+    const res = await fetch(`${API}/events/current/branding`, { cache: "no-store" });
     if (res.ok) {
       const ev = await res.json();
       if (ev?.urlLogoEvento) {

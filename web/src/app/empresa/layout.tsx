@@ -7,7 +7,7 @@ import EmpresaHeader from '@/components/empresa/EmpresaHeader';
 import AsistenteChat from '@/components/empresa/AsistenteChat';
 import NotificacionToast from '@/components/empresa/NotificacionToast';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
+import { API } from "@/lib/api";
 
 export default function EmpresaLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -31,7 +31,7 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
 
     // Resolver siempre la membresía del evento principal. Así una sesión
     // existente cambia de evento sin conservar los IDs de la edición anterior.
-    fetch(`${API}/empresa/mi-empresa?usuarioId=${user.id}`)
+    fetch(`${API}/companies/me`)
       .then(async (r) => {
         if (!r.ok) throw new Error('Sin acceso al evento activo');
         return r.json();

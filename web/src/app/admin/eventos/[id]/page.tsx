@@ -5,7 +5,7 @@ import { Info, LayoutGrid, CreditCard, QrCode, Plus, Trash2, Save, Image as Imag
 import { useRouter, useParams } from 'next/navigation';
 import styles from './ConfiguracionEvento.module.css';
 import Modal, { useModal } from '@/components/ui/Modal';
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
+import { API } from "@/lib/api";
 
 type DiaReunion = { fecha: string; habilitado: boolean; rangos: { desde: string; hasta: string }[] };
 const HORA_24_VALIDA = /^(?:[01]\d|2[0-3]):[0-5]\d$|^24:00$/;
@@ -109,7 +109,7 @@ export default function ConfiguracionDeEventoPage() {
   useEffect(() => {
     if (isNew) return;
     
-    fetch(`${API}/admin/eventos/${params.id}`)
+    fetch(`${API}/events/${params.id}`)
       .then(res => res.text())
       .then(text => text ? JSON.parse(text) : {})
       .then(data => {
@@ -206,7 +206,7 @@ export default function ConfiguracionDeEventoPage() {
     fd.append('file', file);
 
     try {
-      const res = await fetch(`${API}/admin/imagenes/upload`, {
+      const res = await fetch(`${API}/uploads`, {
         method: 'POST',
         body: fd,
       });
@@ -306,7 +306,7 @@ export default function ConfiguracionDeEventoPage() {
     };
 
     try {
-      const url = isNew ? `${API}/admin/eventos` : `${API}/admin/eventos/${formData.id}`;
+      const url = isNew ? `${API}/events` : `${API}/events/${formData.id}`;
       const method = isNew ? 'POST' : 'PUT';
       
       const res = await fetch(url, {
@@ -318,7 +318,7 @@ export default function ConfiguracionDeEventoPage() {
       if (res.ok) {
         const guardado = await res.json();
         const eventoId = Number(guardado?.id || formData.id);
-        const paquetesRes = await fetch(`${API}/admin/paquetes?eventoId=${eventoId}`);
+        const paquetesRes = await fetch(`${API}/packages?eventoId=${eventoId}`);
         const paquetes = paquetesRes.ok ? await paquetesRes.json().catch(() => null) : null;
         const sinPaquetes = Array.isArray(paquetes) && paquetes.length === 0;
         showModal(

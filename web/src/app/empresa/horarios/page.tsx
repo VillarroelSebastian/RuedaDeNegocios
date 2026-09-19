@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { CalendarClock, CheckCircle2, Copy, Info, Plus, Power, Trash2 } from "lucide-react";
 import { useModal } from "@/components/ui/Modal";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
+import { API } from "@/lib/api";
 type Rango = { desde: string; hasta: string };
 type Dia = { fecha: string; habilitado: boolean; rangos: Rango[] };
 
@@ -19,7 +19,7 @@ export default function EmpresaHorariosPage() {
   const cargar = useCallback(async (id: number) => {
     setCargando(true);
     try {
-      const res = await fetch(`${API}/empresa/horarios-empresa/dias?eeId=${id}`);
+      const res = await fetch(`${API}/schedule/availability/days`);
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || "No se pudieron cargar los horarios.");
       setDias(Array.isArray(data.dias) ? data.dias : []);
@@ -35,7 +35,7 @@ export default function EmpresaHorariosPage() {
     try {
       const user = JSON.parse(localStorage.getItem("empresaUser") || "null");
       if (!user?.id) { setCargando(false); return; }
-      fetch(`${API}/empresa/mi-empresa?usuarioId=${user.id}`)
+      fetch(`${API}/companies/me`)
         .then((r) => r.json()).then((ctx) => { setEeId(ctx.empresaeventoId); cargar(ctx.empresaeventoId); })
         .catch(() => setCargando(false));
     } catch { setCargando(false); }
@@ -64,8 +64,8 @@ export default function EmpresaHorariosPage() {
     if (invalido) return showError("Revisa tus horarios", "Cada día habilitado debe tener al menos un rango válido.");
     setGuardando(true);
     try {
-      const res = await fetch(`${API}/empresa/horarios-empresa/dias`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ eeId, dias }),
+      const res = await fetch(`${API}/schedule/availability/days`, {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ dias }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || "No se pudieron guardar los horarios.");

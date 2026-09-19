@@ -7,7 +7,7 @@ import {
   BadgeCheck, XCircle, Hash, Star,
 } from "lucide-react";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
+import { API } from "@/lib/api";
 
 function paisFlag(pais: string | null) {
   if (!pais) return "";
@@ -45,7 +45,7 @@ export default function CredencialPage() {
     }
     setTecnico(sesion);
     if (!euId || !t) { setEstado("error"); return; }
-    fetch(`${API}/tecnico/credenciales/verificar?euId=${euId}&token=${encodeURIComponent(t)}`, {
+    fetch(`${API}/attendance/check?companyUserId=${euId}&token=${encodeURIComponent(t)}`, {
       headers: { Authorization: `Bearer ${sesion.token}` },
     })
       .then(async (r) => {
@@ -61,10 +61,10 @@ export default function CredencialPage() {
     registroBloqueadoRef.current = true;
     setRegistrando(true); setResultado("");
     try {
-      const res = await fetch(`${API}/tecnico/asistencias`, {
+      const res = await fetch(`${API}/attendance`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${tecnico.token}` },
-        body: JSON.stringify({ euId: Number(euId), token: t }),
+        body: JSON.stringify({ companyUserId: Number(euId), token: t }),
       });
       const respuesta = await res.json();
       if (!res.ok) throw new Error(respuesta?.message || "No se pudo registrar la asistencia.");

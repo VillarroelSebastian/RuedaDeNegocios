@@ -4,7 +4,7 @@ import {
   ActivityIndicator, RefreshControl, Modal as RNModal
 } from 'react-native';
 import { Search, Building2, Users, Eye, X, MessageSquare, KeyRound, CalendarClock } from 'lucide-react-native';
-import { API_URL } from '../../utils/userStore';
+import { API } from '../../utils/api';
 import EnviarMensajeEmpresaModal from '../../components/EnviarMensajeEmpresaModal';
 import * as Clipboard from 'expo-clipboard';
 import PerfilEmpresaStaffModal from '../../components/PerfilEmpresaStaffModal';
@@ -56,7 +56,7 @@ export function ParticipantesModal({ empresa, onClose, permitirCambiarPassword =
     }
     setReiniciando(p.usuarioId);
     try {
-      const res = await fetch(`${API_URL}/admin/participantes/${p.usuarioId}/password-temporal`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(manual ? { nuevaContrasenia: passwordManual.trim() } : {}) });
+      const res = await fetch(`${API}/participants/${p.usuarioId}/temporary-password`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(manual ? { nuevaContrasenia: passwordManual.trim() } : {}) });
       const data = await res.json();
       setCredencial(res.ok ? data : { correo:p.correo, nuevaContrasenia:`ERROR: ${data.message}` });
       if (res.ok) setPasswordManual('');
@@ -69,8 +69,7 @@ export function ParticipantesModal({ empresa, onClose, permitirCambiarPassword =
     setLoading(true);
     setCredencial(null);
     setPasswordManual('');
-    const prefix = permitirCambiarPassword ? 'admin' : 'tecnico';
-    fetch(`${API_URL}/${prefix}/empresas/${empresa.id}/participantes`)
+    fetch(`${API}/companies/${empresa.id}/participants`)
       .then(r => r.json())
       .then(d => setParticipantes(Array.isArray(d) ? d : []))
       .catch(() => setParticipantes([]))
@@ -128,7 +127,7 @@ export function ParticipantesModal({ empresa, onClose, permitirCambiarPassword =
 
 function AgendaEmpresaModal({ empresa, onClose }: { empresa: { eeId:number; nombre:string } | null; onClose:()=>void }) {
   const [data,setData]=useState<any>(null);
-  useEffect(()=>{ if(!empresa)return; setData(null); fetch(`${API_URL}/staff/empresas/${empresa.eeId}/agenda`).then(r=>r.json()).then(setData).catch(()=>setData({reuniones:[]})); },[empresa?.eeId]);
+  useEffect(()=>{ if(!empresa)return; setData(null); fetch(`${API}/meetings/agenda/${empresa.eeId}`).then(r=>r.json()).then(setData).catch(()=>setData({reuniones:[]})); },[empresa?.eeId]);
   return <RNModal visible={!!empresa} transparent animationType="slide" onRequestClose={onClose}><View style={{flex:1,backgroundColor:'rgba(0,0,0,.5)',justifyContent:'flex-end'}}><View style={{backgroundColor:'#fff',borderTopLeftRadius:24,borderTopRightRadius:24,maxHeight:'85%',padding:20}}><View style={{flexDirection:'row',justifyContent:'space-between',marginBottom:14}}><View><Text style={{fontSize:17,fontWeight:'800'}}>Agenda de {empresa?.nombre}</Text><Text style={{fontSize:12,color:'#64748b'}}>Reuniones del evento activo</Text></View><TouchableOpacity onPress={onClose}><X size={20} color="#64748b"/></TouchableOpacity></View><ScrollView>{!data?<ActivityIndicator color={GREEN} style={{marginVertical:40}}/>:!data.reuniones?.length?<Text style={{textAlign:'center',color:'#94a3b8',marginVertical:40}}>Sin reuniones registradas.</Text>:data.reuniones.map((r:any)=>{const sol=r.solicitudreunion;const a=sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa;const b=sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento?.empresa;const otra=sol?.empresaEvento_id===empresa?.eeId?b:a;return <View key={r.id} style={{borderWidth:1,borderColor:'#e5e7eb',borderRadius:14,padding:12,marginBottom:9}}><View style={{flexDirection:'row',justifyContent:'space-between',gap:8}}><Text style={{fontWeight:'800',flex:1}}>{otra?.nombre??'Empresa'}</Text><Text style={{fontSize:10,fontWeight:'800',color:GREEN}}>{r.estadoReunion}</Text></View><Text style={{fontSize:11,color:'#64748b',marginTop:4}}>{new Date(r.fechaHoraInicioReunion).toLocaleString('es-BO',{timeZone:'America/La_Paz'})} · {r.mesa?`Mesa ${r.mesa.numeroMesa}`:r.tipoReunion}</Text></View>})}</ScrollView></View></View></RNModal>;
 }
 
@@ -172,7 +171,7 @@ export default function EmpresasScreen({ navigation }: any) {
   const fetchEmpresas = useCallback(async (p = 1, s = search) => {
     try {
       const params = new URLSearchParams({ page: String(p), limit: String(limit), ...(s && { search: s }) });
-      const res = await fetch(`${API_URL}/admin/empresas?${params}`);
+      const res = await fetch(`${API}/companies?${params}`);
       const data = await res.json();
       if (p === 1) setEmpresas(data.data || []);
       else setEmpresas((prev) => [...prev, ...(data.data || [])]);
@@ -190,7 +189,7 @@ export default function EmpresasScreen({ navigation }: any) {
     showModal('confirm', 'Eliminar empresa', `¿Desactivar a "${nombre}" del evento?`, async () => {
       closeModal();
       try {
-        const res = await fetch(`${API_URL}/admin/empresas/${id}`, { method: 'DELETE' });
+        const res = await fetch(`${API}/companies/${id}`, { method: 'DELETE' });
         const data = await res.json();
         if (!res.ok) throw new Error(data?.message || 'No se pudo desactivar la empresa.');
         await fetchEmpresas(1, search);

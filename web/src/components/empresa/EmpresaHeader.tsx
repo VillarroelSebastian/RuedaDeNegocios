@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { LogOut, ChevronDown, Bell, Menu, Clock, Newspaper, UserCircle, Search } from 'lucide-react';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
+import { API } from "@/lib/api";
 
 function fmtNotifFecha(f: string) {
   return new Date(f).toLocaleDateString('es-BO', { timeZone: 'America/La_Paz', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -52,14 +52,14 @@ export default function EmpresaHeader({ onMenuClick, eeId }: { onMenuClick?: () 
 
   useEffect(() => {
     if (!eeId) return;
-    fetch(`${API}/empresa/directorio?eeId=${eeId}`).then((r) => r.ok ? r.json() : []).then((data) => setEmpresas(Array.isArray(data) ? data : [])).catch(() => setEmpresas([]));
+    fetch(`${API}/directory`).then((r) => r.ok ? r.json() : []).then((data) => setEmpresas(Array.isArray(data) ? data : [])).catch(() => setEmpresas([]));
   }, [eeId]);
 
   // Historial de notificaciones persistentes (campanita)
   const cargarNotifs = useCallback(async () => {
     if (!eeId) return;
     try {
-      const res = await fetch(`${API}/empresa/notificaciones?eeId=${eeId}`);
+      const res = await fetch(`${API}/notifications`);
       if (!res.ok) return;
       const data = await res.json();
       setNotifs(data.notificaciones ?? []);
@@ -89,7 +89,7 @@ export default function EmpresaHeader({ onMenuClick, eeId }: { onMenuClick?: () 
     if (abriendo) await cargarNotifs();
     if (abriendo && unread > 0 && eeId) {
       try {
-        await fetch(`${API}/empresa/notificaciones/leidas`, {
+        await fetch(`${API}/notifications/read`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ eeId }),

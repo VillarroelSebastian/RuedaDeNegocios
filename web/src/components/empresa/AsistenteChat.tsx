@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { MessageCircle, X, Send, Bot, User } from "lucide-react";
 import ImagenLightbox from "@/components/ui/ImagenLightbox";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
+import { API } from "@/lib/api";
 
 interface Msg {
   role: "user" | "bot";
@@ -52,10 +52,10 @@ export default function AsistenteChat({ eeId, euId }: { eeId: number | null; euI
     setMsgs((prev) => [...prev, { role: "user", text: t }]);
     setLoading(true);
     try {
-      const res = await fetch(`${API}/empresa/asistente`, {
+      const res = await fetch(`${API}/assistant/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eeId, euId: euId ?? undefined, mensaje: t, contexto }),
+        body: JSON.stringify({ mensaje: t, contexto }),
       });
       const data = await res.json();
       setContexto(data.contexto ?? null);

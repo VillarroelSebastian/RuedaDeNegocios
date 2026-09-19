@@ -3,14 +3,14 @@ import { ActivityIndicator, Image, ScrollView, Share, Text, TextInput, Touchable
 import { QrCode, Share2 } from 'lucide-react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import { API_URL } from '../../utils/userStore';
+import { API } from '../../utils/api';
 
 const GREEN = '#449D3A';
 export default function CredencialesScreen() {
   const [data, setData] = useState<any>({ credenciales: [] });
   const [buscar, setBuscar] = useState('');
   const [loading, setLoading] = useState(true);
-  const cargar = async () => { setLoading(true); try { const r = await fetch(`${API_URL}/admin/credenciales-imprimibles`); setData(r.ok ? await r.json() : { credenciales: [] }); } finally { setLoading(false); } };
+  const cargar = async () => { setLoading(true); try { const r = await fetch(`${API}/credentials/printable`); setData(r.ok ? await r.json() : { credenciales: [] }); } finally { setLoading(false); } };
   useEffect(() => { cargar(); }, []);
   const lista = useMemo(() => (data.credenciales || []).filter((c: any) => `${c.nombre} ${c.empresa}`.toLowerCase().includes(buscar.toLowerCase())), [data, buscar]);
   const compartir = (c: any) => Share.share({ title: `Credencial de ${c.nombre}`, message: `${data.evento?.nombre || 'Rueda de Negocios'}\n${c.nombre}\n${c.empresa}\n${c.cargo || 'Participante'}\n${c.qr || ''}`, url: c.qr || undefined });
