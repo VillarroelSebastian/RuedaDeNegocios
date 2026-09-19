@@ -1,0 +1,680 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model actividadprograma {
+  id                            Int                    @id @default(autoincrement())
+  evento_id                     Int
+  tipoActividad                 String                 @db.VarChar(45)
+  nombreActividad               String                 @db.VarChar(255)
+  descripcionActividad          String                 @db.VarChar(450)
+  nombreSalaEspacio             String                 @db.VarChar(155)
+  capacidadPersonasSala         Int                    @db.SmallInt
+  fechaActividad                DateTime               @db.Date
+  horaInicioActividad           DateTime               @db.Time(6)
+  horaFinActividad              DateTime               @db.Time(6)
+  nombreCompletoPilaExpositor   String?                @db.VarChar(450)
+  organizacionDelExpositor      String?                @db.VarChar(150)
+  urlImagenBannerActividad      String?                @db.VarChar(505)
+  estadoActividad               String                 @db.VarChar(45)
+  latitudPresencial             Decimal?               @db.Decimal(10, 8)
+  longitudPresencial            Decimal?               @db.Decimal(11, 8)
+  direccion_texto               String?                @db.VarChar(205)
+  linkReunionVirtual            String?                @db.VarChar(505)
+  ubicacionGoogleMapsPresencial String?                @db.VarChar(505)
+  // ── Cronograma en vivo ──
+  // Estado que admin/técnico controlan durante el evento para reflejar en tiempo
+  // real qué está pasando: PENDIENTE | EN_VIVO | FINALIZADA. Es independiente de
+  // estadoActividad (que describe la programación, no el momento actual).
+  estadoEnVivo                  String                 @default("PENDIENTE") @db.VarChar(20)
+  // Aviso puntual del staff ("empieza 10 min tarde", "cambio de sala").
+  notaEnVivo                    String?                @db.VarChar(305)
+  horaInicioReal                DateTime?              @db.Timestamp(6)
+  horaFinReal                   DateTime?              @db.Timestamp(6)
+  estaActivo                    Int                    @default(1) @db.SmallInt
+  fechaCreacion                 DateTime               @default(now()) @db.Timestamp(6)
+  creadoModificadoFecha         DateTime?              @db.Timestamp(6)
+  evento                        evento                 @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_actividadprograma_evento1")
+  suscripciones                 suscripcionactividad[]
+  anuncios                      anuncioactividad[]
+
+  @@index([evento_id], map: "fk_actividadprograma_evento1_idx")
+  @@index([evento_id, estadoEnVivo])
+}
+
+// ── Paquetes de inscripción (Iténez / Beni / Mamoré) ────────────────────────
+// Sustituyen al cálculo por rango de participantes: el paquete fija el costo,
+// cuántas credenciales incluye y con qué QR se paga.
+model paquete {
+  id                    Int     @id @default(autoincrement())
+  evento_id             Int
+  nombre                String  @db.VarChar(105)
+  objetivo              String? @db.VarChar(205)
+  descripcion           String? @db.VarChar(505)
+  // Beneficios, uno por línea; se listan como viñetas en la web y la app.
+  contenido             String? @db.VarChar(2000)
+  costo                 Decimal @db.Decimal(10, 2)
+  credencialesIncluidas Int     @db.SmallInt
+  urlQR                 String? @db.VarChar(505)
+  orden                 Int     @default(0) @db.SmallInt
+
+  // ── Capacidades que habilita el paquete ──
+  // Lo que el sistema puede hacer cumplir de verdad. Los beneficios de difusión
+  // (podcast, pantallas LED, entrevistas) van en `contenido` como texto, porque
+  // se entregan fuera de la plataforma y no hay nada que validar aquí.
+  //
+  // Tope duro de personas: el paquete manda sobre maxParticipantesPorEmpresa
+  // del evento. Debe ser >= credencialesIncluidas.
+  maxParticipantes      Int             @default(5) @db.SmallInt
+  // NORMAL | PREFERENCIAL | VIP — prioridad al asignar mesa.
+  nivelMesa             String          @default("NORMAL") @db.VarChar(20)
+  // Modalidad que otorga el paquete: PRESENCIAL | VIRTUAL | HIBRIDO. En el
+  // registro ya no se elige a mano; la define el paquete contratado.
+  tipoParticipacion     String          @default("PRESENCIAL") @db.VarChar(75)
+  // Si la empresa se lista en el catálogo público de participantes.
+  apareceEnCatalogo     Int             @default(1) @db.SmallInt
+  // Si su logo se muestra en la web del evento.
+  logoEnWeb             Int             @default(0) @db.SmallInt
+  // Si aparece primero (destacada) en Empresas y Oportunidades.
+  destacadoEnListados   Int             @default(0) @db.SmallInt
+  estaActivo            Int             @default(1) @db.SmallInt
+  fechaCreacion         DateTime        @default(now()) @db.Timestamp(6)
+  creadoModificadoFecha DateTime?       @db.Timestamp(6)
+  evento                evento          @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  empresaevento         empresaevento[]
+  auspiciador           auspiciador[]
+
+  @@index([evento_id])
+}
+
+// ── Auspiciadores ───────────────────────────────────────────────────────────
+// Categoría de inscripción aparte de las empresas participantes: aportan dinero
+// o insumos y reciben una cantidad de ingresos (credenciales) al evento.
+model auspiciador {
+  id                    Int                  @id @default(autoincrement())
+  evento_id             Int
+  nombreEmpresa         String               @db.VarChar(155)
+  descripcion           String?              @db.VarChar(1000)
+  tipoAporte            String               @db.VarChar(20) // DINERO | INSUMOS | AMBOS
+  detalleAporte         String?              @db.VarChar(505)
+  montoAporte           Decimal?             @db.Decimal(10, 2)
+  paquete_id            Int?
+  cantidadIngresos      Int                  @db.SmallInt
+  estaActivo            Int                  @default(1) @db.SmallInt
+  fechaCreacion         DateTime             @default(now()) @db.Timestamp(6)
+  creadoModificadoFecha DateTime?            @db.Timestamp(6)
+  evento                evento               @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  paquete               paquete?             @relation(fields: [paquete_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  personas              auspiciadorpersona[]
+
+  @@index([evento_id])
+  @@index([paquete_id])
+}
+
+// Cada persona del auspiciador que entra al evento; lleva su propia credencial QR.
+model auspiciadorpersona {
+  id              Int                     @id @default(autoincrement())
+  auspiciador_id  Int
+  nombreCompleto  String                  @db.VarChar(155)
+  cargo           String?                 @db.VarChar(105)
+  correo          String?                 @db.VarChar(105)
+  urlCredencialQR String?                 @db.VarChar(505)
+  estaActivo      Int                     @default(1) @db.SmallInt
+  fechaCreacion   DateTime                @default(now()) @db.Timestamp(6)
+  auspiciador     auspiciador             @relation(fields: [auspiciador_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  asistencias     asistenciaauspiciador[]
+
+  @@index([auspiciador_id])
+}
+
+// ── Repositorio de fotografías del evento ───────────────────────────────────
+// Cualquier participante habilitado sube fotos; todos las ven en la galería.
+model fotoevento {
+  id                 Int      @id @default(autoincrement())
+  evento_id          Int
+  // Quién subió: participante (empresa_usuario) o staff (usuario). Uno de los dos.
+  empresa_usuario_id Int?
+  usuario_id         Int?
+  autorNombre        String   @db.VarChar(155)
+  urlFoto            String   @db.VarChar(505)
+  descripcion        String?  @db.VarChar(305)
+  estaActivo         Int      @default(1) @db.SmallInt
+  fechaCreacion      DateTime @default(now()) @db.Timestamp(6)
+  evento             evento   @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([evento_id, estaActivo])
+  @@index([empresa_usuario_id])
+}
+
+model ciudad {
+  id      Int       @id @default(autoincrement())
+  pais_id Int
+  nombre  String    @db.VarChar(45)
+  pais    pais      @relation(fields: [pais_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_ciudad_pais1")
+  empresa empresa[]
+
+  @@index([pais_id], map: "fk_ciudad_pais1_idx")
+}
+
+model empresa {
+  id                      Int               @id @default(autoincrement())
+  ciudad_id               Int
+  nombre                  String            @db.VarChar(55)
+  rubro                   String            @db.VarChar(55)
+  sitioWeb                String?           @db.VarChar(300)
+  descripcion             String?           @db.VarChar(1000)
+  telefonoWhatsapp        String            @db.VarChar(45)
+  correoCorporativo       String            @db.VarChar(105)
+  urlFotoPerfil           String?           @db.VarChar(500)
+  urlPdf                  String?           @db.VarChar(500)
+  codigo                  String?           @unique @db.VarChar(20)
+  oferta                  String?           @db.VarChar(500)
+  demanda                 String?           @db.VarChar(500)
+  interesesBusqueda       String?           @db.VarChar(600)
+  estaActivo              Int               @default(1)
+  fechaCreacion           DateTime          @default(now()) @db.Timestamp(6)
+  creado_modificado_fecha DateTime?         @db.Timestamp(6)
+  ciudad                  ciudad            @relation(fields: [ciudad_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_empresa_ciudad1")
+  empresa_usuario         empresa_usuario[]
+  empresaevento           empresaevento[]
+
+  @@index([ciudad_id], map: "fk_empresa_ciudad1_idx")
+}
+
+model empresa_usuario {
+  id               Int                @id @default(autoincrement())
+  empresa_id       Int
+  usuario_id       Int
+  empresaevento_id Int
+  cargo            String             @db.VarChar(55)
+  esResponsable    Int                @db.SmallInt
+  nombresEvento          String?      @db.VarChar(105)
+  apellidoPaternoEvento  String?      @db.VarChar(65)
+  apellidoMaternoEvento  String?      @db.VarChar(65)
+  telefonoEvento         String?      @db.VarChar(45)
+  urlCredencialQR  String?            @db.VarChar(500)
+  estaActivo       Int                @default(1) @db.SmallInt
+  empresa          empresa            @relation(fields: [empresa_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_empresa_usuario_empresa")
+  empresaevento    empresaevento      @relation(fields: [empresaevento_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_empresa_usuario_empresaevento1")
+  usuario          usuario            @relation(fields: [usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_empresa_usuario_usuario1")
+  resultadoreunion resultadoreunion[]
+  solicitudreunion solicitudreunion[]
+  asistenciaevento asistenciaevento[]
+
+  @@index([empresa_id], map: "fk_empresa_usuario_empresa_idx")
+  @@index([empresaevento_id], map: "fk_empresa_usuario_empresaevento1_idx")
+  @@index([usuario_id], map: "fk_empresa_usuario_usuario1_idx")
+}
+
+model empresaevento {
+  id                                                                            Int                         @id @default(autoincrement())
+  empresa_id                                                                    Int
+  evento_id                                                                     Int
+  // Paquete elegido en la inscripción; define costo y credenciales incluidas.
+  paquete_id                                                                    Int?
+  tipoParticipacion                                                             String                      @db.VarChar(75)
+  estadoHabilitacionAcceso                                                      String                      @db.VarChar(45)
+  motivoRechazoAcceso                                                           String?                     @db.VarChar(500)
+  montoPagado                                                                   Decimal?                    @db.Decimal(10, 2)
+  estadoVerificacionPago                                                        String                      @db.VarChar(45)
+  fechaHoraEnvioComprobante                                                     DateTime?                   @db.Timestamp(6)
+  fechaHoraVerificacionPago                                                     DateTime?                   @db.Timestamp(6)
+  observacionSobreComprobante                                                   String?                     @db.VarChar(505)
+  numeroParticipantes                                                           Int                         @db.SmallInt
+  estaActivo                                                                    Int                         @default(1) @db.SmallInt
+  fechaCreacion                                                                 DateTime                    @default(now()) @db.Timestamp(6)
+  creadoModificadoFecha                                                         DateTime?                   @db.Timestamp(6)
+  horariosDisponibilidadJson                                                    String?                     @db.Text
+  empresa_usuario                                                               empresa_usuario[]
+  empresa                                                                       empresa                     @relation(fields: [empresa_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_empresaevento_empresa1")
+  evento                                                                        evento                      @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_empresaevento_evento1")
+  paquete                                                                       paquete?                    @relation(fields: [paquete_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  empresaeventocomprobantes                                                     empresaeventocomprobantes[]
+  notificacion                                                                  notificacion[]
+  resultadoreunion_resultadoreunion_empresaeventoCalificadora_idToempresaevento resultadoreunion[]          @relation("resultadoreunion_empresaeventoCalificadora_idToempresaevento")
+  resultadoreunion_resultadoreunion_empresaeventoCalificada_idToempresaevento   resultadoreunion[]          @relation("resultadoreunion_empresaeventoCalificada_idToempresaevento")
+  solicitudreunion_solicitudreunion_empresaEvento_idToempresaevento             solicitudreunion[]          @relation("solicitudreunion_empresaEvento_idToempresaevento")
+  solicitudreunion_solicitudreunion_empresaEventorReceptora_idToempresaevento   solicitudreunion[]          @relation("solicitudreunion_empresaEventorReceptora_idToempresaevento")
+  empresa_bloqueo                                                               empresa_bloqueo[]
+  empresa_horario                                                               empresa_horario[]
+  suscripcionesactividad                                                        suscripcionactividad[]
+
+  @@index([empresa_id], map: "fk_empresaevento_empresa1_idx")
+  @@index([evento_id], map: "fk_empresaevento_evento1_idx")
+}
+
+model empresa_bloqueo {
+  id               Int           @id @default(autoincrement())
+  empresaevento_id Int
+  inicio           DateTime      @db.Timestamp(6)
+  fin              DateTime      @db.Timestamp(6)
+  estaActivo       Int           @default(1) @db.SmallInt
+  empresaevento    empresaevento @relation(fields: [empresaevento_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([empresaevento_id])
+}
+
+model empresa_horario {
+  id               Int           @id @default(autoincrement())
+  empresaevento_id Int
+  desde_hora       String        @db.VarChar(5)
+  hasta_hora       String        @db.VarChar(5)
+  estaActivo       Int           @default(1) @db.SmallInt
+  empresaevento    empresaevento @relation(fields: [empresaevento_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([empresaevento_id])
+}
+
+model empresaeventocomprobantes {
+  id                            Int           @id @default(autoincrement())
+  empresaEvento_id              Int
+  urlComprobantePagoInscripcion String        @db.VarChar(505)
+  estaActivo                    Int           @default(1) @db.SmallInt
+  fechaCreacion                 DateTime      @default(now()) @db.Timestamp(6)
+  creadoModificadoFecha         DateTime?     @db.Timestamp(6)
+  tipoPago                      String        @default("INICIAL") @db.VarChar(20)
+  cantidadParticipantes         Int           @default(0) @db.SmallInt
+  montoPago                     Decimal?      @db.Decimal(10, 2)
+  estadoPago                    String        @default("PENDIENTE") @db.VarChar(45)
+  observacion                   String?       @db.VarChar(505)
+  empresaevento                 empresaevento @relation(fields: [empresaEvento_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_empresaeventocomprobantes_empresaevento1")
+
+  @@index([empresaEvento_id], map: "fk_empresaeventocomprobantes_empresaevento1_idx")
+}
+
+model evento {
+  id                             Int                     @id @default(autoincrement())
+  nombre                         String                  @db.VarChar(205)
+  edicion                        String                  @db.VarChar(45)
+  descripcion                    String?                 @db.VarChar(505)
+  fechaInicioEvento              DateTime                @db.Timestamp(6)
+  fechaFinEvento                 DateTime                @db.Timestamp(6)
+  fechaInicioSolicitudes         DateTime?               @db.Timestamp(6)
+  fechaFinSolicitudes            DateTime?               @db.Timestamp(6)
+  duracionReunion                Int                     @db.SmallInt
+  tiempoEntreReuniones           Int                     @db.SmallInt
+  horariosReunionJson            String?                 @db.Text
+  cantidadTotalMesasEvento       Int                     @db.SmallInt
+  capacidadPersonasPorMesa       Int                     @db.SmallInt
+  montoBaseIncripcionBolivianos  Decimal                 @db.Decimal(10, 2)
+  cantidadParticipantesIncluidos Int                     @db.SmallInt
+  costoParticipanteExtra         Int                     @db.SmallInt
+  maxParticipantesPorEmpresa     Int                     @default(5) @db.SmallInt
+  urlImagenMapaRecinto           String?                 @db.VarChar(505)
+  urlImagenCronogramaCharlas     String?                 @db.VarChar(505)
+  urlLogoEvento                  String?                 @db.VarChar(505)
+  sobreElEvento                  String?                 @db.VarChar(2000)
+  // Enlace al video "¿Qué es la rueda?" que se muestra sobre el logo en la landing.
+  urlVideoEvento                 String?                 @db.VarChar(505)
+  // Ejes/pilares del evento, uno por línea; se listan en dos columnas en la landing.
+  pilaresEvento                  String?                 @db.VarChar(1000)
+  correoContacto                 String?                 @db.VarChar(105)
+  telefonoContacto               String?                 @db.VarChar(45)
+  enlaceFacebook                 String?                 @db.VarChar(505)
+  enlaceInstagram                String?                 @db.VarChar(505)
+  // enlaceTwitterX quedó en desuso (se retiró X de la web y del panel); se conserva
+  // la columna para no perder el dato histórico de ediciones anteriores.
+  enlaceTwitterX                 String?                 @db.VarChar(505)
+  enlaceLinkedIn                 String?                 @db.VarChar(505)
+  enlaceTiktok                   String?                 @db.VarChar(505)
+  ciudadEvento                   String?                 @db.VarChar(205)
+  paisEvento                     String?                 @db.VarChar(105)
+  estaActivo                     Int                     @db.SmallInt
+  esPrincipal                    Int                     @default(0) @db.SmallInt
+  fechaCreacion                  DateTime                @default(now()) @db.Timestamp(6)
+  creadoModificadoFecha          DateTime?               @db.Timestamp(6)
+  actividadprograma              actividadprograma[]
+  empresaevento                  empresaevento[]
+  eventoreglaqr                  eventoreglaqr[]
+  mesa                           mesa[]
+  noticia                        noticia[]
+  notificacionstaff              notificacionstaff[]
+  reunion                        reunion[]
+  usuario                        usuario[]
+  paquete                        paquete[]
+  auspiciador                    auspiciador[]
+  fotoevento                     fotoevento[]
+  asistenciaevento               asistenciaevento[]
+  asistenciaauspiciador          asistenciaauspiciador[]
+}
+
+model eventoreglaqr {
+  id                Int       @id @default(autoincrement())
+  evento_id         Int
+  rangoDesde        Int       @db.SmallInt
+  rangoHasta        Int       @db.SmallInt
+  monto             Decimal   @db.Decimal(10, 2)
+  urlQR             String    @db.VarChar(500)
+  estadoActivo      Int       @default(1) @db.SmallInt
+  fechaCreacion     DateTime  @default(now()) @db.Timestamp(6)
+  fechaModificacion DateTime? @db.Timestamp(6)
+  evento            evento    @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_eventoreglaqr_evento1")
+
+  @@index([evento_id], map: "fk_eventoreglaqr_evento1_idx")
+}
+
+model mesa {
+  id                    Int                @id @default(autoincrement())
+  evento_id             Int
+  numeroMesa            Int                @db.SmallInt
+  capacidadPersonas     Int                @db.SmallInt
+  estaActivo            Int                @default(1) @db.SmallInt
+  estaHabilitada        Int                @default(1) @db.SmallInt
+  fechaCreacion         DateTime           @default(now()) @db.Timestamp(6)
+  creadoModificadoFecha DateTime?          @db.Timestamp(6)
+  evento                evento             @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_mesa_evento1")
+  mesabloque            mesabloque[]
+  reunion               reunion[]
+  solicitudreunion      solicitudreunion[]
+
+  @@index([evento_id], map: "fk_mesa_evento1_idx")
+}
+
+model mesabloque {
+  id                    Int       @id @default(autoincrement())
+  mesa_id               Int
+  reunion_id            Int?
+  fechaHoraInicio       DateTime  @db.Timestamp(6)
+  fechaHoraFin          DateTime? @db.Timestamp(6)
+  estaOcupado           Int       @db.SmallInt
+  estaActivo            Int       @default(1) @db.SmallInt
+  fechaCreacion         DateTime  @default(now()) @db.Timestamp(6)
+  creadoModificadoFecha DateTime? @db.Timestamp(6)
+  mesa                  mesa      @relation(fields: [mesa_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_mesabloque_mesa1")
+  reunion               reunion?  @relation(fields: [reunion_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_mesabloque_reunion1")
+
+  @@index([mesa_id], map: "fk_mesabloque_mesa1_idx")
+  @@index([reunion_id], map: "fk_mesabloque_reunion1_idx")
+}
+
+model noticia {
+  id                    Int       @id @default(autoincrement())
+  evento_id             Int
+  usuario_id            Int
+  tituloNoticia         String    @db.VarChar(105)
+  contenidoNoticia      String    @db.VarChar(500)
+  urlImagenNoticia      String?   @db.VarChar(500)
+  tipoNoticia           String    @db.VarChar(45)
+  estadoPublicacion     String    @db.VarChar(45)
+  fechaHoraPublicacion  DateTime  @db.Timestamp(6)
+  estaActivo            Int       @default(1) @db.SmallInt
+  fechaCreacion         DateTime  @default(now()) @db.Timestamp(6)
+  creadoModificadoFecha DateTime? @db.Timestamp(6)
+  evento                evento    @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_noticia_evento1")
+  usuario               usuario   @relation(fields: [usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_noticia_usuario1")
+
+  @@index([evento_id], map: "fk_noticia_evento1_idx")
+  @@index([usuario_id], map: "fk_noticia_usuario1_idx")
+}
+
+model notificacion {
+  id                    Int           @id @default(autoincrement())
+  empresaevento_id      Int
+  tituloNotificacion    String        @db.VarChar(300)
+  mensajeNotificacion   String        @db.VarChar(500)
+  tipoNotificacion      String        @db.VarChar(45)
+  referenciaId          Int
+  referenciaNombreTabla String        @db.VarChar(65)
+  haSidoLeida           Int           @db.SmallInt
+  estaActivo            Int           @db.SmallInt
+  fechaCreacion         DateTime      @default(now()) @db.Timestamp(6)
+  creadoModificadoFecha DateTime?     @db.Timestamp(6)
+  empresaevento         empresaevento @relation(fields: [empresaevento_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_notificacion_empresaevento2")
+
+  @@index([empresaevento_id], map: "fk_notificacion_empresaevento2_idx")
+}
+
+// Alertas operativas persistentes para administradores y tecnicos del evento.
+// Se usan, entre otros casos, para reuniones virtuales sin enlace.
+model notificacionstaff {
+  id                    Int      @id @default(autoincrement())
+  evento_id             Int
+  tituloNotificacion    String   @db.VarChar(300)
+  mensajeNotificacion   String   @db.VarChar(500)
+  tipoNotificacion      String   @db.VarChar(55)
+  referenciaId          Int
+  referenciaNombreTabla String   @db.VarChar(65)
+  urgente               Int      @default(0) @db.SmallInt
+  estaActivo            Int      @default(1) @db.SmallInt
+  fechaCreacion         DateTime @default(now()) @db.Timestamp(6)
+  evento                evento   @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([evento_id, estaActivo, fechaCreacion])
+  @@index([tipoNotificacion, referenciaId])
+}
+
+// Mensajería directa entre empresas de un mismo evento.
+// emisorEe/receptorEe son empresaevento (la conversación es empresa↔empresa);
+// empresa_usuario_id registra qué usuario concreto escribió el mensaje.
+// Mensajes del equipo del evento (admin/técnico) usan emisorEe_id = 0 (centinela,
+// no hay empresaevento del staff), empresa_usuario_id nulo y remitenteRol/Nombre
+// con quién escribió. Estos mensajes son de una sola vía (la empresa no responde).
+model suscripcionactividad {
+  id               Int               @id @default(autoincrement())
+  actividad_id     Int
+  empresaevento_id Int
+  estaActivo       Int               @default(1) @db.SmallInt
+  fechaCreacion    DateTime          @default(now()) @db.Timestamp(6)
+  actividad        actividadprograma @relation(fields: [actividad_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  empresaevento    empresaevento     @relation(fields: [empresaevento_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([actividad_id, empresaevento_id])
+  @@index([empresaevento_id])
+}
+
+model anuncioactividad {
+  id            Int               @id @default(autoincrement())
+  actividad_id  Int
+  usuario_id    Int
+  mensaje       String            @db.VarChar(500)
+  estaActivo    Int               @default(1) @db.SmallInt
+  fechaCreacion DateTime          @default(now()) @db.Timestamp(6)
+  actividad     actividadprograma @relation(fields: [actividad_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  usuario       usuario           @relation(fields: [usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([actividad_id, fechaCreacion])
+  @@index([usuario_id])
+}
+
+model mensajeempresa {
+  id                    Int       @id @default(autoincrement())
+  evento_id             Int
+  emisorEe_id           Int // 0 = equipo del evento (admin/técnico)
+  receptorEe_id         Int
+  empresa_usuario_id    Int? // nulo para mensajes del staff
+  remitenteRol          String?   @db.VarChar(20) // 'ADMIN' | 'TECNICO' | null (empresa)
+  remitenteNombre       String?   @db.VarChar(150)
+  contenido             String    @db.VarChar(1000)
+  haSidoLeido           Int       @default(0) @db.SmallInt
+  estaActivo            Int       @default(1) @db.SmallInt
+  fechaCreacion         DateTime  @default(now()) @db.Timestamp(6)
+  creadoModificadoFecha DateTime? @db.Timestamp(6)
+
+  @@index([emisorEe_id, receptorEe_id])
+  @@index([receptorEe_id, haSidoLeido])
+  @@index([evento_id])
+}
+
+model pais {
+  id     Int      @id @default(autoincrement())
+  nombre String   @db.VarChar(45)
+  ciudad ciudad[]
+}
+
+model resultadoreunion {
+  id                                                                         Int             @id @default(autoincrement())
+  reunion_id                                                                 Int
+  empresaeventoCalificadora_id                                               Int
+  empresaeventoCalificada_id                                                 Int
+  empresa_usuario_id                                                         Int
+  calificacionReunion                                                        Int             @db.SmallInt
+  rangoAcuerdoComercial                                                      String          @db.VarChar(45)
+  observacionesPuntosTratados                                                String          @db.VarChar(505)
+  estaActivo                                                                 Int             @default(1) @db.SmallInt
+  fechaCreacion                                                              DateTime        @default(now()) @db.Timestamp(6)
+  creadoModificadoFecha                                                      DateTime?       @db.Timestamp(6)
+  empresa_usuario                                                            empresa_usuario @relation(fields: [empresa_usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_resultadoreunion_empresa_usuario1")
+  empresaevento_resultadoreunion_empresaeventoCalificadora_idToempresaevento empresaevento   @relation("resultadoreunion_empresaeventoCalificadora_idToempresaevento", fields: [empresaeventoCalificadora_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_resultadoreunion_empresaevento1")
+  empresaevento_resultadoreunion_empresaeventoCalificada_idToempresaevento   empresaevento   @relation("resultadoreunion_empresaeventoCalificada_idToempresaevento", fields: [empresaeventoCalificada_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_resultadoreunion_empresaevento2")
+  reunion                                                                    reunion         @relation(fields: [reunion_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_resultadoreunion_reunion1")
+
+  @@index([empresa_usuario_id], map: "fk_resultadoreunion_empresa_usuario1_idx")
+  @@index([empresaeventoCalificadora_id], map: "fk_resultadoreunion_empresaevento1_idx")
+  @@index([empresaeventoCalificada_id], map: "fk_resultadoreunion_empresaevento2_idx")
+  @@index([reunion_id], map: "fk_resultadoreunion_reunion1_idx")
+}
+
+model reunion {
+  id                            Int                @id @default(autoincrement())
+  solicitudReunion_id           Int
+  mesa_id                       Int?
+  evento_id                     Int
+  tipoReunion                   String             @db.VarChar(45)
+  fechaHoraInicioReunion        DateTime           @db.Timestamp(6)
+  fechaHoraFinReunion           DateTime           @db.Timestamp(6)
+  fechaHoraInicioReal           DateTime?          @db.Timestamp(6)
+  fechaHoraFinReal              DateTime?          @db.Timestamp(6)
+  estadoReunion                 String             @db.VarChar(45)
+  observacionesReunion          String?            @db.VarChar(505)
+  seEnvioNotificacionDeRetraso  Int                @db.SmallInt
+  inicioAnticipadoPor           Int?
+  cantidadAsistentesRegistrados Int                @db.SmallInt
+  estaActivo                    Int                @default(1) @db.SmallInt
+  fechaCreacion                 DateTime           @default(now()) @db.Timestamp(6)
+  creadoModificadoFecha         DateTime?          @db.Timestamp(6)
+  mesabloque                    mesabloque[]
+  resultadoreunion              resultadoreunion[]
+  evento                        evento             @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_reunion_evento1")
+  mesa                          mesa?              @relation(fields: [mesa_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_reunion_mesa1")
+  solicitudreunion              solicitudreunion   @relation(fields: [solicitudReunion_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_reunion_solicitudreunion1")
+  cambioreunion                 cambioreunion[]
+
+  @@index([evento_id], map: "fk_reunion_evento1_idx")
+  @@index([mesa_id], map: "fk_reunion_mesa1_idx")
+  @@index([solicitudReunion_id], map: "fk_reunion_solicitudreunion1_idx")
+}
+
+// Una reunión aceptada no se modifica hasta que la contraparte apruebe esta propuesta.
+model cambioreunion {
+  id                    Int       @id @default(autoincrement())
+  reunion_id            Int
+  solicitadoPorEe_id    Int
+  tipoReunion           String    @db.VarChar(45)
+  fechaHoraInicio       DateTime  @db.Timestamp(6)
+  fechaHoraFin          DateTime  @db.Timestamp(6)
+  mesa_id               Int?
+  enlaceReunionVirtual  String?   @db.VarChar(500)
+  mensaje               String?   @db.VarChar(505)
+  estado                String    @default("PENDIENTE") @db.VarChar(45)
+  motivoRechazo         String?   @db.VarChar(505)
+  estaActivo            Int       @default(1) @db.SmallInt
+  fechaCreacion         DateTime  @default(now()) @db.Timestamp(6)
+  creadoModificadoFecha DateTime? @db.Timestamp(6)
+  reunion               reunion   @relation(fields: [reunion_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([reunion_id, estado])
+  @@index([solicitadoPorEe_id])
+}
+
+model solicitudreunion {
+  id                                                                       Int             @id @default(autoincrement())
+  empresaEvento_id                                                         Int
+  empresaEventorReceptora_id                                               Int
+  empresa_usuarioResponsableSolicitud                                      Int
+  tipoReunion                                                              String          @db.VarChar(55)
+  enlaceReunionVirtual                                                     String?         @db.VarChar(500)
+  ubicacionGoogleMapsReunion                                               String?         @db.VarChar(500)
+  latitudPresencial                                                        Decimal?        @db.Decimal(10, 8)
+  longitudPresencial                                                       Decimal?        @db.Decimal(11, 8)
+  direccionTexto                                                           String?         @db.VarChar(205)
+  fechaHoraInicioPropuesta                                                 DateTime        @db.Timestamp(6)
+  fechaHoraFinPropuesta                                                    DateTime        @db.Timestamp(6)
+  mensajeParaEmpresaReceptora                                              String?         @db.VarChar(505)
+  estadoSolicitud                                                          String          @db.VarChar(45)
+  motivoRechazoSolicitud                                                   String?         @db.VarChar(505)
+  mesa_id                                                                  Int?
+  estaActivo                                                               Int             @default(1) @db.SmallInt
+  fechaCreacion                                                            DateTime?       @default(now()) @db.Timestamp(6)
+  creadoModificadoFecha                                                    DateTime?       @db.Timestamp(6)
+  reunion                                                                  reunion[]
+  mesa                                                                     mesa?           @relation(fields: [mesa_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_solicitudreunion_mesa1")
+  empresa_usuario                                                          empresa_usuario @relation(fields: [empresa_usuarioResponsableSolicitud], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_solicitudreunion_empresa_usuario1")
+  empresaevento_solicitudreunion_empresaEvento_idToempresaevento           empresaevento   @relation("solicitudreunion_empresaEvento_idToempresaevento", fields: [empresaEvento_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_solicitudreunion_empresaevento1")
+  empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento empresaevento   @relation("solicitudreunion_empresaEventorReceptora_idToempresaevento", fields: [empresaEventorReceptora_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_solicitudreunion_empresaevento2")
+
+  @@index([empresa_usuarioResponsableSolicitud], map: "fk_solicitudreunion_empresa_usuario1_idx")
+  @@index([empresaEvento_id], map: "fk_solicitudreunion_empresaevento1_idx")
+  @@index([empresaEventorReceptora_id], map: "fk_solicitudreunion_empresaevento2_idx")
+}
+
+model usuario {
+  id                            Int                     @id @default(autoincrement())
+  evento_id                     Int?
+  nombres                       String                  @db.VarChar(105)
+  apellidoPaterno               String                  @db.VarChar(65)
+  apellidoMaterno               String?                 @db.VarChar(65)
+  correo                        String                  @db.VarChar(105)
+  contrasenia                   String                  @db.VarChar(105)
+  telefono                      String                  @db.VarChar(45)
+  urlFotoPerfil                 String                  @db.VarChar(505)
+  rolEvento                     String                  @db.VarChar(45)
+  estaActivo                    Int                     @default(1)
+  fechaCreacion                 DateTime                @default(now()) @db.Timestamp(6)
+  creadoModificadoFecha         DateTime?               @db.Timestamp(6)
+  resetToken                    String?                 @db.VarChar(255)
+  resetTokenExpiry              DateTime?               @db.Timestamp(6)
+  ultimoEnvioCredenciales       DateTime?               @db.Timestamp(6)
+  estadoUltimoEnvioCredenciales String?                 @db.VarChar(20)
+  errorUltimoEnvioCredenciales  String?                 @db.VarChar(505)
+  empresa_usuario               empresa_usuario[]
+  noticia                       noticia[]
+  evento                        evento?                 @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_usuario_evento1")
+  asistenciasRegistradas        asistenciaevento[]      @relation("TecnicoAsistencia")
+  asistenciasAuspiciadores      asistenciaauspiciador[] @relation("TecnicoAsistenciaAuspiciador")
+  anunciosActividad             anuncioactividad[]
+
+  @@index([evento_id], map: "fk_usuario_evento1_idx")
+}
+
+model asistenciaevento {
+  id                  Int             @id @default(autoincrement())
+  evento_id           Int
+  empresa_usuario_id  Int
+  tecnico_id          Int
+  fechaAsistencia     DateTime        @db.Date
+  numeroUso           Int             @db.SmallInt
+  fechaHoraAsistencia DateTime        @default(now()) @db.Timestamp(6)
+  estaActivo          Int             @default(1) @db.SmallInt
+  evento              evento          @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  empresa_usuario     empresa_usuario @relation(fields: [empresa_usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tecnico             usuario         @relation("TecnicoAsistencia", fields: [tecnico_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([evento_id, empresa_usuario_id, fechaAsistencia, numeroUso], map: "asist_evento_empresa_fecha_uso_key")
+  @@index([evento_id, empresa_usuario_id, fechaAsistencia], map: "asist_evento_empresa_fecha_idx")
+  @@index([evento_id, fechaHoraAsistencia])
+  @@index([tecnico_id])
+}
+
+model asistenciaauspiciador {
+  id                    Int                @id @default(autoincrement())
+  evento_id             Int
+  auspiciadorpersona_id Int
+  tecnico_id            Int
+  fechaAsistencia       DateTime           @db.Date
+  numeroUso             Int                @db.SmallInt
+  fechaHoraAsistencia   DateTime           @default(now()) @db.Timestamp(6)
+  estaActivo            Int                @default(1) @db.SmallInt
+  evento                evento             @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  auspiciadorpersona    auspiciadorpersona @relation(fields: [auspiciadorpersona_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tecnico               usuario            @relation("TecnicoAsistenciaAuspiciador", fields: [tecnico_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([evento_id, auspiciadorpersona_id, fechaAsistencia, numeroUso], map: "asist_ausp_evento_persona_fecha_uso_key")
+  @@index([evento_id, auspiciadorpersona_id, fechaAsistencia], map: "asist_ausp_evento_persona_fecha_idx")
+  @@index([evento_id, fechaHoraAsistencia])
+  @@index([tecnico_id])
+}
