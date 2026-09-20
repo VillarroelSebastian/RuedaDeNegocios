@@ -3,8 +3,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
   Building2, Clock, Video, Search, ExternalLink,
-  Wifi, AlertCircle, RefreshCw,
+  Wifi, AlertCircle, RefreshCw, Mail, Send, X,
 } from 'lucide-react';
+import { useModal } from '@/components/ui/Modal';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
@@ -52,10 +53,14 @@ function CompanyChip({ empresa, colorClass }: { empresa: any; colorClass: string
 }
 
 export default function TecnicoVirtualesPage() {
+  const { showSuccess, showError, ModalComponent } = useModal();
   const [reuniones, setReuniones] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filtro, setFiltro] = useState('TODOS');
+  const [msgModal, setMsgModal] = useState<{ reunionId: number; empresa: 'A' | 'B'; empresaNombre: string; encargadoNombre: string } | null>(null);
+  const [msgText, setMsgText] = useState('');
+  const [sending, setSending] = useState(false);
 
   const load = useCallback(async (mostrarCarga = false) => {
       if (mostrarCarga) setLoading(true);
@@ -77,6 +82,21 @@ export default function TecnicoVirtualesPage() {
         setLoading(false);
       }
   }, []);
+
+  const sendMessage = async () => {
+    if (!msgModal || !msgText.trim()) return;
+    setSending(true);
+    try {
+      const res = await fetch(`${API}/tecnico/reuniones/${msgModal.reunionId}/mensaje`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ empresa: msgModal.empresa, mensaje: msgText.trim() }),
+      });
+      if (!res.ok) throw new Error();
+      showSuccess('Mensaje enviado', `El mensaje fue enviado al encargado de ${msgModal.empresaNombre}.`);
+      setMsgModal(null);
+    } catch { showError('Error', 'No se pudo enviar el mensaje. Intenta de nuevo.'); }
+    finally { setSending(false); }
+  };
 
   useEffect(() => {
     load(true);
@@ -114,6 +134,44 @@ export default function TecnicoVirtualesPage() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
+      <ModalComponent />
+
+      {/* Modal de mensaje */}
+      {msgModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <div>
+                <p className="text-sm font-bold text-gray-900">Enviar mensaje</p>
+                <p className="text-xs text-gray-400">{msgModal.encargadoNombre} · {msgModal.empresaNombre}</p>
+              </div>
+              <button onClick={() => setMsgModal(null)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <textarea
+                value={msgText}
+                onChange={(e) => setMsgText(e.target.value)}
+                placeholder="Escribe tu mensaje aquí..."
+                rows={5}
+                className="w-full text-sm border border-gray-200 rounded-xl p-3 resize-none focus:outline-none focus:ring-1 focus:ring-[#449D3A]"
+              />
+            </div>
+            <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100">
+              <button onClick={() => setMsgModal(null)} className="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50 rounded-xl">
+                Cancelar
+              </button>
+              <button onClick={sendMessage} disabled={sending || !msgText.trim()}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-[#449D3A] rounded-xl hover:bg-[#388030] disabled:opacity-50">
+                <Send className="w-3.5 h-3.5" />
+                {sending ? 'Enviando…' : 'Enviar mensaje'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="mb-6 flex items-start justify-between gap-3">
         <div>
@@ -195,8 +253,14 @@ export default function TecnicoVirtualesPage() {
         <div className="space-y-3">
           {filtered.map((r) => {
             const sol = r.solicitudreunion;
-            const ea  = sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa;
-            const eb  = sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento?.empresa;
+            const eeA = sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento;
+            const eeB = sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento;
+            const ea  = eeA?.empresa;
+            const eb  = eeB?.empresa;
+            const encA = eeA?.empresa_usuario?.[0]?.usuario;
+            const encB = eeB?.empresa_usuario?.[0]?.usuario;
+            const nombreEncA = encA ? `${encA.nombres} ${encA.apellidoPaterno}` : 'Encargado';
+            const nombreEncB = encB ? `${encB.nombres} ${encB.apellidoPaterno}` : 'Encargado';
             const est = ESTADO_CFG[r.estadoReunion] ?? ESTADO_CFG.PROGRAMADA;
             const tip = TIPO_CFG[r.tipoReunion] ?? TIPO_CFG.VIRTUAL;
             const link = sol?.enlaceReunionVirtual;
@@ -260,6 +324,18 @@ export default function TecnicoVirtualesPage() {
                         Abrir enlace
                       </a>
                     )}
+                    <button
+                      onClick={() => { setMsgModal({ reunionId: r.id, empresa: 'A', empresaNombre: ea?.nombre ?? 'Empresa A', encargadoNombre: nombreEncA }); setMsgText(''); }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-green-200 text-green-700 text-xs font-semibold hover:bg-green-50 transition-colors"
+                    >
+                      <Mail className="w-3 h-3" /> Mensaje a {ea?.nombre ?? 'Empresa A'}
+                    </button>
+                    <button
+                      onClick={() => { setMsgModal({ reunionId: r.id, empresa: 'B', empresaNombre: eb?.nombre ?? 'Empresa B', encargadoNombre: nombreEncB }); setMsgText(''); }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-blue-200 text-blue-700 text-xs font-semibold hover:bg-blue-50 transition-colors"
+                    >
+                      <Mail className="w-3 h-3" /> Mensaje a {eb?.nombre ?? 'Empresa B'}
+                    </button>
                   </div>
                 </div>
                 {canceladaPorEmpresa && (

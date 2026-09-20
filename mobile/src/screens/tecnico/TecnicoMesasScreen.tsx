@@ -7,19 +7,21 @@ import {
   Armchair, Building2, Clock, Video, MapPin, ChevronDown,
   ChevronUp, Timer, Star, History, Mail, Link2, Send, X,
 } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { API_URL } from '../../utils/userStore';
 import { useModal } from '../../components/AppModal';
 
 const GREEN = '#449D3A';
 
 const ESTADO_MESA: Record<string, { label: string; color: string; bg: string; dot: string }> = {
-  LIBRE:     { label: 'Libre',      color: '#166534', bg: '#dcfce7', dot: '#22c55e' },
-  RESERVADA: { label: 'Programada', color: '#1e40af', bg: '#dbeafe', dot: '#60a5fa' },
-  EN_USO:    { label: 'En uso',     color: '#9a3412', bg: '#ffedd5', dot: '#f97316' },
+  LIBRE:         { label: 'Libre',       color: '#166534', bg: '#dcfce7', dot: '#22c55e' },
+  RESERVADA:     { label: 'Programada',  color: '#1e40af', bg: '#dbeafe', dot: '#60a5fa' },
+  EN_USO:        { label: 'En uso',      color: '#9a3412', bg: '#ffedd5', dot: '#f97316' },
+  PRE_RESERVADA: { label: 'Pendiente',   color: '#92400e', bg: '#fef3c7', dot: '#f59e0b' },
 };
 
 const GRID_COLOR: Record<string, string> = {
-  LIBRE: GREEN, RESERVADA: '#3b82f6', EN_USO: '#f97316',
+  LIBRE: GREEN, RESERVADA: '#3b82f6', EN_USO: '#f97316', PRE_RESERVADA: '#f59e0b',
 };
 
 const ESTADO_REUNION: Record<string, { color: string; bg: string; label: string }> = {
@@ -268,10 +270,39 @@ function ReunionRow({
   );
 }
 
+function SolicitudPendienteRow({ s }: { s: any }) {
+  return (
+    <View style={{ borderTopWidth: 1, borderTopColor: '#f3f4f6', padding: 12, backgroundColor: '#fffbeb' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+        <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: '#f59e0b' }} />
+        <Text style={{ fontSize: 12, fontWeight: '700', color: '#374151' }} numberOfLines={1}>
+          {s.solicitante}
+        </Text>
+        <Text style={{ color: '#9ca3af', fontSize: 11 }}>↔</Text>
+        <Text style={{ fontSize: 12, fontWeight: '700', color: '#374151' }} numberOfLines={1}>
+          {s.receptora}
+        </Text>
+      </View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginLeft: 13 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+          <Clock color="#9ca3af" size={10} />
+          <Text style={{ fontSize: 10, color: '#6b7280' }}>
+            {fmtTime(s.inicio)} – {fmtTime(s.fin)}
+          </Text>
+        </View>
+        <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999, backgroundColor: '#fef3c7' }}>
+          <Text style={{ fontSize: 8, fontWeight: '700', color: '#92400e' }}>Pendiente de respuesta</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 type FiltroEstado = 'EN_USO' | 'PROGRAMADA' | 'LIBRE' | 'TODAS' | 'HISTORIAL';
 
 export default function TecnicoMesasScreen() {
   const { show: showModal, hide: hideModal, modal } = useModal();
+  const insets = useSafeAreaInsets();
 
   const [mesas,        setMesas]        = useState<any[]>([]);
   const [eventoConfig, setEventoConfig] = useState<any>(null);
@@ -328,7 +359,7 @@ export default function TecnicoMesasScreen() {
 
   const mesasFiltradas = mesas.filter((m) => {
     if (filtro === 'EN_USO')     { if (m.estadoMesa !== 'EN_USO')    return false; }
-    if (filtro === 'PROGRAMADA') { if (m.estadoMesa !== 'RESERVADA') return false; }
+    if (filtro === 'PROGRAMADA') { if (m.estadoMesa !== 'RESERVADA' && m.estadoMesa !== 'PRE_RESERVADA') return false; }
     if (filtro === 'LIBRE')      { if (m.estadoMesa !== 'LIBRE')     return false; }
     if (!search.trim()) return true;
     const q = search.toLowerCase();
@@ -345,7 +376,7 @@ export default function TecnicoMesasScreen() {
 
   const counts = {
     enUso:     mesas.filter((m) => m.estadoMesa === 'EN_USO').length,
-    programada: mesas.filter((m) => m.estadoMesa === 'RESERVADA').length,
+    programada: mesas.filter((m) => m.estadoMesa === 'RESERVADA' || m.estadoMesa === 'PRE_RESERVADA').length,
     libre:     mesas.filter((m) => m.estadoMesa === 'LIBRE').length,
     total:     mesas.length,
   };
@@ -498,7 +529,7 @@ export default function TecnicoMesasScreen() {
       </Modal>
 
       {/* Header */}
-      <View style={{ backgroundColor: '#fff', paddingHorizontal: 16, paddingTop: 52, paddingBottom: 12,
+      <View style={{ backgroundColor: '#fff', paddingHorizontal: 16, paddingTop: insets.top + 16, paddingBottom: 12,
         borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
         <Text style={{ fontSize: 22, fontWeight: '800', color: '#0f172a' }}>Mesas del evento</Text>
 
@@ -616,7 +647,7 @@ export default function TecnicoMesasScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: 15, fontWeight: '700', color: '#0f172a' }}>Mesa {mesa.numeroMesa}</Text>
                     <Text style={{ fontSize: 11, color: '#94a3b8' }}>
-                      {mesa.reunion?.length ?? 0} reunión(es) · {mesa.capacidadPersonas} personas
+                      {mesa.reunion?.length ?? 0} reunión(es){mesa.solicitudesEnEspera?.length ? ` · ${mesa.solicitudesEnEspera.length} pendiente(s)` : ''} · {mesa.capacidadPersonas} personas
                     </Text>
                   </View>
                   <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: cfg.bg }}>
@@ -624,17 +655,20 @@ export default function TecnicoMesasScreen() {
                   </View>
                 </View>
 
-                {mesa.reunion && mesa.reunion.length > 0
-                  ? mesa.reunion.map((r: any) => (
-                      <ReunionRow key={r.id} r={r} onMessage={openMessageModal} onChangeLink={openLinkModal} />
-                    ))
-                  : (
-                    <View style={{ padding: 16, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#86efac' }} />
-                      <Text style={{ fontSize: 13, color: '#94a3b8' }}>Disponible — sin reuniones asignadas</Text>
-                    </View>
-                  )
-                }
+                {mesa.reunion && mesa.reunion.length > 0 && mesa.reunion.map((r: any) => (
+                  <ReunionRow key={r.id} r={r} onMessage={openMessageModal} onChangeLink={openLinkModal} />
+                ))}
+
+                {mesa.solicitudesEnEspera && mesa.solicitudesEnEspera.length > 0 && mesa.solicitudesEnEspera.map((s: any) => (
+                  <SolicitudPendienteRow key={s.solicitudId} s={s} />
+                ))}
+
+                {(!mesa.reunion || mesa.reunion.length === 0) && (!mesa.solicitudesEnEspera || mesa.solicitudesEnEspera.length === 0) && (
+                  <View style={{ padding: 16, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#86efac' }} />
+                    <Text style={{ fontSize: 13, color: '#94a3b8' }}>Disponible — sin reuniones asignadas</Text>
+                  </View>
+                )}
               </View>
             );
           })}

@@ -3,7 +3,9 @@ import { TouchableOpacity, View, Text, StyleSheet, ScrollView } from 'react-nati
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator }   from '@react-navigation/bottom-tabs';
 import { useNavigation }              from '@react-navigation/native';
-import { LayoutDashboard, Building2, Send, CalendarDays, User, Bell, MoreHorizontal, Star, Clock, Newspaper, Lightbulb, MessageCircle, Images } from 'lucide-react-native';
+import { LayoutDashboard, Building2, Send, CalendarDays, User, Bell, MoreHorizontal, Star, Clock, Newspaper, Lightbulb, MessageCircle, Images, LogOut } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useModal } from '../components/AppModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AsistenteChatModal, { AsistenteChatButton } from '../components/AsistenteChatMobile';
 import { rutaDeNotifMobile, useNotificacionesMobile } from '../hooks/useNotificaciones';
@@ -120,83 +122,136 @@ const bell = StyleSheet.create({
 
 // ── Tab options ──────────────────────────────────────────────────────────────
 
-const tabOptions = {
+const baseTabOptions = {
   headerShown: false,
   tabBarActiveTintColor:   GREEN,
   tabBarInactiveTintColor: GRAY,
-  tabBarStyle: {
-    borderTopColor:  '#f1f5f9',
-    backgroundColor: '#ffffff',
-    height: 62,
-    paddingBottom: 10,
-    paddingTop: 6,
-  },
   tabBarLabelStyle: { fontSize: 10, fontWeight: '600' as const },
 };
 
+// La barra de pestañas necesita el inset inferior real del dispositivo: en
+// teléfonos con barra de navegación de Android (los "botones/flechas" de
+// abajo, comunes en Xiaomi), una altura fija deja las pestañas tapadas o muy
+// pegadas a esos botones.
+function useTabBarStyle() {
+  const insets = useSafeAreaInsets();
+  return {
+    borderTopColor:  '#f1f5f9',
+    backgroundColor: '#ffffff',
+    height: 52 + Math.max(insets.bottom, 10),
+    paddingBottom: Math.max(insets.bottom, 10),
+    paddingTop: 6,
+  };
+}
+
+// Pantalla vacía requerida por Tab.Screen; nunca llega a mostrarse porque el
+// listener de `tabPress` de abajo intercepta la pulsación antes de navegar.
+function LogoutPlaceholder() { return null; }
+
+function useLogoutTab() {
+  const { show, modal } = useModal();
+  const handleLogout = (navigation: any) => {
+    show({
+      type: 'confirm',
+      title: 'Cerrar sesión',
+      message: '¿Estás seguro que quieres cerrar sesión?',
+      confirmText: 'Cerrar sesión',
+      cancelText: 'Cancelar',
+      onConfirm: () => { userStore.clear().then(() => navigation.replace('Login')); },
+    });
+  };
+  return { modal, handleLogout };
+}
+
 // Encargado: acceso completo
 function EncargadoTabs() {
+  const { modal, handleLogout } = useLogoutTab();
+  const tabBarStyle = useTabBarStyle();
   return (
-    <Tab.Navigator screenOptions={tabOptions}>
-      <Tab.Screen
-        name="Inicio"
-        component={EmpresaDashboardScreen}
-        options={{ title: 'Inicio', tabBarIcon: ({ color }) => <LayoutDashboard color={color} size={22} /> }}
-      />
-      <Tab.Screen
-        name="Empresas"
-        component={EmpresaEmpresasScreen}
-        options={{ title: 'Empresas', tabBarIcon: ({ color }) => <Building2 color={color} size={22} /> }}
-      />
-      <Tab.Screen
-        name="Solicitudes"
-        component={EmpresaSolicitudesScreen}
-        options={{ title: 'Solicitudes', tabBarIcon: ({ color }) => <Send color={color} size={22} /> }}
-      />
-      <Tab.Screen
-        name="Reuniones"
-        component={EmpresaReunionesScreen}
-        options={{ title: 'Reuniones', tabBarIcon: ({ color }) => <CalendarDays color={color} size={22} /> }}
-      />
-      <Tab.Screen
-        name="Mas"
-        component={EmpresaMenuScreen}
-        options={{ title: 'Más', tabBarIcon: ({ color }) => <MoreHorizontal color={color} size={22} /> }}
-      />
-    </Tab.Navigator>
+    <>
+      {modal}
+      <Tab.Navigator screenOptions={{ ...baseTabOptions, tabBarStyle }}>
+        <Tab.Screen
+          name="Inicio"
+          component={EmpresaDashboardScreen}
+          options={{ title: 'Inicio', tabBarIcon: ({ color }) => <LayoutDashboard color={color} size={22} /> }}
+        />
+        <Tab.Screen
+          name="Empresas"
+          component={EmpresaEmpresasScreen}
+          options={{ title: 'Empresas', tabBarIcon: ({ color }) => <Building2 color={color} size={22} /> }}
+        />
+        <Tab.Screen
+          name="Solicitudes"
+          component={EmpresaSolicitudesScreen}
+          options={{ title: 'Solicitudes', tabBarIcon: ({ color }) => <Send color={color} size={22} /> }}
+        />
+        <Tab.Screen
+          name="Reuniones"
+          component={EmpresaReunionesScreen}
+          options={{ title: 'Reuniones', tabBarIcon: ({ color }) => <CalendarDays color={color} size={22} /> }}
+        />
+        <Tab.Screen
+          name="Mas"
+          component={EmpresaMenuScreen}
+          options={{ title: 'Más', tabBarIcon: ({ color }) => <MoreHorizontal color={color} size={22} /> }}
+        />
+        <Tab.Screen
+          name="EmpresaCerrarSesion"
+          component={LogoutPlaceholder}
+          options={{ title: 'Salir', tabBarIcon: ({ color }) => <LogOut color={color} size={22} /> }}
+          listeners={({ navigation }) => ({
+            tabPress: (e) => { e.preventDefault(); handleLogout(navigation); },
+          })}
+        />
+      </Tab.Navigator>
+    </>
   );
 }
 
 // Participante: también puede consultar empresas y agendar reuniones.
 function ParticipanteTabs() {
+  const { modal, handleLogout } = useLogoutTab();
+  const tabBarStyle = useTabBarStyle();
   return (
-    <Tab.Navigator screenOptions={tabOptions}>
-      <Tab.Screen
-        name="Inicio"
-        component={EmpresaDashboardScreen}
-        options={{ title: 'Inicio', tabBarIcon: ({ color }) => <LayoutDashboard color={color} size={22} /> }}
-      />
-      <Tab.Screen
-        name="Empresas"
-        component={EmpresaEmpresasScreen}
-        options={{ title: 'Empresas', tabBarIcon: ({ color }) => <Building2 color={color} size={22} /> }}
-      />
-      <Tab.Screen
-        name="Solicitudes"
-        component={EmpresaSolicitudesScreen}
-        options={{ title: 'Solicitudes', tabBarIcon: ({ color }) => <Send color={color} size={22} /> }}
-      />
-      <Tab.Screen
-        name="Reuniones"
-        component={EmpresaReunionesScreen}
-        options={{ title: 'Reuniones', tabBarIcon: ({ color }) => <CalendarDays color={color} size={22} /> }}
-      />
-      <Tab.Screen
-        name="Mas"
-        component={EmpresaMenuScreen}
-        options={{ title: 'Más', tabBarIcon: ({ color }) => <MoreHorizontal color={color} size={22} /> }}
-      />
-    </Tab.Navigator>
+    <>
+      {modal}
+      <Tab.Navigator screenOptions={{ ...baseTabOptions, tabBarStyle }}>
+        <Tab.Screen
+          name="Inicio"
+          component={EmpresaDashboardScreen}
+          options={{ title: 'Inicio', tabBarIcon: ({ color }) => <LayoutDashboard color={color} size={22} /> }}
+        />
+        <Tab.Screen
+          name="Empresas"
+          component={EmpresaEmpresasScreen}
+          options={{ title: 'Empresas', tabBarIcon: ({ color }) => <Building2 color={color} size={22} /> }}
+        />
+        <Tab.Screen
+          name="Solicitudes"
+          component={EmpresaSolicitudesScreen}
+          options={{ title: 'Solicitudes', tabBarIcon: ({ color }) => <Send color={color} size={22} /> }}
+        />
+        <Tab.Screen
+          name="Reuniones"
+          component={EmpresaReunionesScreen}
+          options={{ title: 'Reuniones', tabBarIcon: ({ color }) => <CalendarDays color={color} size={22} /> }}
+        />
+        <Tab.Screen
+          name="Mas"
+          component={EmpresaMenuScreen}
+          options={{ title: 'Más', tabBarIcon: ({ color }) => <MoreHorizontal color={color} size={22} /> }}
+        />
+        <Tab.Screen
+          name="EmpresaCerrarSesion"
+          component={LogoutPlaceholder}
+          options={{ title: 'Salir', tabBarIcon: ({ color }) => <LogOut color={color} size={22} /> }}
+          listeners={({ navigation }) => ({
+            tabPress: (e) => { e.preventDefault(); handleLogout(navigation); },
+          })}
+        />
+      </Tab.Navigator>
+    </>
   );
 }
 

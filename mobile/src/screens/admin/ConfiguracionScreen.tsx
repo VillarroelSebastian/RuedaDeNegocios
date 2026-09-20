@@ -3,7 +3,7 @@ import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   Image, ActivityIndicator
 } from 'react-native';
-import { User, Camera, Save, LogOut, Lock } from 'lucide-react-native';
+import { User, Camera, Save, LogOut, Lock, Eye, EyeOff } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { API_URL, userStore } from '../../utils/userStore';
 import { useModal } from '../../components/AppModal';
@@ -15,6 +15,7 @@ export default function ConfiguracionScreen({ navigation }: any) {
   const [user, setUser] = useState<any>(null);
   const [form, setForm] = useState({ nombres: '', apellidoPaterno: '', apellidoMaterno: '', correo: '', telefono: '', urlFotoPerfil: '' });
   const [passForm, setPassForm] = useState({ contraseniaActual: '', nuevaContrasenia: '', confirmar: '' });
+  const [mostrarPass, setMostrarPass] = useState(false);
   const [tab, setTab] = useState<'perfil' | 'seguridad'>('perfil');
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -201,13 +202,18 @@ export default function ConfiguracionScreen({ navigation }: any) {
             ].map(({ label, key }) => (
               <View key={key} className="mb-3">
                 <Text className="text-sm font-semibold text-gray-700 mb-1.5">{label}</Text>
-                <TextInput
-                  value={(passForm as any)[key]}
-                  onChangeText={(v) => setP(key, v)}
-                  secureTextEntry
-                  placeholderTextColor="#9ca3af"
-                  className="border border-gray-200 rounded-xl px-4 py-3 text-sm"
-                />
+                <View className="flex-row items-center border border-gray-200 rounded-xl">
+                  <TextInput
+                    value={(passForm as any)[key]}
+                    onChangeText={(v) => setP(key, v)}
+                    secureTextEntry={!mostrarPass}
+                    placeholderTextColor="#9ca3af"
+                    className="flex-1 px-4 py-3 text-sm"
+                  />
+                  <TouchableOpacity onPress={() => setMostrarPass(v => !v)} className="px-3">
+                    {mostrarPass ? <EyeOff size={18} color="#9ca3af" /> : <Eye size={18} color="#9ca3af" />}
+                  </TouchableOpacity>
+                </View>
               </View>
             ))}
             <TouchableOpacity onPress={handleSavePassword} disabled={saving}

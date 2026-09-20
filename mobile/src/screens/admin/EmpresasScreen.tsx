@@ -48,6 +48,36 @@ export function ParticipantesModal({ empresa, onClose, permitirCambiarPassword =
   const [credencial, setCredencial] = useState<any>(null);
   const [reiniciando, setReiniciando] = useState<number | null>(null);
   const [passwordManual, setPasswordManual] = useState('');
+  const [editandoCorreo, setEditandoCorreo] = useState<any | null>(null);
+  const [correoNuevo, setCorreoNuevo] = useState('');
+  const [guardandoCorreo, setGuardandoCorreo] = useState(false);
+  const [reenviando, setReenviando] = useState<number | null>(null);
+  const [avisoReenvio, setAvisoReenvio] = useState<{ ok: boolean; texto: string } | null>(null);
+
+  const guardarCorreo = async (p: any) => {
+    if (!correoNuevo.trim()) return;
+    setGuardandoCorreo(true);
+    try {
+      const res = await fetch(`${API_URL}/admin/participantes/${p.usuarioId}/correo`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ correo: correoNuevo.trim() }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'No se pudo actualizar el correo');
+      setParticipantes(ps => ps.map(x => x.usuarioId === p.usuarioId ? { ...x, correo: data.correo } : x));
+      setEditandoCorreo(null); setCorreoNuevo('');
+    } catch (error: any) { setAvisoReenvio({ ok: false, texto: error.message }); }
+    finally { setGuardandoCorreo(false); }
+  };
+
+  const reenviarCredenciales = async (p: any) => {
+    setReenviando(p.usuarioId);
+    setAvisoReenvio(null);
+    try {
+      const res = await fetch(`${API_URL}/admin/participantes/${p.usuarioId}/reenviar-credenciales`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'No se pudo reenviar las credenciales');
+      setAvisoReenvio({ ok: true, texto: `Credenciales reenviadas a ${data.correo}.` });
+    } catch (error: any) { setAvisoReenvio({ ok: false, texto: error.message }); }
+    finally { setReenviando(null); }
+  };
 
   const reiniciarPassword = async (p: any, manual = false) => {
     if (manual && passwordManual.trim().length < 8) {
@@ -91,6 +121,30 @@ export function ParticipantesModal({ empresa, onClose, permitirCambiarPassword =
             </TouchableOpacity>
           </View>
           <ScrollView contentContainerStyle={{ padding: 20 }}>
+            {permitirCambiarPassword && !!avisoReenvio && (
+              <View style={{ backgroundColor: avisoReenvio.ok ? '#f0fdf4' : '#fef2f2', borderColor: avisoReenvio.ok ? '#86efac' : '#fca5a5', borderWidth: 1, borderRadius: 12, padding: 11, marginBottom: 12 }}>
+                <Text style={{ fontSize: 12, color: avisoReenvio.ok ? '#166534' : '#b91c1c', fontWeight: '600' }}>{avisoReenvio.texto}</Text>
+              </View>
+            )}
+            {permitirCambiarPassword && !!editandoCorreo && (
+              <View style={{ backgroundColor: '#eff6ff', borderColor: '#bfdbfe', borderWidth: 1, borderRadius: 14, padding: 13, marginBottom: 12 }}>
+                <Text style={{ fontWeight: '800', color: '#1e40af' }}>Editar correo de {editandoCorreo.nombres}</Text>
+                <Text style={{ fontSize: 10, color: '#1e40af', marginTop: 4 }}>Se usará para iniciar sesión y para enviar credenciales.</Text>
+                <TextInput
+                  value={correoNuevo} onChangeText={setCorreoNuevo} placeholder="nuevo@correo.com"
+                  autoCapitalize="none" keyboardType="email-address"
+                  style={{ backgroundColor: '#fff', borderWidth: 1, borderColor: '#bfdbfe', borderRadius: 9, padding: 9, marginTop: 8 }}
+                />
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+                  <TouchableOpacity disabled={guardandoCorreo || !correoNuevo.trim()} onPress={() => guardarCorreo(editandoCorreo)} style={{ backgroundColor: '#2563eb', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, opacity: guardandoCorreo || !correoNuevo.trim() ? 0.5 : 1 }}>
+                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>Guardar correo</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => { setEditandoCorreo(null); setCorreoNuevo(''); }} style={{ borderWidth: 1, borderColor: '#bfdbfe', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 }}>
+                    <Text style={{ color: '#1e40af', fontWeight: '700', fontSize: 12 }}>Cancelar</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
             {permitirCambiarPassword && !!credencial && <View style={{backgroundColor:'#fffbeb',borderColor:'#fcd34d',borderWidth:1,borderRadius:14,padding:13,marginBottom:12}}><Text style={{fontWeight:'800',color:'#92400e'}}>Nueva contraseña</Text><Text style={{fontSize:12,color:'#92400e',marginTop:4}}>{credencial.correo}</Text><View style={{flexDirection:'row',gap:7,alignItems:'center',marginTop:7}}><Text selectable style={{flex:1,fontSize:16,fontWeight:'800',color:'#111827',backgroundColor:'#fff',padding:9,borderRadius:8}}>{credencial.nuevaContrasenia}</Text><TouchableOpacity onPress={() => Clipboard.setStringAsync(credencial.nuevaContrasenia)} style={{borderWidth:1,borderColor:'#f59e0b',borderRadius:8,padding:9}}><Text style={{color:'#92400e',fontWeight:'800',fontSize:11}}>Copiar</Text></TouchableOpacity></View><Text style={{fontSize:10,color:'#92400e',marginTop:6}}>Cópiala ahora. La contraseña anterior está cifrada y no se puede mostrar.</Text></View>}
             {permitirCambiarPassword && <View style={{ backgroundColor:'#f8fafc', borderWidth:1, borderColor:'#e2e8f0', borderRadius:12, padding:11, marginBottom:12 }}><Text style={{fontSize:11,fontWeight:'800',color:'#475569'}}>Contraseña manual (opcional)</Text><TextInput secureTextEntry value={passwordManual} onChangeText={setPasswordManual} placeholder="Escribe una contraseña segura" style={{backgroundColor:'#fff',borderWidth:1,borderColor:'#e2e8f0',borderRadius:9,padding:9,marginTop:6}}/><Text style={{fontSize:10,color:'#64748b',marginTop:5}}>Escríbela aquí y usa “Aplicar escrita” en la persona correspondiente; o usa “Generar” para crearla automáticamente.</Text></View>}
             {loading ? (
@@ -112,7 +166,7 @@ export function ParticipantesModal({ empresa, onClose, permitirCambiarPassword =
                       <Text style={{ fontSize: 11, color: '#9ca3af' }}>{p.correo}</Text>
                     </View>
                   </View>
-                  <View style={{alignItems:'flex-end',gap:5}}>{p.esResponsable && <View style={{ backgroundColor: '#dcfce7', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 }}><Text style={{ fontSize: 10, fontWeight: '700', color: '#166534' }}>Responsable</Text></View>}<Text style={{fontSize:10,fontWeight:'600',color:p.estaActivo?'#9ca3af':'#ef4444'}}>{p.estaActivo?'Activo':'Inactivo'}</Text>{permitirCambiarPassword && p.estaActivo && <><TouchableOpacity disabled={reiniciando===p.usuarioId} onPress={()=>reiniciarPassword(p)} style={{flexDirection:'row',alignItems:'center',gap:4,borderWidth:1,borderColor:'#fcd34d',borderRadius:8,paddingHorizontal:7,paddingVertical:5,opacity:reiniciando===p.usuarioId?0.5:1}}><KeyRound size={12} color="#b45309"/><Text style={{fontSize:10,fontWeight:'700',color:'#b45309'}}>Generar</Text></TouchableOpacity><TouchableOpacity disabled={reiniciando===p.usuarioId || !passwordManual.trim()} onPress={()=>reiniciarPassword(p, true)} style={{borderWidth:1,borderColor:GREEN,borderRadius:8,paddingHorizontal:7,paddingVertical:5,opacity:passwordManual.trim()?1:.4}}><Text style={{fontSize:10,fontWeight:'700',color:GREEN}}>Aplicar escrita</Text></TouchableOpacity></>}</View>
+                  <View style={{alignItems:'flex-end',gap:5,maxWidth:130}}>{p.esResponsable && <View style={{ backgroundColor: '#dcfce7', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 }}><Text style={{ fontSize: 10, fontWeight: '700', color: '#166534' }}>Responsable</Text></View>}<Text style={{fontSize:10,fontWeight:'600',color:p.estaActivo?'#9ca3af':'#ef4444'}}>{p.estaActivo?'Activo':'Inactivo'}</Text>{permitirCambiarPassword && p.estaActivo && <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 4 }}><TouchableOpacity disabled={reiniciando===p.usuarioId} onPress={()=>reiniciarPassword(p)} style={{flexDirection:'row',alignItems:'center',gap:4,borderWidth:1,borderColor:'#fcd34d',borderRadius:8,paddingHorizontal:7,paddingVertical:5,opacity:reiniciando===p.usuarioId?0.5:1}}><KeyRound size={12} color="#b45309"/><Text style={{fontSize:10,fontWeight:'700',color:'#b45309'}}>Generar</Text></TouchableOpacity><TouchableOpacity disabled={reiniciando===p.usuarioId || !passwordManual.trim()} onPress={()=>reiniciarPassword(p, true)} style={{borderWidth:1,borderColor:GREEN,borderRadius:8,paddingHorizontal:7,paddingVertical:5,opacity:passwordManual.trim()?1:.4}}><Text style={{fontSize:10,fontWeight:'700',color:GREEN}}>Aplicar escrita</Text></TouchableOpacity><TouchableOpacity disabled={guardandoCorreo} onPress={()=>{ setEditandoCorreo(p); setCorreoNuevo(p.correo ?? ''); setAvisoReenvio(null); }} style={{borderWidth:1,borderColor:'#d1d5db',borderRadius:8,paddingHorizontal:7,paddingVertical:5}}><Text style={{fontSize:10,fontWeight:'700',color:'#374151'}}>Editar correo</Text></TouchableOpacity><TouchableOpacity disabled={reenviando===p.usuarioId} onPress={()=>reenviarCredenciales(p)} style={{borderWidth:1,borderColor:'#86efac',borderRadius:8,paddingHorizontal:7,paddingVertical:5,opacity:reenviando===p.usuarioId?0.5:1}}><Text style={{fontSize:10,fontWeight:'700',color:GREEN}}>{reenviando===p.usuarioId?'Enviando…':'Reenviar'}</Text></TouchableOpacity></View>}</View>
                 </View>
               ))
             )}

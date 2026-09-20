@@ -46,8 +46,8 @@ function normalizarTelefono(valor: unknown): string {
 
 function validarPasswordSegura(valor: unknown): string {
   const password = String(valor ?? '');
-  if (password.length < 12 || !/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/\d/.test(password) || !/[^A-Za-z0-9]/.test(password))
-    throw new BadRequestException('La contraseña debe tener al menos 12 caracteres, mayúscula, minúscula, número y símbolo.');
+  if (password.length < 6)
+    throw new BadRequestException('La contraseña debe tener al menos 6 caracteres.');
   return password;
 }
 
@@ -2277,6 +2277,64 @@ export class AppController implements OnModuleInit {
     return { ok: true, correo: usuario.correo, nuevaContrasenia };
   }
 
+  @Put('admin/participantes/:usuarioId/correo')
+  async actualizarCorreoParticipanteAdmin(
+    @Param('usuarioId') usuarioId: string,
+    @Body() body: { correo?: string },
+  ) {
+    const correo = normalizarCorreo(body.correo);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) throw new BadRequestException('El correo no es válido');
+    const usuario = await this.prisma.usuario.findFirst({
+      where: { id: Number(usuarioId), estaActivo: 1, empresa_usuario: { some: { estaActivo: 1 } } },
+      select: { id: true },
+    });
+    if (!usuario) throw new BadRequestException('Participante activo no encontrado');
+    const enUso = await this.prisma.usuario.findFirst({
+      where: { correo: { equals: correo, mode: 'insensitive' }, estaActivo: 1, id: { not: usuario.id } },
+      select: { id: true },
+    });
+    if (enUso) throw new BadRequestException('Ese correo ya está en uso por otro usuario');
+    const actualizado = await this.prisma.usuario.update({
+      where: { id: usuario.id },
+      data: { correo, creadoModificadoFecha: new Date() },
+      select: { id: true, correo: true },
+    });
+    return { ok: true, correo: actualizado.correo };
+  }
+
+  @Post('admin/participantes/:usuarioId/reenviar-credenciales')
+  async reenviarCredencialesParticipanteAdmin(@Param('usuarioId') usuarioId: string) {
+    const participante = await this.prisma.usuario.findFirst({
+      where: { id: Number(usuarioId), estaActivo: 1, empresa_usuario: { some: { estaActivo: 1 } } },
+      select: {
+        id: true, correo: true, nombres: true, apellidoPaterno: true, contrasenia: true,
+        empresa_usuario: { where: { estaActivo: 1 }, select: { empresa: { select: { nombre: true } } }, take: 1 },
+      },
+    });
+    if (!participante) throw new BadRequestException('Participante activo no encontrado');
+
+    const pwd = `Rn!${randomBytes(7).toString('base64url')}9aA`;
+    const hashed = await bcrypt.hash(pwd, 10);
+    await this.prisma.usuario.update({
+      where: { id: participante.id },
+      data: { contrasenia: hashed, creadoModificadoFecha: new Date() },
+    });
+
+    const eventoId = await this.getPrincipalEventoId();
+    const evento = eventoId
+      ? await this.prisma.evento.findUnique({ where: { id: eventoId }, select: { nombre: true, edicion: true } })
+      : null;
+    const empresaNombre = participante.empresa_usuario[0]?.empresa?.nombre ?? 'tu empresa';
+    const envio = await this.enviarCredencialesParticipante(participante, pwd, empresaNombre, evento);
+    if (!envio.ok) {
+      // Si el correo no salió, se conserva la contraseña anterior para no dejar
+      // al participante sin acceso por un fallo temporal de correo.
+      await this.prisma.usuario.update({ where: { id: participante.id }, data: { contrasenia: participante.contrasenia } });
+      throw new BadRequestException(`No se pudo enviar el correo (${envio.error ?? 'error desconocido'}). La contraseña anterior continúa vigente.`);
+    }
+    return { ok: true, correoEnviado: true, correo: participante.correo };
+  }
+
   // ─── PAGOS ───────────────────────────────────────────────────────────────────
 
   @Get('admin/pagos/pendientes')
@@ -3274,6 +3332,43 @@ export class AppController implements OnModuleInit {
     }
   }
 
+  private async enviarCredencialesParticipante(
+    participante: { correo: string; nombres: string; apellidoPaterno: string },
+    pwd: string,
+    empresaNombre: string,
+    evento: { nombre: string; edicion: string } | null,
+  ): Promise<{ ok: boolean; error: string | null }> {
+    const isDevEmail = !process.env.MAIL_USER || process.env.MAIL_USER === 'tu_correo@gmail.com';
+    if (isDevEmail) return { ok: false, error: 'El servicio de correo no está configurado.' };
+    try {
+      await createMailTransporter().sendMail({
+        from: process.env.MAIL_FROM,
+        to: participante.correo,
+        subject: `Tus credenciales de acceso — ${evento?.nombre ?? 'Rueda de Negocios'}`,
+        attachments: EMAIL_LOGO_ATTACHMENTS,
+        html: `${EMAIL_LOGO_HTML}
+          <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px;background:#f9fafb;border-radius:12px">
+            <h2 style="color:#449D3A;margin-bottom:4px">Credenciales de acceso</h2>
+            <p style="color:#374151;margin-bottom:20px">
+              Hola <strong>${participante.nombres} ${participante.apellidoPaterno}</strong>, estas son tus credenciales
+              para <strong>${empresaNombre}</strong> en el evento <strong>${evento?.nombre ?? 'Rueda de Negocios'} ${evento?.edicion ?? ''}</strong>.
+            </p>
+            <div style="background:#fff;border:2px solid #bbf7d0;border-radius:10px;padding:20px;margin-bottom:20px">
+              <p style="color:#166534;font-size:13px;margin:0 0 8px;font-weight:700;text-transform:uppercase">Tus credenciales de acceso:</p>
+              <p style="color:#374151;font-size:14px;margin:0 0 4px"><strong>Correo:</strong> ${participante.correo}</p>
+              <p style="color:#374151;font-size:14px;margin:0"><strong>Contraseña:</strong> <code style="background:#f0fdf4;padding:2px 8px;border-radius:6px;font-size:15px">${pwd}</code></p>
+            </div>
+            <p style="color:#6b7280;font-size:13px;margin:0">Esta contraseña reemplaza cualquier contraseña anterior. Cámbiala después de iniciar sesión.</p>
+          </div>`,
+      });
+      return { ok: true, error: null };
+    } catch (error) {
+      const mensaje = error instanceof Error ? error.message : 'Error desconocido al enviar el correo.';
+      console.warn(`[WARN] No se pudo enviar credenciales a ${participante.correo}:`, mensaje);
+      return { ok: false, error: mensaje.slice(0, 500) };
+    }
+  }
+
   private async validarCorreoDisponibleParaTecnico(correo: string, excluirUsuarioId?: number) {
     const coincidencias = await this.prisma.usuario.findMany({
       where: {
@@ -3592,7 +3687,7 @@ export class AppController implements OnModuleInit {
 
   private valorAproximadoRango(rango: string | null | undefined): number {
     const valor = String(rango ?? '').toLowerCase();
-    if (!valor || valor.includes('sin acuerdo')) return 0;
+    if (!valor || valor.includes('sin acuerdo') || valor.includes('no hubo acuerdo')) return 0;
     const numeros = valor.match(/\d[\d.,]*/g) ?? [];
     const importes = numeros.map((n) => Number(n.replace(/[.,]/g, ''))).filter(Number.isFinite);
     if (importes.length === 0) return 0;
@@ -3829,6 +3924,25 @@ export class AppController implements OnModuleInit {
       ...auspiciadoresHoy.map((asistencia) => `auspiciador-${asistencia.auspiciadorpersona_id}`),
     ]).size;
 
+    // El widget "Asistencia empresarial" debe contemplar también a las
+    // empresas auspiciadoras: son entidades separadas de `empresaevento`
+    // (ver modelo `auspiciador`), con su propio registro de asistencia
+    // (`asistenciaauspiciador`), y antes quedaban fuera del conteo total.
+    const [auspiciadoresConPersonas, asistenciasAuspiciador] = eventoId ? await Promise.all([
+      this.prisma.auspiciador.findMany({
+        where: { evento_id: eventoId, estaActivo: 1 },
+        select: { id: true, personas: { where: { estaActivo: 1 }, select: { id: true } } },
+      }),
+      this.prisma.asistenciaauspiciador.findMany({
+        where: { evento_id: eventoId, estaActivo: 1 },
+        select: { auspiciadorpersona_id: true, auspiciadorpersona: { select: { auspiciador_id: true } } },
+      }),
+    ]) : [[], []];
+    const auspiciadoresTotal = auspiciadoresConPersonas.length;
+    const auspiciadorPersonasTotal = auspiciadoresConPersonas.reduce((suma, a) => suma + a.personas.length, 0);
+    const auspiciadoresAsistentesIds = new Set(asistenciasAuspiciador.map((a) => a.auspiciadorpersona.auspiciador_id));
+    const auspiciadorPersonasAsistentesIds = new Set(asistenciasAuspiciador.map((a) => a.auspiciadorpersona_id));
+
     return {
       kpis: {
         empresasRegistradas: empresasTotal,
@@ -3863,13 +3977,13 @@ export class AppController implements OnModuleInit {
       rankingEmpresas: impacto?.ranking ?? [],
       calificaciones: impacto?.calificaciones ?? [],
       asistencia: {
-        empresasRegistradas: empresasTotal,
-        empresasAsistentes: impacto?.empresasAsistentes ?? 0,
-        empresasSinAsistencia: Math.max(0, empresasTotal - (impacto?.empresasAsistentes ?? 0)),
-        personasRegistradas: participantesTotal,
-        personasAsistentes: impacto?.personasAsistentes ?? 0,
-        personasSinAsistencia: Math.max(0, participantesTotal - (impacto?.personasAsistentes ?? 0)),
-        registros: impacto?.registrosAsistencia ?? 0,
+        empresasRegistradas: empresasTotal + auspiciadoresTotal,
+        empresasAsistentes: (impacto?.empresasAsistentes ?? 0) + auspiciadoresAsistentesIds.size,
+        empresasSinAsistencia: Math.max(0, (empresasTotal + auspiciadoresTotal) - ((impacto?.empresasAsistentes ?? 0) + auspiciadoresAsistentesIds.size)),
+        personasRegistradas: participantesTotal + auspiciadorPersonasTotal,
+        personasAsistentes: (impacto?.personasAsistentes ?? 0) + auspiciadorPersonasAsistentesIds.size,
+        personasSinAsistencia: Math.max(0, (participantesTotal + auspiciadorPersonasTotal) - ((impacto?.personasAsistentes ?? 0) + auspiciadorPersonasAsistentesIds.size)),
+        registros: (impacto?.registrosAsistencia ?? 0) + asistenciasAuspiciador.length,
       },
       indiceExito: {
         valor: impacto?.indiceExito ?? 0,
@@ -3961,7 +4075,7 @@ export class AppController implements OnModuleInit {
           EstrellasDadas: fila.estrellasDadas,
           EvaluacionesDadas: fila.evaluacionesDadas,
           PromedioCalificacionDada: fila.promedioCalificacionDada,
-          DineroGeneradoAproxUSD: fila.dineroGenerado,
+          DineroGeneradoAproxBs: fila.dineroGenerado,
         })),
       };
     }
@@ -4117,10 +4231,50 @@ export class AppController implements OnModuleInit {
         },
       });
 
-    const mesasConEstado = mesas.map((m) => ({
-      ...m,
-      estadoMesa: this.computeEstadoMesa(m.reunion),
-    }));
+    // Solicitudes PENDIENTES con mesa elegida: la mesa queda "pre-reservada"
+    // para que el técnico vea la intención aunque aún no se acepte — si no,
+    // en "Programadas" solo aparecen las reuniones ya confirmadas y las
+    // solicitudes en espera de respuesta quedan invisibles en esta pantalla.
+    const ventana = this.ventanaReunionesEvento(eventoConfig);
+    const solicitudesPendientes = await this.prisma.solicitudreunion.findMany({
+      where: {
+        estaActivo: 1,
+        estadoSolicitud: 'PENDIENTE',
+        mesa_id: { gt: 0 },
+        fechaHoraInicioPropuesta: { gte: ventana.start },
+        fechaHoraFinPropuesta: { lte: ventana.end },
+        empresaevento_solicitudreunion_empresaEvento_idToempresaevento: {
+          evento_id: eventoId, estaActivo: 1, empresa: { estaActivo: 1 },
+        },
+        empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento: {
+          evento_id: eventoId, estaActivo: 1, empresa: { estaActivo: 1 },
+        },
+      },
+      include: {
+        empresaevento_solicitudreunion_empresaEvento_idToempresaevento: { include: { empresa: { select: { nombre: true } } } },
+        empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento: { include: { empresa: { select: { nombre: true } } } },
+      },
+    });
+    const pendientesPorMesa = new Map<number, any[]>();
+    for (const s of solicitudesPendientes) {
+      if (!s.mesa_id) continue;
+      const arr = pendientesPorMesa.get(s.mesa_id) ?? [];
+      arr.push({
+        solicitudId: s.id,
+        inicio: s.fechaHoraInicioPropuesta,
+        fin: s.fechaHoraFinPropuesta,
+        solicitante: (s as any).empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa?.nombre ?? '—',
+        receptora: (s as any).empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento?.empresa?.nombre ?? '—',
+      });
+      pendientesPorMesa.set(s.mesa_id, arr);
+    }
+
+    const mesasConEstado = mesas.map((m) => {
+      let estadoMesa = this.computeEstadoMesa(m.reunion);
+      const solicitudesEnEspera = pendientesPorMesa.get(m.id) ?? [];
+      if (estadoMesa === 'LIBRE' && solicitudesEnEspera.length > 0) estadoMesa = 'PRE_RESERVADA';
+      return { ...m, estadoMesa, solicitudesEnEspera };
+    });
 
     return { mesas: mesasConEstado, eventoConfig };
   }
@@ -4235,8 +4389,8 @@ export class AppController implements OnModuleInit {
       { calificacion: Number(body.calificacionA), rango: body.rangoA, observaciones: body.observacionesA },
       { calificacion: Number(body.calificacionB), rango: body.rangoB, observaciones: body.observacionesB },
     ];
-    if (campos.some((v) => v.calificacion < 1 || v.calificacion > 5 || !v.rango?.trim() || !v.observaciones?.trim()))
-      throw new BadRequestException('Completa la calificación, rango y observaciones de ambas empresas');
+    if (campos.some((v) => v.calificacion < 1 || v.calificacion > 5 || !v.rango?.trim()))
+      throw new BadRequestException('Completa la calificación y el rango de acuerdo de ambas empresas');
     const sol = reunion.solicitudreunion;
     const autores = await Promise.all([
       this.prisma.empresa_usuario.findFirst({ where: { empresaevento_id: sol.empresaEvento_id, estaActivo: 1 }, orderBy: { esResponsable: 'desc' } }),
@@ -4261,7 +4415,7 @@ export class AppController implements OnModuleInit {
             reunion_id: reunionId, empresaeventoCalificadora_id: ev.calificadora,
             empresaeventoCalificada_id: ev.calificada, empresa_usuario_id: ev.autor,
             calificacionReunion: ev.calificacion, rangoAcuerdoComercial: ev.rango.trim(),
-            observacionesPuntosTratados: ev.observaciones.trim(), estaActivo: 1,
+            observacionesPuntosTratados: (ev.observaciones ?? '').trim(), estaActivo: 1,
           },
         });
       }
@@ -4479,6 +4633,11 @@ export class AppController implements OnModuleInit {
       : sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento;
     const usuario = ee?.empresa_usuario?.[0]?.usuario;
     if (!usuario?.correo) throw new BadRequestException('No se encontró el encargado de la empresa');
+
+    await this.notificar(
+      ee.id, 'mensaje:tecnico', 'Mensaje del técnico',
+      body.mensaje.trim().slice(0, 200), Number(id), 'reunion',
+    );
 
     const transporter = createMailTransporter();
     await transporter.sendMail({
@@ -5641,18 +5800,21 @@ export class AppController implements OnModuleInit {
     }
 
     // ── solicitudes pendientes ───────────────────────────────────────────────
+    // Solo las RECIBIDAS: son las que requieren una acción tuya (aceptar o
+    // rechazar). Una solicitud que TÚ enviaste y sigue pendiente no necesita
+    // que hagas nada todavía, así que no tiene sentido avisarte de ella aquí.
     if (/solicitud|pedido|pendiente/i.test(msg)) {
       const pendientes = await this.prisma.solicitudreunion.count({
         where: {
           estaActivo: 1,
           estadoSolicitud: 'PENDIENTE',
-          OR: [{ empresaEvento_id: eeId }, { empresaEventorReceptora_id: eeId }],
+          empresaEventorReceptora_id: eeId,
         },
       });
       return {
         respuesta: pendientes > 0
-          ? `Tienes ${pendientes} solicitud(es) de reunión pendiente(s). Revísalas en la sección Solicitudes.`
-          : 'No tienes solicitudes de reunión pendientes.',
+          ? `Tienes ${pendientes} solicitud(es) de reunión recibida(s) pendiente(s) de responder. Revísalas en la sección Solicitudes.`
+          : 'No tienes solicitudes de reunión recibidas pendientes de responder.',
       };
     }
 
@@ -6567,7 +6729,13 @@ export class AppController implements OnModuleInit {
     if (!configurado) dias = this.fechasReunionesEvento(inscripcion.evento).map((fecha) => ({
       fecha, habilitado: true, rangos: porFecha.get(fecha) ?? [],
     }));
-    return { configurado, dias };
+    // Rangos horarios de reuniones definidos por el admin para cada día del
+    // evento, para que la empresa vea contra qué límite debe configurar su
+    // propia disponibilidad (independiente de si ya la configuró o no).
+    const ventanasEvento = this.fechasReunionesEvento(inscripcion.evento).map((fecha) => ({
+      fecha, rangos: porFecha.get(fecha) ?? [],
+    }));
+    return { configurado, dias, ventanasEvento };
   }
 
   @Post('empresa/horarios-empresa/dias')
@@ -7768,8 +7936,8 @@ export class AppController implements OnModuleInit {
   @Post('empresa/resultados')
   async registrarResultado(@Body() body: any) {
     const { eeId, euId, reunionId, calificacion, rango, observaciones } = body;
-    if (!eeId || !euId || !reunionId || !calificacion || !rango || !String(observaciones ?? '').trim())
-      throw new BadRequestException('Calificación, rango de acuerdo y observaciones son obligatorios');
+    if (!eeId || !euId || !reunionId || !calificacion || !rango)
+      throw new BadRequestException('Calificación y rango de acuerdo son obligatorios');
 
     // Verificar que la reunión existe y la empresa participa
     const reunion = await this.prisma.reunion.findFirst({
@@ -7818,7 +7986,7 @@ export class AppController implements OnModuleInit {
         empresa_usuario_id: Number(euId),
         calificacionReunion: Number(calificacion),
         rangoAcuerdoComercial: rango,
-        observacionesPuntosTratados: String(observaciones).trim(),
+        observacionesPuntosTratados: String(observaciones ?? '').trim(),
         estaActivo: 1,
       },
     });
@@ -8274,6 +8442,32 @@ export class AppController implements OnModuleInit {
 
   // ─── Admin pagos adicionales endpoints ────────────────────────────────────
 
+  @Get('admin/finanzas/resumen')
+  async getResumenFinanciero() {
+    const eventoId = await this.getPrincipalEventoId();
+    if (!eventoId) return { totalPaquetes: 0, totalAdicionales: 0, total: 0, cantidadPagosPaquetes: 0, cantidadPagosAdicionales: 0 };
+
+    const [pagosPaquetes, pagosAdicionales] = await Promise.all([
+      this.prisma.empresaevento.findMany({
+        where: { evento_id: eventoId, estaActivo: 1, estadoVerificacionPago: 'COMPLETADO' },
+        select: { montoPagado: true },
+      }),
+      this.prisma.empresaeventocomprobantes.findMany({
+        where: { estaActivo: 1, tipoPago: 'ADICIONAL', estadoPago: 'COMPLETADO', empresaevento: { evento_id: eventoId } },
+        select: { montoPago: true },
+      }),
+    ]);
+    const totalPaquetes = pagosPaquetes.reduce((suma, p) => suma + Number(p.montoPagado ?? 0), 0);
+    const totalAdicionales = pagosAdicionales.reduce((suma, p) => suma + Number(p.montoPago ?? 0), 0);
+    return {
+      totalPaquetes,
+      totalAdicionales,
+      total: totalPaquetes + totalAdicionales,
+      cantidadPagosPaquetes: pagosPaquetes.length,
+      cantidadPagosAdicionales: pagosAdicionales.length,
+    };
+  }
+
   @Get('admin/pagos-adicionales')
   async getPagosAdicionalesAdmin(@Query('estado') estado?: string) {
     const eventoId = await this.getPrincipalEventoId();
@@ -8441,8 +8635,6 @@ export class AppController implements OnModuleInit {
     try {
       if (!body.correo || !body.codigo || !body.nuevaContrasenia)
         throw new BadRequestException('Todos los campos son requeridos');
-      if (body.nuevaContrasenia.length < 6)
-        throw new BadRequestException('La contraseña debe tener al menos 6 caracteres');
 
       // Obtener el usuario con token más reciente para ese correo
       validarPasswordSegura(body.nuevaContrasenia);

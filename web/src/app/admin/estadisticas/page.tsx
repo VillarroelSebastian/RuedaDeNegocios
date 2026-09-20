@@ -4,16 +4,66 @@ import { Building2, Users, CalendarCheck, Handshake, Shield, Clock, TrendingUp, 
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
+// Medidor circular (SVG): una proporción única contra un límite (0-100%).
+// El relleno lleva el color de acento; la pista es un paso más claro de la
+// misma rampa, para que el estado se lea en toda la barra (no gris neutro).
+function RadialGauge({
+  value, size = 128, stroke = 12, color, trackColor, centerValue, centerLabel,
+}: {
+  value: number; size?: number; stroke?: number; color: string; trackColor: string;
+  centerValue: React.ReactNode; centerLabel: string;
+}) {
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const clamped = Math.max(0, Math.min(100, value));
+  const offset = c * (1 - clamped / 100);
+  return (
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: 'rotate(-90deg)' }}>
+        <circle cx={size / 2} cy={size / 2} r={r} stroke={trackColor} strokeWidth={stroke} fill="none" />
+        <circle
+          cx={size / 2} cy={size / 2} r={r} stroke={color} strokeWidth={stroke} fill="none"
+          strokeLinecap="round" strokeDasharray={c} strokeDashoffset={offset}
+          style={{ transition: 'stroke-dashoffset 700ms ease' }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-2xl font-extrabold text-gray-900">{centerValue}</span>
+        <span className="text-[9px] font-bold uppercase text-gray-400">{centerLabel}</span>
+      </div>
+    </div>
+  );
+}
+
+// Barra apilada horizontal: proporción de 2-3 categorías dentro de un total.
+function StackedBarH({ segments }: { segments: { value: number; color: string; label: string }[] }) {
+  const total = Math.max(segments.reduce((s, x) => s + x.value, 0), 1);
+  return (
+    <div className="flex h-3 w-full overflow-hidden rounded-full bg-gray-100">
+      {segments.map((s, i) => s.value > 0 && (
+        <div key={s.label} title={`${s.label}: ${s.value}`}
+          style={{ width: `${(s.value / total) * 100}%`, backgroundColor: s.color, marginLeft: i > 0 ? 2 : 0 }}
+          className="h-full first:rounded-l-full last:rounded-r-full" />
+      ))}
+    </div>
+  );
+}
+
 export default function EstadisticasPage() {
   const [stats, setStats] = useState<any>(null);
+  const [finanzas, setFinanzas] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchStats = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API}/admin/estadisticas`);
-      setStats(await res.json());
-    } catch { setStats(null); }
+      const [statsRes, finanzasRes] = await Promise.all([
+        fetch(`${API}/admin/estadisticas`),
+        fetch(`${API}/admin/finanzas/resumen`),
+      ]);
+      setStats(await statsRes.json());
+      setFinanzas(finanzasRes.ok ? await finanzasRes.json() : null);
+    } catch { setStats(null); setFinanzas(null); }
     finally { setLoading(false); }
   };
 
@@ -29,10 +79,10 @@ export default function EstadisticasPage() {
       ['Personas con asistencia', stats.kpis.personasAsistentes],
       ['Reuniones realizadas', stats.kpis.reunionesRealizadas],
       ['Promedio de calificación', stats.kpis.promedioCalificacion],
-      ['Dinero generado aproximado (USD)', stats.kpis.totalGeneradoAprox],
+      ['Dinero generado aproximado (Bs.)', stats.kpis.totalGeneradoAprox],
       ['Índice de éxito', `${stats.kpis.indiceExito}%`],
       [],
-      ['Empresa', 'Reuniones', 'Estrellas dadas', 'Dinero generado aproximado (USD)'],
+      ['Empresa', 'Reuniones', 'Estrellas dadas', 'Dinero generado aproximado (Bs.)'],
       ...(stats.rankingEmpresas ?? []).map((e: any) => [e.nombre, e.reuniones, e.estrellasDadas, e.dineroGenerado]),
     ];
     const csv = filas.map((fila: any[]) => fila.map((valor) => `"${String(valor ?? '').replace(/"/g, '""')}"`).join(';')).join('\n');
@@ -84,7 +134,7 @@ export default function EstadisticasPage() {
     { label: 'EMPRESAS QUE ASISTIERON', value: stats.kpis.empresasAsistentes ?? 0, icon: Users, color: 'text-cyan-600', bg: 'bg-cyan-50' },
     { label: 'PERSONAS QUE ASISTIERON', value: stats.kpis.personasAsistentes ?? 0, icon: CalendarCheck, color: 'text-teal-600', bg: 'bg-teal-50' },
     { label: 'CALIFICACIÓN PROMEDIO', value: `${Number(stats.kpis.promedioCalificacion ?? 0).toFixed(2)}/5`, icon: Star, color: 'text-yellow-600', bg: 'bg-yellow-50' },
-    { label: 'DINERO GENERADO APROX.', value: `$us ${Number(stats.kpis.totalGeneradoAprox ?? 0).toLocaleString('es-BO')}`, icon: DollarSign, color: 'text-emerald-700', bg: 'bg-emerald-50' },
+    { label: 'DINERO GENERADO APROX.', value: `Bs. ${Number(stats.kpis.totalGeneradoAprox ?? 0).toLocaleString('es-BO')}`, icon: DollarSign, color: 'text-emerald-700', bg: 'bg-emerald-50' },
     { label: 'ÍNDICE DE ÉXITO', value: `${stats.kpis.indiceExito ?? 0}%`, icon: Award, color: 'text-violet-600', bg: 'bg-violet-50' },
   ];
 
@@ -174,6 +224,36 @@ export default function EstadisticasPage() {
           );
         })}
       </div>
+
+      {/* Recaudación total del evento */}
+      {finanzas && (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 mb-6">
+          <h2 className="font-bold text-gray-900 mb-1">Recaudación total del evento</h2>
+          <p className="text-xs text-gray-500 mb-5">Suma de pagos de paquetes y pagos adicionales verificados.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
+            <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-4">
+              <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider mb-1">Total recaudado</p>
+              <p className="text-2xl font-bold text-emerald-800">Bs. {Number(finanzas.total).toLocaleString('es-BO')}</p>
+            </div>
+            <div className="rounded-xl bg-gray-50 border border-gray-100 p-4">
+              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Paquetes ({finanzas.cantidadPagosPaquetes})</p>
+              <p className="text-2xl font-bold text-gray-900">Bs. {Number(finanzas.totalPaquetes).toLocaleString('es-BO')}</p>
+            </div>
+            <div className="rounded-xl bg-gray-50 border border-gray-100 p-4">
+              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Pagos adicionales ({finanzas.cantidadPagosAdicionales})</p>
+              <p className="text-2xl font-bold text-gray-900">Bs. {Number(finanzas.totalAdicionales).toLocaleString('es-BO')}</p>
+            </div>
+          </div>
+          <StackedBarH segments={[
+            { label: 'Paquetes', value: finanzas.totalPaquetes, color: '#449D3A' },
+            { label: 'Pagos adicionales', value: finanzas.totalAdicionales, color: '#93c5fd' },
+          ]} />
+          <div className="mt-2 flex gap-4 text-xs text-gray-500">
+            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: '#449D3A' }} />Paquetes</span>
+            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: '#93c5fd' }} />Pagos adicionales</span>
+          </div>
+        </div>
+      )}
 
       {/* Charts row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
@@ -280,32 +360,33 @@ export default function EstadisticasPage() {
       {(stats.rankingEmpresas ?? []).length > 0 && <div className="mt-6 overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
         <div className="border-b border-gray-100 p-6"><h2 className="font-bold text-gray-900">Impacto por empresa</h2><p className="mt-1 text-xs text-gray-500">Orden inicial por reuniones; el reporte permite ordenar también por estrellas y monto.</p></div>
         <div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-gray-50 text-left text-[10px] font-bold uppercase text-gray-500"><tr><th className="px-5 py-3">Empresa</th><th className="px-5 py-3">Reuniones</th><th className="px-5 py-3">Estrellas dadas</th><th className="px-5 py-3">Monto reportado aprox.</th></tr></thead><tbody className="divide-y divide-gray-50">
-          {(stats.rankingEmpresas ?? []).slice(0, 10).map((empresa: any) => <tr key={empresa.empresaEventoId}><td className="px-5 py-3 font-semibold text-gray-800">{empresa.nombre}</td><td className="px-5 py-3">{empresa.reuniones}</td><td className="px-5 py-3">{empresa.estrellasDadas}</td><td className="px-5 py-3 font-semibold text-emerald-700">$us {Number(empresa.dineroGenerado).toLocaleString('es-BO')}</td></tr>)}
+          {(stats.rankingEmpresas ?? []).slice(0, 10).map((empresa: any) => <tr key={empresa.empresaEventoId}><td className="px-5 py-3 font-semibold text-gray-800">{empresa.nombre}</td><td className="px-5 py-3">{empresa.reuniones}</td><td className="px-5 py-3">{empresa.estrellasDadas}</td><td className="px-5 py-3 font-semibold text-emerald-700">Bs. {Number(empresa.dineroGenerado).toLocaleString('es-BO')}</td></tr>)}
         </tbody></table></div>
       </div>}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
           <h2 className="font-bold text-gray-900 mb-1">Asistencia empresarial</h2>
-          <p className="text-xs text-gray-500 mb-5">Empresas registradas frente a empresas con al menos un ingreso por QR.</p>
-          <div className="flex flex-col items-center gap-6 sm:flex-row">
-            <div className="relative w-32 h-32 rounded-full flex items-center justify-center"
-              style={{ background: `conic-gradient(#449D3A 0 ${(stats.asistencia.empresasAsistentes / Math.max(stats.asistencia.empresasRegistradas, 1)) * 100}%, #e5e7eb 0)` }}>
-              <div className="w-20 h-20 rounded-full bg-white flex flex-col items-center justify-center">
-                <span className="text-2xl font-extrabold">{stats.asistencia.empresasAsistentes}</span>
-                <span className="text-[10px] text-gray-400">ASISTIERON</span>
-              </div>
+          <p className="text-xs text-gray-500 mb-5">Registrados frente a quienes tuvieron al menos un ingreso por QR.</p>
+          <div className="flex flex-wrap items-center justify-around gap-6">
+            <div className="flex flex-col items-center gap-2">
+              <RadialGauge
+                value={(stats.asistencia.empresasAsistentes / Math.max(stats.asistencia.empresasRegistradas, 1)) * 100}
+                color="#449D3A" trackColor="#dcfce7"
+                centerValue={stats.asistencia.empresasAsistentes} centerLabel="Asistieron"
+              />
+              <p className="text-xs text-gray-500"><span className="font-bold text-gray-900">{stats.asistencia.empresasRegistradas}</span> empresas registradas · <span className="font-bold text-gray-500">{stats.asistencia.empresasSinAsistencia}</span> sin asistencia</p>
             </div>
-            <div className="space-y-2 text-sm">
-              <p><span className="font-bold text-gray-900">{stats.asistencia.empresasRegistradas}</span> registradas</p>
-              <p><span className="font-bold text-green-700">{stats.asistencia.empresasAsistentes}</span> con asistencia</p>
-              <p><span className="font-bold text-gray-500">{stats.asistencia.empresasSinAsistencia}</span> sin asistencia</p>
-              <p className="pt-2"><span className="font-bold text-gray-900">{stats.asistencia.personasRegistradas}</span> personas registradas</p>
-              <p><span className="font-bold text-teal-700">{stats.asistencia.personasAsistentes}</span> personas que asistieron</p>
-              <p><span className="font-bold text-gray-500">{stats.asistencia.personasSinAsistencia}</span> personas sin asistencia</p>
-              <p className="text-xs text-gray-400">{stats.asistencia.registros} lecturas QR registradas</p>
+            <div className="flex flex-col items-center gap-2">
+              <RadialGauge
+                value={(stats.asistencia.personasAsistentes / Math.max(stats.asistencia.personasRegistradas, 1)) * 100}
+                color="#0d9488" trackColor="#ccfbf1"
+                centerValue={stats.asistencia.personasAsistentes} centerLabel="Asistieron"
+              />
+              <p className="text-xs text-gray-500"><span className="font-bold text-gray-900">{stats.asistencia.personasRegistradas}</span> personas registradas · <span className="font-bold text-gray-500">{stats.asistencia.personasSinAsistencia}</span> sin asistencia</p>
             </div>
           </div>
+          <p className="mt-5 text-center text-xs text-gray-400">{stats.asistencia.registros} lecturas QR registradas</p>
         </div>
 
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
@@ -325,20 +406,32 @@ export default function EstadisticasPage() {
 
       <div className="mt-6 rounded-xl border border-violet-200 bg-violet-50 p-6">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center">
-          <div className="shrink-0 text-center lg:w-48">
-            <Award className="mx-auto h-9 w-9 text-violet-600" />
-            <p className="mt-2 text-4xl font-extrabold text-violet-950">{stats.indiceExito.valor}%</p>
+          <div className="flex shrink-0 flex-col items-center gap-1 lg:w-48">
+            <RadialGauge
+              value={stats.indiceExito.valor} size={140} stroke={14}
+              color="#7c3aed" trackColor="#ede9fe"
+              centerValue={<Award className="h-6 w-6 text-violet-600 mb-0.5 mx-auto" />}
+              centerLabel=""
+            />
+            <p className="-mt-2 text-3xl font-extrabold text-violet-950">{stats.indiceExito.valor}%</p>
             <p className="text-xs font-bold uppercase text-violet-700">Índice de éxito</p>
           </div>
           <div className="flex-1">
             <p className="text-sm text-violet-900">{stats.indiceExito.descripcion}</p>
             <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {Object.entries(stats.indiceExito.componentes).map(([clave, valor]: any) => (
-                <div key={clave} className="rounded-lg bg-white p-3">
-                  <p className="text-[10px] font-bold uppercase text-gray-500">{clave.replace(/([A-Z])/g, ' $1')}</p>
-                  <p className="text-xl font-extrabold text-violet-900">{valor}%</p>
-                </div>
-              ))}
+              {(() => {
+                const pesos: Record<string, number> = { realizacion: 35, asistencia: 25, satisfaccion: 25, coberturaEncuestas: 15 };
+                const colores = ['#7c3aed', '#a78bfa', '#c4b5fd', '#ddd6fe'];
+                return Object.entries(stats.indiceExito.componentes).map(([clave, valor]: any, i) => (
+                  <div key={clave} className="rounded-lg bg-white p-3">
+                    <p className="text-[10px] font-bold uppercase text-gray-500">{clave.replace(/([A-Z])/g, ' $1')} <span className="text-gray-300">· {pesos[clave] ?? '—'}%</span></p>
+                    <p className="text-xl font-extrabold text-violet-900">{valor}%</p>
+                    <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-violet-100">
+                      <div className="h-full rounded-full" style={{ width: `${valor}%`, backgroundColor: colores[i % colores.length] }} />
+                    </div>
+                  </div>
+                ));
+              })()}
             </div>
           </div>
         </div>

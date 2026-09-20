@@ -25,11 +25,16 @@ export default function TecnicoAsistenciaScreen() {
   const [loading, setLoading] = useState(true);
   const escaneoBloqueadoRef = useRef(false);
   const registroBloqueadoRef = useRef(false);
+  // Cada llamada a cargar() se numera; si dos quedan en vuelo a la vez (p. ej.
+  // por un doble escaneo), solo se aplica la respuesta de la más reciente,
+  // sin importar cuál de las dos conexiones responda primero.
+  const cargaSeqRef = useRef(0);
   const { show, modal } = useModal();
   const tecnicoId = userStore.get()?.id;
 
   const cargar = useCallback(async (empresa = empresaEscaneada) => {
     if (!tecnicoId) return;
+    const miSeq = ++cargaSeqRef.current;
     if (!empresa) {
       setAsistencias([]);
       setLoading(false);
@@ -40,10 +45,12 @@ export default function TecnicoAsistenciaScreen() {
       if (empresa.tipo === "PARTICIPANTE") {
         const res = await fetch(`${API_URL}/tecnico/asistencias?empresaEventoId=${empresa.id}`);
         const data = await res.json();
+        if (miSeq !== cargaSeqRef.current) return;
         setAsistencias((Array.isArray(data) ? data : []).map((a: any) => ({ ...a, tipo: "PARTICIPANTE" })));
       } else {
         const res = await fetch(`${API_URL}/tecnico/asistencias-auspiciadores`);
         const data = await res.json();
+        if (miSeq !== cargaSeqRef.current) return;
         setAsistencias((Array.isArray(data) ? data : []).filter((a: any) =>
           a.auspiciadorpersona?.auspiciador?.nombreEmpresa === empresa.nombre,
         ).map((a: any) => ({ ...a, tipo: "AUSPICIADOR" })).sort(
@@ -52,24 +59,38 @@ export default function TecnicoAsistenciaScreen() {
         ));
       }
     } finally {
-      setLoading(false);
+      if (miSeq === cargaSeqRef.current) setLoading(false);
     }
   }, [empresaEscaneada, tecnicoId]);
 
   useFocusEffect(
     useCallback(() => {
       cargar(empresaEscaneada);
+      // Refresco automático: otros técnicos pueden estar registrando
+      // asistencia de la misma empresa al mismo tiempo.
+      const interval = setInterval(() => cargar(empresaEscaneada), 15000);
+      return () => clearInterval(interval);
     }, [cargar]),
   );
 
   const procesarQR = async (contenido: string) => {
+    // El guard y el `setProcesando(true)` van juntos, ANTES que cualquier otra
+    // cosa (incluso antes de validar el formato del QR): así, apenas la
+    // cámara detecta un código, el prop `onBarcodeScanned` de abajo se
+    // desactiva en el siguiente render y no vuelve a llamar a esta función,
+    // aunque la cámara siga entregando fotogramas mientras la vista de
+    // escaneo se desmonta. Antes esto se reseteaba apenas se verificaba la
+    // credencial (antes de terminar de procesar), lo que dejaba una ventana
+    // en la que un mismo QR podía dispararse 2 o más veces seguidas.
     if (procesando || escaneoBloqueadoRef.current) return;
     escaneoBloqueadoRef.current = true;
+    setProcesando(true);
     const match = contenido.match(/\/credencial\/(\d+)\/?\?t=([a-zA-Z0-9_-]+)/);
     const matchAusp = contenido.match(
       /\/credencial\/auspiciador\/(\d+)\/?\?t=([a-zA-Z0-9_-]+)/,
     );
     if (!match && !matchAusp) {
+      setProcesando(false);
       show({
         type: "error",
         title: "QR no valido",
@@ -79,7 +100,6 @@ export default function TecnicoAsistenciaScreen() {
       });
       return;
     }
-    setProcesando(true);
     try {
       const auspiciador = Boolean(matchAusp);
       const partes = matchAusp || match!;
@@ -90,8 +110,11 @@ export default function TecnicoAsistenciaScreen() {
       const data = await res.json();
       if (!res.ok)
         throw new Error(data?.message || "No se pudo verificar la credencial.");
+      // Se deja `escaneoBloqueadoRef` en true a propósito: solo se vuelve a
+      // habilitar cuando el técnico pide explícitamente un nuevo escaneo
+      // (botón "Escanear QR" / "Escanear otra credencial"), nunca de forma
+      // automática al terminar de verificar.
       setEscaneando(false);
-      escaneoBloqueadoRef.current = false;
       setPendiente({
         ...(auspiciador
           ? { personaId: Number(partes[1]) }
@@ -221,7 +244,11 @@ export default function TecnicoAsistenciaScreen() {
         <CameraView
           style={{ flex: 1 }}
           barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
-          onBarcodeScanned={({ data }) => procesarQR(data)}
+          // `undefined` mientras se procesa un escaneo detiene por completo
+          // los fotogramas que llegan a esta función (no solo un guard en
+          // JS): evita que la cámara dispare el mismo QR varias veces
+          // seguidas mientras la vista de escaneo termina de cerrarse.
+          onBarcodeScanned={procesando ? undefined : ({ data }) => procesarQR(data)}
         />
         <View
           style={{
@@ -361,7 +388,10 @@ export default function TecnicoAsistenciaScreen() {
               onPress={() => {
                 setPendiente(null);
                 setRegistroCompletado(false);
-                if (registroCompletado || pendiente.asistencia?.registrada) setEscaneando(true);
+                if (registroCompletado || pendiente.asistencia?.registrada) {
+                  escaneoBloqueadoRef.current = false;
+                  setEscaneando(true);
+                }
               }}
               style={{
                 width: "100%",

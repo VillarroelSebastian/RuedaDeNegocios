@@ -11,13 +11,18 @@ import { API_URL, userStore } from '../../utils/userStore';
 const GREEN = '#449D3A';
 
 const RANGOS = [
-  'Sin acuerdo',
-  'Hasta $us 5.000',
-  'Hasta $us 10.000',
-  'Hasta $us 25.000',
-  'Hasta $us 50.000',
-  'Hasta $us 100.000',
-  'Más de $us 100.000',
+  'No hubo acuerdo',
+  'Bs 100 - 1.000',
+  'Bs 1.000 - 5.000',
+  'Más de Bs 5.000',
+];
+
+const OBSERVACIONES_PREDEFINIDAS = [
+  'Se acordó continuar la negociación',
+  'Reunión informativa, sin compromisos',
+  'Se solicitó más información o catálogo',
+  'Se coordinará una siguiente reunión',
+  'No hubo interés en continuar',
 ];
 
 function fmtDate(iso: string) {
@@ -38,7 +43,6 @@ export default function EmpresaResultadosScreen({ route }: any) {
   const [calificacion, setCalificacion] = useState(0);
   const [rango,        setRango]        = useState(RANGOS[0]);
   const [observacion,  setObservacion]  = useState('');
-  const [interes,      setInteres]      = useState(false);
   const [saving,       setSaving]       = useState(false);
   const [saveError,    setSaveError]    = useState('');
   const [saveOk,       setSaveOk]       = useState(false);
@@ -87,7 +91,6 @@ export default function EmpresaResultadosScreen({ route }: any) {
     setCalificacion(0);
     setRango(RANGOS[0]);
     setObservacion('');
-    setInteres(false);
     setSaveError('');
     setSaveOk(false);
     setModalVisible(true);
@@ -95,7 +98,6 @@ export default function EmpresaResultadosScreen({ route }: any) {
 
   const handleSubmit = async () => {
     if (calificacion === 0) { setSaveError('Selecciona una calificación de 1 a 5 estrellas.'); return; }
-    if (!observacion.trim()) { setSaveError('Escribe los puntos tratados, compromisos u observaciones de la reunión.'); return; }
     setSaveError('');
     setSaving(true);
     try {
@@ -184,12 +186,6 @@ export default function EmpresaResultadosScreen({ route }: any) {
                 <Text style={s.resultDate}>{fmtDate(r.fechaCreacion)}</Text>
                 {r.rangoAcuerdoComercial && <Text style={s.resultRango}>Acuerdo: {r.rangoAcuerdoComercial}</Text>}
                 {r.observacionesPuntosTratados && <Text style={s.resultObs}>{r.observacionesPuntosTratados}</Text>}
-                {r.interesEnSeguimiento && (
-                  <View style={s.interesTag}>
-                    <CheckCircle size={11} color={GREEN} style={{ marginRight: 3 }} />
-                    <Text style={s.interesText}>Con interés en seguimiento</Text>
-                  </View>
-                )}
               </View>
             ))}
           </>
@@ -254,10 +250,21 @@ export default function EmpresaResultadosScreen({ route }: any) {
                   </ScrollView>
 
                   {/* Observación */}
-                  <Text style={s.label}>Observaciones</Text>
+                  <Text style={s.label}>Observaciones (opcional)</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
+                    {OBSERVACIONES_PREDEFINIDAS.map((o) => (
+                      <TouchableOpacity
+                        key={o}
+                        style={[s.rangoPill, observacion === o && s.rangoPillActive]}
+                        onPress={() => setObservacion(o)}
+                      >
+                        <Text style={[s.rangoText, observacion === o && s.rangoTextActive]}>{o}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
                   <TextInput
                     style={s.textarea}
-                    placeholder="Describe los temas tratados, acuerdos alcanzados..."
+                    placeholder="O escribe una observación propia..."
                     placeholderTextColor="#9ca3af"
                     multiline
                     numberOfLines={4}
@@ -265,14 +272,6 @@ export default function EmpresaResultadosScreen({ route }: any) {
                     onChangeText={setObservacion}
                     textAlignVertical="top"
                   />
-
-                  {/* Interés */}
-                  <TouchableOpacity style={s.checkRow} onPress={() => setInteres(v => !v)}>
-                    <View style={[s.checkbox, interes && s.checkboxChecked]}>
-                      {interes && <CheckCircle size={14} color="#fff" />}
-                    </View>
-                    <Text style={s.checkLabel}>Interés en seguimiento</Text>
-                  </TouchableOpacity>
 
                   <TouchableOpacity
                     style={[s.btnPrimary, saving && { opacity: 0.7 }]}
@@ -336,11 +335,6 @@ const s = StyleSheet.create({
   resultDate:       { fontSize: 11, color: '#94a3b8', marginBottom: 4 },
   resultRango:      { fontSize: 12, color: '#64748b', marginBottom: 2, fontWeight: '600' },
   resultObs:        { fontSize: 12, color: '#64748b', lineHeight: 18, marginTop: 4 },
-  interesTag: {
-    flexDirection: 'row', alignItems: 'center', marginTop: 6,
-    backgroundColor: '#f0fdf4', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, alignSelf: 'flex-start',
-  },
-  interesText: { fontSize: 11, color: GREEN, fontWeight: '600' },
 
   overlay:  { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalCard: {
@@ -363,13 +357,6 @@ const s = StyleSheet.create({
     backgroundColor: '#f8fafc', borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0',
     padding: 12, fontSize: 14, color: '#0f172a', height: 100, marginBottom: 16,
   },
-  checkRow:       { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
-  checkbox: {
-    width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: '#d1d5db',
-    marginRight: 10, alignItems: 'center', justifyContent: 'center',
-  },
-  checkboxChecked: { backgroundColor: GREEN, borderColor: GREEN },
-  checkLabel: { fontSize: 14, color: '#374151', fontWeight: '600' },
   btnPrimary: {
     backgroundColor: GREEN, borderRadius: 14, height: 50,
     alignItems: 'center', justifyContent: 'center', marginTop: 8,

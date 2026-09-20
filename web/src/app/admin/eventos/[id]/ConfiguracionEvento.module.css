@@ -77,7 +77,7 @@
 .icon {
   width: 1.25rem;
   height: 1.25rem;
-  color: #5B9A27;
+  color: #449D3A;
 }
 
 .sectionTitle {
@@ -144,8 +144,8 @@
 }
 
 .input:focus {
-  border-color: #5B9A27;
-  box-shadow: 0 0 0 1px #5B9A27;
+  border-color: #449D3A;
+  box-shadow: 0 0 0 1px #449D3A;
 }
 
 .textarea {
@@ -288,7 +288,7 @@
   justify-content: center;
   gap: 0.5rem;
   width: 100%;
-  background-color: #5B9A27;
+  background-color: #449D3A;
   color: #ffffff;
   padding: 0.75rem 2rem;
   border-radius: 0.5rem;

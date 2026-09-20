@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Info, LayoutGrid, CreditCard, QrCode, Plus, Trash2, Save,
   CalendarCheck, Star, Edit2, Calendar, ChevronLeft, ImageIcon, Camera,
+  Search, X,
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { API_URL } from '../../utils/userStore';
@@ -97,6 +98,8 @@ export default function EventConfigScreen({ navigation }: any) {
 
   const [eventos, setEventos] = useState<any[]>([]);
   const [loadingList, setLoadingList] = useState(true);
+  const [busqueda, setBusqueda] = useState('');
+  const [filtroEstado, setFiltroEstado] = useState<'TODOS' | 'PRINCIPAL' | 'NO_PRINCIPAL'>('TODOS');
   const [loadingForm, setLoadingForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<number | 'nuevo'>('nuevo');
@@ -500,6 +503,13 @@ export default function EventConfigScreen({ navigation }: any) {
 
   // ── VISTA LISTA ──────────────────────────────────────────────────────────────
   if (viewState === 'lista') {
+    const eventosFiltrados = eventos.filter((evento) => {
+      if (filtroEstado === 'PRINCIPAL' && evento.esPrincipal !== 1) return false;
+      if (filtroEstado === 'NO_PRINCIPAL' && evento.esPrincipal === 1) return false;
+      if (!busqueda.trim()) return true;
+      const q = busqueda.trim().toLowerCase();
+      return evento.nombre?.toLowerCase().includes(q) || evento.edicion?.toLowerCase().includes(q);
+    });
     return (
       <>
       {modal}
@@ -518,6 +528,36 @@ export default function EventConfigScreen({ navigation }: any) {
             </TouchableOpacity>
           </View>
 
+          {!loadingList && eventos.length > 0 && (
+            <View className="mb-4">
+              <View className="flex-row items-center bg-white border border-gray-200 rounded-lg px-3 mb-2">
+                <Search color="#9ca3af" size={16} />
+                <TextInput
+                  value={busqueda} onChangeText={setBusqueda}
+                  placeholder="Buscar evento por nombre o edición..."
+                  className="flex-1 py-2.5 px-2 text-sm text-gray-900"
+                  placeholderTextColor="#9ca3af"
+                />
+                {!!busqueda && (
+                  <TouchableOpacity onPress={() => setBusqueda('')}>
+                    <X color="#9ca3af" size={16} />
+                  </TouchableOpacity>
+                )}
+              </View>
+              <View className="flex-row gap-2">
+                {([['TODOS', 'Todos'], ['PRINCIPAL', 'Principal'], ['NO_PRINCIPAL', 'No principal']] as const).map(([value, label]) => (
+                  <TouchableOpacity
+                    key={value} onPress={() => setFiltroEstado(value)}
+                    className="px-3 py-2 rounded-lg border"
+                    style={{ backgroundColor: filtroEstado === value ? GREEN : '#fff', borderColor: filtroEstado === value ? GREEN : '#e5e7eb' }}
+                  >
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: filtroEstado === value ? '#fff' : '#4b5563' }}>{label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
+
           {loadingList ? (
             <ActivityIndicator size="large" color={GREEN} className="mt-10" />
           ) : eventos.length === 0 ? (
@@ -526,9 +566,15 @@ export default function EventConfigScreen({ navigation }: any) {
               <Text className="text-lg font-medium text-gray-900 mt-4">Vacío</Text>
               <Text className="text-sm text-gray-500 text-center mt-1">Presiona "Crear" para añadir tu primer evento</Text>
             </View>
+          ) : eventosFiltrados.length === 0 ? (
+            <View className="items-center py-10">
+              <CalendarCheck color="#d1d5db" size={48} />
+              <Text className="text-lg font-medium text-gray-900 mt-4">Sin resultados</Text>
+              <Text className="text-sm text-gray-500 text-center mt-1">Prueba con otro nombre o cambia el filtro de estado.</Text>
+            </View>
           ) : (
-            eventos.map((evento) => (
-              <View key={evento.id} className={`bg-white rounded-xl shadow-sm border p-5 mb-4 ${evento.esPrincipal === 1 ? 'border-[#5B9A27]' : 'border-gray-100'}`}>
+            eventosFiltrados.map((evento) => (
+              <View key={evento.id} className={`bg-white rounded-xl shadow-sm border p-5 mb-4 ${evento.esPrincipal === 1 ? 'border-[#449D3A]' : 'border-gray-100'}`}>
                 {evento.esPrincipal === 1 && (
                   <View className="absolute top-0 right-0 px-2 py-1 rounded-bl-lg rounded-tr-xl flex-row items-center" style={{ backgroundColor: GREEN }}>
                     <Star color="#fff" size={10} fill="#fff" />

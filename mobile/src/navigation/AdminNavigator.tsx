@@ -5,10 +5,12 @@ import {
   LayoutDashboard, Building2, CreditCard, Armchair, MoreHorizontal,
   CalendarCheck, Newspaper, Users, BarChart3, Settings, ListChecks,
   CalendarRange, PlusCircle, SlidersHorizontal, Handshake,
-  Package, QrCode, FileText, Bell,
+  Package, QrCode, FileText, Bell, LogOut,
 } from 'lucide-react-native';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { userStore } from '../utils/userStore';
+import { useModal } from '../components/AppModal';
 
 import DashboardScreen    from '../screens/admin/DashboardScreen';
 import EmpresasScreen     from '../screens/admin/EmpresasScreen';
@@ -40,19 +42,28 @@ const AdminStack = createNativeStackNavigator();
 const GREEN = '#449D3A';
 const GRAY  = '#9ca3af';
 
-const tabOptions = {
+const baseTabOptions = {
   headerShown: false,
   tabBarActiveTintColor: GREEN,
   tabBarInactiveTintColor: GRAY,
-  tabBarStyle: {
-    borderTopColor: '#f1f5f9',
-    backgroundColor: '#ffffff',
-    height: 62,
-    paddingBottom: 10,
-    paddingTop: 6,
-  },
   tabBarLabelStyle: { fontSize: 10, fontWeight: '600' as const },
 };
+
+// La barra de pestañas necesita el inset inferior real del dispositivo: en
+// teléfonos con barra de navegación de Android (los "botones/flechas" de
+// abajo, comunes en Xiaomi), una altura fija deja las pestañas debajo tapadas
+// o muy pegadas a esos botones. Se calcula dentro de cada componente (no a
+// nivel de módulo) porque `useSafeAreaInsets` es un hook.
+function useTabBarStyle() {
+  const insets = useSafeAreaInsets();
+  return {
+    borderTopColor: '#f1f5f9',
+    backgroundColor: '#ffffff',
+    height: 52 + Math.max(insets.bottom, 10),
+    paddingBottom: Math.max(insets.bottom, 10),
+    paddingTop: 6,
+  };
+}
 
 // ─── Pantalla "Más" ───────────────────────────────────────────────────────────
 function MenuScreen({ navigation }: any) {
@@ -165,22 +176,50 @@ const IconEmpresas     = ({ color }: { color: string }) => <Building2       colo
 const IconPagos        = ({ color }: { color: string }) => <CreditCard      color={color} size={22} />;
 const IconMesas        = ({ color }: { color: string }) => <Armchair        color={color} size={22} />;
 const IconMenu         = ({ color }: { color: string }) => <MoreHorizontal  color={color} size={22} />;
+const IconLogout       = ({ color }: { color: string }) => <LogOut          color={color} size={22} />;
+
+// Pantalla vacía requerida por Tab.Screen; nunca llega a mostrarse porque el
+// listener de `tabPress` de abajo intercepta la pulsación antes de navegar.
+function LogoutPlaceholder() { return null; }
 
 // ─── Tabs principales ─────────────────────────────────────────────────────────
 function AdminTabs() {
+  const { show, modal } = useModal();
+  const tabBarStyle = useTabBarStyle();
+
+  const handleLogout = (navigation: any) => {
+    show({
+      type: 'confirm',
+      title: 'Cerrar sesión',
+      message: '¿Estás seguro que quieres cerrar sesión?',
+      confirmText: 'Cerrar sesión',
+      cancelText: 'Cancelar',
+      onConfirm: () => { userStore.clear().then(() => navigation.replace('Login')); },
+    });
+  };
+
   return (
-    <Tab.Navigator screenOptions={tabOptions}>
-      <Tab.Screen name="Dashboard" component={DashboardScreen}
-        options={{ title: 'Panel',    tabBarIcon: IconDashboard }} />
-      <Tab.Screen name="Empresas"   component={EmpresasScreen}
-        options={{ title: 'Empresas', tabBarIcon: IconEmpresas }} />
-      <Tab.Screen name="Pagos"      component={PagosScreen}
-        options={{ title: 'Pagos',    tabBarIcon: IconPagos }} />
-      <Tab.Screen name="Mesas"      component={MesasScreen}
-        options={{ title: 'Mesas',    tabBarIcon: IconMesas }} />
-      <Tab.Screen name="Menu"       component={MenuScreen}
-        options={{ title: 'Más',      tabBarIcon: IconMenu }} />
-    </Tab.Navigator>
+    <>
+      {modal}
+      <Tab.Navigator screenOptions={{ ...baseTabOptions, tabBarStyle }}>
+        <Tab.Screen name="Dashboard" component={DashboardScreen}
+          options={{ title: 'Panel',    tabBarIcon: IconDashboard }} />
+        <Tab.Screen name="Empresas"   component={EmpresasScreen}
+          options={{ title: 'Empresas', tabBarIcon: IconEmpresas }} />
+        <Tab.Screen name="Pagos"      component={PagosScreen}
+          options={{ title: 'Pagos',    tabBarIcon: IconPagos }} />
+        <Tab.Screen name="Mesas"      component={MesasScreen}
+          options={{ title: 'Mesas',    tabBarIcon: IconMesas }} />
+        <Tab.Screen name="Menu"       component={MenuScreen}
+          options={{ title: 'Más',      tabBarIcon: IconMenu }} />
+        <Tab.Screen name="CerrarSesion" component={LogoutPlaceholder}
+          options={{ title: 'Salir',    tabBarIcon: IconLogout }}
+          listeners={({ navigation }) => ({
+            tabPress: (e) => { e.preventDefault(); handleLogout(navigation); },
+          })}
+        />
+      </Tab.Navigator>
+    </>
   );
 }
 
@@ -210,7 +249,9 @@ export default function AdminNavigator() {
       <AdminStack.Screen name="Credenciales" component={CredencialesScreen}  options={{ title: 'Credenciales QR' }} />
       <AdminStack.Screen name="Configuracion"component={ConfiguracionScreen}options={{ title: 'Configuración' }} />
       <AdminStack.Screen name="Agenda"       component={AgendaScreen}       options={{ title: 'Agenda de Mesas' }} />
-      <AdminStack.Screen name="Oportunidades" component={OportunidadesStaffScreen} options={{ title: 'Oportunidades' }} />
+      <AdminStack.Screen name="Oportunidades" options={{ title: 'Oportunidades' }}>
+        {() => <OportunidadesStaffScreen mostrarEncabezado={false} />}
+      </AdminStack.Screen>
       <AdminStack.Screen name="ControlReuniones" component={TecnicoReunionesScreen} options={{ title: 'Control de Reuniones' }} />
       <AdminStack.Screen name="AgendarReunion" component={TecnicoAgendarScreen} options={{ title: 'Agendar reunión' }} />
       <AdminStack.Screen name="PagoDetail"        component={PagoDetailScreen}        options={{ title: 'Verificar Pago'           }} />

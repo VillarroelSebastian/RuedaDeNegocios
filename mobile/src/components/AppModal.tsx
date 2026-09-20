@@ -1,9 +1,49 @@
+/** @jsxImportSource react */
+// La línea de arriba es intencional y debe ser la primera del archivo: el
+// proyecto configura `jsxImportSource: "nativewind"` de forma GLOBAL en
+// babel.config.js, así que TODO archivo .tsx (use o no className/Tailwind)
+// pasa su JSX por el runtime de NativeWind (react-native-css-interop), que
+// ya demostró tener bugs de aplicación de estilos en esta versión de RN/JSX.
+// Este pragma saca a este componente puntual de esa transformación y lo
+// deja en el runtime de JSX normal de React, para los botones del modal
+// nunca dependan de NativeWind en absoluto.
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Modal, View, Text, TouchableOpacity,
-  StyleSheet, Animated, Pressable, ActivityIndicator,
+  View, Text, LayoutChangeEvent,
+  StyleSheet, Pressable, ActivityIndicator, BackHandler,
 } from 'react-native';
+import Svg, { Text as SvgText } from 'react-native-svg';
 import { CheckCircle, XCircle, AlertTriangle, HelpCircle, Info } from 'lucide-react-native';
+
+// El ícono (SVG, vía lucide-react-native) siempre se pinta bien en este
+// modal; el `<Text>` nativo de React Native dentro de los botones, no —
+// pese a que el componente, sus estilos y el bundle servido son correctos
+// (verificado exhaustivamente). Como la diferencia observable es
+// "SVG sí, Text nativo no", la etiqueta de los botones se dibuja como texto
+// SVG (mismo mecanismo que el ícono) en vez de como `<Text>` nativo.
+function ButtonLabel({ text, color, size = 15 }: { text: string; color: string; size?: number }) {
+  const [width, setWidth] = useState(0);
+  const height = Math.round(size * 1.5);
+  const onLayout = (e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width);
+  return (
+    <View onLayout={onLayout} style={{ width: '100%', height, alignItems: 'center', justifyContent: 'center' }}>
+      {width > 0 && (
+        <Svg width={width} height={height}>
+          <SvgText
+            x={width / 2}
+            y={height / 2 + size * 0.35}
+            fontSize={size}
+            fontWeight="bold"
+            fill={color}
+            textAnchor="middle"
+          >
+            {text}
+          </SvgText>
+        </Svg>
+      )}
+    </View>
+  );
+}
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 export type ModalType = 'success' | 'error' | 'warning' | 'confirm' | 'info';
@@ -72,14 +112,22 @@ const TYPE_CONFIG: Record<ModalType, {
 };
 
 // ─── Componente ───────────────────────────────────────────────────────────────
+// Nota deliberada: este componente NO usa el `Modal` nativo de React Native.
+// `Modal` en Android renderiza su contenido en una ventana/Dialog nativa
+// separada de la Activity principal — y en esa ventana separada, un botón
+// con fondo de color (View/Pressable + backgroundColor + borderRadius)
+// perdía el texto de su `Text` hijo pese a que la lógica, los estilos y el
+// bundle servido eran correctos (verificado). Los botones fuera de un
+// `Modal`, en la jerarquía normal de la pantalla, nunca tuvieron este
+// problema. Por eso este "modal" es en realidad una superposición: una
+// `View` a pantalla completa con posición absoluta, en la misma jerarquía
+// de vistas que el resto de la pantalla — sin ventana nativa aparte.
 export function AppModal({
   visible, type, title, message,
   confirmText, cancelText, onConfirm, onCancel, confirmColor, waitForConfirm = false, onClose, generation,
 }: AppModalProps) {
   const cfg   = TYPE_CONFIG[type];
   const Icon  = cfg.icon;
-  const scale = useRef(new Animated.Value(0.85)).current;
-  const opacity = useRef(new Animated.Value(0)).current;
   const [confirming, setConfirming] = useState(false);
 
   // Se actualiza en cada render (no en un efecto) para poder comparar,
@@ -88,20 +136,6 @@ export function AppModal({
   // onConfirm) y así evitar cerrar por encima de ese modal nuevo.
   const genRef = useRef(generation);
   genRef.current = generation;
-
-  useEffect(() => {
-    if (visible) {
-      Animated.parallel([
-        Animated.spring(scale,   { toValue: 1,    useNativeDriver: true, tension: 120, friction: 8 }),
-        Animated.timing(opacity, { toValue: 1,    useNativeDriver: true, duration: 180 }),
-      ]).start();
-    } else {
-      Animated.parallel([
-        Animated.timing(scale,   { toValue: 0.9, useNativeDriver: true, duration: 120 }),
-        Animated.timing(opacity, { toValue: 0,   useNativeDriver: true, duration: 120 }),
-      ]).start();
-    }
-  }, [visible]);
 
   useEffect(() => { setConfirming(false); }, [visible, type, title]);
 
@@ -119,21 +153,25 @@ export function AppModal({
   };
   const handleCancel  = () => { onClose(); onCancel?.();  };
 
+  // Sin `Modal` nativo ya no hay `onRequestClose`: replicamos a mano el
+  // botón físico de "atrás" en Android para que siga cerrando el diálogo
+  // (o no hacer nada si es de tipo 'confirm', igual que antes con el backdrop).
+  useEffect(() => {
+    if (!visible) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (type !== 'confirm') handleCancel();
+      return true;
+    });
+    return () => sub.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, type]);
+
+  if (!visible) return null;
+
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={handleCancel} statusBarTranslucent>
+    <View style={s.overlay} pointerEvents="box-none">
       <Pressable style={s.backdrop} onPress={type === 'confirm' ? undefined : handleCancel}>
-        {/* collapsable={false}: en Android, una vista animada con transform
-            puede "aplanar" a sus hijos como optimización nativa, y eso a
-            veces hace que el texto de un botón con fondo de color y bordes
-            redondeados (como el de confirmar) desaparezca. Desactivar el
-            aplanado aquí evita ese bug. */}
-        {/* La sombra (elevation, Android) va en esta vista exterior, SIN
-            overflow:hidden: combinar ambos en la misma vista es un bug
-            conocido de RN en Android que puede impedir que se pinte bien
-            el contenido de vistas hijas con su propio fondo + bordes
-            redondeados (justamente el botón de abajo). El recorte de
-            esquinas se hace en la vista interior, que no tiene elevation. */}
-        <Animated.View collapsable={false} style={[s.cardShadow, { transform: [{ scale }], opacity }]}>
+        <View style={s.cardShadow}>
           <View style={s.card}>
             {/* Borde superior de color */}
             <View style={[s.topAccent, { backgroundColor: cfg.accentColor }]} />
@@ -150,30 +188,28 @@ export function AppModal({
             {/* Botones */}
             <View style={[s.btns, type === 'confirm' && s.btnsRow]}>
               {type === 'confirm' && (
-                <TouchableOpacity
+                <Pressable
                   style={[s.btn, s.btnOutline]}
                   onPress={handleCancel}
                   disabled={confirming}
-                  activeOpacity={0.8}
                 >
-                  <Text style={s.btnOutlineText}>{cancelText || 'Cancelar'}</Text>
-                </TouchableOpacity>
+                  <ButtonLabel text={cancelText || 'Cancelar'} color="#374151" />
+                </Pressable>
               )}
-              <TouchableOpacity
+              <Pressable
                 style={[s.btn, { backgroundColor: confirmColor || cfg.confirmBg }]}
                 onPress={handleConfirm}
                 disabled={type === 'confirm' && confirming}
-                activeOpacity={0.8}
               >
                 {type === 'confirm' && confirming
                   ? <ActivityIndicator color="#fff" size="small" />
-                  : <Text style={s.btnPrimaryText}>{confirmText || 'Entendido'}</Text>}
-              </TouchableOpacity>
+                  : <ButtonLabel text={confirmText || 'Entendido'} color="#fff" />}
+              </Pressable>
             </View>
           </View>
-        </Animated.View>
+        </View>
       </Pressable>
-    </Modal>
+    </View>
   );
 }
 
@@ -217,6 +253,11 @@ export function useModal() {
 
 // ─── Estilos ──────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1000,
+    elevation: 1000,
+  },
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.55)',

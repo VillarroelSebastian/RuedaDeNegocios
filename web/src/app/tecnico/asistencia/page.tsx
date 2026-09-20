@@ -36,6 +36,14 @@ export default function TecnicoAsistenciaPage() {
       setAsistencias(filtrada.map((a: any) => ({ ...a, tipo: filtro.tipo })));
     }).catch(() => setAsistencias([]));
   }, [tecnico?.id]);
+
+  // Refresco automático: otros técnicos pueden estar registrando asistencia
+  // de la misma empresa al mismo tiempo.
+  useEffect(() => {
+    if (!empresaEscaneada) return;
+    const interval = setInterval(() => cargar(empresaEscaneada), 15000);
+    return () => clearInterval(interval);
+  }, [empresaEscaneada, cargar]);
   const extraerCredencial = (contenido: string) => {
     try {
       const url = new URL(contenido.trim());

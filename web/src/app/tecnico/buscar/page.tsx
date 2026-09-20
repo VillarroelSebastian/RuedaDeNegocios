@@ -51,6 +51,8 @@ export default function TecnicoBuscarPage() {
   const [tecUserId, setTecUserId] = useState<number | null>(null);
   const [agendaEmpresa, setAgendaEmpresa] = useState<any>(null);
   const [agenda, setAgenda] = useState<any>(null);
+  const [directorio, setDirectorio] = useState<any[]>([]);
+  const [loadingDirectorio, setLoadingDirectorio] = useState(true);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -58,6 +60,20 @@ export default function TecnicoBuscarPage() {
       const raw = localStorage.getItem('tecnicoUser');
       if (raw) setTecUserId(JSON.parse(raw).id ?? null);
     } catch {}
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res  = await fetch(`${API}/tecnico/empresas-habilitadas`);
+        const data = await res.json();
+        setDirectorio(Array.isArray(data) ? data.map((e: any) => ({
+          id: e.eeId, empresaeventoId: e.eeId, nombre: e.nombre, rubro: e.rubro,
+          urlFotoPerfil: e.urlFotoPerfil, estaActivo: 1, estadoHabilitacionAcceso: 'HABILITADO',
+        })) : []);
+      } catch { setDirectorio([]); }
+      finally { setLoadingDirectorio(false); }
+    })();
   }, []);
 
   const buscar = useCallback(async (q: string) => {
@@ -101,7 +117,7 @@ export default function TecnicoBuscarPage() {
         />
       )}
       {agendaEmpresa && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setAgendaEmpresa(null)}><div className="max-h-[85vh] w-full max-w-xl overflow-y-auto rounded-2xl bg-white p-6" onClick={(e) => e.stopPropagation()}><div className="mb-4 flex justify-between"><div><h2 className="text-lg font-bold">Agenda de {agendaEmpresa.nombre}</h2><p className="text-sm text-gray-500">Reuniones del evento activo</p></div><button onClick={() => setAgendaEmpresa(null)}><X /></button></div>{!agenda ? <p className="py-10 text-center text-gray-400">Cargando…</p> : !agenda.reuniones?.length ? <p className="py-10 text-center text-gray-400">Sin reuniones registradas.</p> : <div className="space-y-3">{agenda.reuniones.map((r:any) => { const sol=r.solicitudreunion; const a=sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa; const b=sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento?.empresa; const otra=sol?.empresaEvento_id===agendaEmpresa.empresaeventoId?b:a; return <div key={r.id} className="rounded-xl border p-3"><div className="flex justify-between gap-2"><b>{otra?.nombre ?? 'Empresa'}</b><span className="text-xs font-bold text-green-700">{r.estadoReunion}</span></div><p className="mt-1 text-xs text-gray-500">{new Date(r.fechaHoraInicioReunion).toLocaleString('es-BO',{timeZone:'America/La_Paz'})} · {r.mesa?`Mesa ${r.mesa.numeroMesa}`:r.tipoReunion}</p></div>; })}</div>}</div></div>}
-      <h1 className="text-2xl font-extrabold text-gray-900 mb-1">Buscador</h1>
+      <h1 className="text-2xl font-extrabold text-gray-900 mb-1">Buscador y mensajes</h1>
       <p className="text-sm text-gray-500 mb-6">Empresas, reuniones y mesas del evento</p>
 
       {/* Search bar */}
@@ -113,7 +129,7 @@ export default function TecnicoBuscarPage() {
           type="text"
           value={query}
           onChange={handleChange}
-          placeholder="Buscar por nombre de empresa, número de mesa..."
+          placeholder="Buscar por nombre de empresa, número de mesa, reunión..."
           className="block w-full pl-12 pr-10 py-3.5 border border-gray-200 rounded-2xl bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#449D3A] focus:border-[#449D3A] text-sm transition-colors"
         />
         {query && (
@@ -133,10 +149,45 @@ export default function TecnicoBuscarPage() {
       )}
 
       {!loading && query.trim().length < 2 && (
-        <div className="text-center py-20">
-          <Search className="w-12 h-12 text-gray-200 mx-auto mb-4" />
-          <p className="text-gray-400 font-semibold">Escribe al menos 2 caracteres para buscar</p>
-        </div>
+        loadingDirectorio ? (
+          <div className="flex items-center justify-center h-32">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#449D3A]" />
+          </div>
+        ) : directorio.length > 0 ? (
+          <div>
+            <SectionHeader icon={<MessageSquare className="w-5 h-5 text-[#449D3A]" />} label="Enviar mensaje a una empresa" count={directorio.length} />
+            <div className="space-y-2">
+              {directorio.map((e: any) => (
+                <div key={e.id} className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-4">
+                  {e.urlFotoPerfil
+                    ? <img src={e.urlFotoPerfil} className="w-12 h-12 rounded-full object-contain shrink-0" />
+                    : <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+                        <Building2 className="w-5 h-5 text-green-700" />
+                      </div>
+                  }
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-gray-900 truncate">{e.nombre}</p>
+                    {e.rubro && <p className="text-xs text-gray-500 mt-0.5">{e.rubro}</p>}
+                  </div>
+                  {tecUserId && (
+                    <button
+                      onClick={() => setMensajeEmpresa({ eeId: e.empresaeventoId, nombre: e.nombre })}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border-[1.5px] border-[#449D3A] text-[#449D3A] hover:bg-green-50 text-xs font-bold shrink-0 transition-colors"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" /> Mensaje
+                    </button>
+                  )}
+                  <button onClick={() => abrirAgenda(e)} className="flex items-center gap-1.5 rounded-lg border border-violet-200 px-3 py-1.5 text-xs font-bold text-violet-700 hover:bg-violet-50"><CalendarClock className="h-3.5 w-3.5" />Agenda</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-20">
+            <Search className="w-12 h-12 text-gray-200 mx-auto mb-4" />
+            <p className="text-gray-400 font-semibold">Sin empresas habilitadas</p>
+          </div>
+        )
       )}
 
       {!loading && results && total === 0 && (

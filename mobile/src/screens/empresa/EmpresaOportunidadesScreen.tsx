@@ -50,13 +50,10 @@ export default function EmpresaOportunidadesScreen() {
   const visibles = filtradas.slice((paginaActual - 1) * 8, paginaActual * 8);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#f8fafc' }} edges={['top']}>
-      <View style={s.header}>
-        <Sparkles size={20} color={GREEN} />
-        <View style={{ marginLeft: 8 }}>
-          <Text style={s.headerTitle}>Oportunidades</Text>
-          <Text style={s.headerSub}>Mejores empresas afines a tu perfil</Text>
-        </View>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#f8fafc' }} edges={['bottom']}>
+      <View style={[s.header, { paddingVertical: 12 }]}>
+        <Sparkles size={16} color={GREEN} />
+        <Text style={[s.headerSub, { marginLeft: 8 }]}>Mejores empresas afines a tu perfil</Text>
       </View>
 
       {loading ? (

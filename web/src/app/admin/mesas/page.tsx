@@ -10,9 +10,10 @@ import { useModal } from '@/components/ui/Modal';
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
 const ESTADO_MESA: Record<string, { badge: string; dot: string; label: string }> = {
-  LIBRE:    { badge: 'bg-green-100 text-green-700',   dot: 'bg-green-400',  label: 'Libre' },
-  RESERVADA:{ badge: 'bg-blue-100 text-blue-700',     dot: 'bg-blue-400',   label: 'Reservada' },
-  EN_USO:   { badge: 'bg-orange-100 text-orange-700', dot: 'bg-orange-400', label: 'En uso' },
+  LIBRE:         { badge: 'bg-green-100 text-green-700',   dot: 'bg-green-400',  label: 'Libre' },
+  RESERVADA:     { badge: 'bg-blue-100 text-blue-700',     dot: 'bg-blue-400',   label: 'Reservada' },
+  EN_USO:        { badge: 'bg-orange-100 text-orange-700', dot: 'bg-orange-400', label: 'En uso' },
+  PRE_RESERVADA: { badge: 'bg-amber-100 text-amber-700',   dot: 'bg-amber-400',  label: 'Pendiente' },
 };
 
 const ESTADO_REUNION: Record<string, { badge: string; label: string }> = {
@@ -259,6 +260,25 @@ function ReunionSlot({
   );
 }
 
+function SolicitudPendienteRow({ s }: { s: any }) {
+  return (
+    <div className="px-4 py-3 border-t border-gray-50 bg-amber-50/60">
+      <div className="flex items-center gap-2 mb-1.5">
+        <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+        <p className="text-sm font-semibold text-gray-700 truncate">{s.solicitante}</p>
+        <span className="text-gray-400 text-xs">↔</span>
+        <p className="text-sm font-semibold text-gray-700 truncate">{s.receptora}</p>
+      </div>
+      <div className="flex items-center gap-2 flex-wrap ml-3.5">
+        <span className="flex items-center gap-1 text-xs text-gray-500">
+          <Clock className="w-3 h-3 text-gray-400" /> {fmtTime(s.inicio)} – {fmtTime(s.fin)}
+        </span>
+        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Pendiente de respuesta</span>
+      </div>
+    </div>
+  );
+}
+
 type FiltroEstado = 'EN_USO' | 'PROGRAMADA' | 'LIBRE' | 'TODAS' | 'INHABILITADA' | 'HISTORIAL';
 
 export default function MesasPage() {
@@ -319,7 +339,7 @@ export default function MesasPage() {
   const mesasFiltradas = mesas.filter((m) => {
     if (filtro === 'INHABILITADA') { if (m.estaHabilitada !== 0) return false; }
     else if (filtro === 'EN_USO')     { if (m.estadoMesa !== 'EN_USO')    return false; }
-    else if (filtro === 'PROGRAMADA') { if (m.estadoMesa !== 'RESERVADA') return false; }
+    else if (filtro === 'PROGRAMADA') { if (m.estadoMesa !== 'RESERVADA' && m.estadoMesa !== 'PRE_RESERVADA') return false; }
     else if (filtro === 'LIBRE')      { if (m.estadoMesa !== 'LIBRE')     return false; }
     if (!search.trim()) return true;
     const q = search.toLowerCase();
@@ -336,7 +356,7 @@ export default function MesasPage() {
 
   const counts = {
     enUso:     mesas.filter((m) => m.estadoMesa === 'EN_USO').length,
-    programada: mesas.filter((m) => m.estadoMesa === 'RESERVADA').length,
+    programada: mesas.filter((m) => m.estadoMesa === 'RESERVADA' || m.estadoMesa === 'PRE_RESERVADA').length,
     libre:     mesas.filter((m) => m.estadoMesa === 'LIBRE').length,
     inhabilitada: mesas.filter((m) => m.estaHabilitada === 0).length,
     total:     mesas.length,
@@ -583,7 +603,7 @@ export default function MesasPage() {
             const cfg = ESTADO_MESA[mesa.estadoMesa] ?? ESTADO_MESA.LIBRE;
             const colorClass = inhabilitada && mesa.estadoMesa === 'LIBRE'
               ? 'bg-gray-400'
-              : mesa.estadoMesa === 'EN_USO' ? 'bg-orange-500' : mesa.estadoMesa === 'RESERVADA' ? 'bg-blue-500' : 'bg-[#449D3A]';
+              : mesa.estadoMesa === 'EN_USO' ? 'bg-orange-500' : mesa.estadoMesa === 'RESERVADA' ? 'bg-blue-500' : mesa.estadoMesa === 'PRE_RESERVADA' ? 'bg-amber-500' : 'bg-[#449D3A]';
             const label = inhabilitada && mesa.estadoMesa === 'LIBRE' ? 'Inhabilitada' : cfg.label;
             const badgeClass = inhabilitada && mesa.estadoMesa === 'LIBRE' ? 'bg-gray-100 text-gray-500' : cfg.badge;
             return (
@@ -595,22 +615,26 @@ export default function MesasPage() {
                   </div>
                   <div className="flex-1">
                     <p className="text-base font-bold text-gray-900">Mesa {mesa.numeroMesa}</p>
-                    <p className="text-xs text-gray-400">{mesa.reunion?.length ?? 0} reunión(es) · {mesa.capacidadPersonas} personas</p>
+                    <p className="text-xs text-gray-400">{mesa.reunion?.length ?? 0} reunión(es){mesa.solicitudesEnEspera?.length ? ` · ${mesa.solicitudesEnEspera.length} pendiente(s)` : ''} · {mesa.capacidadPersonas} personas</p>
                   </div>
                   <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0 ${badgeClass}`}>{label}</span>
                 </div>
 
-                {mesa.reunion && mesa.reunion.length > 0 ? (
-                  mesa.reunion.map((r: any) => (
-                    <ReunionSlot key={r.id} r={{ ...r, mesa_id: mesa.numeroMesa }} mesaNumero={mesa.numeroMesa} acting={acting}
-                      onMessage={openMessageModal} onChangeLink={openLinkModal} onCambiarEstado={cambiarEstadoReunion} />
-                  ))
-                ) : (
+                {mesa.reunion && mesa.reunion.length > 0 && mesa.reunion.map((r: any) => (
+                  <ReunionSlot key={r.id} r={{ ...r, mesa_id: mesa.numeroMesa }} mesaNumero={mesa.numeroMesa} acting={acting}
+                    onMessage={openMessageModal} onChangeLink={openLinkModal} onCambiarEstado={cambiarEstadoReunion} />
+                ))}
+
+                {mesa.solicitudesEnEspera && mesa.solicitudesEnEspera.length > 0 && mesa.solicitudesEnEspera.map((s: any) => (
+                  <SolicitudPendienteRow key={s.solicitudId} s={s} />
+                ))}
+
+                {(!mesa.reunion || mesa.reunion.length === 0) && (
                   <div className="px-4 py-4 flex items-center justify-between gap-3 flex-wrap">
                     <div className="flex items-center gap-3">
                       <div className={`w-2 h-2 rounded-full shrink-0 ${inhabilitada ? 'bg-gray-300' : 'bg-green-300'}`} />
                       <p className="text-sm text-gray-400 font-medium">
-                        {inhabilitada ? 'Inhabilitada — los usuarios no pueden usarla' : 'Disponible — sin reuniones asignadas'}
+                        {inhabilitada ? 'Inhabilitada — los usuarios no pueden usarla' : (mesa.solicitudesEnEspera?.length ? 'Sin reuniones confirmadas' : 'Disponible — sin reuniones asignadas')}
                       </p>
                     </div>
                     <button disabled={toggling} onClick={() => toggleHabilitar(mesa)}

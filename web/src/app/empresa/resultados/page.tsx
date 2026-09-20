@@ -7,13 +7,18 @@ import { Star, CheckCircle2, AlertCircle, Calendar, Building2 } from "lucide-rea
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
 const RANGOS = [
-  "Sin acuerdo",
-  "Hasta $us 5.000",
-  "Hasta $us 10.000",
-  "Hasta $us 25.000",
-  "Hasta $us 50.000",
-  "Hasta $us 100.000",
-  "Más de $us 100.000",
+  "No hubo acuerdo",
+  "Bs 100 - 1.000",
+  "Bs 1.000 - 5.000",
+  "Más de Bs 5.000",
+];
+
+const OBSERVACIONES_PREDEFINIDAS = [
+  "Se acordó continuar la negociación",
+  "Reunión informativa, sin compromisos",
+  "Se solicitó más información o catálogo",
+  "Se coordinará una siguiente reunión",
+  "No hubo interés en continuar",
 ];
 
 function StarRating({ value, onChange }: { value: number; onChange: (v: number) => void }) {
@@ -109,7 +114,6 @@ function ResultadosContent() {
     if (!formulario.reunionId) { setErrForm("Selecciona una reunión."); return; }
     if (formulario.calificacion === 0) { setErrForm("Selecciona una calificación (1-5 estrellas)."); return; }
     if (!formulario.rango) { setErrForm("Selecciona el rango de acuerdo comercial."); return; }
-    if (!formulario.observaciones.trim()) { setErrForm("Escribe los puntos tratados, compromisos u observaciones de la reunión."); return; }
 
     setGuardando(true);
     try {
@@ -237,13 +241,29 @@ function ResultadosContent() {
               {/* Observaciones */}
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">
-                  Puntos tratados / Observaciones *
+                  Puntos tratados / Observaciones (opcional)
                 </label>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {OBSERVACIONES_PREDEFINIDAS.map((o) => (
+                    <button
+                      key={o}
+                      type="button"
+                      onClick={() => setFormulario((f) => ({ ...f, observaciones: o }))}
+                      className={`px-3 py-2 rounded-xl border text-xs font-bold transition-all ${
+                        formulario.observaciones === o
+                          ? "border-[#449D3A] bg-green-50 text-[#449D3A]"
+                          : "border-gray-200 text-gray-600 hover:border-green-300"
+                      }`}
+                    >
+                      {o}
+                    </button>
+                  ))}
+                </div>
                 <textarea
                   value={formulario.observaciones}
                   onChange={(e) => setFormulario((f) => ({ ...f, observaciones: e.target.value }))}
                   rows={3}
-                  placeholder="Describe brevemente los temas discutidos y los compromisos alcanzados..."
+                  placeholder="O escribe una observación propia..."
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A] resize-none"
                 />
               </div>

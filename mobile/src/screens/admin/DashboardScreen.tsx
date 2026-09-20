@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, ScrollView, Image,
+  View, Text, ScrollView, Image, TouchableOpacity,
   ActivityIndicator, StyleSheet, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import {
   Building2, CreditCard, Handshake, Armchair, CalendarCheck,
   TrendingUp, TrendingDown, Minus, Calendar, MapPin,
@@ -44,6 +45,7 @@ function getEventStatus(inicio: string, fin: string): { label: string; color: st
 
 // ─── Componente principal ─────────────────────────────────────────────────
 export default function DashboardScreen() {
+  const navigation = useNavigation<any>();
   const [evento,     setEvento]     = useState<any>(null);
   const [stats,      setStats]      = useState<any[]>([]);
   const [activities, setActivities] = useState<any[]>([]);
@@ -95,9 +97,9 @@ export default function DashboardScreen() {
           <Text style={s.headerGreeting}>Hola, {firstName}</Text>
           <Text style={s.headerSub}>Panel de administración</Text>
         </View>
-        <View style={s.headerAvatar}>
+        <TouchableOpacity style={s.headerAvatar} onPress={() => navigation.navigate('Configuracion')} activeOpacity={0.8}>
           <Text style={s.headerAvatarText}>{firstName[0]}</Text>
-        </View>
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -311,7 +313,7 @@ const s = StyleSheet.create({
   },
   eventBg: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: GREEN_DARK,
+    backgroundColor: GREEN,
   },
   eventHeader: {
     flexDirection: 'row',

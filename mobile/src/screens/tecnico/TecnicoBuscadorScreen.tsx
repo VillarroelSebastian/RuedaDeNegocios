@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, ActivityIndicator,
   TextInput, Image, Linking, Modal as RNModal,
@@ -6,6 +6,7 @@ import {
 import {
   Search, Building2, Armchair, CalendarCheck, Video, MapPin, X, MessageSquare, CalendarClock, Users, Eye,
 } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { API_URL } from '../../utils/userStore';
 import EnviarMensajeEmpresaModal from '../../components/EnviarMensajeEmpresaModal';
 import { ParticipantesModal } from '../admin/EmpresasScreen';
@@ -178,6 +179,7 @@ function SectionHeader({ icon, label, count }: { icon: React.ReactNode; label: s
 }
 
 export default function TecnicoBuscadorScreen() {
+  const insets = useSafeAreaInsets();
   const [query,     setQuery]     = useState('');
   const [results,   setResults]   = useState<any>(null);
   const [loading,   setLoading]   = useState(false);
@@ -186,7 +188,23 @@ export default function TecnicoBuscadorScreen() {
   const [agendaEmpresa,setAgendaEmpresa]=useState<any>(null);
   const [agenda,setAgenda]=useState<any>(null);
   const [perfilEmpresaId,setPerfilEmpresaId]=useState<number|null>(null);
+  const [directorio, setDirectorio] = useState<any[]>([]);
+  const [loadingDirectorio, setLoadingDirectorio] = useState(true);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res  = await fetch(`${API_URL}/tecnico/empresas-habilitadas`);
+        const data = await res.json();
+        setDirectorio(Array.isArray(data) ? data.map((e: any) => ({
+          id: e.eeId, empresaeventoId: e.eeId, nombre: e.nombre, rubro: e.rubro,
+          urlFotoPerfil: e.urlFotoPerfil, estaActivo: 1, estadoHabilitacionAcceso: 'HABILITADO',
+        })) : []);
+      } catch { setDirectorio([]); }
+      finally { setLoadingDirectorio(false); }
+    })();
+  }, []);
 
   const buscar = useCallback(async (q: string) => {
     const trimmed = q.trim();
@@ -215,9 +233,9 @@ export default function TecnicoBuscadorScreen() {
   return (
     <View style={{ flex:1, backgroundColor:'#f8fafc' }}>
       {/* Header */}
-      <View style={{ backgroundColor:'#fff', paddingHorizontal:16, paddingTop:52, paddingBottom:14,
+      <View style={{ backgroundColor:'#fff', paddingHorizontal:16, paddingTop: insets.top + 16, paddingBottom:14,
         borderBottomWidth:1, borderBottomColor:'#f1f5f9' }}>
-        <Text style={{ fontSize:22, fontWeight:'800', color:'#0f172a' }}>Buscador</Text>
+        <Text style={{ fontSize:22, fontWeight:'800', color:'#0f172a' }}>Buscador y mensajes</Text>
         <Text style={{ fontSize:12, color:'#94a3b8', marginTop:2 }}>Empresas, reuniones y mesas</Text>
 
         {/* Search input */}
@@ -227,7 +245,7 @@ export default function TecnicoBuscadorScreen() {
           <TextInput
             value={query}
             onChangeText={handleChange}
-            placeholder="Buscar..."
+            placeholder="Buscar empresa, mesa o reunión..."
             placeholderTextColor="#9ca3af"
             style={{ flex:1, fontSize:14, color:'#111827' }}
             autoCapitalize="none"
@@ -249,13 +267,23 @@ export default function TecnicoBuscadorScreen() {
         )}
 
         {!loading && query.trim().length < 2 && (
-          <View style={{ paddingVertical:60, alignItems:'center', gap:12 }}>
-            <Search color="#d1d5db" size={48} />
-            <Text style={{ fontSize:15, fontWeight:'600', color:'#9ca3af' }}>Escribe para buscar</Text>
-            <Text style={{ fontSize:12, color:'#cbd5e1', textAlign:'center' }}>
-              Busca por nombre de empresa, número de mesa o estado de reunión
-            </Text>
-          </View>
+          loadingDirectorio ? (
+            <View style={{ paddingVertical:40, alignItems:'center' }}>
+              <ActivityIndicator size="large" color={GREEN} />
+            </View>
+          ) : directorio.length > 0 ? (
+            <View style={{ marginBottom:16 }}>
+              <SectionHeader icon={<MessageSquare color={GREEN} size={16} />} label="Enviar mensaje a una empresa" count={directorio.length} />
+              {directorio.map((e: any) => (
+                <EmpresaCard key={e.id} e={e} onMensaje={(emp) => setMensajeEmpresa({ eeId: emp.empresaeventoId, nombre: emp.nombre })} onAgenda={abrirAgenda} onParticipantes={(emp)=>setParticipantesEmpresa({id:emp.id,nombre:emp.nombre})} onPerfil={(emp)=>setPerfilEmpresaId(emp.empresaeventoId)} />
+              ))}
+            </View>
+          ) : (
+            <View style={{ paddingVertical:60, alignItems:'center', gap:12 }}>
+              <Search color="#d1d5db" size={48} />
+              <Text style={{ fontSize:15, fontWeight:'600', color:'#9ca3af' }}>Sin empresas habilitadas</Text>
+            </View>
+          )
         )}
 
         {!loading && results && total === 0 && (

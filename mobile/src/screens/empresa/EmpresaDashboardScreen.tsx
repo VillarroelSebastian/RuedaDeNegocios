@@ -78,7 +78,7 @@ export default function EmpresaDashboardScreen({ navigation }: any) {
       >
         {/* Header */}
         <View style={s.header}>
-          <View style={s.headerLeft}>
+          <TouchableOpacity style={s.headerLeft} onPress={() => navigation.navigate('Perfil')} activeOpacity={0.8}>
             <View style={s.avatar}>
               <Text style={s.avatarText}>{(user?.nombres ?? 'U')[0].toUpperCase()}</Text>
             </View>
@@ -86,7 +86,7 @@ export default function EmpresaDashboardScreen({ navigation }: any) {
               <Text style={s.greeting}>Bienvenido/a</Text>
               <Text style={s.userName} numberOfLines={1}>{user?.nombres ?? user?.correo}</Text>
             </View>
-          </View>
+          </TouchableOpacity>
           <View style={[s.badge, esEncargado ? s.badgeEncargado : s.badgePart]}>
             <Text style={[s.badgeText, esEncargado ? s.badgeTextEnc : s.badgeTextPart]}>
               {esEncargado ? 'Encargado' : 'Participante'}

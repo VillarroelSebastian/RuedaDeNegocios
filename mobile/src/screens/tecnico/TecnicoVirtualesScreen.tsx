@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, ActivityIndicator,
-  RefreshControl, Image, TextInput, Linking, Modal,
+  RefreshControl, Image, TextInput, Linking, Modal, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import {
-  AlertTriangle, Building2, Clock, Video, Armchair, Search, Link2, X, CheckCircle2,
+  AlertTriangle, Building2, Clock, Video, Armchair, Search, Link2, X, CheckCircle2, Mail, Send,
 } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { API_URL } from '../../utils/userStore';
+import { useModal } from '../../components/AppModal';
 
 const GREEN = '#449D3A';
 
@@ -37,10 +39,16 @@ const FILTROS = [
   { key: 'CANCELADA',  label: 'Canceladas'  },
 ];
 
-function VirtualCard({ r, onEditLink }: { r: any; onEditLink: (r: any) => void }) {
+function VirtualCard({ r, onEditLink, onMessage }: { r: any; onEditLink: (r: any) => void; onMessage: (reunionId: number, empresa: 'A' | 'B', empresaNombre: string, encargadoNombre: string) => void }) {
   const sol = r.solicitudreunion;
-  const ea  = sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa;
-  const eb  = sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento?.empresa;
+  const eeA = sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento;
+  const eeB = sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento;
+  const ea  = eeA?.empresa;
+  const eb  = eeB?.empresa;
+  const encA = eeA?.empresa_usuario?.[0]?.usuario;
+  const encB = eeB?.empresa_usuario?.[0]?.usuario;
+  const nombreEncA = encA ? `${encA.nombres} ${encA.apellidoPaterno}` : 'Encargado';
+  const nombreEncB = encB ? `${encB.nombres} ${encB.apellidoPaterno}` : 'Encargado';
   const est = ESTADO_CFG[r.estadoReunion] ?? ESTADO_CFG.PROGRAMADA;
   const tip = TIPO_CFG[r.tipoReunion]    ?? TIPO_CFG.VIRTUAL;
   const link = sol?.enlaceReunionVirtual;
@@ -145,6 +153,27 @@ function VirtualCard({ r, onEditLink }: { r: any; onEditLink: (r: any) => void }
             {link ? 'Cambiar enlace' : 'Agregar enlace'}
           </Text>
         </TouchableOpacity>}
+
+        {/* Contactar encargados */}
+        <View style={{ marginTop: 12, gap: 6 }}>
+          <Text style={{ fontSize: 9, fontWeight: '700', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 }}>Contactar encargados</Text>
+          <TouchableOpacity onPress={() => onMessage(r.id, 'A', ea?.nombre ?? 'Empresa A', nombreEncA)}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 9, paddingHorizontal: 12,
+              borderRadius: 12, backgroundColor: '#f0fdf4', borderWidth: 1, borderColor: '#bbf7d0' }}>
+            <Mail color={GREEN} size={13} />
+            <Text style={{ color: '#166534', fontWeight: '600', fontSize: 12, flex: 1 }} numberOfLines={1}>
+              {nombreEncA} · {ea?.nombre ?? 'Empresa A'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => onMessage(r.id, 'B', eb?.nombre ?? 'Empresa B', nombreEncB)}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 9, paddingHorizontal: 12,
+              borderRadius: 12, backgroundColor: '#eff6ff', borderWidth: 1, borderColor: '#bfdbfe' }}>
+            <Mail color="#1d4ed8" size={13} />
+            <Text style={{ color: '#1d4ed8', fontWeight: '600', fontSize: 12, flex: 1 }} numberOfLines={1}>
+              {nombreEncB} · {eb?.nombre ?? 'Empresa B'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -231,12 +260,17 @@ function LinkModal({ reunion, onClose, onGuardado }: { reunion: any; onClose: ()
 }
 
 export default function TecnicoVirtualesScreen() {
+  const insets = useSafeAreaInsets();
+  const { show: showModal, modal } = useModal();
   const [reuniones,  setReuniones]  = useState<any[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filtroEst,  setFiltroEst]  = useState('TODOS');
   const [search,     setSearch]     = useState('');
   const [linkModal,  setLinkModal]  = useState<any>(null);
+  const [msgModal, setMsgModal] = useState<{ reunionId: number; empresa: 'A' | 'B'; empresaNombre: string; encargadoNombre: string } | null>(null);
+  const [msgText,  setMsgText]  = useState('');
+  const [sending,  setSending]  = useState(false);
 
   const fetchReuniones = useCallback(async () => {
     try {
@@ -258,6 +292,21 @@ export default function TecnicoVirtualesScreen() {
       setRefreshing(false);
     }
   }, []);
+
+  const sendMessage = async () => {
+    if (!msgModal || !msgText.trim()) return;
+    setSending(true);
+    try {
+      const res = await fetch(`${API_URL}/tecnico/reuniones/${msgModal.reunionId}/mensaje`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ empresa: msgModal.empresa, mensaje: msgText.trim() }),
+      });
+      if (!res.ok) throw new Error();
+      setMsgModal(null);
+      showModal({ type: 'success', title: 'Mensaje enviado', message: `Mensaje enviado al encargado de ${msgModal.empresaNombre}.` });
+    } catch { showModal({ type: 'error', title: 'Error', message: 'No se pudo enviar el mensaje. Intenta de nuevo.' }); }
+    finally { setSending(false); }
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -284,9 +333,56 @@ export default function TecnicoVirtualesScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#f8fafc' }}>
+      {modal}
+
+      {/* Modal mensaje */}
+      <Modal visible={!!msgModal} transparent animationType="slide" onRequestClose={() => setMsgModal(null)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+          <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
+            <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 32 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <View>
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: '#111827' }}>Enviar mensaje</Text>
+                  {msgModal && (
+                    <Text style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
+                      {msgModal.encargadoNombre} · {msgModal.empresaNombre}
+                    </Text>
+                  )}
+                </View>
+                <TouchableOpacity onPress={() => setMsgModal(null)}>
+                  <X color="#9ca3af" size={20} />
+                </TouchableOpacity>
+              </View>
+              <TextInput
+                value={msgText}
+                onChangeText={setMsgText}
+                placeholder="Escribe tu mensaje aquí..."
+                placeholderTextColor="#9ca3af"
+                multiline
+                numberOfLines={5}
+                style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 14, padding: 12, fontSize: 13,
+                  color: '#374151', minHeight: 120, textAlignVertical: 'top', marginBottom: 12 }}
+              />
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity onPress={() => setMsgModal(null)}
+                  style={{ flex: 1, paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: '#e5e7eb', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: '#6b7280' }}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={sendMessage} disabled={sending || !msgText.trim()}
+                  style={{ flex: 2, paddingVertical: 12, borderRadius: 14, backgroundColor: sending || !msgText.trim() ? '#d1d5db' : GREEN,
+                    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                  <Send color="#fff" size={14} />
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff' }}>{sending ? 'Enviando…' : 'Enviar mensaje'}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
       {/* Header */}
       <View style={{
-        backgroundColor: '#fff', paddingHorizontal: 16, paddingTop: 52, paddingBottom: 14,
+        backgroundColor: '#fff', paddingHorizontal: 16, paddingTop: insets.top + 16, paddingBottom: 14,
         borderBottomWidth: 1, borderBottomColor: '#f1f5f9',
       }}>
         <Text style={{ fontSize: 22, fontWeight: '800', color: '#0f172a' }}>Reuniones Virtuales</Text>
@@ -396,7 +492,7 @@ export default function TecnicoVirtualesScreen() {
               </Text>
             </View>
           ) : (
-            filtered.map((r) => <VirtualCard key={r.id} r={r} onEditLink={setLinkModal} />)
+            filtered.map((r) => <VirtualCard key={r.id} r={r} onEditLink={setLinkModal} onMessage={(reunionId, empresa, empresaNombre, encargadoNombre) => { setMsgModal({ reunionId, empresa, empresaNombre, encargadoNombre }); setMsgText(''); }} />)
           )}
           <View style={{ height: 20 }} />
         </ScrollView>

@@ -12,8 +12,24 @@ export const LIMITES = {
 
 // Formato de correo electrónico (sin espacios, con dominio y TLD).
 export const REGEX_CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Dominios de nivel superior aceptados. Evita errores de tipeo comunes
+// como "usuario@dominio.come" o "usuario@dominio.con", que el regex de
+// formato por sí solo no puede detectar.
+const TLDS_VALIDOS = new Set([
+  'com', 'org', 'net', 'edu', 'gov', 'mil', 'int', 'info', 'biz', 'name', 'pro',
+  'xyz', 'online', 'site', 'tech', 'app', 'dev', 'io', 'co', 'mobi', 'museum',
+  'coop', 'aero', 'travel', 'jobs',
+  'bo', 'ar', 'cl', 'pe', 'br', 'mx', 've', 'uy', 'py', 'ec', 'us', 'es', 'uk',
+  'ca', 'de', 'fr', 'it',
+]);
+
 export function correoValido(v: string): boolean {
-  return REGEX_CORREO.test((v || '').trim());
+  const correo = (v || '').trim();
+  if (!REGEX_CORREO.test(correo)) return false;
+  const dominio = correo.split('@')[1] ?? '';
+  const tld = dominio.split('.').pop()?.toLowerCase() ?? '';
+  return TLDS_VALIDOS.has(tld);
 }
 
 // Caracteres permitidos en el nombre de la empresa: letras (con acentos y ñ),

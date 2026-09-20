@@ -8,6 +8,7 @@ import {
   ChevronUp, Search, X, Armchair, AlertTriangle,
   Star,
 } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { API_URL } from '../../utils/userStore';
 
 const GREEN = '#449D3A';
@@ -176,6 +177,7 @@ function ReunionCard({ r, onCambiarEstado }: { r: any; onCambiarEstado: (id:numb
 }
 
 export default function TecnicoReunionesScreen() {
+  const insets = useSafeAreaInsets();
   const [reuniones,  setReuniones]  = useState<any[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -251,7 +253,7 @@ export default function TecnicoReunionesScreen() {
       </RNModal>
 
       {/* Header */}
-      <View style={{ backgroundColor:'#fff', paddingHorizontal:16, paddingTop:52, paddingBottom:14,
+      <View style={{ backgroundColor:'#fff', paddingHorizontal:16, paddingTop: insets.top + 16, paddingBottom:14,
         borderBottomWidth:1, borderBottomColor:'#f1f5f9' }}>
         <Text style={{ fontSize:22, fontWeight:'800', color:'#0f172a' }}>Reuniones</Text>
         <Text style={{ fontSize:12, color:'#94a3b8', marginTop:2 }}>{reuniones.length} resultado(s)</Text>

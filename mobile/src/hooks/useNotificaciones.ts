@@ -8,6 +8,7 @@ export function rutaDeNotifMobile(evento: string): string | null {
   const t = evento || '';
   if (t.startsWith('solicitud')) return 'Solicitudes';
   if (t === 'reunion:calificar') return 'Resultados';
+  if (t === 'mensaje:tecnico') return 'Reuniones';
   if (t.startsWith('reunion')) return 'Reuniones';
   if (t.startsWith('mensaje')) return 'Mensajes';
   if (t.startsWith('comunicado')) return 'Comunicados';
@@ -43,6 +44,7 @@ const EVENTO_LABELS: Record<string, string> = {
   'solicitud:editada':        'Solicitud actualizada',
   'mensaje:staff':            'Mensaje del equipo del evento',
   'mensaje:empresa':          'Nuevo mensaje de una empresa',
+  'mensaje:tecnico':          'Mensaje del técnico',
   'comunicado:nuevo':         'Nuevo comunicado',
 };
 
@@ -89,7 +91,7 @@ export function useNotificacionesMobile(eeId: number | null) {
       'reunion:agendada', 'reunion:cancelada', 'reunion:iniciada', 'reunion:inicio-solicitado',
       'reunion:enlace-actualizado', 'reunion:reprogramada', 'reunion:recordatorio',
       'reunion:cambio-solicitado', 'reunion:cambio-aceptado', 'reunion:cambio-rechazado',
-      'reunion:calificar', 'mensaje:staff', 'mensaje:empresa',
+      'reunion:calificar', 'mensaje:staff', 'mensaje:empresa', 'mensaje:tecnico',
       'comunicado:nuevo',
     ];
 

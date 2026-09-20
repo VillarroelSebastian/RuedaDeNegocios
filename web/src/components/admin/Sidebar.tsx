@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
   Building2,
@@ -25,6 +25,7 @@ import {
   Radio,
   QrCode,
   CalendarPlus,
+  LogOut,
 } from 'lucide-react';
 
 const menuItems = [
@@ -53,10 +54,18 @@ const menuItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   // Cerrar el drawer al navegar
   useEffect(() => { setMobileOpen(false); }, [pathname]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('adminUser');
+    localStorage.removeItem('tecnicoUser');
+    localStorage.removeItem('empresaUser');
+    router.push('/auth/login');
+  };
 
   return (
     <>
@@ -114,9 +123,16 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* Footer */}
-      <div className="px-5 py-4 border-t border-gray-100 shrink-0">
-        <p className="text-[10px] text-gray-400 text-center">
+      {/* Logout + Footer */}
+      <div className="px-3 py-4 border-t border-gray-100 shrink-0">
+        <button
+          onClick={handleLogout}
+          className="flex items-center w-full px-3 py-2.5 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+        >
+          <LogOut className="w-4 h-4 mr-3 flex-shrink-0" />
+          Cerrar sesión
+        </button>
+        <p className="text-[10px] text-gray-400 text-center mt-3">
           © 2026 Rueda de Negocios del Beni
         </p>
       </div>

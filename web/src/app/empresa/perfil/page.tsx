@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   User, Building2, Save, AlertCircle, CheckCircle2, Edit3,
   Users, UserPlus, UserX, CreditCard, AlertTriangle,
-  KeyRound, Shield, X, Upload, FileText, Download, Camera,
+  KeyRound, Shield, X, Upload, FileText, Download, Camera, Eye, EyeOff,
 } from "lucide-react";
 import ImagenLightbox from "@/components/ui/ImagenLightbox";
 import { LIMITES } from "@/lib/validaciones";
@@ -359,6 +359,7 @@ export default function EmpresaPerfilPage() {
   const [resetModal,   setResetModal]   = useState(false);
   const [resetCodigo,  setResetCodigo]  = useState("");
   const [resetNueva,   setResetNueva]   = useState("");
+  const [mostrarReset, setMostrarReset] = useState(false);
   const [resetConf,    setResetConf]    = useState("");
   const [resetLoading, setResetLoading] = useState(false);
   const [resetErr,     setResetErr]     = useState<string | null>(null);
@@ -1110,15 +1111,25 @@ export default function EmpresaPerfilPage() {
                         </div>
                         <div>
                           <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Nueva contraseña</label>
-                          <input type="password" value={resetNueva} onChange={(e) => setResetNueva(e.target.value)}
-                            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A]"
-                            placeholder="••••••••" />
+                          <div className="relative">
+                            <input type={mostrarReset ? "text" : "password"} value={resetNueva} onChange={(e) => setResetNueva(e.target.value)}
+                              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A]"
+                              placeholder="••••••••" />
+                            <button type="button" onClick={() => setMostrarReset(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+                              {mostrarReset ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </div>
                         </div>
                         <div>
                           <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Confirmar contraseña</label>
-                          <input type="password" value={resetConf} onChange={(e) => setResetConf(e.target.value)}
-                            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A]"
-                            placeholder="••••••••" />
+                          <div className="relative">
+                            <input type={mostrarReset ? "text" : "password"} value={resetConf} onChange={(e) => setResetConf(e.target.value)}
+                              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A]"
+                              placeholder="••••••••" />
+                            <button type="button" onClick={() => setMostrarReset(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+                              {mostrarReset ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </div>
                         </div>
                         <button onClick={handleConfirmarReset} disabled={resetLoading}
                           className="w-full py-2.5 bg-[#449D3A] hover:bg-[#3a8531] text-white font-bold rounded-xl text-sm disabled:opacity-50 transition-colors flex items-center justify-center gap-2">

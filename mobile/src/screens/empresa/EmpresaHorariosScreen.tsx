@@ -12,6 +12,7 @@ type Dia = { fecha: string; habilitado: boolean; rangos: Rango[] };
 export default function EmpresaHorariosScreen() {
   const eeId = userStore.get()?.empresaeventoId;
   const [dias, setDias] = useState<Dia[]>([]);
+  const [ventanasEvento, setVentanasEvento] = useState<{ fecha: string; rangos: Rango[] }[]>([]);
   const [configurado, setConfigurado] = useState(false);
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(false);
@@ -25,6 +26,7 @@ export default function EmpresaHorariosScreen() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || 'No se pudo cargar la agenda.');
       setDias(Array.isArray(data.dias) ? data.dias : []);
+      setVentanasEvento(Array.isArray(data.ventanasEvento) ? data.ventanasEvento : []);
       setConfigurado(!!data.configurado);
     } catch (e: any) {
       setMensaje({ tipo: 'error', texto: e.message || 'No se pudo cargar la agenda.' });
@@ -85,11 +87,19 @@ export default function EmpresaHorariosScreen() {
       <View><Text style={s.title}>Mi agenda disponible</Text><Text style={s.subtitle}>Define cuándo aceptas reuniones durante cada día del evento.</Text></View>
       {!configurado && <View style={s.info}><Info size={16} color="#1d4ed8" /><Text style={s.infoText}>Mientras no cambies nada, se usarán todos los horarios definidos por el administrador.</Text></View>}
       <TouchableOpacity onPress={copiarPrimero} style={s.copy}><Copy size={15} color={GREEN} /><Text style={s.copyText}>Copiar primer día a todos</Text></TouchableOpacity>
-      {dias.map((dia, di) => <View key={dia.fecha} style={[s.card, !dia.habilitado && s.cardOff]}>
+      {dias.map((dia, di) => {
+        const ventana = ventanasEvento.find((v) => v.fecha === dia.fecha);
+        return <View key={dia.fecha} style={[s.card, !dia.habilitado && s.cardOff]}>
         <View style={s.cardHeader}><View style={{ flex: 1 }}>
           <Text style={s.day}>{new Date(`${dia.fecha}T12:00:00`).toLocaleDateString('es-BO', { weekday: 'long', day: '2-digit', month: 'long' })}</Text>
           <Text style={s.dayHint}>{dia.habilitado ? 'Disponible para recibir solicitudes' : 'Día completo inhabilitado'}</Text>
         </View><TouchableOpacity onPress={() => actualizarDia(di, { habilitado: !dia.habilitado })} style={[s.power, !dia.habilitado && s.powerOff]}><Power size={17} color={dia.habilitado ? '#15803d' : '#b91c1c'} /></TouchableOpacity></View>
+        {!!ventana?.rangos.length && (
+          <View style={s.eventWindow}>
+            <CalendarClock size={13} color="#1d4ed8" />
+            <Text style={s.eventWindowText}>Horario del evento: {ventana.rangos.map((r) => `${r.desde}–${r.hasta}`).join(', ')}</Text>
+          </View>
+        )}
         {dia.habilitado && <>
           {dia.rangos.map((r, ri) => <View key={ri} style={s.rangeRow}>
             <TextInput value={r.desde} onChangeText={(v) => actualizarRango(di, ri, 'desde', v)} placeholder="08:00" keyboardType="numbers-and-punctuation" maxLength={5} style={s.time} />
@@ -99,7 +109,8 @@ export default function EmpresaHorariosScreen() {
           </View>)}
           <TouchableOpacity onPress={() => actualizarDia(di, { rangos: [...dia.rangos, { desde: '', hasta: '' }] })} style={s.add}><Plus size={15} color={GREEN} /><Text style={s.addText}>Agregar otro rango</Text></TouchableOpacity>
         </>}
-      </View>)}
+      </View>;
+      })}
       <TouchableOpacity onPress={guardar} disabled={guardando} style={[s.save, guardando && { opacity: 0.55 }]}>{guardando ? <ActivityIndicator color="#fff" /> : <><CheckCircle2 size={17} color="#fff" /><Text style={s.saveText}>Guardar mi agenda</Text></>}</TouchableOpacity>
     </ScrollView>
   </SafeAreaView>;
@@ -111,6 +122,7 @@ const s = StyleSheet.create({
   info: { flexDirection: 'row', gap: 9, padding: 13, borderRadius: 13, borderWidth: 1, borderColor: '#bfdbfe', backgroundColor: '#eff6ff' }, infoText: { flex: 1, fontSize: 12, lineHeight: 18, color: '#1e40af' },
   copy: { alignSelf: 'flex-end', flexDirection: 'row', alignItems: 'center', gap: 7, borderWidth: 1, borderColor: '#bbf7d0', backgroundColor: '#fff', borderRadius: 11, paddingHorizontal: 12, paddingVertical: 9 }, copyText: { color: GREEN, fontWeight: '700', fontSize: 12 },
   card: { padding: 15, borderRadius: 16, borderWidth: 1, borderColor: '#e5e7eb', backgroundColor: '#fff' }, cardOff: { backgroundColor: '#fff7f7', borderColor: '#fecaca' }, cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 }, day: { textTransform: 'capitalize', fontWeight: '800', color: '#111827', fontSize: 15 }, dayHint: { color: '#9ca3af', fontSize: 11, marginTop: 2 }, power: { padding: 9, borderRadius: 10, backgroundColor: '#f0fdf4' }, powerOff: { backgroundColor: '#fee2e2' },
+  eventWindow: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#eff6ff', borderRadius: 9, paddingHorizontal: 10, paddingVertical: 7, marginBottom: 10 }, eventWindowText: { flex: 1, fontSize: 11, fontWeight: '700', color: '#1e40af' },
   rangeRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 9 }, time: { flex: 1, minWidth: 75, borderWidth: 1, borderColor: '#d1d5db', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 9, color: '#111827', textAlign: 'center' }, to: { fontSize: 11, color: '#6b7280' }, trash: { padding: 7 },
   add: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 }, addText: { color: GREEN, fontWeight: '700', fontSize: 12 },
   save: { minHeight: 50, borderRadius: 13, backgroundColor: GREEN, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, saveText: { color: '#fff', fontWeight: '800', fontSize: 14 },

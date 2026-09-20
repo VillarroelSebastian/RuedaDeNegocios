@@ -10,7 +10,7 @@ import * as ImagePicker from 'expo-image-picker';
 import {
   User, Building2, LogOut, Edit3, UserPlus, UserX,
   ShieldCheck, Users, CreditCard, AlertCircle, Check, X, Upload,
-  Hash, QrCode, ExternalLink, CheckCircle2, Camera,
+  Hash, QrCode, ExternalLink, CheckCircle2, Camera, Eye, EyeOff,
 } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
 import { LIMITES } from '../../utils/validaciones';
@@ -53,6 +53,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
   const [resetCodigo, setResetCodigo] = useState('');
   const [passNueva,   setPassNueva]   = useState('');
   const [passConf,    setPassConf]    = useState('');
+  const [mostrarPass, setMostrarPass] = useState(false);
   const [passLoading, setPassLoading] = useState(false);
   const [passError,   setPassError]   = useState('');
 
@@ -321,13 +322,19 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
     });
     if (result.canceled || !result.assets?.length) return;
     const asset = result.assets[0];
+    if (asset.fileSize && asset.fileSize > 10 * 1024 * 1024) {
+      setPagoError('El archivo no debe superar los 10 MB.');
+      return;
+    }
     setPagoUploading(true); setPagoError('');
     try {
+      const mimeType = asset.mimeType ?? 'image/jpeg';
+      const extension = mimeType.split('/')[1] ?? 'jpg';
       const fd = new FormData();
-      fd.append('file', { uri: asset.uri, name: 'comprobante.jpg', type: 'image/jpeg' } as any);
+      fd.append('file', { uri: asset.uri, name: `comprobante.${extension}`, type: mimeType } as any);
       const res = await fetch(`${API_URL}/public/imagenes/upload`, { method: 'POST', body: fd });
       const data = await res.json();
-      if (!data.url) throw new Error('No se obtuvo URL');
+      if (!res.ok || !data.url) throw new Error(data?.message ?? 'No se pudo subir el comprobante.');
       setPagoUrl(data.url);
       setPagoPreview(asset.uri);
     } catch (e: any) {
@@ -477,13 +484,14 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14, padding: 10, borderRadius: 12, backgroundColor: '#f9fafb' }}>
               <View style={{ width: 64, height: 64, borderRadius: 12, overflow: 'hidden', backgroundColor: '#fff', borderWidth: 1, borderColor: '#e5e7eb', alignItems: 'center', justifyContent: 'center' }}>
                 {empresa?.empresa?.urlFotoPerfil
-                  ? <Image source={{ uri: empresa.empresa.urlFotoPerfil }} style={{ width: '100%', height: '100%', resizeMode: 'contain' }} />
+                  ? <ImagenLightbox uri={empresa.empresa.urlFotoPerfil} style={{ width: '100%', height: '100%' }} imgStyle={{ resizeMode: 'contain' }} />
                   : <Building2 size={28} color="#d1d5db" />}
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 13, fontWeight: '700', color: '#1f2937' }}>Imagen de la empresa</Text>
+                <Text style={{ fontSize: 11, color: '#9ca3af', marginTop: 1 }}>Toca la imagen para ampliarla</Text>
                 {esEncargado && (
-                  <TouchableOpacity onPress={cambiarFotoEmpresa} disabled={subiendoLogo} style={[s.editBtnSmall, { marginTop: 7, alignSelf: 'flex-start', paddingHorizontal: 10 }]}>
+                  <TouchableOpacity onPress={cambiarFotoEmpresa} disabled={subiendoLogo} style={s.changeImgBtn}>
                     {subiendoLogo ? <ActivityIndicator size="small" color={GREEN} /> : <Text style={{ color: GREEN, fontSize: 12, fontWeight: '700' }}>Cambiar imagen</Text>}
                   </TouchableOpacity>
                 )}
@@ -923,15 +931,25 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
                   maxLength={6} keyboardType="number-pad" placeholder="000000" placeholderTextColor="#9ca3af"
                 />
                 <Text style={s.label}>Nueva contraseña *</Text>
-                <TextInput
-                  style={s.input} value={passNueva} onChangeText={setPassNueva}
-                  secureTextEntry placeholder="••••••••" placeholderTextColor="#9ca3af"
-                />
+                <View style={{ position: 'relative', justifyContent: 'center' }}>
+                  <TextInput
+                    style={[s.input, { paddingRight: 44 }]} value={passNueva} onChangeText={setPassNueva}
+                    secureTextEntry={!mostrarPass} placeholder="••••••••" placeholderTextColor="#9ca3af"
+                  />
+                  <TouchableOpacity onPress={() => setMostrarPass(v => !v)} style={{ position: 'absolute', right: 12 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    {mostrarPass ? <EyeOff size={18} color="#9ca3af" /> : <Eye size={18} color="#9ca3af" />}
+                  </TouchableOpacity>
+                </View>
                 <Text style={s.label}>Confirmar contraseña *</Text>
-                <TextInput
-                  style={s.input} value={passConf} onChangeText={setPassConf}
-                  secureTextEntry placeholder="••••••••" placeholderTextColor="#9ca3af"
-                />
+                <View style={{ position: 'relative', justifyContent: 'center' }}>
+                  <TextInput
+                    style={[s.input, { paddingRight: 44 }]} value={passConf} onChangeText={setPassConf}
+                    secureTextEntry={!mostrarPass} placeholder="••••••••" placeholderTextColor="#9ca3af"
+                  />
+                  <TouchableOpacity onPress={() => setMostrarPass(v => !v)} style={{ position: 'absolute', right: 12 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    {mostrarPass ? <EyeOff size={18} color="#9ca3af" /> : <Eye size={18} color="#9ca3af" />}
+                  </TouchableOpacity>
+                </View>
                 <TouchableOpacity
                   style={[s.btnPrimary, passLoading && { opacity: 0.7 }]}
                   onPress={handleConfirmarReset}
@@ -1025,6 +1043,10 @@ const s = StyleSheet.create({
     width: 28, height: 28, borderRadius: 8,
     backgroundColor: '#f0fdf4', alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, borderColor: '#bbf7d0',
+  },
+  changeImgBtn: {
+    marginTop: 7, alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 6,
+    borderRadius: 8, backgroundColor: '#f0fdf4', borderWidth: 1, borderColor: '#bbf7d0',
   },
   comercialBox: { backgroundColor: '#f0fdf4', borderRadius: 12, padding: 12, marginBottom: 8 },
   comercialLabel: { fontSize: 10, fontWeight: '800', color: '#166534', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 3 },

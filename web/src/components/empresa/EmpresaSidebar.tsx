@@ -2,11 +2,11 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, CalendarDays, Newspaper, Building2,
   Send, Users, Star, User, Briefcase, Clock, X, Sparkles, MessageSquare,
-  Radio, Images, Package,
+  Radio, Images, Package, LogOut,
 } from 'lucide-react';
 
 const allMenuItems = [
@@ -35,6 +35,7 @@ interface EmpresaSidebarProps {
 
 export default function EmpresaSidebar({ esEncargado = false, eeId = null, mobileOpen = false, onClose }: EmpresaSidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const [foto, setFoto] = useState<string>('');
   const [nombre, setNombre] = useState<string>('');
   const [mensajesNoLeidos, setMensajesNoLeidos] = useState(0);
@@ -65,6 +66,11 @@ export default function EmpresaSidebar({ esEncargado = false, eeId = null, mobil
     window.addEventListener('profileUpdated', leer);
     return () => window.removeEventListener('profileUpdated', leer);
   }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('empresaUser');
+    router.push('/auth/login');
+  };
 
   return (
     <>
@@ -129,8 +135,15 @@ export default function EmpresaSidebar({ esEncargado = false, eeId = null, mobil
         })}
       </nav>
 
-        <div className="px-5 py-4 border-t border-gray-100">
-          <p className="text-[10px] text-gray-400 text-center">Rueda de Negocios del Beni</p>
+        <div className="px-3 py-4 border-t border-gray-100 shrink-0">
+          <button
+            onClick={handleLogout}
+            className="flex items-center w-full px-3 py-2.5 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+          >
+            <LogOut className="w-4 h-4 mr-3 flex-shrink-0" />
+            Cerrar sesión
+          </button>
+          <p className="text-[10px] text-gray-400 text-center mt-3">Rueda de Negocios del Beni</p>
         </div>
       </aside>
     </>

@@ -8,17 +8,19 @@ import {
   ChevronUp, Timer, Star, History, Mail, Link2, Send, X,
   Play, Square, XCircle, UserCheck, Lock, Unlock,
 } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { API_URL } from '../../utils/userStore';
 import { useModal } from '../../components/AppModal';
 
 const GREEN = '#449D3A';
 
 const ESTADO_MESA: Record<string, { label: string; color: string; bg: string; dot: string }> = {
-  LIBRE:     { label: 'Libre',      color: '#166534', bg: '#dcfce7', dot: '#22c55e' },
-  RESERVADA: { label: 'Reservada',  color: '#1e40af', bg: '#dbeafe', dot: '#60a5fa' },
-  EN_USO:    { label: 'En uso',     color: '#9a3412', bg: '#ffedd5', dot: '#f97316' },
+  LIBRE:         { label: 'Libre',      color: '#166534', bg: '#dcfce7', dot: '#22c55e' },
+  RESERVADA:     { label: 'Reservada',  color: '#1e40af', bg: '#dbeafe', dot: '#60a5fa' },
+  EN_USO:        { label: 'En uso',     color: '#9a3412', bg: '#ffedd5', dot: '#f97316' },
+  PRE_RESERVADA: { label: 'Pendiente',  color: '#92400e', bg: '#fef3c7', dot: '#f59e0b' },
 };
-const GRID_COLOR: Record<string, string> = { LIBRE: GREEN, RESERVADA: '#3b82f6', EN_USO: '#f97316' };
+const GRID_COLOR: Record<string, string> = { LIBRE: GREEN, RESERVADA: '#3b82f6', EN_USO: '#f97316', PRE_RESERVADA: '#f59e0b' };
 const ESTADO_REUNION: Record<string, { color: string; bg: string; label: string }> = {
   PROGRAMADA: { color: '#1d4ed8', bg: '#dbeafe', label: 'Programada' },
   EN_CURSO:   { color: '#c2410c', bg: '#ffedd5', label: 'En curso' },
@@ -302,10 +304,39 @@ function ReunionRow({
   );
 }
 
+function SolicitudPendienteRow({ s }: { s: any }) {
+  return (
+    <View style={{ borderTopWidth: 1, borderTopColor: '#f3f4f6', padding: 12, backgroundColor: '#fffbeb' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+        <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: '#f59e0b' }} />
+        <Text style={{ fontSize: 12, fontWeight: '700', color: '#374151' }} numberOfLines={1}>
+          {s.solicitante}
+        </Text>
+        <Text style={{ color: '#9ca3af', fontSize: 11 }}>↔</Text>
+        <Text style={{ fontSize: 12, fontWeight: '700', color: '#374151' }} numberOfLines={1}>
+          {s.receptora}
+        </Text>
+      </View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginLeft: 13 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+          <Clock color="#9ca3af" size={10} />
+          <Text style={{ fontSize: 10, color: '#6b7280' }}>
+            {fmtTime(s.inicio)} – {fmtTime(s.fin)}
+          </Text>
+        </View>
+        <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999, backgroundColor: '#fef3c7' }}>
+          <Text style={{ fontSize: 8, fontWeight: '700', color: '#92400e' }}>Pendiente de respuesta</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 type FiltroEstado = 'EN_USO' | 'PROGRAMADA' | 'LIBRE' | 'TODAS' | 'INHABILITADA' | 'HISTORIAL';
 
 export default function MesasScreen() {
   const { show: showModal, modal } = useModal();
+  const insets = useSafeAreaInsets();
 
   const [mesas,        setMesas]        = useState<any[]>([]);
   const [eventoConfig, setEventoConfig] = useState<any>(null);
@@ -363,7 +394,7 @@ export default function MesasScreen() {
   const mesasFiltradas = mesas.filter((m) => {
     if (filtro === 'INHABILITADA') { if (m.estaHabilitada !== 0) return false; }
     else if (filtro === 'EN_USO')     { if (m.estadoMesa !== 'EN_USO')    return false; }
-    else if (filtro === 'PROGRAMADA') { if (m.estadoMesa !== 'RESERVADA') return false; }
+    else if (filtro === 'PROGRAMADA') { if (m.estadoMesa !== 'RESERVADA' && m.estadoMesa !== 'PRE_RESERVADA') return false; }
     else if (filtro === 'LIBRE')      { if (m.estadoMesa !== 'LIBRE')     return false; }
     if (!search.trim()) return true;
     const q = search.toLowerCase();
@@ -380,7 +411,7 @@ export default function MesasScreen() {
 
   const counts = {
     enUso:     mesas.filter((m) => m.estadoMesa === 'EN_USO').length,
-    programada: mesas.filter((m) => m.estadoMesa === 'RESERVADA').length,
+    programada: mesas.filter((m) => m.estadoMesa === 'RESERVADA' || m.estadoMesa === 'PRE_RESERVADA').length,
     libre:     mesas.filter((m) => m.estadoMesa === 'LIBRE').length,
     inhabilitada: mesas.filter((m) => m.estaHabilitada === 0).length,
     total:     mesas.length,
@@ -574,7 +605,7 @@ export default function MesasScreen() {
       </Modal>
 
       {/* Header */}
-      <View style={{ backgroundColor: '#fff', paddingHorizontal: 16, paddingTop: 52, paddingBottom: 12,
+      <View style={{ backgroundColor: '#fff', paddingHorizontal: 16, paddingTop: insets.top + 16, paddingBottom: 12,
         borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
         <Text style={{ fontSize: 22, fontWeight: '800', color: '#0f172a' }}>Mesas del evento</Text>
 
@@ -693,7 +724,7 @@ export default function MesasScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: 15, fontWeight: '700', color: '#0f172a' }}>Mesa {mesa.numeroMesa}</Text>
                     <Text style={{ fontSize: 11, color: '#94a3b8' }}>
-                      {mesa.reunion?.length ?? 0} reunión(es) · {mesa.capacidadPersonas} personas
+                      {mesa.reunion?.length ?? 0} reunión(es){mesa.solicitudesEnEspera?.length ? ` · ${mesa.solicitudesEnEspera.length} pendiente(s)` : ''} · {mesa.capacidadPersonas} personas
                     </Text>
                   </View>
                   <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: inhabilitada && mesa.estadoMesa === 'LIBRE' ? '#f3f4f6' : cfg.bg }}>
@@ -701,31 +732,34 @@ export default function MesasScreen() {
                   </View>
                 </View>
 
-                {mesa.reunion && mesa.reunion.length > 0
-                  ? mesa.reunion.map((r: any) => (
-                      <ReunionRow key={r.id} r={{ ...r, mesa_id: mesa.numeroMesa }} mesaNumero={mesa.numeroMesa} acting={acting}
-                        onMessage={openMessageModal} onChangeLink={openLinkModal} onCambiarEstado={cambiarEstadoReunion} />
-                    ))
-                  : (
-                    <View style={{ padding: 16, gap: 10 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: inhabilitada ? '#d1d5db' : '#86efac' }} />
-                        <Text style={{ fontSize: 13, color: '#94a3b8' }}>
-                          {inhabilitada ? 'Inhabilitada — los usuarios no pueden usarla' : 'Disponible — sin reuniones asignadas'}
-                        </Text>
-                      </View>
-                      <TouchableOpacity disabled={toggling} onPress={() => toggleHabilitar(mesa)}
-                        style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-                          paddingVertical: 9, borderRadius: 10, borderWidth: 1,
-                          borderColor: inhabilitada ? '#bbf7d0' : '#e5e7eb', opacity: toggling ? 0.5 : 1 }}>
-                        {inhabilitada ? <Unlock color="#15803d" size={14} /> : <Lock color="#6b7280" size={14} />}
-                        <Text style={{ fontSize: 12, fontWeight: '700', color: inhabilitada ? '#15803d' : '#6b7280' }}>
-                          {inhabilitada ? 'Habilitar mesa' : 'Deshabilitar mesa'}
-                        </Text>
-                      </TouchableOpacity>
+                {mesa.reunion && mesa.reunion.length > 0 && mesa.reunion.map((r: any) => (
+                  <ReunionRow key={r.id} r={{ ...r, mesa_id: mesa.numeroMesa }} mesaNumero={mesa.numeroMesa} acting={acting}
+                    onMessage={openMessageModal} onChangeLink={openLinkModal} onCambiarEstado={cambiarEstadoReunion} />
+                ))}
+
+                {mesa.solicitudesEnEspera && mesa.solicitudesEnEspera.length > 0 && mesa.solicitudesEnEspera.map((s: any) => (
+                  <SolicitudPendienteRow key={s.solicitudId} s={s} />
+                ))}
+
+                {(!mesa.reunion || mesa.reunion.length === 0) && (
+                  <View style={{ padding: 16, gap: 10 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: inhabilitada ? '#d1d5db' : '#86efac' }} />
+                      <Text style={{ fontSize: 13, color: '#94a3b8' }}>
+                        {inhabilitada ? 'Inhabilitada — los usuarios no pueden usarla' : (mesa.solicitudesEnEspera?.length ? 'Sin reuniones confirmadas' : 'Disponible — sin reuniones asignadas')}
+                      </Text>
                     </View>
-                  )
-                }
+                    <TouchableOpacity disabled={toggling} onPress={() => toggleHabilitar(mesa)}
+                      style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+                        paddingVertical: 9, borderRadius: 10, borderWidth: 1,
+                        borderColor: inhabilitada ? '#bbf7d0' : '#e5e7eb', opacity: toggling ? 0.5 : 1 }}>
+                      {inhabilitada ? <Unlock color="#15803d" size={14} /> : <Lock color="#6b7280" size={14} />}
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: inhabilitada ? '#15803d' : '#6b7280' }}>
+                        {inhabilitada ? 'Habilitar mesa' : 'Deshabilitar mesa'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
             );
           })}

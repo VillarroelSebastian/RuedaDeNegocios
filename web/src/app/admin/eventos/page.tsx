@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, CalendarCheck, Star, Calendar, Package } from 'lucide-react';
+import { Plus, Edit2, Trash2, CalendarCheck, Star, Calendar, Package, Search, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Modal, { useModal } from '@/components/ui/Modal';
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
@@ -17,6 +17,8 @@ export default function EventosListPage() {
   const router = useRouter();
   const [eventos, setEventos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [busqueda, setBusqueda] = useState('');
+  const [filtroEstado, setFiltroEstado] = useState<'TODOS' | 'PRINCIPAL' | 'NO_PRINCIPAL'>('TODOS');
   const { modal, showModal, closeModal } = useModal();
 
   const fetchEventos = async () => {
@@ -80,6 +82,14 @@ export default function EventosListPage() {
     return <div className="p-8">Cargando eventos...</div>;
   }
 
+  const eventosFiltrados = eventos.filter((evento) => {
+    if (filtroEstado === 'PRINCIPAL' && evento.esPrincipal !== 1) return false;
+    if (filtroEstado === 'NO_PRINCIPAL' && evento.esPrincipal === 1) return false;
+    if (!busqueda.trim()) return true;
+    const q = busqueda.trim().toLowerCase();
+    return evento.nombre?.toLowerCase().includes(q) || evento.edicion?.toLowerCase().includes(q);
+  });
+
   return (
     <div className="p-4 sm:p-8 max-w-6xl mx-auto font-sans">
       <div className="flex justify-between items-center mb-8">
@@ -89,25 +99,53 @@ export default function EventosListPage() {
         </div>
         <button 
           onClick={() => router.push('/admin/eventos/nuevo')}
-          className="flex items-center gap-2 bg-[#5B9A27] text-white px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-[#4d8321] transition-colors"
+          className="flex items-center gap-2 bg-[#449D3A] text-white px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-[#367d2e] transition-colors"
         >
           <Plus className="w-4 h-4" /> Crear nuevo evento
         </button>
       </div>
 
+      <div className="flex flex-col sm:flex-row gap-3 mb-6">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text" value={busqueda} onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Buscar evento por nombre o edición..."
+            className="w-full pl-9 pr-8 py-2.5 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#449D3A] focus:border-[#449D3A]"
+          />
+          {busqueda && (
+            <button onClick={() => setBusqueda('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+        <div className="flex gap-2">
+          {([['TODOS', 'Todos'], ['PRINCIPAL', 'Principal'], ['NO_PRINCIPAL', 'No principal']] as const).map(([value, label]) => (
+            <button
+              key={value} onClick={() => setFiltroEstado(value)}
+              className={`px-3 py-2 rounded-lg text-xs font-bold border transition-colors ${
+                filtroEstado === value ? 'bg-[#449D3A] text-white border-[#449D3A]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#449D3A]'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {eventos.map((evento) => (
-          <div key={evento.id} className={`bg-white rounded-xl shadow-sm border p-6 flex flex-col relative ${evento.esPrincipal === 1 ? 'border-[#5B9A27] ring-1 ring-[#5B9A27]' : 'border-gray-100'}`}>
-            
+        {eventosFiltrados.map((evento) => (
+          <div key={evento.id} className={`bg-white rounded-xl shadow-sm border p-6 flex flex-col relative ${evento.esPrincipal === 1 ? 'border-[#449D3A] ring-1 ring-[#449D3A]' : 'border-gray-100'}`}>
+
             {evento.esPrincipal === 1 && (
-              <div className="absolute top-0 right-0 bg-[#5B9A27] text-white text-[10px] font-bold px-3 py-1 rounded-bl-xl rounded-tr-xl flex items-center gap-1">
+              <div className="absolute top-0 right-0 bg-[#449D3A] text-white text-[10px] font-bold px-3 py-1 rounded-bl-xl rounded-tr-xl flex items-center gap-1">
                 <Star className="w-3 h-3 fill-white" /> PRINCIPAL
               </div>
             )}
-            
+
             <div className="flex items-start gap-3 mb-4">
               <div className={`p-3 rounded-lg ${evento.esPrincipal === 1 ? 'bg-[#f4f7ee]' : 'bg-gray-50'}`}>
-                <CalendarCheck className={`w-6 h-6 ${evento.esPrincipal === 1 ? 'text-[#5B9A27]' : 'text-gray-400'}`} />
+                <CalendarCheck className={`w-6 h-6 ${evento.esPrincipal === 1 ? 'text-[#449D3A]' : 'text-gray-400'}`} />
               </div>
               <div className="flex-1">
                 <h3 className="text-lg font-bold text-gray-900 leading-tight">{evento.nombre}</h3>
@@ -126,7 +164,7 @@ export default function EventosListPage() {
               {evento.esPrincipal === 0 ? (
                 <button 
                   onClick={() => handleSetPrincipal(evento.id)}
-                  className="col-span-2 flex items-center justify-center gap-2 border border-[#d3e5b5] bg-white text-[#5B9A27] px-3 py-2 rounded-lg text-xs font-bold hover:bg-[#f4f7ee] transition-colors mb-2"
+                  className="col-span-2 flex items-center justify-center gap-2 border border-[#d3e5b5] bg-white text-[#449D3A] px-3 py-2 rounded-lg text-xs font-bold hover:bg-[#f4f7ee] transition-colors mb-2"
                 >
                   <Star className="w-3.5 h-3.5" /> Hacer Principal
                 </button>
@@ -143,7 +181,7 @@ export default function EventosListPage() {
 
               <button
                 onClick={() => router.push(`/admin/paquetes?eventoId=${evento.id}`)}
-                className="flex items-center justify-center gap-2 bg-green-50 text-[#5B9A27] px-3 py-2.5 rounded-lg text-xs font-bold hover:bg-green-100 transition-colors"
+                className="flex items-center justify-center gap-2 bg-green-50 text-[#449D3A] px-3 py-2.5 rounded-lg text-xs font-bold hover:bg-green-100 transition-colors"
               >
                 <Package className="w-3.5 h-3.5" /> Paquetes
               </button>
@@ -159,11 +197,11 @@ export default function EventosListPage() {
           </div>
         ))}
 
-        {eventos.length === 0 && (
+        {eventosFiltrados.length === 0 && (
           <div className="col-span-3 text-center py-16 bg-white rounded-xl border border-dashed border-gray-200">
              <CalendarCheck className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-             <h3 className="text-lg font-medium text-gray-900">No hay eventos configurados</h3>
-             <p className="text-sm text-gray-500 mt-1">Crea tu primera rueda de negocios para comenzar.</p>
+             <h3 className="text-lg font-medium text-gray-900">{eventos.length === 0 ? 'No hay eventos configurados' : 'Sin resultados para ese filtro'}</h3>
+             <p className="text-sm text-gray-500 mt-1">{eventos.length === 0 ? 'Crea tu primera rueda de negocios para comenzar.' : 'Prueba con otro nombre o cambia el filtro de estado.'}</p>
           </div>
         )}
       </div>

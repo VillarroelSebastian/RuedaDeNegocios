@@ -4,6 +4,7 @@ import {
   RefreshControl, Image,
 } from 'react-native';
 import { Newspaper } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { API_URL } from '../../utils/userStore';
 
 const GREEN = '#449D3A';
@@ -85,6 +86,7 @@ function NoticiaCard({ noticia }: { noticia: any }) {
 }
 
 export default function TecnicoNoticiasScreen() {
+  const insets = useSafeAreaInsets();
   const [noticias,   setNoticias]   = useState<any[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -108,7 +110,7 @@ export default function TecnicoNoticiasScreen() {
     <View style={{ flex: 1, backgroundColor: '#f8fafc' }}>
       {/* Header */}
       <View style={{
-        backgroundColor: '#fff', paddingHorizontal: 16, paddingTop: 52, paddingBottom: 14,
+        backgroundColor: '#fff', paddingHorizontal: 16, paddingTop: insets.top + 16, paddingBottom: 14,
         borderBottomWidth: 1, borderBottomColor: '#f1f5f9',
       }}>
         <Text style={{ fontSize: 22, fontWeight: '800', color: '#0f172a' }}>Noticias del evento</Text>

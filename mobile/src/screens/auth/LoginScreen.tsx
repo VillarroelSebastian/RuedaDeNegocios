@@ -259,7 +259,7 @@ export default function LoginScreen({ navigation }: any) {
 
       {/* ── Modal recuperar contraseña ─────────────────────────── */}
       <Modal visible={resetVisible} animationType="slide" transparent statusBarTranslucent>
-        <View style={s.modalOverlay}>
+        <KeyboardAvoidingView style={s.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={s.modalCard}>
 
             {/* Header */}
@@ -271,6 +271,8 @@ export default function LoginScreen({ navigation }: any) {
                 <X size={22} color="#6b7280" />
               </TouchableOpacity>
             </View>
+
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
             {/* Error */}
             {!!resetError && (
@@ -393,8 +395,9 @@ export default function LoginScreen({ navigation }: any) {
               </>
             )}
 
+            </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
@@ -506,6 +509,7 @@ const s = StyleSheet.create({
     borderTopRightRadius: 24,
     padding: 28,
     paddingBottom: 40,
+    maxHeight: '85%',
   },
   modalHeader: {
     flexDirection: 'row',

@@ -701,19 +701,25 @@ export class ExtrasController {
     if (empresaUsuarioId) {
       const eu = await this.prisma.empresa_usuario.findUnique({
         where: { id: empresaUsuarioId },
-        include: { empresaevento: { select: { estadoHabilitacionAcceso: true, evento_id: true } } },
+        include: {
+          empresaevento: { select: { estadoHabilitacionAcceso: true, evento_id: true } },
+          usuario: { select: { nombres: true, apellidoPaterno: true } },
+        },
       });
       if (!eu || eu.estaActivo === 0 || eu.empresaevento.evento_id !== eventoId)
         throw new BadRequestException('Participante no válido para este evento.');
       if (eu.empresaevento.estadoHabilitacionAcceso !== 'HABILITADO')
         throw new BadRequestException('Tu empresa aún no está habilitada para subir fotos.');
+      // Prioriza el nombre con el que se inscribió en ESTE evento
+      // (nombresEvento/apellidoPaternoEvento); si no lo tiene, usa el nombre
+      // global de la cuenta como respaldo. Evita mostrar el nombre de una
+      // inscripción de un evento anterior.
+      const nombres = eu.nombresEvento || eu.usuario.nombres || '';
+      const apellido = eu.apellidoPaternoEvento || eu.usuario.apellidoPaterno || '';
+      autorNombre = `${nombres} ${apellido}`.trim();
     }
 
-    if (empresaUsuarioId) {
-      const euAutor = await this.prisma.empresa_usuario.findUnique({ where: { id: empresaUsuarioId }, select: { usuario_id: true } });
-      const autor = euAutor ? await this.prisma.usuario.findUnique({ where: { id: euAutor.usuario_id }, select: { nombres: true, apellidoPaterno: true } }) : null;
-      autorNombre = `${autor?.nombres || ''} ${autor?.apellidoPaterno || ''}`.trim();
-    } else {
+    if (!empresaUsuarioId) {
       if (Number(usuarioId) !== Number(req.user?.sub)) throw new BadRequestException('Usuario no autorizado.');
       const autor = await this.prisma.usuario.findUnique({ where: { id: Number(usuarioId) }, select: { nombres: true, apellidoPaterno: true } });
       autorNombre = `${autor?.nombres || ''} ${autor?.apellidoPaterno || ''}`.trim();

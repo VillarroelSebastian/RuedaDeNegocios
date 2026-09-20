@@ -223,12 +223,12 @@ export default function TecnicoDashboardScreen() {
       {/* Header */}
       <View style={{ backgroundColor:'#fff', paddingHorizontal:20, paddingVertical:16,
         borderBottomWidth:1, borderBottomColor:'#f1f5f9', flexDirection:'row', alignItems:'center', gap:12 }}>
-        <View style={{ width:40, height:40, borderRadius:20, backgroundColor:GREEN, alignItems:'center', justifyContent:'center' }}>
+        <TouchableOpacity onPress={() => navigation.navigate('TecnicoPerfil')} style={{ width:40, height:40, borderRadius:20, backgroundColor:GREEN, alignItems:'center', justifyContent:'center' }}>
           {user?.urlFotoPerfil
             ? <Image source={{ uri: user.urlFotoPerfil }} style={{ width:40, height:40, borderRadius:20 }} />
             : <Text style={{ color:'#fff', fontWeight:'800', fontSize:16 }}>{user?.nombres?.[0] ?? 'T'}</Text>
           }
-        </View>
+        </TouchableOpacity>
         <View style={{ flex:1 }}>
           <Text style={{ fontSize:16, fontWeight:'800', color:'#0f172a' }}>Panel Técnico</Text>
           <Text style={{ fontSize:12, color:'#94a3b8' }}>{user?.nombres} {user?.apellidoPaterno}</Text>

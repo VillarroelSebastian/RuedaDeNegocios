@@ -186,7 +186,7 @@ export default function LoginPage() {
                       id="remember-me"
                       name="remember-me"
                       type="checkbox"
-                      className="h-4 w-4 rounded border-gray-300 text-[#5B9A27] focus:ring-[#5B9A27]"
+                      className="h-4 w-4 rounded border-gray-300 text-[#449D3A] focus:ring-[#449D3A]"
                     />
                     <label htmlFor="remember-me" className="ml-2 block text-sm font-medium text-gray-600">
                       Recordarme
@@ -205,7 +205,7 @@ export default function LoginPage() {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="flex w-full justify-center rounded-xl bg-[#5B9A27] px-3 py-3.5 text-sm font-bold text-white shadow-sm hover:bg-[#4d8321] transition-colors disabled:opacity-50"
+                    className="flex w-full justify-center rounded-xl bg-[#449D3A] px-3 py-3.5 text-sm font-bold text-white shadow-sm hover:bg-[#367d2e] transition-colors disabled:opacity-50"
                   >
                     {loading ? "Cargando..." : "Iniciar sesión"}
                   </button>

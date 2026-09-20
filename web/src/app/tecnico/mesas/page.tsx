@@ -9,9 +9,10 @@ import { useModal } from '@/components/ui/Modal';
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
 const ESTADO_MESA: Record<string, { badge: string; dot: string; label: string }> = {
-  LIBRE:    { badge: 'bg-green-100 text-green-700',   dot: 'bg-green-400',  label: 'Libre' },
-  RESERVADA:{ badge: 'bg-blue-100 text-blue-700',     dot: 'bg-blue-400',   label: 'Programada' },
-  EN_USO:   { badge: 'bg-orange-100 text-orange-700', dot: 'bg-orange-400', label: 'En uso' },
+  LIBRE:         { badge: 'bg-green-100 text-green-700',   dot: 'bg-green-400',  label: 'Libre' },
+  RESERVADA:     { badge: 'bg-blue-100 text-blue-700',     dot: 'bg-blue-400',   label: 'Programada' },
+  EN_USO:        { badge: 'bg-orange-100 text-orange-700', dot: 'bg-orange-400', label: 'En uso' },
+  PRE_RESERVADA: { badge: 'bg-amber-100 text-amber-700',   dot: 'bg-amber-400',  label: 'Pendiente' },
 };
 
 const ESTADO_REUNION: Record<string, { badge: string; label: string }> = {
@@ -228,6 +229,25 @@ function ReunionSlot({
   );
 }
 
+function SolicitudPendienteRow({ s }: { s: any }) {
+  return (
+    <div className="px-4 py-3 border-t border-gray-50 bg-amber-50/60">
+      <div className="flex items-center gap-2 mb-1.5">
+        <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+        <p className="text-sm font-semibold text-gray-700 truncate">{s.solicitante}</p>
+        <span className="text-gray-400 text-xs">↔</span>
+        <p className="text-sm font-semibold text-gray-700 truncate">{s.receptora}</p>
+      </div>
+      <div className="flex items-center gap-2 flex-wrap ml-3.5">
+        <span className="flex items-center gap-1 text-xs text-gray-500">
+          <Clock className="w-3 h-3 text-gray-400" /> {fmtTime(s.inicio)} – {fmtTime(s.fin)}
+        </span>
+        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Pendiente de respuesta</span>
+      </div>
+    </div>
+  );
+}
+
 type FiltroEstado = 'EN_USO' | 'PROGRAMADA' | 'LIBRE' | 'TODAS' | 'HISTORIAL';
 
 export default function TecnicoMesasPage() {
@@ -287,7 +307,7 @@ export default function TecnicoMesasPage() {
 
   const mesasFiltradas = mesas.filter((m) => {
     if (filtro === 'EN_USO')     { if (m.estadoMesa !== 'EN_USO')    return false; }
-    if (filtro === 'PROGRAMADA') { if (m.estadoMesa !== 'RESERVADA') return false; }
+    if (filtro === 'PROGRAMADA') { if (m.estadoMesa !== 'RESERVADA' && m.estadoMesa !== 'PRE_RESERVADA') return false; }
     if (filtro === 'LIBRE')      { if (m.estadoMesa !== 'LIBRE')     return false; }
     if (!search.trim()) return true;
     const q = search.toLowerCase();
@@ -304,7 +324,7 @@ export default function TecnicoMesasPage() {
 
   const counts = {
     enUso:     mesas.filter((m) => m.estadoMesa === 'EN_USO').length,
-    programada: mesas.filter((m) => m.estadoMesa === 'RESERVADA').length,
+    programada: mesas.filter((m) => m.estadoMesa === 'RESERVADA' || m.estadoMesa === 'PRE_RESERVADA').length,
     libre:     mesas.filter((m) => m.estadoMesa === 'LIBRE').length,
     total:     mesas.length,
   };
@@ -541,6 +561,7 @@ export default function TecnicoMesasPage() {
                   <div className={`w-11 h-11 rounded-xl flex items-center justify-center font-extrabold text-base text-white shrink-0 ${
                     mesa.estadoMesa === 'EN_USO'    ? 'bg-orange-500'
                     : mesa.estadoMesa === 'RESERVADA'? 'bg-blue-500'
+                    : mesa.estadoMesa === 'PRE_RESERVADA' ? 'bg-amber-500'
                     : 'bg-[#449D3A]'
                   }`}>
                     {String(mesa.numeroMesa).padStart(2, '0')}
@@ -548,7 +569,7 @@ export default function TecnicoMesasPage() {
                   <div className="flex-1">
                     <p className="text-base font-bold text-gray-900">Mesa {mesa.numeroMesa}</p>
                     <p className="text-xs text-gray-400">
-                      {mesa.reunion?.length ?? 0} reunión(es) · {mesa.capacidadPersonas} personas
+                      {mesa.reunion?.length ?? 0} reunión(es){mesa.solicitudesEnEspera?.length ? ` · ${mesa.solicitudesEnEspera.length} pendiente(s)` : ''} · {mesa.capacidadPersonas} personas
                     </p>
                   </div>
                   <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0 ${cfg.badge}`}>
@@ -556,16 +577,20 @@ export default function TecnicoMesasPage() {
                   </span>
                 </div>
 
-                {mesa.reunion && mesa.reunion.length > 0 ? (
-                  mesa.reunion.map((r: any) => (
-                    <ReunionSlot
-                      key={r.id}
-                      r={r}
-                      onMessage={openMessageModal}
-                      onChangeLink={openLinkModal}
-                    />
-                  ))
-                ) : (
+                {mesa.reunion && mesa.reunion.length > 0 && mesa.reunion.map((r: any) => (
+                  <ReunionSlot
+                    key={r.id}
+                    r={r}
+                    onMessage={openMessageModal}
+                    onChangeLink={openLinkModal}
+                  />
+                ))}
+
+                {mesa.solicitudesEnEspera && mesa.solicitudesEnEspera.length > 0 && mesa.solicitudesEnEspera.map((s: any) => (
+                  <SolicitudPendienteRow key={s.solicitudId} s={s} />
+                ))}
+
+                {(!mesa.reunion || mesa.reunion.length === 0) && (!mesa.solicitudesEnEspera || mesa.solicitudesEnEspera.length === 0) && (
                   <div className="px-4 py-4 flex items-center gap-3">
                     <div className="w-2 h-2 rounded-full bg-green-300 shrink-0" />
                     <p className="text-sm text-gray-400 font-medium">Disponible — sin reuniones asignadas</p>

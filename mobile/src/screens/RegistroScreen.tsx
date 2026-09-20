@@ -173,6 +173,7 @@ export default function RegistroScreen({ navigation }: any) {
   const [paqueteId, setPaqueteId] = useState<number | null>(null);
   const [loadingInit, setLoadingInit] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [verificando, setVerificando] = useState(false);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [showParticipants, setShowParticipants] = useState(false);
 
@@ -200,6 +201,11 @@ export default function RegistroScreen({ navigation }: any) {
   const [correoEmpresa, setCorreoEmpresa] = useState('');
   const [telefonoWA, setTelefonoWA] = useState('');
   const [descripcion, setDescripcion] = useState('');
+  const [oferta, setOferta] = useState('');
+  const [demanda, setDemanda] = useState('');
+  const [interesesBusqueda, setInteresesBusqueda] = useState<string[]>([]);
+  const toggleInteres = (rubroInteres: string) =>
+    setInteresesBusqueda((prev) => prev.includes(rubroInteres) ? prev.filter((r) => r !== rubroInteres) : [...prev, rubroInteres]);
   const [numParticipantes, setNumParticipantes] = useState(1);
   const [tipoParticipacion, setTipoParticipacion] = useState<'PRESENCIAL' | 'VIRTUAL' | 'HIBRIDO'>('PRESENCIAL');
 
@@ -273,6 +279,9 @@ export default function RegistroScreen({ navigation }: any) {
     } finally { setUploadingFile(false); }
   };
 
+  // Formato de teléfono: dígitos, espacios, +, - o (). Misma regla que en web.
+  const validTel = (v: string) => /^[+]?\d[\d\s\-()]{5,19}$/.test(v.trim());
+
   // Validations
   const validateStep0 = () => {
     const nombreErr = validarNombreEmpresa(nombre);
@@ -285,6 +294,7 @@ export default function RegistroScreen({ navigation }: any) {
     if (!correoEmpresa.trim()) return 'El correo corporativo es requerido.';
     if (!correoValido(correoEmpresa)) return 'El correo corporativo no es válido.';
     if (!telefonoWA.trim()) return 'El teléfono/WhatsApp es requerido.';
+    if (!validTel(telefonoWA)) return 'El teléfono/WhatsApp no es válido. Usa solo dígitos, espacios, +, - o ().';
     if (!paqueteId) return 'Este evento todavía no tiene paquetes de inscripción disponibles.';
     return null;
   };
@@ -299,20 +309,73 @@ export default function RegistroScreen({ navigation }: any) {
     if (!correoValido(responsable.correo)) return 'El correo del responsable no es válido.';
     if (!responsable.cargo.trim()) return 'El cargo del responsable es requerido.';
     if (!responsable.telefono.trim()) return 'El teléfono del responsable es requerido.';
+    if (!validTel(responsable.telefono)) return 'El teléfono del responsable no es válido. Usa solo dígitos, espacios, +, - o ().';
     for (const [i, p] of adicionales.entries()) {
       if (!p.nombre.trim() || !p.apellido.trim() || !p.correo.trim() || !p.cargo.trim() || !p.telefono.trim())
         return `Completa todos los campos del participante adicional ${i + 2}.`;
       if (!correoValido(p.correo)) return `El correo del participante adicional ${i + 2} no es válido.`;
+      if (!validTel(p.telefono)) return `El teléfono del participante adicional ${i + 2} no es válido.`;
     }
     return null;
   };
 
-  const goNext = () => {
-    if (step === 0) { const e = validateStep0(); if (e) { showModal('warning', 'Campos incompletos', e); return; } }
+  // Verifica contra el backend que el correo/teléfono de la empresa no esté
+  // ya usado por otra empresa registrada — igual que en la web, se hace aquí
+  // mismo (paso Empresa) en vez de dejar que el error aparezca recién al
+  // enviar el registro completo.
+  const verificarCorreoEmpresa = async (correo: string): Promise<string | null> => {
+    if (!correoValido(correo)) return null;
+    try {
+      const res = await fetch(`${API_URL}/public/verificar-empresa?correo=${encodeURIComponent(correo)}`);
+      const data = await res.json();
+      return data.existe ? `La empresa "${data.nombreEmpresa}" ya está registrada con este correo para el evento actual.` : null;
+    } catch { return null; }
+  };
+  const verificarTelefono = async (telefono: string, tipo: 'empresa' | 'participante', etiqueta: string, correo?: string): Promise<string | null> => {
+    if (!validTel(telefono)) return null;
+    try {
+      const params = new URLSearchParams({ telefono, tipo, ...(correo ? { correo } : {}) });
+      const res = await fetch(`${API_URL}/public/verificar-empresa?${params}`);
+      const data = await res.json();
+      if (!data.existe) return null;
+      return tipo === 'empresa'
+        ? `Este teléfono/WhatsApp ya está registrado por la empresa "${data.nombreEmpresa || 'existente'}".`
+        : `El teléfono de ${etiqueta} ya está asociado a una cuenta.`;
+    } catch { return null; }
+  };
+
+  const goNext = async () => {
+    if (step === 0) {
+      const e = validateStep0();
+      if (e) { showModal('warning', 'Campos incompletos', e); return; }
+      setVerificando(true);
+      try {
+        const correoErr = await verificarCorreoEmpresa(correoEmpresa);
+        if (correoErr) { showModal('warning', 'Correo ya registrado', correoErr); return; }
+        const telErr = await verificarTelefono(telefonoWA, 'empresa', 'la empresa');
+        if (telErr) { showModal('warning', 'Teléfono ya registrado', telErr); return; }
+      } finally { setVerificando(false); }
+    }
     if (step === 1) { const e = validateStep1(); if (e) { showModal('warning', 'Pago pendiente', e); return; } }
-    if (step === 2) { const e = validateStep2(); if (e) { showModal('warning', 'Participantes incompletos', e); return; } submitRegistro(); return; }
+    if (step === 2) {
+      const e = validateStep2();
+      if (e) { showModal('warning', 'Participantes incompletos', e); return; }
+      setVerificando(true);
+      try {
+        const respErr = await verificarTelefono(responsable.telefono, 'participante', 'el encargado', responsable.correo);
+        if (respErr) { showModal('warning', 'Teléfono ya registrado', respErr); return; }
+        for (const [i, p] of adicionales.entries()) {
+          const err = await verificarTelefono(p.telefono, 'participante', `el participante ${i + 2}`, p.correo);
+          if (err) { showModal('warning', 'Teléfono ya registrado', err); return; }
+        }
+      } finally { setVerificando(false); }
+      submitRegistro();
+      return;
+    }
     setStep(s => s + 1);
   };
+
+  const goPrev = () => step === 0 ? navigation.goBack() : setStep(s => s - 1);
 
   const submitRegistro = async () => {
     setSubmitting(true);
@@ -327,6 +390,9 @@ export default function RegistroScreen({ navigation }: any) {
           correoCorporativo: correoEmpresa.trim(),
           telefonoWhatsapp: telefonoWA.trim(),
           descripcion: descripcion.trim() || null,
+          oferta: oferta.trim() || null,
+          demanda: demanda.trim() || null,
+          interesesBusqueda: interesesBusqueda.length ? interesesBusqueda.join(', ') : null,
         },
         participacion: { numeroParticipantes: numParticipantes, tipoParticipacion, paquete_id: paqueteId },
         comprobante: { urlComprobante: comprobanteUrl },
@@ -495,11 +561,8 @@ export default function RegistroScreen({ navigation }: any) {
       <PickerModal visible={showCiudades} title="Seleccionar ciudad" items={ciudadList} selected={ciudad} onSelect={setCiudad} onClose={() => setShowCiudades(false)} />
 
       {/* Header */}
-      <View style={{ backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e5e7eb', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 }}>
-        <TouchableOpacity onPress={() => step === 0 ? navigation.goBack() : setStep(s => s - 1)} style={{ marginRight: 12 }}>
-          <Text style={{ fontSize: 22, color: '#374151' }}>←</Text>
-        </TouchableOpacity>
-        <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827', flex: 1 }}>Registro de Empresa</Text>
+      <View style={{ backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e5e7eb', paddingHorizontal: 16, paddingVertical: 14 }}>
+        <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827' }}>Registro de Empresa</Text>
       </View>
 
       <StepBar step={step} />
@@ -571,6 +634,31 @@ export default function RegistroScreen({ navigation }: any) {
               <Field label="Descripción">
                 <TextInput style={{ ...inp, minHeight: 80, textAlignVertical: 'top' }} value={descripcion} onChangeText={(t) => setDescripcion(t.slice(0, LIMITES.descripcion))} maxLength={LIMITES.descripcion} placeholder="Breve descripción…" placeholderTextColor="#9ca3af" multiline numberOfLines={3} />
                 <Text style={{ fontSize: 11, color: '#9ca3af', textAlign: 'right', marginTop: 2 }}>{descripcion.length}/{LIMITES.descripcion}</Text>
+              </Field>
+
+              <Field label="¿Qué ofrece tu empresa?">
+                <TextInput style={{ ...inp, minHeight: 70, textAlignVertical: 'top' }} value={oferta} onChangeText={(t) => setOferta(t.slice(0, LIMITES.oferta))} maxLength={LIMITES.oferta} placeholder="Ej: exportación de café orgánico, servicios de logística…" placeholderTextColor="#9ca3af" multiline numberOfLines={3} />
+                <Text style={{ fontSize: 11, color: '#9ca3af', textAlign: 'right', marginTop: 2 }}>{oferta.length}/{LIMITES.oferta}</Text>
+              </Field>
+
+              <Field label="¿Qué busca tu empresa?">
+                <TextInput style={{ ...inp, minHeight: 70, textAlignVertical: 'top' }} value={demanda} onChangeText={(t) => setDemanda(t.slice(0, LIMITES.demanda))} maxLength={LIMITES.demanda} placeholder="Ej: proveedores de insumos, socios de distribución…" placeholderTextColor="#9ca3af" multiline numberOfLines={3} />
+                <Text style={{ fontSize: 11, color: '#9ca3af', textAlign: 'right', marginTop: 2 }}>{demanda.length}/{LIMITES.demanda}</Text>
+              </Field>
+
+              <Field label="¿Con qué sectores te interesa reunirte? (opcional)">
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {RUBROS.map((r) => {
+                    const activo = interesesBusqueda.includes(r);
+                    return (
+                      <TouchableOpacity key={r} onPress={() => toggleInteres(r)}
+                        style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: activo ? '#5B9A27' : '#e5e7eb', backgroundColor: activo ? '#5B9A27' : '#fff' }}>
+                        <Text style={{ fontSize: 12, fontWeight: '600', color: activo ? '#fff' : '#4b5563' }}>{r}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                <Text style={{ fontSize: 11, color: '#9ca3af', marginTop: 8 }}>Usaremos esto para sugerirte empresas afines en el apartado de Oportunidades.</Text>
               </Field>
 
               {/* Paquete oficial de inscripción */}
@@ -750,17 +838,27 @@ export default function RegistroScreen({ navigation }: any) {
           )}
 
           {/* ─── Navigation ─────────────────────────────────────── */}
-          <TouchableOpacity
-            onPress={goNext}
-            disabled={submitting}
-            style={{ backgroundColor: '#5B9A27', borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginTop: 8, marginBottom: 32 }}
-          >
-            {submitting ? <ActivityIndicator color="#fff" /> : (
-              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>
-                {step === 2 ? 'Enviar registro' : 'Continuar'}
-              </Text>
-            )}
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 8, marginBottom: 32 }}>
+            <TouchableOpacity
+              onPress={goPrev}
+              disabled={submitting || verificando}
+              style={{ flex: 1, borderWidth: 1.5, borderColor: '#5B9A27', borderRadius: 14, paddingVertical: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
+            >
+              <Text style={{ fontSize: 16, color: '#5B9A27' }}>←</Text>
+              <Text style={{ color: '#5B9A27', fontWeight: '700', fontSize: 15 }}>Volver</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={goNext}
+              disabled={submitting || verificando}
+              style={{ flex: 2, backgroundColor: '#5B9A27', borderRadius: 14, paddingVertical: 16, alignItems: 'center' }}
+            >
+              {submitting || verificando ? <ActivityIndicator color="#fff" /> : (
+                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>
+                  {step === 2 ? 'Enviar registro' : 'Continuar'}
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

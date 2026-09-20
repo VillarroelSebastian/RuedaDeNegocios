@@ -60,7 +60,7 @@ export default function ReportesPage() {
   const filtradas = tipo === 'ranking'
     ? [...filtradasBase].sort((a, b) => {
         if (ordenRanking === 'estrellas') return Number(b.EstrellasDadas) - Number(a.EstrellasDadas);
-        if (ordenRanking === 'dinero') return Number(b.DineroGeneradoAproxUSD) - Number(a.DineroGeneradoAproxUSD);
+        if (ordenRanking === 'dinero') return Number(b.DineroGeneradoAproxBs) - Number(a.DineroGeneradoAproxBs);
         return Number(b.Reuniones) - Number(a.Reuniones);
       })
     : filtradasBase;
@@ -125,6 +125,31 @@ export default function ReportesPage() {
         <h2 className="text-lg font-bold">Reporte: {TIPOS.find((t) => t.key === tipo)?.label}</h2>
         <p className="text-xs text-gray-500">Generado el {new Date().toLocaleDateString("es-BO")} — {filtradas.length} registros</p>
       </div>
+
+      {/* Gráfica del top 10 (más visual que la tabla) */}
+      {!loading && tipo === 'ranking' && filtradas.length > 0 && (() => {
+        const campo = ordenRanking === 'estrellas' ? 'EstrellasDadas' : ordenRanking === 'dinero' ? 'DineroGeneradoAproxBs' : 'Reuniones';
+        const top10 = filtradas.slice(0, 10);
+        const max = Math.max(...top10.map((f) => Number(f[campo])), 1);
+        return (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 print:hidden">
+            <h2 className="font-bold text-gray-900 mb-4">Top 10 — {ordenRanking === 'estrellas' ? 'Estrellas dadas' : ordenRanking === 'dinero' ? 'Dinero generado (Bs.)' : 'Reuniones'}</h2>
+            <div className="space-y-3">
+              {top10.map((f, i) => (
+                <div key={i}>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="font-semibold text-gray-700 truncate max-w-[70%]">{f.Empresa ?? f.Nombre ?? `#${i + 1}`}</span>
+                    <span className="font-bold text-gray-900">{Number(f[campo]).toLocaleString('es-BO')}</span>
+                  </div>
+                  <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-[#449D3A] rounded-full" style={{ width: `${Math.max(4, (Number(f[campo]) / max) * 100)}%` }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {loading ? (
         <div className="flex items-center justify-center h-40">

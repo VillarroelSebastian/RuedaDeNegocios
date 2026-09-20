@@ -2,7 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { LayoutDashboard, Armchair, Video, Search, Newspaper, UserCircle, Handshake, Bell } from 'lucide-react-native';
+import { LayoutDashboard, Armchair, Video, Search, Newspaper, UserCircle, Handshake, Bell, LogOut } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useModal } from '../components/AppModal';
 
 import TecnicoDashboardScreen  from '../screens/tecnico/TecnicoDashboardScreen';
 import TecnicoMesasScreen      from '../screens/tecnico/TecnicoMesasScreen';
@@ -27,19 +29,27 @@ const TecnicoStack = createNativeStackNavigator();
 const GREEN = '#449D3A';
 const GRAY  = '#9ca3af';
 
-const tabOptions = {
+const baseTabOptions = {
   headerShown: false,
   tabBarActiveTintColor: GREEN,
   tabBarInactiveTintColor: GRAY,
-  tabBarStyle: {
-    borderTopColor: '#f1f5f9',
-    backgroundColor: '#ffffff',
-    height: 62,
-    paddingBottom: 10,
-    paddingTop: 6,
-  },
   tabBarLabelStyle: { fontSize: 10, fontWeight: '600' as const },
 };
+
+// La barra de pestañas necesita el inset inferior real del dispositivo: en
+// teléfonos con barra de navegación de Android (los "botones/flechas" de
+// abajo, comunes en Xiaomi), una altura fija deja las pestañas tapadas o muy
+// pegadas a esos botones.
+function useTabBarStyle() {
+  const insets = useSafeAreaInsets();
+  return {
+    borderTopColor: '#f1f5f9',
+    backgroundColor: '#ffffff',
+    height: 52 + Math.max(insets.bottom, 10),
+    paddingBottom: Math.max(insets.bottom, 10),
+    paddingTop: 6,
+  };
+}
 
 const IconDashboard  = ({ color }: { color: string }) => <LayoutDashboard color={color} size={22} />;
 const IconMesas      = ({ color }: { color: string }) => <Armchair         color={color} size={22} />;
@@ -49,30 +59,57 @@ const IconNoticias   = ({ color }: { color: string }) => <Newspaper        color
 const IconAlertas    = ({ color }: { color: string }) => <Bell             color={color} size={22} />;
 const IconPerfil     = ({ color }: { color: string }) => <UserCircle       color={color} size={22} />;
 const IconOportunidades = ({ color }: { color: string }) => <Handshake color={color} size={22} />;
+const IconLogout = ({ color }: { color: string }) => <LogOut color={color} size={22} />;
+
+// Pantalla vacía requerida por Tab.Screen; nunca llega a mostrarse porque el
+// listener de `tabPress` de abajo intercepta la pulsación antes de navegar.
+function LogoutPlaceholder() { return null; }
 
 function TecnicoTabs() {
+  const { show, modal } = useModal();
+  const tabBarStyle = useTabBarStyle();
+  const handleLogout = (navigation: any) => {
+    show({
+      type: 'confirm',
+      title: 'Cerrar sesión',
+      message: '¿Estás seguro que quieres cerrar sesión?',
+      confirmText: 'Cerrar sesión',
+      cancelText: 'Cancelar',
+      onConfirm: () => { userStore.clear().then(() => navigation.replace('Login')); },
+    });
+  };
   return (
-    <Tab.Navigator screenOptions={tabOptions}>
-      <Tab.Screen name="TecnicoDashboard"  component={TecnicoDashboardScreen}
-        options={{ title: 'Panel',     tabBarIcon: IconDashboard }} />
-      <Tab.Screen name="TecnicoMesas"      component={TecnicoMesasScreen}
-        options={{ title: 'Mesas',     tabBarIcon: IconMesas }} />
-      <Tab.Screen name="TecnicoVirtuales"  component={TecnicoVirtualesScreen}
-        options={{ title: 'Virtuales', tabBarIcon: IconVirtuales }} />
-      <Tab.Screen name="TecnicoBuscador"   component={TecnicoBuscadorScreen}
-        options={{ title: 'Buscar',    tabBarIcon: IconBuscador }} />
-      <Tab.Screen name="TecnicoOportunidades" component={OportunidadesStaffScreen}
-        options={{ title: 'Oportun.', tabBarIcon: IconOportunidades }} />
-      <Tab.Screen name="TecnicoContenido"  component={TecnicoContenidoScreen}
-        options={{ title: 'Alertas', tabBarIcon: IconAlertas }} />
-      <Tab.Screen name="TecnicoPerfil"     component={TecnicoPerfilScreen}
-        options={{ title: 'Mi Perfil', tabBarIcon: IconPerfil }} />
-    </Tab.Navigator>
+    <>
+      {modal}
+      <Tab.Navigator screenOptions={{ ...baseTabOptions, tabBarStyle }}>
+        <Tab.Screen name="TecnicoDashboard"  component={TecnicoDashboardScreen}
+          options={{ title: 'Panel',     tabBarIcon: IconDashboard }} />
+        <Tab.Screen name="TecnicoMesas"      component={TecnicoMesasScreen}
+          options={{ title: 'Mesas',     tabBarIcon: IconMesas }} />
+        <Tab.Screen name="TecnicoVirtuales"  component={TecnicoVirtualesScreen}
+          options={{ title: 'Virtuales', tabBarIcon: IconVirtuales }} />
+        <Tab.Screen name="TecnicoBuscador"   component={TecnicoBuscadorScreen}
+          options={{ title: 'Buscar',    tabBarIcon: IconBuscador }} />
+        <Tab.Screen name="TecnicoOportunidades" component={OportunidadesStaffScreen}
+          options={{ title: 'Oportun.', tabBarIcon: IconOportunidades }} />
+        <Tab.Screen name="TecnicoContenido"  component={TecnicoContenidoScreen}
+          options={{ title: 'Alertas', tabBarIcon: IconAlertas }} />
+        <Tab.Screen name="TecnicoPerfil"     component={TecnicoPerfilScreen}
+          options={{ title: 'Mi Perfil', tabBarIcon: IconPerfil }} />
+        <Tab.Screen name="TecnicoCerrarSesion" component={LogoutPlaceholder}
+          options={{ title: 'Salir', tabBarIcon: IconLogout }}
+          listeners={({ navigation }) => ({
+            tabPress: (e) => { e.preventDefault(); handleLogout(navigation); },
+          })}
+        />
+      </Tab.Navigator>
+    </>
   );
 }
 
 function TecnicoEventosTabs() {
-  return <Tab.Navigator screenOptions={tabOptions}>
+  const tabBarStyle = useTabBarStyle();
+  return <Tab.Navigator screenOptions={{ ...baseTabOptions, tabBarStyle }}>
     <Tab.Screen name="TecnicoContenido" component={TecnicoContenidoScreen} options={{ title: 'Alertas', tabBarIcon: IconAlertas }} />
     <Tab.Screen name="TecnicoGaleria" component={TecnicoGaleriaScreen} options={{ title: 'Fotos', tabBarIcon: ({color}) => <Newspaper color={color} size={22}/> }} />
     <Tab.Screen name="TecnicoPerfil" component={TecnicoPerfilScreen} options={{ title: 'Mi Perfil', tabBarIcon: IconPerfil }} />

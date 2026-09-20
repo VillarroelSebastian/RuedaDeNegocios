@@ -135,12 +135,12 @@
 }
 
 .btnPrimary {
-  background: #5B9A27;
+  background: #449D3A;
   color: white;
-  box-shadow: 0 2px 8px rgba(91, 154, 39, 0.3);
+  box-shadow: 0 2px 8px rgba(68, 157, 58, 0.3);
 }
 .btnPrimary:hover {
-  background: #4d8321;
+  background: #367d2e;
 }
 
 .btnConfirm {

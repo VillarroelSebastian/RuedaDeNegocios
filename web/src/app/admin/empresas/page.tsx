@@ -26,6 +26,36 @@ function ParticipantesModal({ empresa, onClose, permitirCambiarPassword = true }
   const [copiada, setCopiada] = useState(false);
   const [participanteManual, setParticipanteManual] = useState<any | null>(null);
   const [passwordManual, setPasswordManual] = useState('');
+  const [participanteCorreo, setParticipanteCorreo] = useState<any | null>(null);
+  const [correoNuevo, setCorreoNuevo] = useState('');
+  const [guardandoCorreo, setGuardandoCorreo] = useState(false);
+  const [reenviando, setReenviando] = useState<number | null>(null);
+  const [avisoReenvio, setAvisoReenvio] = useState<{ ok: boolean; texto: string } | null>(null);
+
+  const guardarCorreo = async (p: any) => {
+    if (!correoNuevo.trim()) return;
+    setGuardandoCorreo(true);
+    try {
+      const res = await fetch(`${API}/admin/participantes/${p.usuarioId}/correo`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ correo: correoNuevo.trim() }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'No se pudo actualizar el correo');
+      setParticipantes(ps => ps.map(x => x.usuarioId === p.usuarioId ? { ...x, correo: data.correo } : x));
+      setParticipanteCorreo(null); setCorreoNuevo('');
+    } catch (error: any) { setAvisoReenvio({ ok: false, texto: error.message }); }
+    finally { setGuardandoCorreo(false); }
+  };
+
+  const reenviarCredenciales = async (p: any) => {
+    setReenviando(p.usuarioId);
+    setAvisoReenvio(null);
+    try {
+      const res = await fetch(`${API}/admin/participantes/${p.usuarioId}/reenviar-credenciales`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'No se pudo reenviar las credenciales');
+      setAvisoReenvio({ ok: true, texto: `Credenciales reenviadas a ${data.correo}.` });
+    } catch (error: any) { setAvisoReenvio({ ok: false, texto: error.message }); }
+    finally { setReenviando(null); }
+  };
 
   const copiarPassword = async () => {
     if (!credencial || credencial.password.startsWith('ERROR:')) return;
@@ -73,6 +103,20 @@ function ParticipantesModal({ empresa, onClose, permitirCambiarPassword = true }
           </button>
         </div>
         <div className="flex-1 overflow-y-auto p-6">
+          {permitirCambiarPassword && avisoReenvio && (
+            <div className={`mb-4 rounded-xl border p-3 text-sm ${avisoReenvio.ok ? 'border-green-200 bg-green-50 text-green-800' : 'border-red-200 bg-red-50 text-red-800'}`}>
+              {avisoReenvio.texto}
+            </div>
+          )}
+          {permitirCambiarPassword && participanteCorreo && <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
+            <p className="text-sm font-bold text-blue-900">Editar correo de {participanteCorreo.nombres}</p>
+            <p className="mt-1 text-xs text-blue-700">Se usará para el inicio de sesión y para el envío de credenciales.</p>
+            <input type="email" value={correoNuevo} onChange={(e) => setCorreoNuevo(e.target.value)} placeholder="nuevo@correo.com" className="mt-3 w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500" />
+            <div className="mt-3 flex gap-2">
+              <button type="button" disabled={guardandoCorreo || !correoNuevo.trim()} onClick={() => guardarCorreo(participanteCorreo)} className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">Guardar correo</button>
+              <button type="button" onClick={() => { setParticipanteCorreo(null); setCorreoNuevo(''); }} className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-bold text-blue-700">Cancelar</button>
+            </div>
+          </div>}
           {permitirCambiarPassword && credencial && <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
             <p className="font-bold">Nueva contraseña</p><p className="mt-1 break-all">{credencial.correo}</p>
             <div className="mt-2 flex items-center gap-2"><code className="min-w-0 flex-1 break-all rounded bg-white p-2 font-bold">{credencial.password}</code>
@@ -84,7 +128,7 @@ function ParticipantesModal({ empresa, onClose, permitirCambiarPassword = true }
           </div>}
           {permitirCambiarPassword && participanteManual && <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
             <p className="text-sm font-bold text-blue-900">Escribir nueva contraseña para {participanteManual.nombres}</p>
-            <p className="mt-1 text-xs text-blue-700">Mínimo 12 caracteres, con mayúscula, minúscula, número y símbolo.</p>
+            <p className="mt-1 text-xs text-blue-700">Mínimo 6 caracteres.</p>
             <input type="text" autoComplete="new-password" value={passwordManual} onChange={(e) => setPasswordManual(e.target.value)} placeholder="Nueva contraseña" className="mt-3 w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500" />
             <div className="mt-3 flex gap-2">
               <button type="button" disabled={reiniciando === participanteManual.usuarioId || !passwordManual} onClick={() => reiniciarPassword(participanteManual, passwordManual)} className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">Guardar contraseña</button>
@@ -117,9 +161,11 @@ function ParticipantesModal({ empresa, onClose, permitirCambiarPassword = true }
                     <span className={`text-[10px] font-semibold ${p.estaActivo ? 'text-gray-400' : 'text-red-400'}`}>
                       {p.estaActivo ? 'Activo' : 'Inactivo'}
                     </span>
-                    {permitirCambiarPassword && p.estaActivo && <div className="mt-1 flex gap-1">
+                    {permitirCambiarPassword && p.estaActivo && <div className="mt-1 flex flex-wrap justify-end gap-1">
                       <button disabled={reiniciando === p.usuarioId} onClick={() => reiniciarPassword(p)} className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-white px-2 py-1 text-[10px] font-bold text-amber-700 disabled:opacity-50"><KeyRound className="h-3 w-3" />Generar</button>
                       <button disabled={reiniciando === p.usuarioId} onClick={() => { setParticipanteManual(p); setPasswordManual(''); setCredencial(null); }} className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-white px-2 py-1 text-[10px] font-bold text-blue-700 disabled:opacity-50">Escribir</button>
+                      <button disabled={guardandoCorreo} onClick={() => { setParticipanteCorreo(p); setCorreoNuevo(p.correo ?? ''); setAvisoReenvio(null); }} className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2 py-1 text-[10px] font-bold text-gray-700 disabled:opacity-50">Editar correo</button>
+                      <button disabled={reenviando === p.usuarioId} onClick={() => reenviarCredenciales(p)} className="inline-flex items-center gap-1 rounded-lg border border-green-200 bg-white px-2 py-1 text-[10px] font-bold text-green-700 disabled:opacity-50">{reenviando === p.usuarioId ? 'Enviando…' : 'Reenviar credenciales'}</button>
                     </div>}
                   </div>
                 </div>
