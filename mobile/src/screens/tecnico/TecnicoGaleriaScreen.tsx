@@ -41,11 +41,22 @@ export default function TecnicoGaleriaScreen() {
     return Array.from(map.values()).sort((a, b) => b.fotos.length - a.fotos.length);
   }, [fotos, esStaff]);
 
+  const fotosLanding = useMemo(() => fotos.filter((f) => !!f.visibleLanding), [fotos]);
+
   // Lista plana: encabezado de grupo + filas de a 2 fotos, para poder usar un
   // solo FlatList sin depender de un grid rígido de columnas fijas.
   const staffItems = useMemo(() => {
     if (!grupos) return [];
     const items: any[] = [];
+    items.push({ _tipo: "landing-header", key: "landing-header", count: fotosLanding.length });
+    if (fotosLanding.length === 0) {
+      items.push({ _tipo: "landing-empty", key: "landing-empty" });
+    } else {
+      for (let i = 0; i < fotosLanding.length; i += 2) {
+        items.push({ _tipo: "row", key: `landing-${i}`, fotos: fotosLanding.slice(i, i + 2) });
+      }
+    }
+    items.push({ _tipo: "divider", key: "divider" });
     for (const g of grupos) {
       items.push({ _tipo: "header", key: `h-${g.key}`, nombre: g.nombre, tipoAutor: g.tipo, count: g.fotos.length });
       for (let i = 0; i < g.fotos.length; i += 2) {
@@ -53,7 +64,7 @@ export default function TecnicoGaleriaScreen() {
       }
     }
     return items;
-  }, [grupos]);
+  }, [grupos, fotosLanding]);
 
   const toggleLanding = async (foto: any) => {
     setActualizandoLanding(foto.id);
@@ -242,6 +253,34 @@ export default function TecnicoGaleriaScreen() {
                 onPress={() => setAmpliada(item)}
                 onEliminar={() => eliminar(item.id)}
               />
+            );
+          }
+          if (item._tipo === "landing-header") {
+            return (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4, marginBottom: 8 }}>
+                <View style={{ width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: "#fef3c7" }}>
+                  <Star color="#b45309" fill="#b45309" size={13} />
+                </View>
+                <Text style={{ fontSize: 13, fontWeight: "800", color: "#0f172a", flex: 1 }}>En el landing ahora</Text>
+                <Text style={{ fontSize: 11, fontWeight: "700", color: "#94a3b8" }}>{item.count} foto(s)</Text>
+              </View>
+            );
+          }
+          if (item._tipo === "landing-empty") {
+            return (
+              <View style={{ backgroundColor: "#fffbeb", borderWidth: 1, borderColor: "#fde68a", borderStyle: "dashed", borderRadius: 14, padding: 18, alignItems: "center", marginBottom: 10 }}>
+                <Star color="#fcd34d" size={22} />
+                <Text style={{ fontSize: 12, color: "#92400e", textAlign: "center", marginTop: 8 }}>
+                  Ninguna foto seleccionada todavía. Toca la estrella de una foto para agregarla aquí.
+                </Text>
+              </View>
+            );
+          }
+          if (item._tipo === "divider") {
+            return (
+              <Text style={{ fontSize: 11, fontWeight: "800", color: "#94a3b8", textTransform: "uppercase", letterSpacing: 0.5, marginTop: 14, marginBottom: 4 }}>
+                Todas las fotos, por participante
+              </Text>
             );
           }
           if (item._tipo === "header") {

@@ -155,6 +155,8 @@ export default function GaleriaEvento({
       })()
     : null;
 
+  const fotosLanding = fotos.filter((f) => !!f.visibleLanding);
+
   return (
     <div>
       {puedeSubir && (
@@ -192,6 +194,32 @@ export default function GaleriaEvento({
         </div>
       ) : esStaff && grupos ? (
         <div className="space-y-8">
+          <div>
+            <div className="mb-3 flex items-center gap-2">
+              <span className="flex items-center justify-center w-7 h-7 rounded-full bg-amber-100 text-amber-600">
+                <Star className="w-3.5 h-3.5 fill-amber-500" />
+              </span>
+              <p className="text-sm font-bold text-gray-900">En el landing ahora</p>
+              <span className="text-xs font-semibold text-gray-400">{fotosLanding.length} foto(s)</span>
+            </div>
+            {fotosLanding.length === 0 ? (
+              <div className="text-center py-10 bg-amber-50/60 border border-dashed border-amber-200 rounded-2xl">
+                <Star className="w-8 h-8 text-amber-300 mx-auto mb-2" />
+                <p className="text-sm text-gray-500">Ninguna foto seleccionada todavía. Toca la estrella de una foto para agregarla aquí.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+                {fotosLanding.map((f) => (
+                  <FotoCard key={f.id} f={f} onClick={() => setAmpliada(f)}
+                    onToggleLanding={() => toggleLanding(f)} actualizando={actualizandoLanding === f.id} />
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="pt-2 border-t border-gray-100">
+            <p className="text-xs font-bold uppercase tracking-wide text-gray-400 mt-6 mb-1">Todas las fotos, por participante</p>
+          </div>
           {grupos.map((g) => (
             <div key={g.key}>
               <div className="mb-3 flex items-center gap-2">

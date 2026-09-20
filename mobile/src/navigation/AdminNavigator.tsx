@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Building2, CreditCard, Armchair, MoreHorizontal,
   CalendarCheck, Newspaper, Users, BarChart3, Settings, ListChecks,
   CalendarRange, PlusCircle, SlidersHorizontal, Handshake,
-  Package, QrCode, FileText, Bell, LogOut,
+  Package, QrCode, FileText, Bell, LogOut, Wifi,
 } from 'lucide-react-native';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -28,6 +28,7 @@ import PagosAdicionalesScreen      from '../screens/admin/PagosAdicionalesScreen
 import AdminEventoConfigScreen     from '../screens/admin/AdminEventoConfigScreen';
 import AuspiciadoresScreen         from '../screens/admin/AuspiciadoresScreen';
 import TecnicoReunionesScreen     from '../screens/tecnico/TecnicoReunionesScreen';
+import TecnicoVirtualesScreen     from '../screens/tecnico/TecnicoVirtualesScreen';
 import TecnicoGaleriaScreen       from '../screens/tecnico/TecnicoGaleriaScreen';
 import OportunidadesStaffScreen   from '../screens/shared/OportunidadesStaffScreen';
 import TecnicoAgendarScreen       from '../screens/tecnico/TecnicoAgendarScreen';
@@ -77,6 +78,7 @@ function MenuScreen({ navigation }: any) {
     { name: 'Auspiciadores',     icon: Users,             screen: 'Auspiciadores',     desc: 'Credenciales y aportes'     },
     { name: 'Agenda',           icon: ListChecks,        screen: 'Agenda',            desc: 'Ocupación de mesas'       },
     { name: 'Control reuniones',icon: CalendarCheck,     screen: 'ControlReuniones',  desc: 'Finalizar o cancelar'     },
+    { name: 'Virtuales',        icon: Wifi,              screen: 'Virtuales',         desc: 'Enlaces y mensajes'       },
     { name: 'Agendar reunión',  icon: CalendarCheck,     screen: 'AgendarReunion',    desc: 'Crear una reunión'        },
     { name: 'Oportunidades',    icon: Handshake,         screen: 'Oportunidades',     desc: 'Conectar empresas afines' },
     { name: 'Noticias',         icon: Newspaper,         screen: 'Noticias',          desc: 'Comunicados'              },
@@ -253,6 +255,7 @@ export default function AdminNavigator() {
         {() => <OportunidadesStaffScreen mostrarEncabezado={false} />}
       </AdminStack.Screen>
       <AdminStack.Screen name="ControlReuniones" component={TecnicoReunionesScreen} options={{ title: 'Control de Reuniones' }} />
+      <AdminStack.Screen name="Virtuales" component={TecnicoVirtualesScreen} options={{ title: 'Reuniones Virtuales' }} />
       <AdminStack.Screen name="AgendarReunion" component={TecnicoAgendarScreen} options={{ title: 'Agendar reunión' }} />
       <AdminStack.Screen name="PagoDetail"        component={PagoDetailScreen}        options={{ title: 'Verificar Pago'           }} />
       <AdminStack.Screen name="PagosAdicionales"  component={PagosAdicionalesScreen}  options={{ title: 'Pagos Adicionales'        }} />

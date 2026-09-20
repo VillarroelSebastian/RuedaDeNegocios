@@ -26,6 +26,7 @@ import {
   QrCode,
   CalendarPlus,
   LogOut,
+  Wifi,
 } from 'lucide-react';
 
 const menuItems = [
@@ -40,6 +41,7 @@ const menuItems = [
   { name: 'Mesas', icon: Armchair, href: '/admin/mesas' },
   { name: 'Agenda de Mesas', icon: CalendarDays, href: '/admin/agenda' },
   { name: 'Control de Reuniones', icon: CalendarCheck, href: '/admin/reuniones' },
+  { name: 'Reuniones Virtuales', icon: Wifi, href: '/admin/virtuales' },
   { name: 'Agendar reunión', icon: CalendarPlus, href: '/admin/agendar' },
   { name: 'Actividades', icon: Star, href: '/admin/actividades' },
   { name: 'Cronograma en Vivo', icon: Radio, href: '/admin/cronograma-vivo' },
