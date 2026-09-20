@@ -144,11 +144,14 @@ model fotoevento {
   urlFoto            String   @db.VarChar(505)
   descripcion        String?  @db.VarChar(305)
   estaActivo         Int      @default(1) @db.SmallInt
+  // Seleccionada por un admin/técnico para mostrarse en el landing público.
+  visibleLanding     Int      @default(0) @db.SmallInt
   fechaCreacion      DateTime @default(now()) @db.Timestamp(6)
   evento             evento   @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([evento_id, estaActivo])
   @@index([empresa_usuario_id])
+  @@index([evento_id, visibleLanding])
 }
 
 model ciudad {

@@ -20,8 +20,9 @@ export default function AdminGaleriaPage() {
           <Images className="w-6 h-6 text-[#449D3A]" /> Galería del evento
         </h1>
         <p className="text-sm text-gray-500 mt-1">
-          Fotos subidas por los participantes. Como administrador puedes retirar
-          cualquier imagen que no corresponda.
+          Fotos subidas por los participantes, agrupadas por quién las subió.
+          Marca la estrella de una foto para mostrarla en el landing público, o
+          retira cualquier imagen que no corresponda.
         </p>
       </div>
       {/* esStaff habilita moderar: borrar fotos de cualquier participante. */}

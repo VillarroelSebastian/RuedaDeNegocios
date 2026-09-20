@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { Images, Upload, X, Trash2, Camera, User } from "lucide-react";
+import { Images, Upload, X, Trash2, Camera, User, Star, Building2, Wrench } from "lucide-react";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
@@ -11,6 +11,8 @@ export type Foto = {
   descripcion: string | null;
   autorNombre: string;
   empresa_usuario_id: number | null;
+  usuario_id: number | null;
+  visibleLanding: number;
   fechaCreacion: string;
 };
 
@@ -27,7 +29,6 @@ export default function GaleriaEvento({
   esStaff = false,
   onError,
   onOk,
-  soloTecnicos = false,
 }: {
   empresaUsuarioId?: number | null;
   usuarioId?: number | null;
@@ -36,26 +37,26 @@ export default function GaleriaEvento({
   esStaff?: boolean;
   onError?: (m: string) => void;
   onOk?: (t: string, m: string) => void;
-  soloTecnicos?: boolean;
 }) {
   const [fotos, setFotos] = useState<Foto[]>([]);
   const [cargando, setCargando] = useState(true);
   const [subiendo, setSubiendo] = useState(false);
   const [descripcion, setDescripcion] = useState("");
   const [ampliada, setAmpliada] = useState<Foto | null>(null);
+  const [actualizandoLanding, setActualizandoLanding] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const cargar = useCallback(async () => {
     try {
       const ruta = (esStaff || empresaUsuarioId || puedeSubir) ? 'galeria' : 'public/galeria';
-      const res = await fetch(`${API}/${ruta}${soloTecnicos ? '?soloTecnicos=1' : ''}`);
+      const res = await fetch(`${API}/${ruta}`);
       setFotos(res.ok ? await res.json() : []);
     } catch {
       onError?.("No se pudo cargar la galería.");
     } finally {
       setCargando(false);
     }
-  }, [soloTecnicos]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [esStaff, empresaUsuarioId, puedeSubir]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { cargar(); }, [cargar]);
 
@@ -115,8 +116,44 @@ export default function GaleriaEvento({
     }
   };
 
+  const toggleLanding = async (foto: Foto) => {
+    setActualizandoLanding(foto.id);
+    try {
+      const nuevo = foto.visibleLanding ? 0 : 1;
+      const res = await fetch(`${API}/galeria/${foto.id}/landing`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ visible: nuevo }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || "No se pudo actualizar.");
+      setFotos((prev) => prev.map((f) => (f.id === foto.id ? { ...f, visibleLanding: nuevo } : f)));
+      setAmpliada((prev) => (prev && prev.id === foto.id ? { ...prev, visibleLanding: nuevo } : prev));
+      onOk?.(nuevo ? "Agregada al landing" : "Quitada del landing",
+        nuevo ? "Esta foto ahora aparece en la página pública del evento." : "Esta foto ya no aparece en la página pública.");
+    } catch (e: any) {
+      onError?.(e.message);
+    } finally {
+      setActualizandoLanding(null);
+    }
+  };
+
   const puedeBorrar = (f: Foto) =>
     esStaff || (empresaUsuarioId != null && f.empresa_usuario_id === empresaUsuarioId);
+
+  // Vista de staff: agrupa por quién subió cada foto para poder ubicar y
+  // curar rápido lo que se muestra en el landing.
+  const grupos = esStaff
+    ? (() => {
+        const map = new Map<string, { key: string; nombre: string; tipo: "EMPRESA" | "STAFF"; fotos: Foto[] }>();
+        for (const f of fotos) {
+          const key = f.empresa_usuario_id != null ? `eu-${f.empresa_usuario_id}` : `u-${f.usuario_id ?? "x"}`;
+          if (!map.has(key)) map.set(key, { key, nombre: f.autorNombre, tipo: f.empresa_usuario_id != null ? "EMPRESA" : "STAFF", fotos: [] });
+          map.get(key)!.fotos.push(f);
+        }
+        return Array.from(map.values()).sort((a, b) => b.fotos.length - a.fotos.length);
+      })()
+    : null;
 
   return (
     <div>
@@ -153,18 +190,31 @@ export default function GaleriaEvento({
             {puedeSubir ? "Sé el primero en compartir un momento del evento." : "Pronto se llenará de momentos del evento."}
           </p>
         </div>
+      ) : esStaff && grupos ? (
+        <div className="space-y-8">
+          {grupos.map((g) => (
+            <div key={g.key}>
+              <div className="mb-3 flex items-center gap-2">
+                {g.tipo === "EMPRESA"
+                  ? <span className="flex items-center justify-center w-7 h-7 rounded-full bg-green-100 text-green-700"><Building2 className="w-3.5 h-3.5" /></span>
+                  : <span className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-100 text-blue-700"><Wrench className="w-3.5 h-3.5" /></span>
+                }
+                <p className="text-sm font-bold text-gray-900">{g.nombre}</p>
+                <span className="text-xs font-semibold text-gray-400">{g.fotos.length} foto(s)</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+                {g.fotos.map((f) => (
+                  <FotoCard key={f.id} f={f} onClick={() => setAmpliada(f)}
+                    onToggleLanding={() => toggleLanding(f)} actualizando={actualizandoLanding === f.id} />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
           {fotos.map((f) => (
-            <button key={f.id} onClick={() => setAmpliada(f)}
-              className="group relative aspect-square rounded-2xl overflow-hidden bg-gray-100 border border-gray-200 hover:border-[#449D3A] transition-colors">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={f.urlFoto} alt={f.descripcion ?? `Foto de ${f.autorNombre}`}
-                loading="lazy" className="w-full h-full object-contain" />
-              <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-2.5 py-2 text-left opacity-0 group-hover:opacity-100 transition-opacity">
-                <span className="block text-[11px] font-semibold text-white truncate">{f.autorNombre}</span>
-              </span>
-            </button>
+            <FotoCard key={f.id} f={f} onClick={() => setAmpliada(f)} />
           ))}
         </div>
       )}
@@ -182,12 +232,23 @@ export default function GaleriaEvento({
                 <User className="w-4 h-4 flex-shrink-0" />
                 <span className="truncate">{ampliada.autorNombre}</span>
               </p>
-              {puedeBorrar(ampliada) && (
-                <button onClick={() => eliminar(ampliada)}
-                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-red-300 hover:text-red-200 flex-shrink-0">
-                  <Trash2 className="w-4 h-4" /> Eliminar
-                </button>
-              )}
+              <span className="flex items-center gap-2 flex-shrink-0">
+                {esStaff && (
+                  <button onClick={() => toggleLanding(ampliada)} disabled={actualizandoLanding === ampliada.id}
+                    className={`inline-flex items-center gap-1.5 text-sm font-semibold disabled:opacity-50 ${
+                      ampliada.visibleLanding ? "text-amber-300 hover:text-amber-200" : "text-white/70 hover:text-white"
+                    }`}>
+                    <Star className={`w-4 h-4 ${ampliada.visibleLanding ? "fill-amber-300" : ""}`} />
+                    {ampliada.visibleLanding ? "En el landing" : "Mostrar en landing"}
+                  </button>
+                )}
+                {puedeBorrar(ampliada) && (
+                  <button onClick={() => eliminar(ampliada)}
+                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-red-300 hover:text-red-200">
+                    <Trash2 className="w-4 h-4" /> Eliminar
+                  </button>
+                )}
+              </span>
             </div>
             {ampliada.descripcion && <p className="mt-2 text-sm text-white/80">{ampliada.descripcion}</p>}
             <button onClick={() => setAmpliada(null)} aria-label="Cerrar"
@@ -196,6 +257,45 @@ export default function GaleriaEvento({
             </button>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+function FotoCard({
+  f, onClick, onToggleLanding, actualizando,
+}: {
+  f: Foto;
+  onClick: () => void;
+  onToggleLanding?: () => void;
+  actualizando?: boolean;
+}) {
+  return (
+    <div className="group relative aspect-square rounded-2xl overflow-hidden bg-gray-100 border border-gray-200 hover:border-[#449D3A] transition-colors">
+      <button onClick={onClick} className="absolute inset-0 w-full h-full">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={f.urlFoto} alt={f.descripcion ?? `Foto de ${f.autorNombre}`}
+          loading="lazy" className="w-full h-full object-contain" />
+        <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-2.5 py-2 text-left opacity-0 group-hover:opacity-100 transition-opacity">
+          <span className="block text-[11px] font-semibold text-white truncate">{f.autorNombre}</span>
+        </span>
+      </button>
+      {!!f.visibleLanding && (
+        <span className="absolute top-1.5 left-1.5 flex items-center gap-1 bg-amber-400/95 text-amber-950 text-[9px] font-bold px-1.5 py-0.5 rounded-full pointer-events-none">
+          <Star className="w-2.5 h-2.5 fill-amber-950" /> Landing
+        </span>
+      )}
+      {onToggleLanding && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleLanding(); }}
+          disabled={actualizando}
+          title={f.visibleLanding ? "Quitar del landing" : "Mostrar en landing"}
+          className={`absolute top-1.5 right-1.5 w-6 h-6 rounded-full flex items-center justify-center shadow disabled:opacity-50 ${
+            f.visibleLanding ? "bg-amber-400 text-amber-950" : "bg-white/90 text-gray-500 hover:text-amber-500"
+          }`}
+        >
+          <Star className={`w-3.5 h-3.5 ${f.visibleLanding ? "fill-amber-950" : ""}`} />
+        </button>
       )}
     </div>
   );

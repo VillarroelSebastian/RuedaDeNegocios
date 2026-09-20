@@ -652,20 +652,13 @@ export class ExtrasController {
   // REPOSITORIO DE FOTOGRAFÍAS
   // ═══════════════════════════════════════════════════════════════════════════
 
+  // Fotos seleccionadas por un admin/técnico para el landing público (visibleLanding=1).
   @Get('public/galeria')
-  async galeriaPublica(@Query('limit') limit?: string, @Query('soloTecnicos') soloTecnicos?: string) {
+  async galeriaPublica(@Query('limit') limit?: string) {
     const eventoId = await this.eventoPrincipalId();
     const take = Math.min(Number(limit) || 60, 200);
-    let usuariosTecnicos: number[] | undefined;
-    if (soloTecnicos === '1' || soloTecnicos === 'true') {
-      const tecnicos = await this.prisma.usuario.findMany({
-        where: { rolEvento: { in: ['TECNICO', 'TECNICO_EVENTOS'] }, estaActivo: 1 },
-        select: { id: true },
-      });
-      usuariosTecnicos = tecnicos.map((u) => u.id);
-    }
     return this.prisma.fotoevento.findMany({
-      where: { evento_id: eventoId, estaActivo: 1, ...(usuariosTecnicos ? { usuario_id: { in: usuariosTecnicos } } : {}) },
+      where: { evento_id: eventoId, estaActivo: 1, visibleLanding: 1 },
       orderBy: { fechaCreacion: 'desc' },
       take,
       select: { id: true, urlFoto: true, descripcion: true, autorNombre: true, fechaCreacion: true },
@@ -673,15 +666,10 @@ export class ExtrasController {
   }
 
   @Get('galeria')
-  async galeriaPrivada(@Query('limit') limit?: string, @Query('soloTecnicos') soloTecnicos?: string) {
+  async galeriaPrivada(@Query('limit') limit?: string) {
     const eventoId = await this.eventoPrincipalId();
     const take = Math.min(Number(limit) || 60, 200);
-    let usuariosTecnicos: number[] | undefined;
-    if (soloTecnicos === '1' || soloTecnicos === 'true') {
-      const tecnicos = await this.prisma.usuario.findMany({ where: { rolEvento: { in: ['TECNICO', 'TECNICO_EVENTOS'] }, estaActivo: 1 }, select: { id: true } });
-      usuariosTecnicos = tecnicos.map((u) => u.id);
-    }
-    return this.prisma.fotoevento.findMany({ where: { evento_id: eventoId, estaActivo: 1, ...(usuariosTecnicos ? { usuario_id: { in: usuariosTecnicos } } : {}) }, orderBy: { fechaCreacion: 'desc' }, take });
+    return this.prisma.fotoevento.findMany({ where: { evento_id: eventoId, estaActivo: 1 }, orderBy: { fechaCreacion: 'desc' }, take });
   }
 
   @Post('galeria')
@@ -748,6 +736,19 @@ export class ExtrasController {
 
     await this.prisma.fotoevento.update({ where: { id: foto.id }, data: { estaActivo: 0 } });
     return { ok: true };
+  }
+
+  // Solo staff: selecciona/quita una foto del landing público.
+  @Put('galeria/:id/landing')
+  async marcarFotoLanding(@Param('id') id: string, @Body() body: { visible?: boolean | number }, @Req() req: any) {
+    const staff = ['ADMINISTRADOR', 'TECNICO', 'TECNICO_EVENTOS'].includes(req.user?.role);
+    if (!staff) throw new BadRequestException('Solo un administrador o técnico puede seleccionar fotos para el landing.');
+
+    const foto = await this.prisma.fotoevento.findUnique({ where: { id: Number(id) } });
+    if (!foto || foto.estaActivo === 0) throw new BadRequestException('La foto ya no existe.');
+
+    const visibleLanding = body?.visible ? 1 : 0;
+    return this.prisma.fotoevento.update({ where: { id: foto.id }, data: { visibleLanding } });
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
