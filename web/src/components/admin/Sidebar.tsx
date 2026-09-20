@@ -27,12 +27,14 @@ import {
   CalendarPlus,
   LogOut,
   Wifi,
+  MessageSquare,
 } from 'lucide-react';
 
 const menuItems = [
   { name: 'Dashboard', icon: LayoutDashboard, href: '/admin/dashboard' },
   { name: 'Eventos', icon: CalendarCheck, href: '/admin/eventos' },
   { name: 'Empresas', icon: Building2, href: '/admin/empresas' },
+  { name: 'Mensajes', icon: MessageSquare, href: '/admin/mensajes' },
   { name: 'Oportunidades', icon: Handshake, href: '/admin/oportunidades' },
   { name: 'Paquetes', icon: Package, href: '/admin/paquetes' },
   { name: 'Auspiciadores', icon: Handshake, href: '/admin/auspiciadores' },

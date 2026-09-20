@@ -19,6 +19,7 @@ import TecnicoEventosVivoScreen from '../screens/tecnico/TecnicoEventosVivoScree
 import TecnicoGaleriaScreen from '../screens/tecnico/TecnicoGaleriaScreen';
 import TecnicoContenidoScreen from '../screens/tecnico/TecnicoContenidoScreen';
 import OportunidadesStaffScreen from '../screens/shared/OportunidadesStaffScreen';
+import StaffMensajesScreen from '../screens/shared/StaffMensajesScreen';
 import { io } from 'socket.io-client';
 import { userStore, API_URL } from '../utils/userStore';
 import { navigationRef } from '../../App';
@@ -143,6 +144,7 @@ export default function TecnicoNavigator() {
         <TecnicoStack.Screen name="TecnicoAsistencia" component={TecnicoAsistenciaScreen} />
         <TecnicoStack.Screen name="TecnicoEventosVivo" component={TecnicoEventosVivoScreen} />
         <TecnicoStack.Screen name="TecnicoGaleria" component={TecnicoGaleriaScreen} />
+        <TecnicoStack.Screen name="TecnicoMensajes" component={StaffMensajesScreen} />
       </TecnicoStack.Navigator>
       {alerta && <View style={{ position: 'absolute', top: 58, left: 12, right: 12, zIndex: 100, borderRadius: 16, borderWidth: 1, borderColor: '#fca5a5', backgroundColor: '#fef2f2', padding: 14, elevation: 10 }}>
         <Text style={{ color: '#991b1b', fontWeight: '800', fontSize: 14 }}>{alerta.titulo}</Text>

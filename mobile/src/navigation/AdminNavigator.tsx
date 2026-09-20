@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Building2, CreditCard, Armchair, MoreHorizontal,
   CalendarCheck, Newspaper, Users, BarChart3, Settings, ListChecks,
   CalendarRange, PlusCircle, SlidersHorizontal, Handshake,
-  Package, QrCode, FileText, Bell, LogOut, Wifi,
+  Package, QrCode, FileText, Bell, LogOut, Wifi, MessageSquare,
 } from 'lucide-react-native';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -36,6 +36,7 @@ import PaquetesScreen             from '../screens/admin/PaquetesScreen';
 import ReportesScreen             from '../screens/admin/ReportesScreen';
 import CredencialesScreen         from '../screens/admin/CredencialesScreen';
 import StaffNotificacionesScreen  from '../screens/shared/StaffNotificacionesScreen';
+import StaffMensajesScreen        from '../screens/shared/StaffMensajesScreen';
 
 const Tab        = createBottomTabNavigator();
 const AdminStack = createNativeStackNavigator();
@@ -72,6 +73,7 @@ function MenuScreen({ navigation }: any) {
     { name: 'Eventos',          icon: CalendarRange,     screen: 'Eventos',           desc: 'Gestión de eventos',      highlight: true },
     { name: 'Paquetes',         icon: Package,           screen: 'Paquetes',          desc: 'Precios, cupos y beneficios' },
     { name: 'Notificaciones',   icon: Bell,              screen: 'Notificaciones',    desc: 'Pagos y empresas pendientes' },
+    { name: 'Mensajes',         icon: MessageSquare,     screen: 'Mensajes',          desc: 'Escribir a una empresa'   },
     { name: 'Pagos Adicionales',icon: PlusCircle,        screen: 'PagosAdicionales',  desc: 'Cupos extra de empresas'  },
     { name: 'Config. Evento',   icon: SlidersHorizontal, screen: 'EventoConfig',       desc: 'Reglas del evento'        },
     { name: 'Cronograma en vivo', icon: CalendarCheck,   screen: 'Actividades',       desc: 'CRUD y estado en tiempo real' },
@@ -241,6 +243,7 @@ export default function AdminNavigator() {
       <AdminStack.Screen name="Eventos"      component={EventConfigScreen}  options={{ title: 'Gestión de Eventos' }} />
       <AdminStack.Screen name="Paquetes"     component={PaquetesScreen}      options={{ title: 'Paquetes' }} />
       <AdminStack.Screen name="Notificaciones" component={StaffNotificacionesScreen} options={{ title: 'Notificaciones' }} />
+      <AdminStack.Screen name="Mensajes" component={StaffMensajesScreen} options={{ title: 'Mensajes' }} />
       <AdminStack.Screen name="Actividades"  component={ActividadesScreen}  options={{ title: 'Actividades del Programa' }} />
       <AdminStack.Screen name="Auspiciadores" component={AuspiciadoresScreen} options={{ title: 'Auspiciadores' }} />
       <AdminStack.Screen name="Noticias"     component={NoticiasScreen}     options={{ title: 'Noticias y Comunicados' }} />

@@ -6351,6 +6351,70 @@ export class AppController implements OnModuleInit {
     return { ok: true, id: msg.id, fecha: msg.fechaCreacion };
   }
 
+  // ── Mensajería: bandeja de admin/técnico ────────────────────────────────────
+  // El staff (emisorEe_id = 0) envía mensajes a empresas vía POST staff/mensajes
+  // (más abajo); aquí se lista y consulta ese historial agrupado por empresa,
+  // sin necesitar el eeId de una empresa concreta como en /empresa/mensajes.
+
+  @Get('staff/mensajes/conversaciones')
+  async getConversacionesStaff() {
+    const eventoId = await this.getPrincipalEventoId();
+    if (!eventoId) return [];
+    const msgs = await this.prisma.mensajeempresa.findMany({
+      where: { evento_id: eventoId, estaActivo: 1, receptorEe_id: { not: 0 } },
+      orderBy: { fechaCreacion: 'desc' },
+    });
+    const porEmpresa = new Map<number, any[]>();
+    for (const m of msgs) {
+      if (!porEmpresa.has(m.receptorEe_id)) porEmpresa.set(m.receptorEe_id, []);
+      porEmpresa.get(m.receptorEe_id)!.push(m);
+    }
+    const ids = [...porEmpresa.keys()];
+    const ees = ids.length
+      ? await this.prisma.empresaevento.findMany({
+          where: { id: { in: ids } },
+          include: { empresa: { select: { nombre: true, urlFotoPerfil: true, codigo: true } } },
+        })
+      : [];
+    const empresaPorEe = new Map(ees.map((e) => [e.id, e.empresa]));
+    return ids
+      .map((eeId) => {
+        const lista = porEmpresa.get(eeId)!;
+        const ultimo = lista[0];
+        const emp = empresaPorEe.get(eeId);
+        return {
+          eeId,
+          nombre: emp?.nombre ?? 'Empresa',
+          codigo: emp?.codigo ?? null,
+          urlFotoPerfil: emp?.urlFotoPerfil ?? null,
+          ultimoMensaje: ultimo.contenido,
+          fecha: ultimo.fechaCreacion,
+          totalEnviados: lista.length,
+        };
+      })
+      .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+  }
+
+  @Get('staff/mensajes')
+  async getMensajesStaff(@Query('eeId') eeId: string) {
+    if (!eeId) throw new BadRequestException('eeId requerido');
+    const eventoId = await this.getPrincipalEventoId();
+    if (!eventoId) return [];
+    const msgs = await this.prisma.mensajeempresa.findMany({
+      where: { evento_id: eventoId, estaActivo: 1, emisorEe_id: 0, receptorEe_id: Number(eeId) },
+      orderBy: { fechaCreacion: 'asc' },
+      take: 200,
+    });
+    return msgs.map((m) => ({
+      id: m.id,
+      contenido: m.contenido,
+      autor: m.remitenteNombre
+        ? `${m.remitenteNombre} · ${m.remitenteRol === 'ADMIN' ? 'Organización' : 'Técnico'}`
+        : null,
+      fecha: m.fechaCreacion,
+    }));
+  }
+
   // Admin/técnico envía un mensaje a una empresa (una sola vía). Aparece en la
   // sección Mensajes de la empresa como conversación "Equipo del evento".
   @Post('staff/mensajes')

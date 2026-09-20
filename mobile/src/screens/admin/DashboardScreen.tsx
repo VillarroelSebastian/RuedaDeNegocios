@@ -8,7 +8,7 @@ import { useNavigation } from '@react-navigation/native';
 import {
   Building2, CreditCard, Handshake, Armchair, CalendarCheck,
   TrendingUp, TrendingDown, Minus, Calendar, MapPin,
-  Users, LayoutGrid, Layers,
+  Users, LayoutGrid, Layers, MessageSquare,
 } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
 
@@ -97,9 +97,14 @@ export default function DashboardScreen() {
           <Text style={s.headerGreeting}>Hola, {firstName}</Text>
           <Text style={s.headerSub}>Panel de administración</Text>
         </View>
-        <TouchableOpacity style={s.headerAvatar} onPress={() => navigation.navigate('Configuracion')} activeOpacity={0.8}>
-          <Text style={s.headerAvatarText}>{firstName[0]}</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <TouchableOpacity style={s.headerIconBtn} onPress={() => navigation.navigate('Mensajes')} activeOpacity={0.8} accessibilityLabel="Mensajes">
+            <MessageSquare color={GREEN_DARK} size={19} />
+          </TouchableOpacity>
+          <TouchableOpacity style={s.headerAvatar} onPress={() => navigation.navigate('Configuracion')} activeOpacity={0.8}>
+            <Text style={s.headerAvatarText}>{firstName[0]}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -300,6 +305,7 @@ const s = StyleSheet.create({
   },
   headerGreeting:   { fontSize: 18, fontWeight: '800', color: '#0f172a' },
   headerSub:        { fontSize: 12, color: '#94a3b8', marginTop: 2 },
+  headerIconBtn:    { width: 40, height: 40, borderRadius: 20, backgroundColor: '#dcfce7', alignItems: 'center', justifyContent: 'center' },
   headerAvatar:     { width: 40, height: 40, borderRadius: 20, backgroundColor: GREEN, alignItems: 'center', justifyContent: 'center' },
   headerAvatarText: { color: '#fff', fontWeight: '800', fontSize: 16 },
 

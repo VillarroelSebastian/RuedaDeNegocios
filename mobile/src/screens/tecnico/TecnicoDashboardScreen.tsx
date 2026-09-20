@@ -8,6 +8,7 @@ import { useNavigation } from '@react-navigation/native';
 import {
   LayoutDashboard, Video, Armchair, CalendarCheck, Building2,
   Clock, Calendar, ChevronRight, X, CheckCircle, AlertCircle, MapPin, CalendarPlus, QrCode, Radio, Images,
+  MessageSquare,
 } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
 
@@ -233,6 +234,9 @@ export default function TecnicoDashboardScreen() {
           <Text style={{ fontSize:16, fontWeight:'800', color:'#0f172a' }}>Panel Técnico</Text>
           <Text style={{ fontSize:12, color:'#94a3b8' }}>{user?.nombres} {user?.apellidoPaterno}</Text>
         </View>
+        <TouchableOpacity onPress={() => navigation.navigate('TecnicoMensajes')} style={{ width:38, height:38, borderRadius:19, backgroundColor:'#dcfce7', alignItems:'center', justifyContent:'center' }} accessibilityLabel="Mensajes">
+          <MessageSquare color="#166534" size={18} />
+        </TouchableOpacity>
         {evento && (
           <View style={{ backgroundColor:'#dcfce7', paddingHorizontal:10, paddingVertical:4, borderRadius:999 }}>
             <Text style={{ fontSize:10, fontWeight:'700', color:'#166534' }}>{evento.nombre}</Text>
@@ -307,6 +311,7 @@ export default function TecnicoDashboardScreen() {
             <View style={{flex:1}}><Text style={{fontSize:15,fontWeight:'800',color:'#fff'}}>Monitorear eventos en vivo</Text><Text style={{fontSize:11,color:'rgba(255,255,255,0.75)',marginTop:1}}>Estados, transmisión y anuncios</Text></View><ChevronRight color="#fff" size={20}/>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => navigation.navigate('TecnicoGaleria')} activeOpacity={0.85} style={{ flexDirection:'row', alignItems:'center', gap:12, backgroundColor:'#2563eb', borderRadius:16, padding:16, marginBottom:20 }}><View style={{width:40,height:40,borderRadius:12,backgroundColor:'rgba(255,255,255,.15)',alignItems:'center',justifyContent:'center'}}><Images color="#fff" size={20}/></View><View style={{flex:1}}><Text style={{fontSize:15,fontWeight:'800',color:'#fff'}}>Fotos del evento</Text><Text style={{fontSize:11,color:'rgba(255,255,255,.75)'}}>Cámara o galería</Text></View><ChevronRight color="#fff" size={20}/></TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('TecnicoMensajes')} activeOpacity={0.85} style={{ flexDirection:'row', alignItems:'center', gap:12, backgroundColor:'#4f46e5', borderRadius:16, padding:16, marginBottom:20 }}><View style={{width:40,height:40,borderRadius:12,backgroundColor:'rgba(255,255,255,.15)',alignItems:'center',justifyContent:'center'}}><MessageSquare color="#fff" size={20}/></View><View style={{flex:1}}><Text style={{fontSize:15,fontWeight:'800',color:'#fff'}}>Mensajes</Text><Text style={{fontSize:11,color:'rgba(255,255,255,.75)'}}>Escribir a una empresa</Text></View><ChevronRight color="#fff" size={20}/></TouchableOpacity>
 
           {/* Próximas reuniones */}
           <View style={{ marginBottom:8 }}>

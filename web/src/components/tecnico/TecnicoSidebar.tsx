@@ -6,12 +6,14 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Armchair, Video, Search, Newspaper, Handshake,
   UserCircle, LogOut, Shield, Menu, X, CalendarPlus, CalendarDays, Radio, QrCode, Images, Building2,
+  MessageSquare,
 } from 'lucide-react';
 
 const menuItems = [
   { name: 'Dashboard',        icon: LayoutDashboard, href: '/tecnico/dashboard' },
   { name: 'Agendar reunión',  icon: CalendarPlus,    href: '/tecnico/agendar' },
   { name: 'Empresas',          icon: Building2,       href: '/tecnico/empresas' },
+  { name: 'Mensajes',         icon: MessageSquare,   href: '/tecnico/mensajes' },
   { name: 'Mesas',            icon: Armchair,        href: '/tecnico/mesas' },
   { name: 'Virtuales',        icon: Video,           href: '/tecnico/virtuales' },
   { name: 'Buscador',         icon: Search,          href: '/tecnico/buscar' },
@@ -95,7 +97,7 @@ export default function TecnicoSidebar() {
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-3 mb-2">Menú principal</p>
-        {menuItems.filter((item) => user?.rolEvento !== 'TECNICO_EVENTOS' || ['/tecnico/contenido', '/tecnico/notificaciones', '/tecnico/eventos', '/tecnico/cronograma-vivo', '/tecnico/galeria', '/tecnico/perfil'].includes(item.href)).map((item) => {
+        {menuItems.filter((item) => user?.rolEvento !== 'TECNICO_EVENTOS' || ['/tecnico/contenido', '/tecnico/notificaciones', '/tecnico/eventos', '/tecnico/cronograma-vivo', '/tecnico/galeria', '/tecnico/mensajes', '/tecnico/perfil'].includes(item.href)).map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
           return (
             <Link key={item.name} href={item.href}
