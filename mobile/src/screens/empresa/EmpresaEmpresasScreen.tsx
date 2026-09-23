@@ -5,6 +5,7 @@ import {
   KeyboardAvoidingView, Platform, Image,
 } from 'react-native';
 import ImagenLightbox from '../../components/ImagenLightbox';
+import ButtonLabel from '../../components/ButtonLabel';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import {
@@ -691,7 +692,7 @@ export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?:
                     La empresa recibirá tu solicitud y podrá aceptarla o rechazarla.
                   </Text>
                   <TouchableOpacity style={s.btnPrimary} onPress={closeModal} activeOpacity={0.8}>
-                    <Text style={s.btnText}>Cerrar</Text>
+                    <ButtonLabel text="Cerrar" color="#fff" />
                   </TouchableOpacity>
                 </View>
               ) : (

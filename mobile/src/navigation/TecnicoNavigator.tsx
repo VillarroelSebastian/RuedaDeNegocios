@@ -24,6 +24,7 @@ import { io } from 'socket.io-client';
 import { userStore, API_URL } from '../utils/userStore';
 import { navigationRef } from '../../App';
 
+import ChatInternoScreen from '../screens/shared/ChatInternoScreen';
 const Tab          = createBottomTabNavigator();
 const TecnicoStack = createNativeStackNavigator();
 
@@ -118,6 +119,7 @@ function TecnicoEventosTabs() {
 }
 
 export default function TecnicoNavigator() {
+  const insetsAlerta = useSafeAreaInsets();
   const [alerta, setAlerta] = useState<{ titulo: string; mensaje: string } | null>(null);
   useEffect(() => {
     const token = userStore.get()?.token;
@@ -144,9 +146,10 @@ export default function TecnicoNavigator() {
         <TecnicoStack.Screen name="TecnicoAsistencia" component={TecnicoAsistenciaScreen} />
         <TecnicoStack.Screen name="TecnicoEventosVivo" component={TecnicoEventosVivoScreen} />
         <TecnicoStack.Screen name="TecnicoGaleria" component={TecnicoGaleriaScreen} />
+        <TecnicoStack.Screen name="ChatInterno" component={ChatInternoScreen} />
         <TecnicoStack.Screen name="TecnicoMensajes" component={StaffMensajesScreen} />
       </TecnicoStack.Navigator>
-      {alerta && <View style={{ position: 'absolute', top: 58, left: 12, right: 12, zIndex: 100, borderRadius: 16, borderWidth: 1, borderColor: '#fca5a5', backgroundColor: '#fef2f2', padding: 14, elevation: 10 }}>
+      {alerta && <View style={{ position: 'absolute', top: insetsAlerta.top + 8, left: 12, right: 12, zIndex: 100, borderRadius: 16, borderWidth: 1, borderColor: '#fca5a5', backgroundColor: '#fef2f2', padding: 14, elevation: 10 }}>
         <Text style={{ color: '#991b1b', fontWeight: '800', fontSize: 14 }}>{alerta.titulo}</Text>
         <Text style={{ color: '#4b5563', fontSize: 12, marginTop: 4 }}>{alerta.mensaje}</Text>
         <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>

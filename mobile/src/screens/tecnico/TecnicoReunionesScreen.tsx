@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, ActivityIndicator,
   RefreshControl, Image, Modal as RNModal, TextInput, Linking,
+  KeyboardAvoidingView, Platform, Alert,
 } from 'react-native';
 import {
   Building2, Clock, Video, MapPin, CheckCircle, ChevronDown,
@@ -44,8 +45,8 @@ function AppModal({ visible, type, title, message, onClose }: any) {
     <RNModal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.5)', alignItems:'center', justifyContent:'center', padding:24 }}>
         <View style={{ backgroundColor:c.bg, borderWidth:1, borderColor:c.border, borderRadius:20, padding:24, width:'100%', maxWidth:360 }}>
-          <Text style={{ fontSize:17, fontWeight:'700', color:'#111827', textAlign:'center', marginBottom:8 }}>{title}</Text>
-          <Text style={{ fontSize:14, color:'#4b5563', textAlign:'center', lineHeight:20, marginBottom:20 }}>{message}</Text>
+          <Text style={{ fontSize:17, fontWeight:'700', color:'#111827', textAlign:'center', marginBottom:8 }}>{typeof title === 'string' ? title : JSON.stringify(title)}</Text>
+          <Text style={{ fontSize:14, color:'#4b5563', textAlign:'center', lineHeight:20, marginBottom:20 }}>{typeof message === 'string' ? message : JSON.stringify(message)}</Text>
           <TouchableOpacity style={{ backgroundColor:c.btn, borderRadius:12, paddingVertical:12, alignItems:'center' }} onPress={onClose}>
             <Text style={{ fontWeight:'700', color:'#fff' }}>Entendido</Text>
           </TouchableOpacity>
@@ -55,7 +56,7 @@ function AppModal({ visible, type, title, message, onClose }: any) {
   );
 }
 
-function ReunionCard({ r, onCambiarEstado }: { r: any; onCambiarEstado: (id:number, est:string)=>void }) {
+function ReunionCard({ r, onCambiarEstado, onEditar, onEliminar }: { onEditar:(r:any)=>void; onEliminar:(r:any)=>void; r: any; onCambiarEstado: (id:number, est:string)=>void }) {
   const [expanded, setExpanded] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const sol = r.solicitudreunion;
@@ -142,6 +143,8 @@ function ReunionCard({ r, onCambiarEstado }: { r: any; onCambiarEstado: (id:numb
               <Text style={{ color:'#fff', fontWeight:'700', fontSize:12 }}>Ver en Google Maps</Text>
             </TouchableOpacity>
           )}
+          {['PROGRAMADA','REPROGRAMADA'].includes(r.estadoReunion)&&<TouchableOpacity onPress={()=>onEditar(r)} style={{padding:12,borderWidth:1,borderColor:GREEN,borderRadius:12}}><Text style={{color:GREEN,textAlign:'center',fontWeight:'700'}}>Editar horario y mesa</Text></TouchableOpacity>}
+          {['PROGRAMADA','REPROGRAMADA','CANCELADA'].includes(r.estadoReunion)&&<TouchableOpacity onPress={()=>onEliminar(r)} style={{padding:12,borderWidth:1,borderColor:'#dc2626',borderRadius:12}}><Text style={{color:'#dc2626',textAlign:'center',fontWeight:'700'}}>Eliminar reunión</Text></TouchableOpacity>}
           {opcionesEstado.length > 0 && <TouchableOpacity onPress={() => setMenuOpen(true)}
             style={{ borderWidth:1, borderColor:GREEN, borderRadius:12, paddingVertical:10, alignItems:'center' }}>
             <Text style={{ color:GREEN, fontWeight:'700', fontSize:12 }}>Cambiar estado de reunión</Text>
@@ -187,6 +190,37 @@ export default function TecnicoReunionesScreen() {
   const [evaluando, setEvaluando] = useState<any>(null);
   const [evaluacion, setEvaluacion] = useState<any>({ calificacionA:0, rangoA:'', observacionesA:'', calificacionB:0, rangoB:'', observacionesB:'' });
   const [guardando, setGuardando] = useState(false);
+  const [editando,setEditando]=useState<any>(null),[horarios,setHorarios]=useState<any[]>([]),[mesas,setMesas]=useState<any[]>([]),[inicio,setInicio]=useState(''),[mesaId,setMesaId]=useState<number|null>(null),[cargandoEdicion,setCargandoEdicion]=useState(false),[errorEdicion,setErrorEdicion]=useState('');
+  async function abrirEditar(r:any){
+    setEditando(r);setInicio('');setMesaId(r.mesa_id);setHorarios([]);setMesas([]);setErrorEdicion('');setCargandoEdicion(true);
+    try {
+      const sol=r.solicitudreunion;
+      const [rh,rm]=await Promise.all([
+        fetch(API_URL+'/tecnico/horarios?eeId='+sol.empresaEvento_id+'&eeReceptoraId='+sol.empresaEventorReceptora_id+'&excludeReunionId='+r.id),
+        fetch(API_URL+'/tecnico/mesas')
+      ]);
+      if(!rh.ok||!rm.ok)throw new Error('No se pudieron consultar horarios y mesas.');
+      const [h,m]=await Promise.all([rh.json(),rm.json()]);setHorarios(h.horarios||[]);setMesas(m.mesas||[]);
+    }catch(e:any){setErrorEdicion(e.message);}finally{setCargandoEdicion(false);}
+  }
+  async function guardarEdicion(){
+    if(!inicio||!editando)return;
+    setGuardando(true);setErrorEdicion('');
+    try{
+      const res=await fetch(API_URL+'/tecnico/reuniones/'+editando.id+'/reprogramar',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({inicio,mesaId})});
+      const d=await res.json();if(!res.ok)throw new Error(d.message||'No se pudo reprogramar.');
+      setEditando(null);void fetchReuniones();setModal({visible:true,type:'success',title:'Reunión actualizada',message:'Se avisó a ambas empresas del nuevo horario.'});
+    }catch(e:any){setErrorEdicion(e.message);}finally{setGuardando(false);}
+  }
+  function eliminarReunion(r:any){
+    Alert.alert('Eliminar reunión','Se liberará la mesa y se avisará a ambas empresas.',[
+      {text:'Volver',style:'cancel'},
+      {text:'Eliminar',style:'destructive',onPress:async()=>{
+        try{const res=await fetch(API_URL+'/tecnico/reuniones/'+r.id,{method:'DELETE'});const d=await res.json();if(!res.ok)throw new Error(d.message||'No se pudo eliminar.');void fetchReuniones();}
+        catch(e:any){setModal({visible:true,type:'error',title:'No se pudo eliminar',message:e.message});}
+      }}
+    ]);
+  }
 
   const fetchReuniones = useCallback(async () => {
     try {
@@ -244,12 +278,32 @@ export default function TecnicoReunionesScreen() {
   return (
     <View style={{ flex:1, backgroundColor:'#f8fafc' }}>
       <AppModal {...modal} onClose={() => setModal((m:any) => ({ ...m, visible:false }))} />
+      <RNModal visible={!!editando} transparent animationType="slide" onRequestClose={()=>{if(!guardando)setEditando(null);}}>
+        <View style={{flex:1,backgroundColor:'rgba(0,0,0,.5)',justifyContent:'flex-end'}}>
+          <View style={{maxHeight:'85%',backgroundColor:'#fff',borderTopLeftRadius:24,borderTopRightRadius:24,padding:20,paddingBottom:Math.max(insets.bottom,20)}}>
+            <Text style={{fontSize:20,fontWeight:'800',marginBottom:12}}>Editar reunión</Text>
+            {!!errorEdicion&&<Text style={{color:'#b91c1c',marginBottom:10}}>{errorEdicion}</Text>}
+            {cargandoEdicion?<ActivityIndicator color={GREEN}/>:<ScrollView keyboardShouldPersistTaps="handled">
+              <Text style={{fontWeight:'700',marginBottom:8}}>Horario disponible (Bolivia)</Text>
+              {horarios.length===0&&<Text>No hay horarios disponibles.</Text>}
+              {horarios.map(h=><TouchableOpacity key={h.inicio} onPress={()=>setInicio(h.inicio)} style={{padding:12,marginBottom:6,borderRadius:10,backgroundColor:inicio===h.inicio?'#dcfce7':'#f3f4f6'}}><Text>{fmtDate(h.inicio)} · {fmtTime(h.inicio)} – {fmtTime(h.fin)}</Text></TouchableOpacity>)}
+              {editando&&['PRESENCIAL','MIXTA'].includes(editando.tipoReunion)&&<><Text style={{fontWeight:'700',marginVertical:12}}>Mesa</Text>
+                <TouchableOpacity onPress={()=>setMesaId(null)} style={{padding:12,backgroundColor:mesaId===null?'#dcfce7':'#f3f4f6'}}><Text>Asignar automáticamente</Text></TouchableOpacity>
+                {mesas.filter(m=>m.estaActivo!==0&&m.estaHabilitada!==0).map(m=><TouchableOpacity key={m.id} onPress={()=>setMesaId(m.id)} style={{padding:12,marginTop:6,backgroundColor:mesaId===m.id?'#dcfce7':'#f3f4f6'}}><Text>Mesa {m.numeroMesa}</Text></TouchableOpacity>)}</>}
+            </ScrollView>}
+            <TouchableOpacity disabled={guardando||!inicio} onPress={guardarEdicion} style={{padding:14,backgroundColor:GREEN,borderRadius:12,marginTop:12,opacity:guardando||!inicio?.5:1}}><Text style={{color:'#fff',textAlign:'center',fontWeight:'700'}}>{guardando?'Guardando…':'Guardar cambios'}</Text></TouchableOpacity>
+            <TouchableOpacity disabled={guardando} onPress={()=>setEditando(null)} style={{padding:14}}><Text style={{textAlign:'center'}}>Volver</Text></TouchableOpacity>
+          </View>
+        </View>
+      </RNModal>
       <RNModal visible={!!evaluando} transparent animationType="slide" onRequestClose={() => setEvaluando(null)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <View style={{flex:1,backgroundColor:'rgba(0,0,0,.55)',justifyContent:'flex-end'}}><View style={{backgroundColor:'#fff',borderTopLeftRadius:24,borderTopRightRadius:24,maxHeight:'92%',padding:20}}>
           <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center',marginBottom:12}}><Text style={{fontSize:19,fontWeight:'800'}}>Finalizar y evaluar</Text><TouchableOpacity onPress={() => setEvaluando(null)}><X size={22} color="#64748b" /></TouchableOpacity></View>
           <ScrollView>{['A','B'].map((sufijo) => { const sol=evaluando?.solicitudreunion; const nombre=sufijo==='A' ? sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa?.nombre : sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento?.empresa?.nombre; const kc=`calificacion${sufijo}`, kr=`rango${sufijo}`, ko=`observaciones${sufijo}`; return <View key={sufijo} style={{borderWidth:1,borderColor:'#e5e7eb',borderRadius:16,padding:14,marginBottom:12}}><Text style={{fontWeight:'800',marginBottom:10}}>{nombre ?? `Empresa ${sufijo}`}</Text><View style={{flexDirection:'row',gap:5,marginBottom:10}}>{[1,2,3,4,5].map(n=><TouchableOpacity key={n} onPress={()=>setEvaluacion((v:any)=>({...v,[kc]:n}))}><Star size={28} color={evaluacion[kc]>=n?'#f59e0b':'#d1d5db'} fill={evaluacion[kc]>=n?'#f59e0b':'transparent'} /></TouchableOpacity>)}</View><TextInput value={evaluacion[kr]} onChangeText={(t)=>setEvaluacion((v:any)=>({...v,[kr]:t}))} placeholder="Rango estimado del acuerdo" style={{borderWidth:1,borderColor:'#e5e7eb',borderRadius:12,padding:11,marginBottom:8}}/><TextInput value={evaluacion[ko]} onChangeText={(t)=>setEvaluacion((v:any)=>({...v,[ko]:t}))} placeholder="Observaciones y puntos tratados" multiline style={{borderWidth:1,borderColor:'#e5e7eb',borderRadius:12,padding:11,minHeight:70,textAlignVertical:'top'}}/></View>})}</ScrollView>
           <TouchableOpacity disabled={guardando} onPress={guardarEvaluacion} style={{backgroundColor:'#f97316',borderRadius:14,paddingVertical:14,alignItems:'center',opacity:guardando?.6:1}}><Text style={{color:'#fff',fontWeight:'800'}}>{guardando?'Guardando…':'Finalizar y guardar'}</Text></TouchableOpacity>
         </View></View>
+        </KeyboardAvoidingView>
       </RNModal>
 
       {/* Header */}
@@ -332,7 +386,7 @@ export default function TecnicoReunionesScreen() {
               <Text style={{ color:'#9ca3af', marginTop:12, fontSize:14 }}>Sin reuniones con este filtro</Text>
             </View>
           ) : (
-            reuniones.map((r) => <ReunionCard key={r.id} r={r} onCambiarEstado={handleCambiarEstado} />)
+            reuniones.map((r) => <ReunionCard key={r.id} r={r} onCambiarEstado={handleCambiarEstado} onEditar={abrirEditar} onEliminar={eliminarReunion} />)
           )}
           <View style={{ height:20 }} />
         </ScrollView>

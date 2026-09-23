@@ -9,41 +9,11 @@
 // nunca dependan de NativeWind en absoluto.
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  View, Text, LayoutChangeEvent,
+  View, Text,
   StyleSheet, Pressable, ActivityIndicator, BackHandler,
 } from 'react-native';
-import Svg, { Text as SvgText } from 'react-native-svg';
 import { CheckCircle, XCircle, AlertTriangle, HelpCircle, Info } from 'lucide-react-native';
-
-// El ícono (SVG, vía lucide-react-native) siempre se pinta bien en este
-// modal; el `<Text>` nativo de React Native dentro de los botones, no —
-// pese a que el componente, sus estilos y el bundle servido son correctos
-// (verificado exhaustivamente). Como la diferencia observable es
-// "SVG sí, Text nativo no", la etiqueta de los botones se dibuja como texto
-// SVG (mismo mecanismo que el ícono) en vez de como `<Text>` nativo.
-function ButtonLabel({ text, color, size = 15 }: { text: string; color: string; size?: number }) {
-  const [width, setWidth] = useState(0);
-  const height = Math.round(size * 1.5);
-  const onLayout = (e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width);
-  return (
-    <View onLayout={onLayout} style={{ width: '100%', height, alignItems: 'center', justifyContent: 'center' }}>
-      {width > 0 && (
-        <Svg width={width} height={height}>
-          <SvgText
-            x={width / 2}
-            y={height / 2 + size * 0.35}
-            fontSize={size}
-            fontWeight="bold"
-            fill={color}
-            textAnchor="middle"
-          >
-            {text}
-          </SvgText>
-        </Svg>
-      )}
-    </View>
-  );
-}
+import ButtonLabel from './ButtonLabel';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 export type ModalType = 'success' | 'error' | 'warning' | 'confirm' | 'info';
@@ -182,8 +152,8 @@ export function AppModal({
             </View>
 
             {/* Texto */}
-            <Text style={s.title}>{title}</Text>
-            <Text style={s.message}>{message}</Text>
+            <Text style={s.title}>{typeof title === 'string' ? title : JSON.stringify(title)}</Text>
+            <Text style={s.message}>{typeof message === 'string' ? message : JSON.stringify(message)}</Text>
 
             {/* Botones */}
             <View style={[s.btns, type === 'confirm' && s.btnsRow]}>

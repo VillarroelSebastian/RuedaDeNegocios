@@ -256,6 +256,7 @@ function ParticipanteTabs() {
 }
 
 export default function EmpresaNavigator() {
+  const insetsBanner = useSafeAreaInsets();
   const [esEncargado, setEsEncargado] = useState(!!userStore.get()?.esResponsable);
   const [chatOpen, setChatOpen] = useState(false);
   const [eeId, setEeId] = useState<number | null>(userStore.get()?.empresaeventoId ?? null);
@@ -323,7 +324,7 @@ export default function EmpresaNavigator() {
       )}
       </Stack.Navigator>
       {notifActual && (
-        <View style={{ position: 'absolute', top: 62, left: 12, right: 12, zIndex: 100, backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#bbf7d0', padding: 14, shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 12, elevation: 10 }}>
+        <View style={{ position: 'absolute', top: insetsBanner.top + 8, left: 12, right: 12, zIndex: 100, backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#bbf7d0', padding: 14, shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 12, elevation: 10 }}>
           <Text style={{ fontSize: 14, fontWeight: '800', color: '#166534' }} numberOfLines={1}>{notifActual.titulo}</Text>
           <Text style={{ fontSize: 12, color: '#374151', marginTop: 4 }} numberOfLines={3}>{notifActual.mensaje}</Text>
           <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
