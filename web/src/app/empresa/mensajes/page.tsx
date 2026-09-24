@@ -186,11 +186,14 @@ function MensajesContent() {
     return () => clearInterval(iv);
   }, [ctx?.empresaeventoId, cargarConvs, cargarMensajes]);
 
-  // Al abrir una conversación, cargar sus mensajes
+  // Al abrir una conversación, cargar sus mensajes (esto marca como leídos
+  // los entrantes en el servidor). Avisar al sidebar para que el contador
+  // del ícono de mensajes baje al instante, no en su próximo sondeo.
   useEffect(() => {
     if (ctx?.empresaeventoId && activa) {
       cargarMensajes(ctx.empresaeventoId, activa.eeId);
       cargarConvs(ctx.empresaeventoId);
+      window.dispatchEvent(new CustomEvent("mensajesActualizados"));
     }
   }, [ctx?.empresaeventoId, activa, cargarMensajes, cargarConvs]);
 

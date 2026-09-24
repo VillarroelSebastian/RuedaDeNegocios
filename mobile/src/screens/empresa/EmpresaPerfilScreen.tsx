@@ -863,7 +863,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
                 </TouchableOpacity>
               </View>
             ) : (
-              <>
+              <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets showsVerticalScrollIndicator={false}>
                 {!!pagoError && <View style={s.errorBox}><Text style={s.errorText}>{pagoError}</Text></View>}
                 <Text style={s.label}>Cantidad de cupos a solicitar</Text>
                 <TextInput style={s.input} value={pagoCant} onChangeText={setPagoCant} keyboardType="number-pad" placeholder="1" placeholderTextColor="#9ca3af" />
@@ -899,7 +899,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
                   {pagandoAd ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Enviar solicitud</Text>}
                 </TouchableOpacity>
                 <View style={{ height: 20 }} />
-              </>
+              </ScrollView>
             )}
           </View>
         </View>
@@ -929,7 +929,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
                 </TouchableOpacity>
               </View>
             ) : (
-              <>
+              <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets showsVerticalScrollIndicator={false}>
                 <Text style={{ fontSize: 13, color: '#6b7280', marginBottom: 12 }}>
                   Ingresa el código de 6 dígitos enviado a <Text style={{ fontWeight: '700' }}>{user?.correo}</Text>.
                 </Text>
@@ -968,7 +968,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
                   {passLoading ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Confirmar cambio</Text>}
                 </TouchableOpacity>
                 <View style={{ height: 20 }} />
-              </>
+              </ScrollView>
             )}
           </View>
         </View>

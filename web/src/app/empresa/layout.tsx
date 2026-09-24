@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import EmpresaSidebar from '@/components/empresa/EmpresaSidebar';
+import EmpresaSidebar, { RUTAS_OCULTAS_PARA_FORO } from '@/components/empresa/EmpresaSidebar';
 import EmpresaHeader from '@/components/empresa/EmpresaHeader';
 import AsistenteChat from '@/components/empresa/AsistenteChat';
 import NotificacionToast from '@/components/empresa/NotificacionToast';
@@ -13,6 +13,7 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
   const router = useRouter();
   const pathname = usePathname();
   const [esEncargado, setEsEncargado] = useState(false);
+  const [esForo, setEsForo] = useState(false);
   const [eeId, setEeId] = useState<number | null>(null);
   const [euId, setEuId] = useState<number | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -23,7 +24,13 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
     let user: any;
     try {
       user = JSON.parse(raw);
-      if (user?.rolEvento !== 'EMPRESA') { router.replace('/auth/login'); return; }
+      if (!['EMPRESA', 'FORO'].includes(user?.rolEvento)) { router.replace('/auth/login'); return; }
+      const foro = user.rolEvento === 'FORO';
+      setEsForo(foro);
+      if (foro && RUTAS_OCULTAS_PARA_FORO.some((r) => pathname === r || pathname.startsWith(r + '/'))) {
+        router.replace('/empresa/comunicados');
+        return;
+      }
     } catch {
       router.replace('/auth/login');
       return;
@@ -50,17 +57,17 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
       .catch(() => {
         router.replace('/auth/login');
       });
-  }, [router]);
+  }, [router, pathname]);
 
   return (
     <div className="min-h-screen bg-[#F9FAFB]">
-      <EmpresaSidebar esEncargado={esEncargado} eeId={eeId} mobileOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <EmpresaSidebar esEncargado={esEncargado} esForo={esForo} eeId={eeId} mobileOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="md:ml-64 flex flex-col min-h-screen">
         <EmpresaHeader onMenuClick={() => setSidebarOpen(true)} eeId={eeId} />
         <main className="flex-1">{children}</main>
       </div>
       <NotificacionToast eeId={eeId} />
-      {pathname !== '/empresa/mensajes' && <AsistenteChat eeId={eeId} euId={euId} />}
+      {!esForo && pathname !== '/empresa/mensajes' && <AsistenteChat eeId={eeId} euId={euId} />}
     </div>
   );
 }

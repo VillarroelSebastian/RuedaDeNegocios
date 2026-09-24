@@ -8,7 +8,7 @@ import { useNavigation } from '@react-navigation/native';
 import {
   LayoutDashboard, Video, Armchair, CalendarCheck, Building2,
   Clock, Calendar, ChevronRight, X, CheckCircle, AlertCircle, MapPin, CalendarPlus, QrCode, Radio, Images,
-  MessageSquare,
+  MessageSquare, Bell,
 } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
 
@@ -180,9 +180,17 @@ export default function TecnicoDashboardScreen() {
   const [modal,      setModal]      = useState<{ visible:boolean; type:string; title:string; message:string }>
     ({ visible:false, type:'info', title:'', message:'' });
   const [mensajesNoLeidos, setMensajesNoLeidos] = useState(0);
+  const [notifNoLeidas, setNotifNoLeidas] = useState(0);
 
   useEffect(() => {
     const cargar = () => fetch(`${API_URL}/staff/mensajes/no-leidos`).then((r) => r.json()).then((d) => setMensajesNoLeidos(d.count || 0)).catch(() => {});
+    cargar();
+    const iv = setInterval(cargar, 15000);
+    return () => clearInterval(iv);
+  }, []);
+
+  useEffect(() => {
+    const cargar = () => fetch(`${API_URL}/tecnico/notificaciones-reuniones`).then((r) => r.json()).then((d) => setNotifNoLeidas(Array.isArray(d) ? d.length : 0)).catch(() => {});
     cargar();
     const iv = setInterval(cargar, 15000);
     return () => clearInterval(iv);
@@ -242,6 +250,10 @@ export default function TecnicoDashboardScreen() {
           <Text style={{ fontSize:16, fontWeight:'800', color:'#0f172a' }}>Panel Técnico</Text>
           <Text style={{ fontSize:12, color:'#94a3b8' }}>{user?.nombres} {user?.apellidoPaterno}</Text>
         </View>
+        <TouchableOpacity onPress={() => navigation.navigate('TecnicoContenido')} style={{ width:38, height:38, borderRadius:19, backgroundColor:'#dcfce7', alignItems:'center', justifyContent:'center', position:'relative', marginRight:8 }} accessibilityLabel="Notificaciones">
+          <Bell color="#166534" size={18} />
+          {notifNoLeidas > 0 && <View style={{ position:'absolute', top:5, right:5, width:9, height:9, borderRadius:5, backgroundColor:'#ef4444', borderWidth:1.5, borderColor:'#dcfce7' }} />}
+        </TouchableOpacity>
         <TouchableOpacity onPress={() => navigation.navigate('TecnicoMensajes')} style={{ width:38, height:38, borderRadius:19, backgroundColor:'#dcfce7', alignItems:'center', justifyContent:'center', position:'relative' }} accessibilityLabel="Mensajes">
           <MessageSquare color="#166534" size={18} />
           {mensajesNoLeidos > 0 && <View style={{ position:'absolute', top:5, right:5, width:9, height:9, borderRadius:5, backgroundColor:'#ef4444', borderWidth:1.5, borderColor:'#dcfce7' }} />}

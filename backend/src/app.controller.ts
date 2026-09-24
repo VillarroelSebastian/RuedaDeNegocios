@@ -111,7 +111,7 @@ export class AppController implements OnModuleInit {
         },
       });
     } catch (_) { /* la notificación en vivo sigue aunque falle la persistencia */ }
-    this.notifGateway.emitirParaEe(eeId, tipo, { titulo, mensaje });
+    this.notifGateway.emitirParaEe(eeId, tipo, { titulo, mensaje, referenciaId });
   }
 
   private async notificarUnaVez(
@@ -1276,16 +1276,21 @@ export class AppController implements OnModuleInit {
       throw new BadRequestException('Este evento todavía no tiene paquetes de inscripción disponibles.');
     }
     let paqueteElegido:
-      | { id: number; costo: any; credencialesIncluidas: number; tipoParticipacion: string }
+      | { id: number; costo: any; credencialesIncluidas: number; tipoParticipacion: string; tipoPaquete: string }
       | null = null;
     if (paqueteIdSolicitado) {
       const p = await this.prisma.paquete.findFirst({
         where: { id: paqueteIdSolicitado, evento_id: eventoId, estaActivo: 1 },
-        select: { id: true, costo: true, credencialesIncluidas: true, tipoParticipacion: true },
+        select: { id: true, costo: true, credencialesIncluidas: true, tipoParticipacion: true, tipoPaquete: true },
       });
       if (!p) throw new BadRequestException('El paquete seleccionado no está disponible.');
       paqueteElegido = p;
     }
+    // Un paquete FORO es una inscripción personal: como máximo una credencial,
+    // aunque el paquete tenga configuradas más (defensivo, no debería pasar).
+    const esRegistroForo = paqueteElegido?.tipoPaquete === 'FORO';
+    if (esRegistroForo && participantesEntrada.length > 1)
+      throw new BadRequestException('La inscripción de foro es individual: registra un solo participante.');
 
     // Con paquete, el número de personas y la modalidad los define el paquete:
     // en el registro ya no se eligen a mano. Sin paquete (evento sin paquetes
@@ -1420,7 +1425,7 @@ export class AppController implements OnModuleInit {
               contrasenia: defaultPass,
               telefono: p.telefono || '',
               urlFotoPerfil: '',
-              rolEvento: 'EMPRESA',
+              rolEvento: esRegistroForo ? 'FORO' : 'EMPRESA',
               estaActivo: 1,
             },
           });
@@ -1538,16 +1543,18 @@ export class AppController implements OnModuleInit {
     });
   }
 
-  // Una reunión operativa debe pertenecer a las fechas vigentes del evento y
-  // conservar activas a ambas inscripciones. Los registros históricos se
-  // mantienen en la base, pero no deben ocupar mesas ni aparecer como actuales.
+  // Una reunión operativa debe pertenecer al evento vigente y conservar activas
+  // a ambas inscripciones. Deliberadamente NO filtra por la ventana de fechas
+  // configurada en horariosReunionJson: esa ventana solo define qué horarios se
+  // OFRECEN para agendar reuniones nuevas (ver generarCandidatosInicioTecnico/
+  // generarFranjas). Si se usara aquí también, una reunión ya confirmada podía
+  // desaparecer de las vistas de staff (y volverse imposible de gestionar) con
+  // solo reconfigurar la logística del evento después de agendarla — el
+  // evento_id ya basta para no mezclar reuniones de otra edición del evento.
   private filtroReunionOperativa(evento: any): any {
-    const { start, end } = this.ventanaReunionesEvento(evento);
     return {
       evento_id: evento.id,
       estaActivo: 1,
-      fechaHoraInicioReunion: { gte: start },
-      fechaHoraFinReunion: { lte: end },
       solicitudreunion: {
         empresaevento_solicitudreunion_empresaEvento_idToempresaevento: {
           estaActivo: 1,
@@ -2897,7 +2904,10 @@ export class AppController implements OnModuleInit {
         where: {
           evento_id: eventoId,
           estaActivo: 1,
-          numeroMesa: { lte: evento.cantidadTotalMesasEvento },
+          OR: [
+            { numeroMesa: { lte: evento.cantidadTotalMesasEvento } },
+            { reunion: { some: { estaActivo: 1, estadoReunion: { in: ['EN_CURSO', 'PROGRAMADA', 'REPROGRAMADA'] } } } },
+          ],
         },
         orderBy: { numeroMesa: 'asc' },
         include: {
@@ -2973,7 +2983,7 @@ export class AppController implements OnModuleInit {
           evento_id: eventoId,
           numeroMesa: { gt: targetCount },
           estaActivo: 1,
-          reunion: { some: { estaActivo: 1, estadoReunion: { in: ['EN_CURSO', 'PROGRAMADA'] } } },
+          reunion: { some: { estaActivo: 1, estadoReunion: { in: ['EN_CURSO', 'PROGRAMADA', 'REPROGRAMADA'] } } },
         },
         select: { id: true },
       });
@@ -3269,6 +3279,14 @@ export class AppController implements OnModuleInit {
       include: { solicitudreunion: true },
     });
     if (!actual || actual.estaActivo === 0) throw new BadRequestException('Reunión no encontrada');
+    const transicionesAdmin: Record<string, string[]> = {
+      PROGRAMADA: ['EN_CURSO', 'CANCELADA'],
+      REPROGRAMADA: ['EN_CURSO', 'CANCELADA'],
+      EN_CURSO: ['FINALIZADA'],
+      FINALIZADA: [], CANCELADA: [],
+    };
+    if (!(transicionesAdmin[actual.estadoReunion] ?? []).includes(body.estadoReunion))
+      throw new BadRequestException(`No se puede cambiar de ${actual.estadoReunion} a ${body.estadoReunion}`);
     const data: any = { estadoReunion: body.estadoReunion, creadoModificadoFecha: new Date() };
     if (body.asistentes !== undefined) data.cantidadAsistentesRegistrados = Number(body.asistentes);
     if (body.observaciones !== undefined) data.observacionesReunion = body.observaciones;
@@ -4217,7 +4235,14 @@ export class AppController implements OnModuleInit {
         where: {
           evento_id: eventoId,
           estaActivo: 1,
-          numeroMesa: { lte: eventoConfig.cantidadTotalMesasEvento },
+          // Una mesa fuera del rango configurado igual debe verse si tiene una
+          // reunión activa: si no, reconfigurar el total de mesas después de
+          // agendar hace que esa reunión (y su mesa) desaparezcan del tablero
+          // sin poder gestionarse. Coincide con el auto-sync de admin/mesas.
+          OR: [
+            { numeroMesa: { lte: eventoConfig.cantidadTotalMesasEvento } },
+            { reunion: { some: { estaActivo: 1, estadoReunion: { in: ['EN_CURSO', 'PROGRAMADA', 'REPROGRAMADA'] } } } },
+          ],
         },
         orderBy: { numeroMesa: 'asc' },
         include: {
@@ -4839,6 +4864,13 @@ export class AppController implements OnModuleInit {
       mesaAsignada = await this.elegirMesaBalanceada(eventoId!, iniDate, finDate);
       if (!mesaAsignada) throw new BadRequestException('No hay mesas disponibles para ese horario');
     } else if (mesaAsignada) {
+      // El id de mesa lo manda el cliente: verificar que sigue siendo una mesa
+      // real y activa de este evento antes de asignarla (una mesa desactivada
+      // por reconfigurar el total de mesas no debe volver a recibir reuniones).
+      const mesaValida = await this.prisma.mesa.findFirst({
+        where: { id: mesaAsignada, evento_id: eventoId!, estaActivo: 1 },
+      });
+      if (!mesaValida) throw new BadRequestException('La mesa seleccionada no existe o ya no está activa.');
       const ocupada = await this.prisma.reunion.findFirst({
         where: {
           mesa_id: mesaAsignada,
@@ -7490,6 +7522,13 @@ export class AppController implements OnModuleInit {
       mesaId = await this.elegirMesaBalanceada(eventoId, iniDate, finDate, sol.id);
       if (!mesaId) throw new BadRequestException('No hay mesas disponibles para ese horario.');
     } else if (mesaId) {
+      // La mesa se eligió cuando se creó la solicitud, que puede haber sido
+      // hace días: verificar que sigue siendo una mesa real y activa antes de
+      // confirmar la reunión (pudo desactivarse al reconfigurar el evento).
+      const mesaValida = await this.prisma.mesa.findFirst({
+        where: { id: mesaId, evento_id: eventoId, estaActivo: 1 },
+      });
+      if (!mesaValida) throw new BadRequestException('La mesa elegida por la empresa solicitante ya no está activa. Rechaza esta solicitud y solicita que elijan otra mesa.');
       // Verificar que la mesa elegida por el solicitante sigue libre
       const ocupada = await this.prisma.reunion.findFirst({
         where: {

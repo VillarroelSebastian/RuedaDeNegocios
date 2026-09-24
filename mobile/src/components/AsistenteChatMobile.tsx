@@ -4,7 +4,7 @@ import {
   Modal, KeyboardAvoidingView, Platform, ActivityIndicator, StyleSheet,
   Pressable,
 } from 'react-native';
-import { Bot, X, Send, User, MessageCircle } from 'lucide-react-native';
+import { Bot, X, Send, User } from 'lucide-react-native';
 import { API_URL, userStore } from '../utils/userStore';
 import ImagenLightbox from './ImagenLightbox';
 
@@ -39,7 +39,7 @@ export function AsistenteChatButton({ onOpen }: { onOpen: () => void }) {
       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
       activeOpacity={0.7}
     >
-      <MessageCircle size={22} color="#374151" />
+      <Bot size={22} color="#374151" />
     </TouchableOpacity>
   );
 }

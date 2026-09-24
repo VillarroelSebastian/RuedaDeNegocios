@@ -8,7 +8,7 @@ import { useNavigation } from '@react-navigation/native';
 import {
   Building2, CreditCard, Handshake, Armchair, CalendarCheck,
   TrendingUp, TrendingDown, Minus, Calendar, MapPin,
-  Users, LayoutGrid, Layers, MessageSquare,
+  Users, LayoutGrid, Layers, MessageSquare, Bell,
 } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
 
@@ -53,12 +53,20 @@ export default function DashboardScreen() {
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [mensajesNoLeidos, setMensajesNoLeidos] = useState(0);
+  const [notifNoLeidas, setNotifNoLeidas] = useState(0);
 
   const user      = userStore.get();
   const firstName = user?.nombres?.split(' ')[0] ?? 'Administrador';
 
   useEffect(() => {
     const cargar = () => fetch(`${API_URL}/staff/mensajes/no-leidos`).then((r) => r.json()).then((d) => setMensajesNoLeidos(d.count || 0)).catch(() => {});
+    cargar();
+    const iv = setInterval(cargar, 15000);
+    return () => clearInterval(iv);
+  }, []);
+
+  useEffect(() => {
+    const cargar = () => fetch(`${API_URL}/admin/notificaciones`).then((r) => r.json()).then((d) => setNotifNoLeidas(d.totalNoLeidas || 0)).catch(() => {});
     cargar();
     const iv = setInterval(cargar, 15000);
     return () => clearInterval(iv);
@@ -106,6 +114,10 @@ export default function DashboardScreen() {
           <Text style={s.headerSub}>Panel de administración</Text>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <TouchableOpacity style={s.headerIconBtn} onPress={() => navigation.navigate('Notificaciones')} activeOpacity={0.8} accessibilityLabel="Notificaciones">
+            <Bell color={GREEN_DARK} size={19} />
+            {notifNoLeidas > 0 && <View style={s.headerIconBadge} />}
+          </TouchableOpacity>
           <TouchableOpacity style={s.headerIconBtn} onPress={() => navigation.navigate('Mensajes')} activeOpacity={0.8} accessibilityLabel="Mensajes">
             <MessageSquare color={GREEN_DARK} size={19} />
             {mensajesNoLeidos > 0 && <View style={s.headerIconBadge} />}

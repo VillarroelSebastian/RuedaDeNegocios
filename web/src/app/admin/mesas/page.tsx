@@ -391,13 +391,14 @@ export default function MesasPage() {
         const res = await fetch(`${API}/admin/reuniones/${reunion.id}/estado`, {
           method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
         });
-        if (!res.ok) throw new Error();
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.message || 'No se pudo actualizar el estado de la reunión.');
         const doneLabels: Record<string, string> = {
           EN_CURSO: 'Reunión iniciada correctamente.', FINALIZADA: 'Reunión finalizada y registrada.', CANCELADA: 'Reunión cancelada.',
         };
         showSuccess('Listo', doneLabels[estado] ?? 'Estado actualizado.');
         fetchMesas();
-      } catch { showError('Error', 'No se pudo actualizar el estado de la reunión.'); }
+      } catch (e: any) { showError('Error', e?.message || 'No se pudo actualizar el estado de la reunión.'); }
       finally { setActing(false); }
     });
   };
@@ -410,12 +411,14 @@ export default function MesasPage() {
       async () => {
         setToggling(true);
         try {
-          await fetch(`${API}/admin/mesas/${mesa.id}/habilitar`, {
+          const res = await fetch(`${API}/admin/mesas/${mesa.id}/habilitar`, {
             method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estaHabilitada: nuevo }),
           });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data?.message || 'No se pudo cambiar la disponibilidad de la mesa.');
           showSuccess('Listo', `Mesa ${mesa.numeroMesa} ${nuevo === 1 ? 'habilitada' : 'deshabilitada'} correctamente.`);
           fetchMesas();
-        } catch { showError('Error', 'No se pudo cambiar la disponibilidad de la mesa.'); }
+        } catch (e: any) { showError('Error', e?.message || 'No se pudo cambiar la disponibilidad de la mesa.'); }
         finally { setToggling(false); }
       }
     );
@@ -429,10 +432,11 @@ export default function MesasPage() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ empresa: msgModal.empresa, mensaje: msgText.trim() }),
       });
-      if (!res.ok) throw new Error();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || 'No se pudo enviar el mensaje. Intenta de nuevo.');
       showSuccess('Mensaje enviado', `El mensaje fue enviado al encargado de ${msgModal.empresaNombre}.`);
       setMsgModal(null);
-    } catch { showError('Error', 'No se pudo enviar el mensaje. Intenta de nuevo.'); }
+    } catch (e: any) { showError('Error', e?.message || 'No se pudo enviar el mensaje. Intenta de nuevo.'); }
     finally { setSending(false); }
   };
 
@@ -444,11 +448,12 @@ export default function MesasPage() {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enlace: linkText.trim() }),
       });
-      if (!res.ok) throw new Error();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || 'No se pudo actualizar el link. Intenta de nuevo.');
       showSuccess('Link actualizado', 'El enlace de la reunión virtual fue actualizado.');
       setLinkModal(null);
       fetchMesas();
-    } catch { showError('Error', 'No se pudo actualizar el link. Intenta de nuevo.'); }
+    } catch (e: any) { showError('Error', e?.message || 'No se pudo actualizar el link. Intenta de nuevo.'); }
     finally { setSavingLink(false); }
   };
 

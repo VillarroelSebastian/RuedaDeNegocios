@@ -62,6 +62,9 @@ model paquete {
   credencialesIncluidas Int     @db.SmallInt
   urlQR                 String? @db.VarChar(505)
   orden                 Int     @default(0) @db.SmallInt
+  // EMPRESA | FORO — a qué tipo de inscripción aplica este paquete. Los
+  // paquetes FORO generan usuarios con rolEvento FORO en vez de EMPRESA.
+  tipoPaquete           String  @default("EMPRESA") @db.VarChar(20)
 
   // ── Capacidades que habilita el paquete ──
   // Lo que el sistema puede hacer cumplir de verdad. Los beneficios de difusión

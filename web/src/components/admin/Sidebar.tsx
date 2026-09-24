@@ -29,6 +29,7 @@ import {
   Wifi,
   MessageSquare,
   Users2,
+  UserPlus,
 } from 'lucide-react';
 
 const menuItems = [
@@ -40,6 +41,7 @@ const menuItems = [
   { name: 'Oportunidades', icon: Handshake, href: '/admin/oportunidades' },
   { name: 'Paquetes', icon: Package, href: '/admin/paquetes' },
   { name: 'Auspiciadores', icon: Handshake, href: '/admin/auspiciadores' },
+  { name: 'Foro · Personal', icon: UserPlus, href: '/admin/foro' },
   { name: 'Pagos Iniciales', icon: CreditCard, href: '/admin/pagos' },
   { name: 'Pagos Adicionales', icon: PlusCircle, href: '/admin/pagos-adicionales' },
   { name: 'Mesas', icon: Armchair, href: '/admin/mesas' },

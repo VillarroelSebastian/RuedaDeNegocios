@@ -61,12 +61,9 @@ export default function LoginPage() {
         localStorage.setItem("tecnicoUser", JSON.stringify(user));
         const siguiente = new URLSearchParams(window.location.search).get("next");
         router.push(siguiente?.startsWith("/credencial/") ? siguiente : "/tecnico/dashboard");
-      } else if (user.rolEvento === "FORO") {
-        localStorage.setItem("foroUser", JSON.stringify(user));
-        router.push("/foro");
-      } else if (user.rolEvento === "EMPRESA") {
+      } else if (["EMPRESA", "FORO"].includes(user.rolEvento)) {
         localStorage.setItem("empresaUser", JSON.stringify(user));
-        router.push("/empresa/dashboard");
+        router.push(user.rolEvento === "FORO" ? "/empresa/comunicados" : "/empresa/dashboard");
       } else {
         throw new Error("Acceso denegado: no tienes permisos de acceso");
       }

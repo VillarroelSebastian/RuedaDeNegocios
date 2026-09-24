@@ -251,11 +251,12 @@ export default function TecnicoReunionesPage() {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ estadoReunion: estado }),
       });
-      if (!res.ok) throw new Error();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || 'No se pudo actualizar el estado.');
       setModal({ visible:true, type:'success', title:'Estado actualizado', message:`Reunión marcada como ${ESTADO_CFG[estado]?.label ?? estado}.` });
       fetchReuniones();
-    } catch {
-      setModal({ visible:true, type:'error', title:'Error', message:'No se pudo actualizar el estado.' });
+    } catch (e: any) {
+      setModal({ visible:true, type:'error', title:'Error', message:e?.message || 'No se pudo actualizar el estado.' });
     }
   };
 

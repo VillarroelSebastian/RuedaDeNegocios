@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller.js';
-import { ForoController } from './foro/foro.controller.js';
 import { PushModule } from './push/push.module.js';
 import { AppService } from './app.service.js';
 import { PrismaModule } from './prisma/prisma.module.js';
@@ -26,7 +25,7 @@ import { AuditInterceptor } from './auth/audit.interceptor.js';
     ImagenesModule,
     ExtrasModule,
   ],
-  controllers: [AppController, ForoController],
+  controllers: [AppController],
   providers: [AppService, NotificacionesGateway,
     { provide: APP_GUARD, useClass: RateLimitGuard },
     { provide: APP_GUARD, useClass: AuthGuard },

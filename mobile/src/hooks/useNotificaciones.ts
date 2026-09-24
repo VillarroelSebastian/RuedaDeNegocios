@@ -54,6 +54,7 @@ export interface NotifMobile {
   mensaje: string;
   titulo?: string;
   timestamp: number;
+  referenciaId?: number;
 }
 
 export function useNotificacionesMobile(eeId: number | null) {
@@ -67,6 +68,7 @@ export function useNotificacionesMobile(eeId: number | null) {
       mensaje: payload.mensaje ?? evento,
       titulo: payload.titulo ?? EVENTO_LABELS[evento] ?? 'Notificación',
       timestamp: Date.now(),
+      referenciaId: Number(payload.referenciaId) || undefined,
     };
     setNotifs((prev) => [notif, ...prev].slice(0, 10));
     // Show native alert for important events, con acción "Ver" que navega a la

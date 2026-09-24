@@ -206,19 +206,28 @@ export class ExtrasController {
   // ═══════════════════════════════════════════════════════════════════════════
 
   @Get('public/paquetes')
-  async paquetesPublicos() {
+  async paquetesPublicos(@Query('tipo') tipo?: string) {
     const eventoId = await this.eventoPrincipalId();
+    const tipoPaquete = String(tipo ?? '').toUpperCase();
     return this.prisma.paquete.findMany({
-      where: { evento_id: eventoId, estaActivo: 1 },
+      where: {
+        evento_id: eventoId,
+        estaActivo: 1,
+        ...(['EMPRESA', 'FORO'].includes(tipoPaquete) ? { tipoPaquete } : {}),
+      },
       orderBy: [{ orden: 'asc' }, { costo: 'asc' }],
     });
   }
 
   @Get('admin/paquetes')
-  async listarPaquetes(@Query('eventoId') eventoIdSolicitado?: string) {
+  async listarPaquetes(@Query('eventoId') eventoIdSolicitado?: string, @Query('tipo') tipo?: string) {
     const eventoId = await this.eventoAdministrableId(eventoIdSolicitado);
+    const tipoPaquete = String(tipo ?? '').toUpperCase();
     return this.prisma.paquete.findMany({
-      where: { evento_id: eventoId, estaActivo: 1 },
+      where: {
+        evento_id: eventoId, estaActivo: 1,
+        ...(['EMPRESA', 'FORO'].includes(tipoPaquete) ? { tipoPaquete } : {}),
+      },
       orderBy: [{ orden: 'asc' }, { costo: 'asc' }],
       include: { _count: { select: { empresaevento: true, auspiciador: true } } },
     });
@@ -250,7 +259,12 @@ export class ExtrasController {
 
     const bandera = (v: any, pordefecto = 0) => (v === undefined || v === null ? pordefecto : (v ? 1 : 0));
 
+    const tipoPaquete = String(body.tipoPaquete ?? 'EMPRESA').toUpperCase();
+    if (!['EMPRESA', 'FORO'].includes(tipoPaquete))
+      throw new BadRequestException('El tipo de paquete debe ser EMPRESA o FORO.');
+
     return {
+      tipoPaquete,
       maxParticipantes,
       nivelMesa,
       tipoParticipacion,
@@ -524,6 +538,158 @@ export class ExtrasController {
     return { ok: true };
   }
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // FORO: alta directa por el administrador (sin flujo de pago ni comprobante,
+  // como con los auspiciadores). Crea el mismo esqueleto empresa/empresaevento/
+  // usuario/empresa_usuario que el registro público, pero ya HABILITADO.
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  @Get('admin/foro-usuarios')
+  async listarForoUsuarios() {
+    const eventoId = await this.eventoPrincipalId();
+    return this.prisma.usuario.findMany({
+      where: {
+        rolEvento: 'FORO', estaActivo: 1,
+        empresa_usuario: { some: { estaActivo: 1, empresaevento: { evento_id: eventoId } } },
+      },
+      select: {
+        id: true, nombres: true, apellidoPaterno: true, apellidoMaterno: true, correo: true, telefono: true,
+        empresa_usuario: {
+          where: { estaActivo: 1 },
+          select: {
+            id: true, cargo: true,
+            empresaevento: { select: { id: true, estadoHabilitacionAcceso: true, paquete: { select: { nombre: true } } } },
+          },
+        },
+      },
+      orderBy: { id: 'desc' },
+    });
+  }
+
+  @Post('admin/foro-usuarios')
+  async crearForoUsuario(@Body() body: any) {
+    const eventoId = await this.eventoPrincipalId();
+    if (!eventoId) throw new BadRequestException('No hay un evento activo.');
+
+    const nombres = this.texto(body.nombres, 105, 'Nombres')!;
+    const apellidoPaterno = this.texto(body.apellidoPaterno, 65, 'Apellido paterno')!;
+    const apellidoMaterno = this.texto(body.apellidoMaterno, 65, 'Apellido materno', false);
+    const cargo = this.texto(body.cargo, 100, 'Cargo', false);
+    const correo = String(body.correo ?? '').trim().toLowerCase();
+    const telefono = String(body.telefono ?? '').trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) throw new BadRequestException('El correo no es válido.');
+    if (!telefono || telefono.length > 45) throw new BadRequestException('El teléfono no es válido.');
+
+    const existenteGlobal = await this.prisma.usuario.findFirst({ where: { correo: { equals: correo, mode: 'insensitive' } } });
+    if (existenteGlobal) {
+      if (['ADMINISTRADOR', 'TECNICO', 'TECNICO_EVENTOS'].includes(existenteGlobal.rolEvento))
+        throw new BadRequestException('Ese correo pertenece a una cuenta interna.');
+      const yaInscrito = await this.prisma.empresa_usuario.findFirst({
+        where: { usuario_id: existenteGlobal.id, estaActivo: 1, empresaevento: { evento_id: eventoId, estaActivo: 1 } },
+      });
+      if (yaInscrito) throw new BadRequestException('Este correo ya está inscrito en el evento actual.');
+    }
+
+    let paquete: { id: number; tipoParticipacion: string } | null = null;
+    if (body.paquete_id) {
+      paquete = await this.prisma.paquete.findFirst({
+        where: { id: Number(body.paquete_id), evento_id: eventoId, estaActivo: 1, tipoPaquete: 'FORO' },
+        select: { id: true, tipoParticipacion: true },
+      });
+      if (!paquete) throw new BadRequestException('El paquete seleccionado no es un paquete de tipo Foro.');
+    }
+
+    const ciudad = await this.prisma.ciudad.findFirst({ orderBy: { id: 'asc' } });
+    if (!ciudad) throw new BadRequestException('No existe una ciudad configurada para crear el acceso.');
+
+    const pwd = randomBytes(6).toString('base64url');
+    const hash = await bcrypt.hash(pwd, 10);
+    const nombreCompleto = `${nombres} ${apellidoPaterno}`.slice(0, 55);
+
+    const creado = await this.prisma.$transaction(async (tx) => {
+      const empresa = await tx.empresa.create({
+        data: {
+          ciudad_id: ciudad.id, nombre: nombreCompleto, rubro: 'Foro', telefonoWhatsapp: telefono,
+          correoCorporativo: correo, estaActivo: 1,
+        },
+      });
+      const ee = await tx.empresaevento.create({
+        data: {
+          empresa_id: empresa.id, evento_id: eventoId, paquete_id: paquete?.id ?? null,
+          tipoParticipacion: paquete?.tipoParticipacion || 'PRESENCIAL',
+          estadoHabilitacionAcceso: 'HABILITADO', estadoVerificacionPago: 'COMPLETADO',
+          numeroParticipantes: 1, estaActivo: 1,
+        },
+      });
+      const usuario = await tx.usuario.create({
+        data: {
+          nombres, apellidoPaterno, apellidoMaterno, correo, telefono, contrasenia: hash,
+          urlFotoPerfil: '', rolEvento: 'FORO', evento_id: eventoId, estaActivo: 1,
+        },
+      });
+      const eu = await tx.empresa_usuario.create({
+        data: {
+          empresa_id: empresa.id, empresaevento_id: ee.id, usuario_id: usuario.id,
+          cargo: cargo || '', esResponsable: 1, estaActivo: 1,
+        },
+      });
+      return { empresa, ee, usuario, eu };
+    });
+
+    let correoEnviado = true;
+    try {
+      const transporter = nodemailer.createTransport({ service: 'gmail', auth: { user: process.env.MAIL_USER, pass: process.env.MAIL_PASS } });
+      await transporter.sendMail({
+        from: process.env.MAIL_FROM || process.env.MAIL_USER,
+        to: correo,
+        attachments: this.adjuntoLogoCorreo(),
+        subject: 'Tu acceso al evento',
+        html: `${this.cabeceraCorreo()}<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#1f2937">
+          <h2 style="color:#449D3A">Hola, ${nombres}</h2>
+          <p>Ya tienes acceso a la plataforma del evento con tu inscripción de Foro.</p>
+          <div style="padding:18px;background:#f0fdf4;border-radius:12px"><b>Correo:</b> ${correo}<br/><b>Contraseña temporal:</b> ${pwd}</div>
+          <p><a href="${(process.env.WEB_URL || 'http://localhost:3000').replace(/\/$/, '')}/auth/login">Ingresar a la plataforma</a></p>
+        </div>`,
+      });
+    } catch { correoEnviado = false; }
+
+    return { id: creado.usuario.id, nombres, apellidoPaterno, correo, correoEnviado };
+  }
+
+  @Put('admin/foro-usuarios/:id')
+  async editarForoUsuario(@Param('id') id: string, @Body() body: any) {
+    const usuario = await this.prisma.usuario.findFirst({ where: { id: Number(id), rolEvento: 'FORO', estaActivo: 1 } });
+    if (!usuario) throw new BadRequestException('El usuario de foro no existe.');
+    const nombres = this.texto(body.nombres, 105, 'Nombres')!;
+    const apellidoPaterno = this.texto(body.apellidoPaterno, 65, 'Apellido paterno')!;
+    const apellidoMaterno = this.texto(body.apellidoMaterno, 65, 'Apellido materno', false);
+    const telefono = String(body.telefono ?? '').trim();
+    if (!telefono || telefono.length > 45) throw new BadRequestException('El teléfono no es válido.');
+    await this.prisma.usuario.update({
+      where: { id: usuario.id },
+      data: { nombres, apellidoPaterno, apellidoMaterno, telefono, creadoModificadoFecha: new Date() },
+    });
+    if (body.cargo !== undefined) {
+      const cargo = this.texto(body.cargo, 100, 'Cargo', false);
+      await this.prisma.empresa_usuario.updateMany({ where: { usuario_id: usuario.id, estaActivo: 1 }, data: { cargo: cargo || '' } });
+    }
+    return { ok: true };
+  }
+
+  @Delete('admin/foro-usuarios/:id')
+  async eliminarForoUsuario(@Param('id') id: string) {
+    const usuarioId = Number(id);
+    const usuario = await this.prisma.usuario.findFirst({ where: { id: usuarioId, rolEvento: 'FORO', estaActivo: 1 } });
+    if (!usuario) throw new BadRequestException('El usuario de foro no existe.');
+    const eu = await this.prisma.empresa_usuario.findFirst({ where: { usuario_id: usuarioId, estaActivo: 1 } });
+    await this.prisma.usuario.update({ where: { id: usuarioId }, data: { estaActivo: 0 } });
+    if (eu) {
+      await this.prisma.empresa_usuario.update({ where: { id: eu.id }, data: { estaActivo: 0 } });
+      await this.prisma.empresaevento.update({ where: { id: eu.empresaevento_id }, data: { estaActivo: 0 } });
+    }
+    return { ok: true };
+  }
+
   // Credencial pública de una persona del auspiciador (la abre quien escanea).
   @Get('public/credencial-auspiciador/:id')
   async credencialAuspiciador(@Param('id') id: string, @Query('t') token: string) {
@@ -670,9 +836,22 @@ export class ExtrasController {
 
   @Get('galeria')
   async galeriaPrivada(@Req() req: any, @Query('limit') limit?: string) {
-    const eventoId = req.user.role === 'FORO' ? req.user.eventoId : await this.eventoPrincipalId();
+    const eventoId = await this.eventoPrincipalId();
     const take = Math.min(Number(limit) || 60, 200);
-    return this.prisma.fotoevento.findMany({ where: { evento_id: eventoId, estaActivo: 1 }, orderBy: { fechaCreacion: 'desc' }, take });
+    const esStaff = ['ADMINISTRADOR', 'TECNICO', 'TECNICO_EVENTOS'].includes(req.user?.role);
+    // Un participante (empresa o foro) solo ve las fotos que él mismo subió;
+    // solo el staff necesita ver las de todos (moderación, descarga masiva, landing).
+    const filtroAutor = esStaff ? {} : {
+      OR: [
+        { usuario_id: req.user?.sub },
+        ...(req.user?.euIds?.length ? [{ empresa_usuario_id: { in: req.user.euIds } }] : []),
+      ],
+    };
+    return this.prisma.fotoevento.findMany({
+      where: { evento_id: eventoId, estaActivo: 1, ...filtroAutor },
+      orderBy: { fechaCreacion: 'desc' },
+      take,
+    });
   }
 
   @Post('galeria')

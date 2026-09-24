@@ -2,11 +2,9 @@ import { jest } from '@jest/globals';
 import { ForbiddenException } from '@nestjs/common';
 import { AuthGuard } from './auth/auth.guard.js';
 import { AppController } from './app.controller.js';
-import { ForoController } from './foro/foro.controller.js';
 import { ExtrasController } from './extras/extras.controller.js';
 import { PushController } from './push/push.controller.js';
 import { PushService } from './push/push.service.js';
-import * as bcrypt from 'bcrypt';
 
 const fn = (value: any = null) => jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue(value);
 const ctx = (req:any) => ({ switchToHttp:()=>({getRequest:()=>req}) }) as any;
@@ -15,28 +13,13 @@ describe('Permisos de foro',()=>{
   function guard(){
     return new AuthGuard({verifyAsync:fn({sub:5,role:'FORO'})} as any,{
       usuario:{findFirst:fn({id:5,rolEvento:'FORO',evento_id:2,empresa_usuario:[]})},
-      evento:{findFirst:fn({id:2})},
     } as any);
   }
-  it.each(['/empresa/reuniones','/empresa/mensajes','/empresa/directorio','/staff/chat-interno','/admin/empresas','/galeria/descargar-todas'])('bloquea %s aunque se acceda directamente',async path=>{
+  it.each(['/empresa/reuniones','/empresa/empresas','/empresa/mensajes','/empresa/directorio','/empresa/oportunidades','/empresa/solicitudes','/empresa/resultados','/staff/chat-interno','/admin/empresas'])('bloquea %s aunque se acceda directamente',async path=>{
     await expect(guard().canActivate(ctx({method:'GET',path,headers:{authorization:'Bearer test'}}))).rejects.toBeInstanceOf(ForbiddenException);
   });
-  it.each(['/foro/contenido','/foro/perfil','/push/config','/galeria'])('permite %s',async path=>{
+  it.each(['/empresa/comunicados','/empresa/actividades','/empresa/mi-paquete','/empresa/perfil','/push/config','/galeria'])('permite %s (reutiliza las pantallas de empresa)',async path=>{
     await expect(guard().canActivate(ctx({method:'GET',path,headers:{authorization:'Bearer test'}}))).resolves.toBe(true);
-  });
-  it('crea una cuenta personal sin empresa y sin aceptar un rol del cliente',async()=>{
-    const create=fn(),tx={$queryRaw:fn(),usuario:{findFirst:fn(),create}};
-    const prisma={evento:{findFirst:fn({id:2})},$transaction:async(cb:any)=>cb(tx)};
-    await new ForoController(prisma as any).registrar({nombres:'Ana',apellidoPaterno:'Pérez',correo:' ANA@example.com ',telefono:'12345678',contrasenia:'Clave 1234',rolEvento:'ADMINISTRADOR'});
-    const data=(create.mock.calls[0][0] as any).data;
-    expect(data).toMatchObject({rolEvento:'FORO',correo:'ana@example.com',evento_id:2});
-    expect(await bcrypt.compare('Clave 1234',data.contrasenia)).toBe(true);
-  });
-  it('rechaza un correo existente sin reemplazar su cuenta',async()=>{
-    const create=fn(),tx={$queryRaw:fn(),usuario:{findFirst:fn({id:1}),create}};
-    const prisma={evento:{findFirst:fn({id:2})},$transaction:async(cb:any)=>cb(tx)};
-    await expect(new ForoController(prisma as any).registrar({nombres:'Ana',apellidoPaterno:'Pérez',correo:'ana@example.com',telefono:'12345678',contrasenia:'Clave1234'})).rejects.toThrow('ya tiene una cuenta');
-    expect(create).not.toHaveBeenCalled();
   });
 });
 describe('Mensajes y galería',()=>{
@@ -47,8 +30,25 @@ describe('Mensajes y galería',()=>{
     await expect(c.enviarMensajeEmpresa({eeId:7,euId:4,receptorEeId:0,contenido:'Necesito ayuda'})).resolves.toMatchObject({ok:true});
     expect(c.notificarStaff).toHaveBeenCalled();
   });
-  it('prohíbe la descarga masiva a empresas aunque conozcan la URL',async()=>{
-    await expect(new ExtrasController({} as any,{} as any).descargarTodasLasFotos({user:{role:'EMPRESA'}},{} as any)).rejects.toBeInstanceOf(ForbiddenException);
+  it.each(['EMPRESA','FORO'])('prohíbe la descarga masiva a %s aunque conozca la URL',async role=>{
+    await expect(new ExtrasController({} as any,{} as any).descargarTodasLasFotos({user:{role}},{} as any)).rejects.toBeInstanceOf(ForbiddenException);
+  });
+  it.each(['EMPRESA','FORO'])('en la galería privada, %s solo ve las fotos que subió él mismo',async role=>{
+    const findMany=fn([]);
+    const prisma={fotoevento:{findMany}};
+    const c=new ExtrasController(prisma as any,{} as any) as any;
+    c.eventoPrincipalId=fn(2);
+    await c.galeriaPrivada({user:{role,sub:5,euIds:[9]}});
+    expect(findMany.mock.calls[0][0]).toMatchObject({where:{evento_id:2,estaActivo:1,OR:[{usuario_id:5},{empresa_usuario_id:{in:[9]}}]}});
+  });
+  it('en la galería privada, el técnico ve las fotos de todos (sin filtro de autor)',async()=>{
+    const findMany=fn([]);
+    const prisma={fotoevento:{findMany}};
+    const c=new ExtrasController(prisma as any,{} as any) as any;
+    c.eventoPrincipalId=fn(2);
+    await c.galeriaPrivada({user:{role:'TECNICO',sub:5,euIds:[]}});
+    expect(findMany.mock.calls[0][0]).toMatchObject({where:{evento_id:2,estaActivo:1}});
+    expect(findMany.mock.calls[0][0].where.OR).toBeUndefined();
   });
 });
 describe('Suscripciones push',()=>{

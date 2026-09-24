@@ -7,13 +7,13 @@ import { NavigationContainer, createNavigationContainerRef } from '@react-naviga
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import PushNotifications from './src/components/PushNotifications';
-import ForoScreen from './src/screens/ForoScreen';
 import LoginScreen      from './src/screens/auth/LoginScreen';
 import RegistroScreen   from './src/screens/RegistroScreen';
 import AdminNavigator   from './src/navigation/AdminNavigator';
 import TecnicoNavigator from './src/navigation/TecnicoNavigator';
 import EmpresaNavigator from './src/navigation/EmpresaNavigator';
 import { userStore, API_URL, sessionExpiry } from './src/utils/userStore';
+import { rutaDeNotifMobile } from './src/hooks/useNotificaciones';
 
 const Stack = createNativeStackNavigator();
 const VALID_ROLES = ['ADMINISTRADOR', 'TECNICO', 'TECNICO_EVENTOS', 'EMPRESA', 'FORO'];
@@ -24,13 +24,19 @@ function abrirNotificacion(data: any): boolean {
   if (data?.usuarioId && Number(data.usuarioId) !== user.id) return true;
   const tipo = String(data?.tipo || '');
   const role = user.rolEvento;
-  const root = role === 'FORO' ? 'ForoRoot' : role === 'EMPRESA' ? 'EmpresaRoot' : role === 'ADMINISTRADOR' ? 'AdminRoot' : 'TecnicoRoot';
+  const root = (role === 'EMPRESA' || role === 'FORO') ? 'EmpresaRoot' : role === 'ADMINISTRADOR' ? 'AdminRoot' : 'TecnicoRoot';
   let params: any;
-  if (role === 'EMPRESA') {
-    params = tipo.startsWith('mensaje') ? {screen:'Mensajes'} :
-      tipo.startsWith('reunion') || tipo.startsWith('solicitud') ? {screen:'EmpresaTabs',params:{screen:'Reuniones'}} :
-      {screen:tipo.startsWith('evento')?'Eventos':'Comunicados'};
-  } else if (role !== 'FORO') {
+  if (role === 'FORO') {
+    params = {screen:tipo.startsWith('evento')?'Eventos':'Comunicados'};
+  } else if (role === 'EMPRESA') {
+    const ruta = rutaDeNotifMobile(tipo) || 'Comunicados';
+    const esTab = ['Solicitudes', 'Reuniones'].includes(ruta);
+    const subParams = ruta === 'Solicitudes'
+      ? { tab: ['solicitud:nueva', 'solicitud:editada', 'solicitud:cancelada'].includes(tipo) ? 'recibidas' : 'enviadas' }
+      : ruta === 'Reuniones' && data?.referenciaId ? { reunionId: Number(data.referenciaId) }
+      : undefined;
+    params = esTab ? { screen: 'EmpresaTabs', params: { screen: ruta, params: subParams } } : { screen: ruta, params: subParams };
+  } else {
     params = {screen:tipo.startsWith('chat-interno')?'ChatInterno':tipo.startsWith('mensaje')?
       (role==='ADMINISTRADOR'?'Mensajes':'TecnicoMensajes'):
       (role==='ADMINISTRADOR'?'Notificaciones':'TecnicoContenido')};
@@ -117,7 +123,6 @@ export default function App() {
           console.log('[App] Session restored. id:', user.id, 'role:', role);
           if (role === 'ADMINISTRADOR')  finish('AdminRoot');
           else if (role === 'TECNICO' || role === 'TECNICO_EVENTOS') finish('TecnicoRoot');
-          else if (role === 'FORO') finish('ForoRoot');
           else finish('EmpresaRoot');
         } else {
           if (user) {
@@ -165,7 +170,6 @@ export default function App() {
       <NavigationContainer ref={navigationRef}>
         <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName={initialRoute}>
           <Stack.Screen name="Login"       component={LoginScreen}      />
-          <Stack.Screen name="ForoRoot" component={ForoScreen} />
           <Stack.Screen name="Registro"    component={RegistroScreen}   />
           <Stack.Screen name="AdminRoot"   component={AdminNavigator}   />
           <Stack.Screen name="TecnicoRoot" component={TecnicoNavigator} />

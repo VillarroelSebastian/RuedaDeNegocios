@@ -6,9 +6,12 @@ import {
 import ImagenLightbox from '../../components/ImagenLightbox';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { Newspaper, AlertCircle, Bell } from 'lucide-react-native';
+import { Newspaper, AlertCircle, Bell, ChevronRight } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL, userStore } from '../../utils/userStore';
+import { rutaDeNotifMobile } from '../../hooks/useNotificaciones';
+
+const TABS_PRINCIPALES = ['Inicio', 'Empresas', 'Solicitudes', 'Reuniones', 'Mas'];
 
 const GREEN = '#449D3A';
 
@@ -21,7 +24,7 @@ function fmtNotifFecha(f: string) {
   return new Date(f).toLocaleDateString('es-BO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
-export default function EmpresaComunicadosScreen() {
+export default function EmpresaComunicadosScreen({ navigation }: any) {
   const [items,     setItems]     = useState<any[]>([]);
   const [avisos,    setAvisos]    = useState<any[]>([]);
   const [loading,   setLoading]   = useState(true);
@@ -68,6 +71,19 @@ export default function EmpresaComunicadosScreen() {
 
   const toggle = (id: number) => setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
 
+  // Cada aviso lleva a la pantalla donde ocurrió (reunión, solicitud, mensaje,
+  // pago...). Los tabs viven en el navigator anidado 'EmpresaTabs'; el resto
+  // son pantallas hermanas de este stack.
+  const abrirAviso = (aviso: any) => {
+    const ruta = rutaDeNotifMobile(aviso.tipo);
+    if (!ruta || ruta === 'Comunicados') return;
+    const params = aviso.tipo === 'solicitud:nueva' || aviso.tipo === 'solicitud:editada' || aviso.tipo === 'solicitud:cancelada'
+      ? { tab: 'recibidas' }
+      : aviso.tipo.startsWith('solicitud') ? { tab: 'enviadas' } : undefined;
+    if (TABS_PRINCIPALES.includes(ruta)) navigation.navigate('EmpresaTabs', { screen: ruta, params });
+    else navigation.navigate(ruta, params);
+  };
+
   if (loading) return (
     <View style={s.center}><ActivityIndicator size="large" color={GREEN} /></View>
   );
@@ -92,13 +108,23 @@ export default function EmpresaComunicadosScreen() {
                 <Bell size={14} color={GREEN} />
                 <Text style={s.avisosTitle}>Mis avisos</Text>
               </View>
-              {avisos.slice(0, 8).map((a) => (
-                <View key={a.id} style={[s.avisoItem, !a.leida && s.avisoNoLeido]}>
-                  <Text style={s.avisoTitulo}>{a.titulo}</Text>
-                  <Text style={s.avisoMensaje}>{a.mensaje}</Text>
-                  <Text style={s.avisoFecha}>{fmtNotifFecha(a.fecha)}</Text>
-                </View>
-              ))}
+              {avisos.slice(0, 8).map((a) => {
+                const navegable = !!rutaDeNotifMobile(a.tipo) && rutaDeNotifMobile(a.tipo) !== 'Comunicados';
+                const Wrapper = navegable ? TouchableOpacity : View;
+                return (
+                  <Wrapper key={a.id} style={[s.avisoItem, !a.leida && s.avisoNoLeido]}
+                    {...(navegable ? { activeOpacity: 0.7, onPress: () => abrirAviso(a) } : {})}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.avisoTitulo}>{a.titulo}</Text>
+                        <Text style={s.avisoMensaje}>{a.mensaje}</Text>
+                        <Text style={s.avisoFecha}>{fmtNotifFecha(a.fecha)}</Text>
+                      </View>
+                      {navegable && <ChevronRight size={18} color="#94a3b8" />}
+                    </View>
+                  </Wrapper>
+                );
+              })}
               <Text style={s.avisosSubtitle}>Comunicados del evento</Text>
             </View>
           ) : null

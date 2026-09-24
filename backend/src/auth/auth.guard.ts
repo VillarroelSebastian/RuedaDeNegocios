@@ -9,7 +9,7 @@ const PUBLIC_ROUTES = new Set([
   'GET /public/evento', 'GET /public/verificar-empresa', 'GET /public/credencial',
   'GET /public/credencial-auspiciador', 'GET /public/ciudades', 'POST /public/registro',
   'GET /public/actividades', 'GET /public/paquetes', 'GET /public/galeria',
-  'POST /public/registro-foro', 'GET /public/cronograma-vivo', 'GET /evento-principal',
+  'GET /public/cronograma-vivo', 'GET /evento-principal',
   'GET /public/seguimiento', 'POST /public/seguimiento/comprobante', 'POST /public/imagenes/upload',
 ]);
 
@@ -58,16 +58,6 @@ export class AuthGuard implements CanActivate {
     }
     req.user = { sub: dbUser.id, role: dbUser.rolEvento, eventoId, eeIds, euIds } satisfies AuthUser;
 
-    if (dbUser.rolEvento === 'FORO') {
-      const evento = eventoId && await this.prisma.evento.findFirst({ where: { id: eventoId, estaActivo: { not: 0 } }, select: { id: true } });
-      if (!evento) throw new ForbiddenException('Tu inscripción no corresponde a un evento activo.');
-      const permitido = path.startsWith('/foro/') || path.startsWith('/push/') ||
-        (path === '/galeria' && req.method === 'GET');
-      if (!permitido) throw new ForbiddenException('La inscripción al foro no incluye funciones de negocios.');
-    }
-    if (path.startsWith('/foro/') && dbUser.rolEvento !== 'FORO')
-      throw new ForbiddenException('Se requiere una cuenta de foro.');
-
     if (path.startsWith('/admin/') && dbUser.rolEvento !== 'ADMINISTRADOR') {
       const tecnicoPuedeGestionarContenido = ['/admin/noticias', '/admin/actividades', '/admin/eventos', '/admin/imagenes', '/admin/perfil']
         .some((prefix) => path.startsWith(prefix));
@@ -77,10 +67,22 @@ export class AuthGuard implements CanActivate {
     if ((path.startsWith('/tecnico/') || path.startsWith('/staff/')) &&
         !['ADMINISTRADOR', 'TECNICO', 'TECNICO_EVENTOS'].includes(dbUser.rolEvento))
       throw new ForbiddenException('Se requiere un rol del equipo del evento.');
-    if (path.startsWith('/empresa/') && dbUser.rolEvento !== 'EMPRESA')
-      throw new ForbiddenException('Se requiere una cuenta de empresa.');
+    // Un usuario FORO es una inscripción individual: reutiliza las pantallas de
+    // empresa (comunicados, cronograma, perfil, galería, etc.) pero no tiene
+    // acceso a nada de matchmaking de negocios (reuniones, empresas, mensajes...).
+    const EMPRESA_BLOQUEADO_PARA_FORO = [
+      '/empresa/reuniones', '/empresa/empresas', '/empresa/directorio', '/empresa/mensajes',
+      '/empresa/oportunidades', '/empresa/solicitudes', '/empresa/horarios', '/empresa/resultados',
+      '/empresa/participantes',
+    ];
+    if (path.startsWith('/empresa/')) {
+      if (!['EMPRESA', 'FORO'].includes(dbUser.rolEvento))
+        throw new ForbiddenException('Se requiere una cuenta de empresa.');
+      if (dbUser.rolEvento === 'FORO' && EMPRESA_BLOQUEADO_PARA_FORO.some((p) => path.startsWith(p)))
+        throw new ForbiddenException('La inscripción al foro no incluye funciones de negocios.');
+    }
 
-    if (dbUser.rolEvento === 'EMPRESA') {
+    if (['EMPRESA', 'FORO'].includes(dbUser.rolEvento)) {
       const input = { ...(req.query || {}), ...(req.body || {}) };
       for (const key of ['eeId', 'empresaEventoId', 'miEeId']) {
         if (input[key] != null && !eeIds.includes(Number(input[key])))

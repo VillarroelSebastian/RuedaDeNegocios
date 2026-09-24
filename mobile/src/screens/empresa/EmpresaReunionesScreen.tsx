@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity,
   ActivityIndicator, RefreshControl, StyleSheet, Linking,
@@ -639,7 +639,7 @@ const dm = StyleSheet.create({
 
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
-export default function EmpresaReunionesScreen({ navigation }: any) {
+export default function EmpresaReunionesScreen({ navigation, route }: any) {
   const [items,       setItems]       = useState<any[]>([]);
   const [loading,     setLoading]     = useState(true);
   const [refreshing,  setRefreshing]  = useState(false);
@@ -674,6 +674,20 @@ export default function EmpresaReunionesScreen({ navigation }: any) {
     const iv = setInterval(fetchData, 15_000);
     return () => clearInterval(iv);
   }, [fetchData]));
+
+  // Llegar aquí desde una notificación (reunión iniciada, recordatorio...)
+  // debe abrir directamente el detalle de esa reunión, no solo la lista.
+  const reunionIdAbierta = useRef<number | null>(null);
+  useEffect(() => {
+    const pedidoId = route?.params?.reunionId;
+    if (!pedidoId || reunionIdAbierta.current === pedidoId || items.length === 0) return;
+    const match = items.find((it) => it.id === pedidoId);
+    if (match) {
+      reunionIdAbierta.current = pedidoId;
+      setDetalleModal(match);
+      navigation.setParams?.({ reunionId: undefined });
+    }
+  }, [items, route?.params?.reunionId, navigation]);
 
   const responderCambio = async (cambioId: number, aceptar: boolean) => {
     if (!eeId) return;

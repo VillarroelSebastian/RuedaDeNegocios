@@ -10,30 +10,33 @@ import {
 } from 'lucide-react';
 
 const allMenuItems = [
-  { name: 'Dashboard',      icon: LayoutDashboard, href: '/empresa/dashboard',     soloEncargado: false },
-  { name: 'Eventos',        icon: CalendarDays,    href: '/empresa/eventos',       soloEncargado: false },
-  { name: 'Comunicados',    icon: Newspaper,       href: '/empresa/comunicados',   soloEncargado: false },
-  { name: 'Mis Reuniones',  icon: Users,           href: '/empresa/reuniones',     soloEncargado: false },
-  { name: 'Empresas',       icon: Building2,       href: '/empresa/empresas',      soloEncargado: false },
-  { name: 'Mensajes',       icon: MessageSquare,   href: '/empresa/mensajes',      soloEncargado: false },
-  { name: 'Oportunidades',  icon: Sparkles,        href: '/empresa/oportunidades', soloEncargado: false },
-  { name: 'Cronograma en Vivo', icon: Radio,       href: '/empresa/cronograma-vivo', soloEncargado: false },
-  { name: 'Galería',        icon: Images,          href: '/empresa/galeria',       soloEncargado: false },
-  { name: 'Solicitudes',    icon: Send,            href: '/empresa/solicitudes',   soloEncargado: false },
-  { name: 'Mis Horarios',   icon: Clock,           href: '/empresa/horarios',      soloEncargado: true  },
-  { name: 'Resultados',     icon: Star,            href: '/empresa/resultados',    soloEncargado: false },
-  { name: 'Mi Paquete',     icon: Package,         href: '/empresa/mi-paquete',    soloEncargado: false },
-  { name: 'Mi Perfil',      icon: User,            href: '/empresa/perfil',        soloEncargado: false },
+  { name: 'Dashboard',      icon: LayoutDashboard, href: '/empresa/dashboard',     soloEncargado: false, ocultoParaForo: true  },
+  { name: 'Eventos',        icon: CalendarDays,    href: '/empresa/eventos',       soloEncargado: false, ocultoParaForo: false },
+  { name: 'Comunicados',    icon: Newspaper,       href: '/empresa/comunicados',   soloEncargado: false, ocultoParaForo: false },
+  { name: 'Mis Reuniones',  icon: Users,           href: '/empresa/reuniones',     soloEncargado: false, ocultoParaForo: true  },
+  { name: 'Empresas',       icon: Building2,       href: '/empresa/empresas',      soloEncargado: false, ocultoParaForo: true  },
+  { name: 'Mensajes',       icon: MessageSquare,   href: '/empresa/mensajes',      soloEncargado: false, ocultoParaForo: true  },
+  { name: 'Oportunidades',  icon: Sparkles,        href: '/empresa/oportunidades', soloEncargado: false, ocultoParaForo: true  },
+  { name: 'Cronograma en Vivo', icon: Radio,       href: '/empresa/cronograma-vivo', soloEncargado: false, ocultoParaForo: false },
+  { name: 'Galería',        icon: Images,          href: '/empresa/galeria',       soloEncargado: false, ocultoParaForo: false },
+  { name: 'Solicitudes',    icon: Send,            href: '/empresa/solicitudes',   soloEncargado: false, ocultoParaForo: true  },
+  { name: 'Mis Horarios',   icon: Clock,           href: '/empresa/horarios',      soloEncargado: true,  ocultoParaForo: true  },
+  { name: 'Resultados',     icon: Star,            href: '/empresa/resultados',    soloEncargado: false, ocultoParaForo: true  },
+  { name: 'Mi Paquete',     icon: Package,         href: '/empresa/mi-paquete',    soloEncargado: false, ocultoParaForo: false },
+  { name: 'Mi Perfil',      icon: User,            href: '/empresa/perfil',        soloEncargado: false, ocultoParaForo: false },
 ];
+
+export const RUTAS_OCULTAS_PARA_FORO = allMenuItems.filter((i) => i.ocultoParaForo).map((i) => i.href);
 
 interface EmpresaSidebarProps {
   esEncargado?: boolean;
+  esForo?: boolean;
   eeId?: number | null;
   mobileOpen?: boolean;
   onClose?: () => void;
 }
 
-export default function EmpresaSidebar({ esEncargado = false, eeId = null, mobileOpen = false, onClose }: EmpresaSidebarProps) {
+export default function EmpresaSidebar({ esEncargado = false, esForo = false, eeId = null, mobileOpen = false, onClose }: EmpresaSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [foto, setFoto] = useState<string>('');
@@ -48,7 +51,8 @@ export default function EmpresaSidebar({ esEncargado = false, eeId = null, mobil
       .catch(() => {});
     cargar();
     const timer = window.setInterval(cargar, 15000);
-    return () => window.clearInterval(timer);
+    window.addEventListener('mensajesActualizados', cargar);
+    return () => { window.clearInterval(timer); window.removeEventListener('mensajesActualizados', cargar); };
   }, [eeId, pathname]);
 
   useEffect(() => {
@@ -105,13 +109,17 @@ export default function EmpresaSidebar({ esEncargado = false, eeId = null, mobil
         </div>
       </Link>
 
-      {esEncargado && (
+      {esForo ? (
+        <div className="px-4 py-2 border-b border-gray-100">
+          <span className="text-[10px] font-bold text-[#449D3A] uppercase tracking-widest">Foro · Personal</span>
+        </div>
+      ) : esEncargado && (
         <div className="px-4 py-2 border-b border-gray-100">
           <span className="text-[10px] font-bold text-[#449D3A] uppercase tracking-widest">Panel Encargado</span>
         </div>
       )}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {allMenuItems.filter(item => esEncargado || !item.soloEncargado).map((item) => {
+        {allMenuItems.filter(item => (esEncargado || !item.soloEncargado) && !(esForo && item.ocultoParaForo)).map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
           return (
             <Link

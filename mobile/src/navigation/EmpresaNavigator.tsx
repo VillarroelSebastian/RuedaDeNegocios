@@ -2,8 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { TouchableOpacity, View, Text, StyleSheet, ScrollView } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator }   from '@react-navigation/bottom-tabs';
-import { useNavigation }              from '@react-navigation/native';
-import { LayoutDashboard, Building2, Send, CalendarDays, User, Bell, MoreHorizontal, Star, Clock, Newspaper, Lightbulb, MessageCircle, Images, LogOut } from 'lucide-react-native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { LayoutDashboard, Building2, Send, CalendarDays, User, Bell, MoreHorizontal, Star, Clock, Newspaper, Lightbulb, MessageCircle, Images, LogOut, Mail } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useModal } from '../components/AppModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -99,6 +99,48 @@ function BellButton() {
       activeOpacity={0.7}
     >
       <Bell size={22} color="#374151" />
+      {count > 0 && (
+        <View style={bell.badge}>
+          <Text style={bell.badgeTxt}>{count > 99 ? '99+' : String(count)}</Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+}
+
+// ── Messages button ────────────────────────────────────────────────────────
+
+function MessagesButton({ eeId }: { eeId: number | null }) {
+  const navigation = useNavigation<any>();
+  const [count, setCount] = useState(0);
+
+  const refresh = useCallback(async () => {
+    if (!eeId) return;
+    try {
+      const res = await fetch(`${API_URL}/empresa/mensajes/conversaciones?eeId=${eeId}`);
+      if (!res.ok) return;
+      const data: any[] = await res.json();
+      setCount(Array.isArray(data) ? data.reduce((sum, c) => sum + (c.noLeidos || 0), 0) : 0);
+    } catch {}
+  }, [eeId]);
+
+  // useFocusEffect en vez de useEffect: el header persiste montado mientras
+  // se navega a 'Mensajes' y vuelve, así que un useEffect normal solo corre
+  // una vez y el contador tarda hasta 30s en bajar tras leer un mensaje.
+  useFocusEffect(useCallback(() => {
+    refresh();
+    const iv = setInterval(refresh, 30_000);
+    return () => clearInterval(iv);
+  }, [refresh]));
+
+  return (
+    <TouchableOpacity
+      onPress={() => navigation.navigate('Mensajes')}
+      style={bell.btn}
+      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      activeOpacity={0.7}
+    >
+      <Mail size={22} color="#374151" />
       {count > 0 && (
         <View style={bell.badge}>
           <Text style={bell.badgeTxt}>{count > 99 ? '99+' : String(count)}</Text>
@@ -255,8 +297,50 @@ function ParticipanteTabs() {
   );
 }
 
+// Foro: inscripción individual, sin reuniones ni matchmaking de empresas.
+function ForoTabs() {
+  const { modal, handleLogout } = useLogoutTab();
+  const tabBarStyle = useTabBarStyle();
+  return (
+    <>
+      {modal}
+      <Tab.Navigator screenOptions={{ ...baseTabOptions, tabBarStyle }}>
+        <Tab.Screen
+          name="Inicio"
+          component={EmpresaComunicadosScreen}
+          options={{ title: 'Comunicados', tabBarIcon: ({ color }) => <Newspaper color={color} size={22} /> }}
+        />
+        <Tab.Screen
+          name="Actividades"
+          component={EmpresaEventosScreen}
+          options={{ title: 'Actividades', tabBarIcon: ({ color }) => <CalendarDays color={color} size={22} /> }}
+        />
+        <Tab.Screen
+          name="GaleriaTab"
+          component={TecnicoGaleriaScreen}
+          options={{ title: 'Galería', tabBarIcon: ({ color }) => <Images color={color} size={22} /> }}
+        />
+        <Tab.Screen
+          name="MiPerfil"
+          component={EmpresaPerfilScreen}
+          options={{ title: 'Perfil', tabBarIcon: ({ color }) => <User color={color} size={22} /> }}
+        />
+        <Tab.Screen
+          name="ForoCerrarSesion"
+          component={LogoutPlaceholder}
+          options={{ title: 'Salir', tabBarIcon: ({ color }) => <LogOut color={color} size={22} /> }}
+          listeners={({ navigation }) => ({
+            tabPress: (e) => { e.preventDefault(); handleLogout(navigation); },
+          })}
+        />
+      </Tab.Navigator>
+    </>
+  );
+}
+
 export default function EmpresaNavigator() {
   const insetsBanner = useSafeAreaInsets();
+  const [esForo] = useState(userStore.get()?.rolEvento === 'FORO');
   const [esEncargado, setEsEncargado] = useState(!!userStore.get()?.esResponsable);
   const [chatOpen, setChatOpen] = useState(false);
   const [eeId, setEeId] = useState<number | null>(userStore.get()?.empresaeventoId ?? null);
@@ -299,14 +383,15 @@ export default function EmpresaNavigator() {
       >
         <Stack.Screen
           name="EmpresaTabs"
-          component={esEncargado ? EncargadoTabs : ParticipanteTabs}
+          component={esForo ? ForoTabs : esEncargado ? EncargadoTabs : ParticipanteTabs}
           options={{
             headerShown: true,
             headerTitle: 'Rueda de Negocios',
             headerRight: () => (
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <AsistenteChatButton onOpen={() => setChatOpen(true)} />
                 <BellButton />
+                {!esForo && <MessagesButton eeId={eeId} />}
+                {esEncargado && !esForo && <AsistenteChatButton onOpen={() => setChatOpen(true)} />}
               </View>
             ),
           }}
@@ -339,7 +424,9 @@ export default function EmpresaNavigator() {
                   const esTabPrincipal = ['Inicio', 'Empresas', 'Solicitudes', 'Reuniones', 'Mas'].includes(ruta);
                   const params = notifActual.evento === 'solicitud:nueva' || notifActual.evento === 'solicitud:editada' || notifActual.evento === 'solicitud:cancelada'
                     ? { tab: 'recibidas' }
-                    : notifActual.evento.startsWith('solicitud') ? { tab: 'enviadas' } : undefined;
+                    : notifActual.evento.startsWith('solicitud') ? { tab: 'enviadas' }
+                    : ruta === 'Reuniones' && notifActual.referenciaId ? { reunionId: notifActual.referenciaId }
+                    : undefined;
                   if (esTabPrincipal) {
                     (navigationRef.navigate as any)('EmpresaRoot', { screen: 'EmpresaTabs', params: { screen: ruta, params } });
                   } else {

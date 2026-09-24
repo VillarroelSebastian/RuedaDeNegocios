@@ -19,6 +19,7 @@ type Paquete = {
   maxParticipantes: number;
   nivelMesa: "NORMAL" | "PREFERENCIAL" | "VIP";
   tipoParticipacion: "PRESENCIAL" | "VIRTUAL" | "HIBRIDO";
+  tipoPaquete: "EMPRESA" | "FORO";
   apareceEnCatalogo: number;
   logoEnWeb: number;
   destacadoEnListados: number;
@@ -29,6 +30,7 @@ const formVacio = {
   nombre: "", objetivo: "", descripcion: "", contenido: "",
   costo: "", credencialesIncluidas: "2", urlQR: "", orden: "0",
   maxParticipantes: "2", nivelMesa: "NORMAL", tipoParticipacion: "PRESENCIAL",
+  tipoPaquete: "EMPRESA" as "EMPRESA" | "FORO",
   apareceEnCatalogo: true, logoEnWeb: false, destacadoEnListados: false,
 };
 
@@ -111,6 +113,7 @@ export default function PaquetesPage() {
       maxParticipantes: String(p.maxParticipantes ?? p.credencialesIncluidas),
       nivelMesa: p.nivelMesa ?? "NORMAL",
       tipoParticipacion: p.tipoParticipacion ?? "PRESENCIAL",
+      tipoPaquete: p.tipoPaquete ?? "EMPRESA",
       apareceEnCatalogo: (p.apareceEnCatalogo ?? 1) === 1,
       logoEnWeb: (p.logoEnWeb ?? 0) === 1,
       destacadoEnListados: (p.destacadoEnListados ?? 0) === 1,
@@ -230,7 +233,14 @@ export default function PaquetesPage() {
               <div key={p.id} className="bg-white border border-gray-200 rounded-2xl p-5 flex flex-col">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <h3 className="font-extrabold text-gray-900">{p.nombre}</h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-extrabold text-gray-900">{p.nombre}</h3>
+                      {p.tipoPaquete === "FORO" && (
+                        <span className="inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700">
+                          FORO
+                        </span>
+                      )}
+                    </div>
                     {p.objetivo && <p className="text-xs text-[#449D3A] font-semibold mt-0.5">{p.objetivo}</p>}
                   </div>
                   <div className="flex gap-1 flex-shrink-0">
@@ -301,6 +311,25 @@ export default function PaquetesPage() {
             </div>
 
             <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1.5">Tipo de paquete</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {(["EMPRESA", "FORO"] as const).map((t) => (
+                    <button key={t} type="button" onClick={() => setForm({ ...form, tipoPaquete: t })}
+                      className={`px-4 py-2.5 rounded-xl text-sm font-semibold border transition-colors ${
+                        form.tipoPaquete === t
+                          ? "bg-[#449D3A] text-white border-[#449D3A]"
+                          : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                      }`}>
+                      {t === "EMPRESA" ? "Empresa" : "Foro · Personal"}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-400 mt-1.5">
+                  Foro es una inscripción individual (sin empresa ni mesas de negocios); credencial única.
+                </p>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-gray-700 mb-1.5">
