@@ -121,6 +121,7 @@ const s = StyleSheet.create({
   btnPrimary: {
     backgroundColor: GREEN, borderRadius: 12, paddingVertical: 12,
     alignItems: 'center', justifyContent: 'center', marginTop: 4,
+    paddingHorizontal: 40, minWidth: 160,
   },
   btnPrimaryText: { color: '#fff', fontWeight: '700', fontSize: 14 },
   btnSec: {

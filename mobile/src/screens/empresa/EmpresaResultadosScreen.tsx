@@ -363,6 +363,7 @@ const s = StyleSheet.create({
   btnPrimary: {
     backgroundColor: GREEN, borderRadius: 14, height: 50,
     alignItems: 'center', justifyContent: 'center', marginTop: 8,
+    paddingHorizontal: 40, minWidth: 160,
   },
   btnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
   successBox: { alignItems: 'center', paddingVertical: 24, gap: 16 },

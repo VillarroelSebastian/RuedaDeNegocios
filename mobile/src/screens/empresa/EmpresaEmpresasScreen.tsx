@@ -1428,6 +1428,7 @@ const s = StyleSheet.create({
   btnPrimary: {
     flexDirection: 'row', backgroundColor: GREEN, borderRadius: 14, height: 54,
     alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 40, minWidth: 160,
   },
   btnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
   btnSecondary: {
