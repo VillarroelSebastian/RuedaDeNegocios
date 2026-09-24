@@ -107,7 +107,7 @@ export default function AuspiciadoresScreen() {
         <TouchableOpacity onPress={nuevo} style={{ backgroundColor: GREEN }} className="flex-row items-center gap-1 px-4 py-2.5 rounded-xl"><Plus color="white" size={16}/><Text className="text-white font-bold">Nuevo</Text></TouchableOpacity>
       </View>
       {loading ? <View className="flex-1 items-center justify-center"><ActivityIndicator color={GREEN} size="large"/></View> :
-        <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); cargar(); }} tintColor={GREEN}/>}>
+        <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); cargar(); }} tintColor={GREEN}/>}>
           {lista.length === 0 ? <View className="items-center py-20"><Handshake color="#9ca3af" size={36}/><Text className="text-gray-400 mt-3">No hay auspiciadores registrados</Text></View> : lista.map((a) =>
             <View key={a.id} className="m-4 mb-0 bg-white border border-gray-100 rounded-2xl p-4">
               <Text className="font-extrabold text-gray-900">{a.nombreEmpresa}</Text>
@@ -119,7 +119,7 @@ export default function AuspiciadoresScreen() {
     </View>
     <Modal visible={visible} transparent animationType="slide"><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}><View className="flex-1 bg-black/40 justify-end"><View className="bg-white rounded-t-3xl max-h-[92%] p-5">
       <View className="flex-row justify-between items-center mb-4"><Text className="text-lg font-extrabold">{editId ? 'Editar' : 'Nuevo'} auspiciador</Text><TouchableOpacity onPress={() => setVisible(false)}><X color="#6b7280" size={22}/></TouchableOpacity></View>
-      <ScrollView>
+      <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
         {[['Empresa *','nombreEmpresa'],['Descripción *','descripcion']].map(([label,key]) => <View key={key} className="mb-3"><Text className="text-xs font-bold text-gray-700 mb-1">{label}</Text><TextInput value={(form as any)[key]} onChangeText={(v) => setForm((f) => ({ ...f, [key]: v }))} multiline={key === 'descripcion'} className="border border-gray-200 rounded-xl px-3 py-2.5"/></View>)}
         <Text className="text-xs font-bold text-gray-700 mb-2">Tipo de aporte *</Text><View className="flex-row gap-2 mb-3">{['DINERO','INSUMOS','AMBOS'].map((tipo) => <TouchableOpacity key={tipo} onPress={() => setForm((f) => ({ ...f, tipoAporte: tipo }))} style={{ backgroundColor: form.tipoAporte === tipo ? GREEN : '#f3f4f6' }} className="flex-1 py-2.5 rounded-xl items-center"><Text style={{ color: form.tipoAporte === tipo ? 'white' : '#6b7280', fontSize: 11, fontWeight: '700' }}>{tipo}</Text></TouchableOpacity>)}</View>
         {form.tipoAporte !== 'INSUMOS' && <View className="mb-3"><Text className="text-xs font-bold mb-1">Monto (Bs.) *</Text><TextInput value={form.montoAporte} onChangeText={(v) => setForm((f) => ({ ...f, montoAporte: v }))} keyboardType="numeric" className="border border-gray-200 rounded-xl px-3 py-2.5"/></View>}

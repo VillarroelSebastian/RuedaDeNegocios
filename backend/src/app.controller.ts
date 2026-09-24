@@ -744,6 +744,7 @@ export class AppController implements OnModuleInit {
       eeIds: memberships.map((m) => m.empresaevento_id), euIds: memberships.map((m) => m.id) });
     return {
       token,
+      sessionExpiresAt: Date.now() + 24 * 60 * 60 * 1000,
       id: user.id,
       correo: user.correo,
       nombres: user.nombres,
@@ -4392,83 +4393,62 @@ export class AppController implements OnModuleInit {
 
   @Put('tecnico/reuniones/:id/reprogramar')
   async reprogramarReunionStaff(@Param('id') id: string, @Body() body: { inicio: string; mesaId?: number | null }) {
-    const reunionId = Number(id);
-    if (!body.inicio) throw new BadRequestException('inicio requerido');
-    const evento = await this.getPrincipalEvento();
-    if (!evento) throw new BadRequestException('No hay un evento activo');
-    const reunion = await this.prisma.reunion.findFirst({
-      where: { id: reunionId, ...this.filtroReunionOperativa(evento) },
-      include: { solicitudreunion: true },
-    });
-    if (!reunion || reunion.estaActivo === 0) throw new BadRequestException('Reunión no encontrada');
-    if (!['PROGRAMADA', 'REPROGRAMADA'].includes(reunion.estadoReunion))
-      throw new BadRequestException('Solo se pueden reprogramar reuniones programadas');
-
-    const sol = reunion.solicitudreunion;
-    if (!sol) throw new BadRequestException('La reunión no tiene una solicitud asociada');
-    const eeA = sol.empresaEvento_id;
-    const eeB = sol.empresaEventorReceptora_id;
-
-    const iniDate = new Date(body.inicio);
-    const finDate = new Date(iniDate.getTime() + evento.duracionReunion * 60000);
-    if (Number.isNaN(iniDate.getTime()) || iniDate <= new Date() ||
-        !this.horarioDentroDe(this.generarCandidatosInicioTecnico(evento), iniDate, finDate))
+    const reunionId=Number(id);
+    const evento=await this.getPrincipalEvento();
+    if(!evento)throw new BadRequestException('No hay un evento activo.');
+    const inicio=new Date(body.inicio), fin=new Date(inicio.getTime()+evento.duracionReunion*60000);
+    if(!Number.isInteger(reunionId)||reunionId<=0||Number.isNaN(inicio.getTime())||inicio<=new Date()||
+      !this.horarioDentroDe(this.generarCandidatosInicioTecnico(evento),inicio,fin))
       throw new BadRequestException('El horario debe ser futuro y pertenecer a un día configurado del evento.');
-
-    for (const eeCheck of [eeA, eeB]) {
-      const conflicto = await this.prisma.reunion.findFirst({
-        where: {
-          id: { not: reunionId }, estaActivo: 1, estadoReunion: { not: 'CANCELADA' },
-          fechaHoraInicioReunion: { lt: finDate }, fechaHoraFinReunion: { gt: iniDate },
-          solicitudreunion: { OR: [{ empresaEvento_id: eeCheck }, { empresaEventorReceptora_id: eeCheck }] },
-        },
-      });
-      if (conflicto) throw new BadRequestException('Una de las empresas ya tiene una reunión en ese horario.');
+    const buffer=(evento.tiempoEntreReuniones||0)*60000;
+    const desde=new Date(inicio.getTime()-buffer),hasta=new Date(fin.getTime()+buffer);
+    let participantes:number[]=[];
+    try {
+      participantes=await this.prisma.$transaction(async tx=>{
+        const r=await tx.reunion.findFirst({where:{id:reunionId,...this.filtroReunionOperativa(evento)},include:{solicitudreunion:true}});
+        if(!r||!r.estaActivo)throw new BadRequestException('Reunión no encontrada.');
+        if(!['PROGRAMADA','REPROGRAMADA'].includes(r.estadoReunion))throw new BadRequestException('Solo puedes editar reuniones pendientes.');
+        const sol=r.solicitudreunion,empresas=[sol.empresaEvento_id,sol.empresaEventorReceptora_id];
+        const conflicto=await tx.reunion.findFirst({where:{
+          id:{not:reunionId},estaActivo:1,estadoReunion:{not:'CANCELADA'},
+          fechaHoraInicioReunion:{lt:fin},fechaHoraFinReunion:{gt:inicio},
+          solicitudreunion:{OR:[{empresaEvento_id:{in:empresas}},{empresaEventorReceptora_id:{in:empresas}}]}
+        }});
+        if(conflicto)throw new BadRequestException('Una empresa ya tiene una reunión en ese horario.');
+        const solicitud=await tx.solicitudreunion.findFirst({where:{
+          id:{not:sol.id},estaActivo:1,estadoSolicitud:'PENDIENTE',
+          fechaHoraInicioPropuesta:{lt:fin},fechaHoraFinPropuesta:{gt:inicio},
+          OR:[{empresaEvento_id:{in:empresas}},{empresaEventorReceptora_id:{in:empresas}}]
+        }});
+        if(solicitud)throw new BadRequestException('Una empresa tiene una solicitud pendiente en ese horario.');
+        let mesaId:number|null=null;
+        if(['PRESENCIAL','MIXTA'].includes(r.tipoReunion)){
+          const elegida=body.mesaId===undefined?r.mesa_id:body.mesaId;
+          if(elegida!==null&&(!Number.isInteger(Number(elegida))||Number(elegida)<=0))throw new BadRequestException('Mesa inválida.');
+          const mesas=await tx.mesa.findMany({where:{evento_id:evento.id,estaActivo:1,estaHabilitada:1,...(elegida?{id:Number(elegida)}:{})},orderBy:{numeroMesa:'asc'}});
+          for(const mesa of mesas){
+            await tx.$queryRaw`SELECT 1::int AS locked FROM (SELECT pg_advisory_xact_lock(78421, ${mesa.id})) AS lock_row`;
+            const ocupada=await tx.reunion.findFirst({where:{id:{not:reunionId},mesa_id:mesa.id,estaActivo:1,estadoReunion:{not:'CANCELADA'},fechaHoraInicioReunion:{lt:hasta},fechaHoraFinReunion:{gt:desde}}});
+            const reservada=await tx.solicitudreunion.findFirst({where:{id:{not:sol.id},mesa_id:mesa.id,estaActivo:1,estadoSolicitud:'PENDIENTE',fechaHoraInicioPropuesta:{lt:hasta},fechaHoraFinPropuesta:{gt:desde}}});
+            const bloqueada=await tx.mesabloque.findFirst({where:{mesa_id:mesa.id,estaActivo:1,estaOcupado:1,AND:[{OR:[{reunion_id:null},{reunion_id:{not:reunionId}}]},{fechaHoraInicio:{lt:hasta}},{OR:[{fechaHoraFin:null},{fechaHoraFin:{gt:desde}}]}]}});
+            if(!ocupada&&!reservada&&!bloqueada){mesaId=mesa.id;break;}
+          }
+          if(!mesaId)throw new BadRequestException('La mesa está ocupada o inhabilitada. Selecciona otra mesa u horario.');
+        }
+        await tx.mesabloque.updateMany({where:{reunion_id:reunionId,estaActivo:1},data:{estaActivo:0,estaOcupado:0,creadoModificadoFecha:new Date()}});
+        if(mesaId)await tx.mesabloque.create({data:{mesa_id:mesaId,reunion_id:reunionId,fechaHoraInicio:inicio,fechaHoraFin:fin,estaActivo:1,estaOcupado:1}});
+        await tx.cambioreunion.updateMany({where:{reunion_id:reunionId,estado:'PENDIENTE'},data:{estado:'CANCELADA',estaActivo:0,creadoModificadoFecha:new Date()}});
+        await tx.reunion.update({where:{id:reunionId},data:{fechaHoraInicioReunion:inicio,fechaHoraFinReunion:fin,mesa_id:mesaId,estadoReunion:'REPROGRAMADA',seEnvioNotificacionDeRetraso:0,creadoModificadoFecha:new Date()}});
+        await tx.solicitudreunion.update({where:{id:sol.id},data:{mesa_id:mesaId,fechaHoraInicioPropuesta:inicio,fechaHoraFinPropuesta:fin,creadoModificadoFecha:new Date()}});
+        return empresas;
+      },{isolationLevel:'Serializable'});
+    }catch(error){
+      if(this.esConflictoAgenda(error))throw new BadRequestException('El horario acaba de cambiar. Actualiza la agenda e intenta nuevamente.');
+      throw error;
     }
-
-    let mesaId: number | null = reunion.mesa_id;
-    if (['PRESENCIAL','MIXTA'].includes(reunion.tipoReunion)) {
-      mesaId = body.mesaId !== undefined ? (body.mesaId ? Number(body.mesaId) : null) : reunion.mesa_id;
-      if (!mesaId) {
-        mesaId = await this.elegirMesaBalanceada(evento.id, iniDate, finDate);
-        if (!mesaId) throw new BadRequestException('No hay mesas disponibles para ese horario');
-      } else {
-        const mesa=await this.prisma.mesa.findFirst({where:{id:mesaId,evento_id:evento.id,estaActivo:1,estaHabilitada:1}});
-        if(!mesa)throw new BadRequestException('La mesa no pertenece al evento o está inhabilitada.');
-        const ocupada = await this.prisma.reunion.findFirst({
-          where: {
-            id: { not: reunionId }, mesa_id: mesaId, estaActivo: 1, estadoReunion: { not: 'CANCELADA' },
-            fechaHoraInicioReunion: { lt: new Date(finDate.getTime()+evento.tiempoEntreReuniones*60000) }, fechaHoraFinReunion: { gt: new Date(iniDate.getTime()-evento.tiempoEntreReuniones*60000) },
-          },
-        });
-        if (ocupada) throw new BadRequestException('La mesa seleccionada ya está ocupada en ese horario');
-      }
-    }
-
-    await this.prisma.$transaction([
-      this.prisma.mesabloque.updateMany({where:{reunion_id:reunionId,estaActivo:1},data:{estaActivo:0,estaOcupado:0,creadoModificadoFecha:new Date()}}),
-      ...(mesaId ? [this.prisma.mesabloque.create({data:{mesa_id:mesaId,reunion_id:reunionId,fechaHoraInicio:iniDate,fechaHoraFin:finDate,estaActivo:1,estaOcupado:1}})] : []),
-      this.prisma.cambioreunion.updateMany({where:{reunion_id:reunionId,estado:'PENDIENTE'},data:{estado:'CANCELADA',estaActivo:0,creadoModificadoFecha:new Date()}}),
-      this.prisma.reunion.update({
-        where: { id: reunionId },
-        data: {
-          fechaHoraInicioReunion: iniDate, fechaHoraFinReunion: finDate,
-          mesa_id: mesaId, estadoReunion: 'REPROGRAMADA', seEnvioNotificacionDeRetraso: 0,
-          creadoModificadoFecha: new Date(),
-        },
-      }),
-      this.prisma.solicitudreunion.update({
-        where: { id: sol.id },
-        data: { mesa_id: mesaId, fechaHoraInicioPropuesta: iniDate, fechaHoraFinPropuesta: finDate },
-      }),
-    ]);
-
-    const nuevaHora = this.fmtSlotAsistente(iniDate.toISOString());
-    await Promise.all([eeA, eeB].map((eeId) =>
-      this.notificar(eeId, 'reunion:reprogramada-staff', 'Reunión reprogramada',
-        `El equipo técnico cambió el horario de tu reunión a ${nuevaHora}.`, reunionId, 'reunion'),
-    ));
-    return { ok: true };
+    await Promise.all(participantes.map(ee=>this.notificar(ee,'reunion:reprogramada-staff','Reunión reprogramada',
+      'El equipo cambió tu reunión a '+this.fmtSlotAsistente(inicio.toISOString())+'.',reunionId,'reunion')));
+    return {ok:true};
   }
 
   @Post('tecnico/reuniones/:id/finalizar-evaluar')

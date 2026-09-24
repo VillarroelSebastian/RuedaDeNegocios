@@ -228,8 +228,9 @@ export default function TecnicoReunionesPage() {
 
   useEffect(() => { fetchReuniones(); }, [fetchReuniones]);
 
+  const [porEliminar,setPorEliminar]=useState<any>(null);
   const eliminarReunion = async (r: any) => {
-    if (!window.confirm("¿Eliminar esta reunión? Se liberará la mesa y se avisará a ambas empresas.")) return;
+    setPorEliminar(null);
     try {
       const res = await fetch(API + "/tecnico/reuniones/" + r.id, {method:"DELETE"});
       const data = await res.json();
@@ -311,6 +312,7 @@ export default function TecnicoReunionesPage() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
+      {porEliminar && <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4"><div role="dialog" aria-modal="true" aria-labelledby="eliminar-reunion" className="w-full max-w-sm rounded-2xl bg-white p-6"><h2 id="eliminar-reunion" className="text-lg font-bold">Eliminar reunión</h2><p className="my-4 text-sm">Se liberará la mesa y se avisará a ambas empresas.</p><div className="flex gap-3"><button onClick={()=>setPorEliminar(null)} className="flex-1 rounded-xl border p-3">Volver</button><button onClick={()=>void eliminarReunion(porEliminar)} className="flex-1 rounded-xl bg-red-600 p-3 text-white">Eliminar</button></div></div></div>}
       <Modal {...modal} onClose={() => setModal((m: any) => ({ ...m, visible:false }))} />
       {evaluando && (() => {
         const sol = evaluando.solicitudreunion;
@@ -436,7 +438,7 @@ export default function TecnicoReunionesPage() {
       ) : (
         <div className="space-y-3">
           {reuniones.map((r) => (
-            <ReunionRow key={r.id} r={r} onChange={handleCambiarEstado} onFinalizar={setEvaluando} onEditar={abrirEditar} onEliminar={eliminarReunion} />
+            <ReunionRow key={r.id} r={r} onChange={handleCambiarEstado} onFinalizar={setEvaluando} onEditar={abrirEditar} onEliminar={setPorEliminar} />
           ))}
         </div>
       )}

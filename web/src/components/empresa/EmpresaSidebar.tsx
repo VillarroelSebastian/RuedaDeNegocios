@@ -67,7 +67,8 @@ export default function EmpresaSidebar({ esEncargado = false, eeId = null, mobil
     return () => window.removeEventListener('profileUpdated', leer);
   }, []);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await import("@/lib/push").then(m=>m.desactivarPush()).catch(()=>{});
     localStorage.removeItem('empresaUser');
     router.push('/auth/login');
   };

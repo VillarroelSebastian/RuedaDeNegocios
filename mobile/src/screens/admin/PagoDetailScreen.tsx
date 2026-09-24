@@ -125,7 +125,7 @@ export default function PagoDetailScreen({ route, navigation }: any) {
     {modal}
     {verFicha && pago.empresa?.id && <FichaEmpresaModal empresaId={pago.empresa.id} onClose={() => setVerFicha(false)} />}
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-    <ScrollView className="flex-1 bg-[#F9FAFB]">
+    <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets className="flex-1 bg-[#F9FAFB]">
       <View className="p-4 space-y-4">
         {/* Resumen */}
         <View className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">

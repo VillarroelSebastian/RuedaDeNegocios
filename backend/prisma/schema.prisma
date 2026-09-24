@@ -634,6 +634,7 @@ model solicitudreunion {
 }
 
 model usuario {
+  pushsubscriptions pushsubscription[]
   id                            Int                     @id @default(autoincrement())
   evento_id                     Int?
   nombres                       String                  @db.VarChar(105)
@@ -701,8 +702,10 @@ model asistenciaauspiciador {
 }
 
 model pushsubscription {
+  entregas pushdelivery[]
   id        Int      @id @default(autoincrement())
   usuarioId Int
+  usuario usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
   clave     String   @unique @db.VarChar(64)
   tipo      String   @db.VarChar(10)
   destino   String   @db.Text
@@ -710,4 +713,18 @@ model pushsubscription {
   auth      String?  @db.Text
   actualizado DateTime @default(now()) @db.Timestamp(6)
   @@index([usuarioId])
+}
+
+model pushdelivery {
+  id Int @id @default(autoincrement())
+  subscriptionId Int
+  subscription pushsubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  contenido Json
+  estado String @default("PENDIENTE") @db.VarChar(20)
+  intentos Int @default(0)
+  proximoIntento DateTime @default(now()) @db.Timestamp(6)
+  ticketId String? @db.VarChar(100)
+  error String? @db.VarChar(255)
+  fechaCreacion DateTime @default(now()) @db.Timestamp(6)
+  @@index([estado, proximoIntento])
 }

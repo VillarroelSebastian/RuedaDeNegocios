@@ -8,6 +8,12 @@ const BACKEND_PORT = 3334;
 let currentUser: any = null;
 const listeners = new Set<() => void>();
 const notify = () => listeners.forEach(fn => fn());
+export function sessionExpiry(user: any): number {
+  try {
+    const payload = JSON.parse(atob(user.token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    return Number(payload.exp) * 1000;
+  } catch { return Number(user?.sessionExpiresAt) || 0; }
+}
 
 const nativeFetch = global.fetch.bind(global);
 global.fetch = ((input: any, init: RequestInit = {}) => {
@@ -29,7 +35,7 @@ export const userStore = {
   },
   get: () => currentUser,
   clear: async () => {
-    if (currentUser?.token) await import('./push').then(m => m.desactivarPush(API_URL, currentUser.token)).catch(() => {});
+    if (currentUser?.token) await import('./push').then(m => m.desactivarPush(API_URL, currentUser.token, true)).catch(() => {});
     currentUser = null;
     notify();
     await AsyncStorage.removeItem(STORAGE_KEY);
@@ -39,8 +45,13 @@ export const userStore = {
       const stored = await AsyncStorage.getItem(STORAGE_KEY);
       if (stored) {
         const user = JSON.parse(stored);
+        const expiry = sessionExpiry(user);
+        if (!user.token || !expiry || expiry <= Date.now()) {
+          await AsyncStorage.removeItem(STORAGE_KEY);
+          return null;
+        }
         currentUser = user;
-    notify();
+        notify();
         return user;
       }
     } catch (e) {
@@ -56,6 +67,8 @@ function resolveApiUrl(): string {
   if (envUrl && envUrl.trim()) {
     return envUrl.trim();
   }
+
+  if (!__DEV__) throw new Error('Esta compilación no tiene configurada la API de producción.');
 
   // 2. URL del bundle Metro — siempre tiene la IP real del servidor de desarrollo
   //    (funciona con Expo Go y builds de desarrollo en dispositivo real)

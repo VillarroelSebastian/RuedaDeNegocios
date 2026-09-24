@@ -78,7 +78,7 @@ export default function AgendaScreen() {
   }
 
   return (
-    <ScrollView
+    <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets
       className="flex-1 bg-[#F9FAFB]"
       refreshControl={
         <RefreshControl

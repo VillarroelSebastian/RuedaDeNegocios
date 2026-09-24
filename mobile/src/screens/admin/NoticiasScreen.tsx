@@ -110,7 +110,7 @@ export default function NoticiasScreen() {
       {loading ? (
         <View className="flex-1 justify-center items-center"><ActivityIndicator color={GREEN} size="large" /></View>
       ) : (
-        <ScrollView className="flex-1" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchNoticias(); }} tintColor={GREEN} />}>
+        <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets className="flex-1" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchNoticias(); }} tintColor={GREEN} />}>
           {noticias.length === 0 ? (
             <View className="items-center py-16">
               <Newspaper color="#d1d5db" size={40} />
@@ -163,7 +163,7 @@ export default function NoticiasScreen() {
               <Text className="text-lg font-bold text-gray-900">{editId ? 'Editar' : 'Nuevo'} comunicado</Text>
               <TouchableOpacity onPress={() => setShowForm(false)}><X color="#9ca3af" size={22} /></TouchableOpacity>
             </View>
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets showsVerticalScrollIndicator={false}>
               <View className="mb-3">
                 <Text className="text-sm font-semibold text-gray-700 mb-1">Título *</Text>
                 <TextInput value={form.tituloNoticia} onChangeText={(v) => set('tituloNoticia', v)}

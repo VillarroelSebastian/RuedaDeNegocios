@@ -139,7 +139,7 @@ export default function LoginScreen({ navigation }: any) {
     <SafeAreaView style={s.root}>
       <StatusBar style="dark" />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
           {/* ── Formulario ─────────────────────────────────────── */}
           <View style={s.formArea}>
@@ -189,7 +189,7 @@ export default function LoginScreen({ navigation }: any) {
                 placeholderTextColor="#9ca3af"
                 secureTextEntry={!showPwd}
                 value={contrasenia}
-                onChangeText={(t) => setContrasenia(sinEspacios(t))}
+                onChangeText={(t) => setContrasenia(t)}
               />
               <TouchableOpacity onPress={() => setShowPwd(v => !v)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 {showPwd
@@ -274,7 +274,7 @@ export default function LoginScreen({ navigation }: any) {
               </TouchableOpacity>
             </View>
 
-            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
             {/* Error */}
             {!!resetError && (

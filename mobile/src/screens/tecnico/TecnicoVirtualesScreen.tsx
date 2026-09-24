@@ -441,7 +441,7 @@ export default function TecnicoVirtualesScreen() {
           <ActivityIndicator size="large" color={GREEN} />
         </View>
       ) : (
-        <ScrollView
+        <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets
           style={{ flex: 1 }}
           contentContainerStyle={{ padding: 16 }}
           refreshControl={

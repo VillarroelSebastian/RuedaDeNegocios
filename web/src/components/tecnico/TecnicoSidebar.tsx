@@ -49,7 +49,8 @@ export default function TecnicoSidebar() {
     return () => window.removeEventListener('profileUpdated', onUpdate);
   }, []);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await import("@/lib/push").then(m=>m.desactivarPush()).catch(()=>{});
     localStorage.removeItem('tecnicoUser');
     router.push('/auth/login');
   };

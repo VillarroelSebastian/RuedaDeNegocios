@@ -197,7 +197,7 @@ export default function PagosAdicionalesScreen() {
       {loading ? (
         <View style={s.center}><ActivityIndicator size="large" color={GREEN} /></View>
       ) : (
-        <ScrollView
+        <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets
           style={{ flex: 1 }}
           contentContainerStyle={s.list}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchPagos(); }} tintColor={GREEN} />}
@@ -308,7 +308,7 @@ export default function PagosAdicionalesScreen() {
             </View>
 
             {selected && (
-              <ScrollView showsVerticalScrollIndicator={false}>
+              <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets showsVerticalScrollIndicator={false}>
                 {/* Info resumen */}
                 <View style={s.modalInfoBox}>
                   <Text style={s.modalInfoTitle}>{selected.empresa?.nombre ?? '—'}</Text>

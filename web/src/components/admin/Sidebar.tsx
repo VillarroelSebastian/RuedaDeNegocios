@@ -66,7 +66,8 @@ export default function Sidebar() {
   // Cerrar el drawer al navegar
   useEffect(() => { setMobileOpen(false); }, [pathname]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await import("@/lib/push").then(m=>m.desactivarPush()).catch(()=>{});
     localStorage.removeItem('adminUser');
     localStorage.removeItem('tecnicoUser');
     localStorage.removeItem('empresaUser');

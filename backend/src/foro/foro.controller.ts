@@ -20,7 +20,7 @@ export class ForoController {
     if (!evento) throw new BadRequestException('No hay un evento activo.');
     const hash = await bcrypt.hash(contrasenia, 10);
     await this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${correo}))`;
+      await tx.$queryRaw`SELECT 1::int AS locked FROM (SELECT pg_advisory_xact_lock(hashtext(${correo}))) AS lock_row`;
       if (await tx.usuario.findFirst({ where: { correo: { equals: correo, mode: 'insensitive' } } }))
         throw new BadRequestException('Este correo ya tiene una cuenta. Inicia sesión o recupera tu contraseña.');
       await tx.usuario.create({ data: {

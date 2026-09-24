@@ -8,7 +8,7 @@ module.exports = {
   expo: {
     name: "Rueda de Negocios",
     slug: "mobile",
-    version: "1.1.0",
+    version: "1.1.1",
     orientation: "portrait",
     icon: "./assets/icon.png",
     userInterfaceStyle: "light",
@@ -22,6 +22,7 @@ module.exports = {
     },
     android: {
       package: "edu.univalle.ruedadenegocios",
+      versionCode: 2,
       googleServicesFile: process.env.GOOGLE_SERVICES_JSON ?? "./google-services.json",
       softwareKeyboardLayoutMode: "resize",
       adaptiveIcon: {

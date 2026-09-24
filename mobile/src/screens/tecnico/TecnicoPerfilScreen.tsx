@@ -263,7 +263,7 @@ export default function TecnicoPerfilScreen({ navigation }: any) {
       </View>
 
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20 }} showsVerticalScrollIndicator={false}>
+      <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets style={{ flex: 1 }} contentContainerStyle={{ padding: 20 }} showsVerticalScrollIndicator={false}>
 
         {/* ── Avatar con botón de cámara ── */}
         <View style={{ alignItems: 'center', marginBottom: 28 }}>

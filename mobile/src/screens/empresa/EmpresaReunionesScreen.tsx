@@ -146,7 +146,7 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
               <X size={22} color="#6b7280" />
             </TouchableOpacity>
           </View>
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 12 }}>
+          <ScrollView automaticallyAdjustKeyboardInsets showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 12 }}>
             <View style={cm.currentBox}>
               <Text style={cm.currentLabel}>Horario actual</Text>
               <Text style={cm.currentVal}>{fmtDate(reunion?.inicio)} · {fmtTime(reunion?.inicio)} – {fmtTime(reunion?.fin)}</Text>
@@ -394,7 +394,7 @@ function DetalleReunionModal({ reunion, eeId, navigation, onClose, onCambiarHora
             </TouchableOpacity>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false}>
+          <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets showsVerticalScrollIndicator={false}>
             {/* Badges */}
             <View style={dm.badges}>
               <View style={[dm.badge, { backgroundColor: st.bg }]}>

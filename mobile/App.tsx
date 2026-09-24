@@ -1,7 +1,7 @@
 import 'react-native-gesture-handler';
 import './global.css';
 import React, { useState, useEffect, Component } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, AppState } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -13,16 +13,31 @@ import RegistroScreen   from './src/screens/RegistroScreen';
 import AdminNavigator   from './src/navigation/AdminNavigator';
 import TecnicoNavigator from './src/navigation/TecnicoNavigator';
 import EmpresaNavigator from './src/navigation/EmpresaNavigator';
-import { userStore, API_URL } from './src/utils/userStore';
+import { userStore, API_URL, sessionExpiry } from './src/utils/userStore';
 
 const Stack = createNativeStackNavigator();
 const VALID_ROLES = ['ADMINISTRADOR', 'TECNICO', 'TECNICO_EVENTOS', 'EMPRESA', 'FORO'];
 
-function abrirNotificacion(data: any) {
+function abrirNotificacion(data: any): boolean {
   const user = userStore.get();
-  if (!user || !navigationRef.isReady()) return;
-  const root = user.rolEvento === 'FORO' ? 'ForoRoot' : user.rolEvento === 'EMPRESA' ? 'EmpresaRoot' : user.rolEvento === 'ADMINISTRADOR' ? 'AdminRoot' : 'TecnicoRoot';
-  (navigationRef as any).navigate(root);
+  if (!user || !navigationRef.isReady()) return false;
+  if (data?.usuarioId && Number(data.usuarioId) !== user.id) return true;
+  const tipo = String(data?.tipo || '');
+  const role = user.rolEvento;
+  const root = role === 'FORO' ? 'ForoRoot' : role === 'EMPRESA' ? 'EmpresaRoot' : role === 'ADMINISTRADOR' ? 'AdminRoot' : 'TecnicoRoot';
+  let params: any;
+  if (role === 'EMPRESA') {
+    params = tipo.startsWith('mensaje') ? {screen:'Mensajes'} :
+      tipo.startsWith('reunion') || tipo.startsWith('solicitud') ? {screen:'EmpresaTabs',params:{screen:'Reuniones'}} :
+      {screen:tipo.startsWith('evento')?'Eventos':'Comunicados'};
+  } else if (role !== 'FORO') {
+    params = {screen:tipo.startsWith('chat-interno')?'ChatInterno':tipo.startsWith('mensaje')?
+      (role==='ADMINISTRADOR'?'Mensajes':'TecnicoMensajes'):
+      (role==='ADMINISTRADOR'?'Notificaciones':'TecnicoContenido')};
+    if(params.screen==='TecnicoContenido')params={screen:'TecnicoTabs',params:{screen:'TecnicoContenido'}};
+  }
+  (navigationRef as any).navigate(root, params);
+  return true;
 }
 
 // Ref global de navegación: permite navegar desde fuera de componentes (p. ej.
@@ -120,6 +135,20 @@ export default function App() {
       });
 
     return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    const check = () => {
+      const user = userStore.get();
+      if (user && sessionExpiry(user) <= Date.now()) {
+        void userStore.clear().finally(() => {
+          if (navigationRef.isReady()) navigationRef.reset({index:0,routes:[{name:'Login' as never}]});
+        });
+      }
+    };
+    const timer = setInterval(check, 30000);
+    const listener = AppState.addEventListener('change', s => { if (s === 'active') check(); });
+    return () => { clearInterval(timer); listener.remove(); };
   }, []);
 
   if (isLoading) {

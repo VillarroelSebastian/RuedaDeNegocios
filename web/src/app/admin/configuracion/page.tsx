@@ -252,7 +252,8 @@ export default function ConfiguracionPage() {
 
   const setF = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await import("@/lib/push").then(m=>m.desactivarPush()).catch(()=>{});
     localStorage.removeItem('adminUser');
     router.push('/auth/login');
   };

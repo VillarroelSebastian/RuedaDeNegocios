@@ -9,6 +9,7 @@ import * as nodemailer from 'nodemailer';
 import * as QRCode from 'qrcode';
 import * as bcrypt from 'bcrypt';
 import { ZipArchive } from 'archiver';
+import { PushService } from '../push/push.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 const EVENT_TIME_ZONE = 'America/La_Paz';
@@ -32,7 +33,7 @@ function claveFechaUtc(fecha: Date): string {
 // vivo. Van en su propio controlador para no seguir engrosando app.controller.
 @Controller()
 export class ExtrasController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly push: PushService) {}
 
   private cabeceraCorreo(): string {
     return `<div style="text-align:center;margin-bottom:18px"><img src="cid:${EMAIL_LOGO_CID}" alt="Rueda de Negocios" width="190" style="display:inline-block;max-width:190px;max-height:90px;object-fit:contain" /></div>`;
@@ -873,6 +874,8 @@ export class ExtrasController {
       mensajeNotificacion: mensaje, tipoNotificacion: 'evento:anuncio', referenciaId: actividadId,
       referenciaNombreTabla: 'actividadprograma', haSidoLeida: 0, estaActivo: 1,
     })) });
+    await Promise.all(subs.map(s=>this.push.enviar(s.empresaevento_id,"evento:anuncio",{titulo:"Aviso: "+actividad.nombreActividad,mensaje,referenciaId:actividadId})));
+    await this.push.enviar("foro","evento:anuncio",{titulo:"Aviso: "+actividad.nombreActividad,mensaje,referenciaId:actividadId});
     return anuncio;
   }
 
@@ -917,6 +920,12 @@ export class ExtrasController {
         tipoNotificacion: 'evento:inicio', referenciaId: actividadId,
         referenciaNombreTabla: 'actividadprograma', haSidoLeida: 0, estaActivo: 1,
       })) });
+    }
+    if(estado === 'EN_VIVO' && actividad.estadoEnVivo !== 'EN_VIVO'){
+      const subs=await this.prisma.suscripcionactividad.findMany({where:{actividad_id:actividadId,estaActivo:1},select:{empresaevento_id:true}});
+      const payload={titulo:'Ya inició: '+actividad.nombreActividad,mensaje:'La actividad acaba de comenzar.',referenciaId:actividadId};
+      await Promise.all(subs.map(s=>this.push.enviar(s.empresaevento_id,'evento:inicio',payload)));
+      await this.push.enviar('foro','evento:inicio',payload);
     }
     return this.cronogramaVivo();
   }

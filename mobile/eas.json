@@ -8,10 +8,18 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "environment": "preview",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://app.ruedadenegocios.univalle.edu/api"
       }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "environment": "production",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://app.ruedadenegocios.univalle.edu/api"
+      }
     }
   },
   "submit": {

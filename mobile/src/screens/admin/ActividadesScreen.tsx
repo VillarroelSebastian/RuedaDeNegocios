@@ -110,7 +110,7 @@ export default function ActividadesScreen({ mostrarCronograma = true }: { mostra
   return (
     <>
     {modal}
-    <View className="flex-1 bg-[#F9FAFB]">
+    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} className="flex-1 bg-[#F9FAFB]">
       {mostrarCronograma && (
         <View style={{ padding: 18, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e2e8f0', flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <Radio size={22} color="#dc2626" />
@@ -124,7 +124,7 @@ export default function ActividadesScreen({ mostrarCronograma = true }: { mostra
       {loading ? (
         <View className="flex-1 justify-center items-center"><ActivityIndicator color={GREEN} size="large" /></View>
       ) : (
-        <ScrollView className="flex-1" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchActividades(); }} tintColor={GREEN} />}>
+        <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets className="flex-1" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchActividades(); }} tintColor={GREEN} />}>
           {/* Mismo componente que usa el técnico (pestaña "En vivo") y la web: marcar
               en vivo/finalizada y publicar anuncios. Se omite aquí cuando la pantalla
               ya se muestra dentro de una pestaña "En vivo" propia, para no duplicarlo. */}
@@ -200,7 +200,7 @@ export default function ActividadesScreen({ mostrarCronograma = true }: { mostra
               <Text className="text-lg font-bold text-gray-900">{editId ? 'Editar' : 'Nueva'} actividad</Text>
               <TouchableOpacity onPress={() => setShowForm(false)}><X color="#9ca3af" size={22} /></TouchableOpacity>
             </View>
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets showsVerticalScrollIndicator={false}>
               {[
                 { label: 'Nombre *', key: 'nombreActividad', placeholder: 'Nombre del evento' },
                 { label: 'Sala / Espacio *', key: 'nombreSalaEspacio', placeholder: 'Auditorio Principal' },
@@ -249,7 +249,7 @@ export default function ActividadesScreen({ mostrarCronograma = true }: { mostra
         </View>
         </KeyboardAvoidingView>
       </Modal>
-    </View>
+    </KeyboardAvoidingView>
     </>
   );
 }

@@ -112,7 +112,7 @@ export default function ConfiguracionScreen({ navigation }: any) {
     <>
     {modal}
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-    <ScrollView className="flex-1 bg-[#F9FAFB]">
+    <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets className="flex-1 bg-[#F9FAFB]">
       <View className="p-4 space-y-4">
         {/* Perfil header */}
         <View className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 items-center">

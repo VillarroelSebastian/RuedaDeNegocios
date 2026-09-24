@@ -43,7 +43,7 @@ export default function OportunidadesStaffScreen({ mostrarEncabezado = true }: {
         <Text style={{ marginTop: 2, fontSize: 12, color: '#94a3b8' }}>Mejores conexiones por oferta, demanda e intereses; no todas las combinaciones.</Text>
       </View>
     )}
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 40 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); cargar(); }} />}>
+    <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 40 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); cargar(); }} />}>
     {!!error && <Text style={{ borderRadius: 12, backgroundColor: '#fef2f2', padding: 12, color: '#b91c1c' }}>{error}</Text>}
     {!!items.length && <View style={{ gap: 10, borderRadius: 16, backgroundColor: '#fff', padding: 12 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, paddingHorizontal: 10 }}><Search size={17} color="#9ca3af" /><TextInput value={busqueda} onChangeText={(value) => { setBusqueda(value); setPagina(1); }} placeholder="Empresa, código, rubro o motivo" style={{ flex: 1, height: 42, fontSize: 13 }} /></View>

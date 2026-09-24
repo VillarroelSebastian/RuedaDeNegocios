@@ -121,7 +121,7 @@ export function ParticipantesModal({ empresa, onClose, permitirCambiarPassword =
               <X color="#6b7280" size={16} />
             </TouchableOpacity>
           </View>
-          <ScrollView contentContainerStyle={{ padding: 20 }}>
+          <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets contentContainerStyle={{ padding: 20 }}>
             {permitirCambiarPassword && !!avisoReenvio && (
               <View style={{ backgroundColor: avisoReenvio.ok ? '#f0fdf4' : '#fef2f2', borderColor: avisoReenvio.ok ? '#86efac' : '#fca5a5', borderWidth: 1, borderRadius: 12, padding: 11, marginBottom: 12 }}>
                 <Text style={{ fontSize: 12, color: avisoReenvio.ok ? '#166534' : '#b91c1c', fontWeight: '600' }}>{avisoReenvio.texto}</Text>
@@ -185,7 +185,7 @@ export function ParticipantesModal({ empresa, onClose, permitirCambiarPassword =
 function AgendaEmpresaModal({ empresa, onClose }: { empresa: { eeId:number; nombre:string } | null; onClose:()=>void }) {
   const [data,setData]=useState<any>(null);
   useEffect(()=>{ if(!empresa)return; setData(null); fetch(`${API_URL}/staff/empresas/${empresa.eeId}/agenda`).then(r=>r.json()).then(setData).catch(()=>setData({reuniones:[]})); },[empresa?.eeId]);
-  return <RNModal visible={!!empresa} transparent animationType="slide" onRequestClose={onClose}><View style={{flex:1,backgroundColor:'rgba(0,0,0,.5)',justifyContent:'flex-end'}}><View style={{backgroundColor:'#fff',borderTopLeftRadius:24,borderTopRightRadius:24,maxHeight:'85%',padding:20}}><View style={{flexDirection:'row',justifyContent:'space-between',marginBottom:14}}><View><Text style={{fontSize:17,fontWeight:'800'}}>Agenda de {empresa?.nombre}</Text><Text style={{fontSize:12,color:'#64748b'}}>Reuniones del evento activo</Text></View><TouchableOpacity onPress={onClose}><X size={20} color="#64748b"/></TouchableOpacity></View><ScrollView>{!data?<ActivityIndicator color={GREEN} style={{marginVertical:40}}/>:!data.reuniones?.length?<Text style={{textAlign:'center',color:'#94a3b8',marginVertical:40}}>Sin reuniones registradas.</Text>:data.reuniones.map((r:any)=>{const sol=r.solicitudreunion;const a=sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa;const b=sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento?.empresa;const otra=sol?.empresaEvento_id===empresa?.eeId?b:a;return <View key={r.id} style={{borderWidth:1,borderColor:'#e5e7eb',borderRadius:14,padding:12,marginBottom:9}}><View style={{flexDirection:'row',justifyContent:'space-between',gap:8}}><Text style={{fontWeight:'800',flex:1}}>{otra?.nombre??'Empresa'}</Text><Text style={{fontSize:10,fontWeight:'800',color:GREEN}}>{r.estadoReunion}</Text></View><Text style={{fontSize:11,color:'#64748b',marginTop:4}}>{new Date(r.fechaHoraInicioReunion).toLocaleString('es-BO',{timeZone:'America/La_Paz'})} · {r.mesa?`Mesa ${r.mesa.numeroMesa}`:r.tipoReunion}</Text></View>})}</ScrollView></View></View></RNModal>;
+  return <RNModal visible={!!empresa} transparent animationType="slide" onRequestClose={onClose}><View style={{flex:1,backgroundColor:'rgba(0,0,0,.5)',justifyContent:'flex-end'}}><View style={{backgroundColor:'#fff',borderTopLeftRadius:24,borderTopRightRadius:24,maxHeight:'85%',padding:20}}><View style={{flexDirection:'row',justifyContent:'space-between',marginBottom:14}}><View><Text style={{fontSize:17,fontWeight:'800'}}>Agenda de {empresa?.nombre}</Text><Text style={{fontSize:12,color:'#64748b'}}>Reuniones del evento activo</Text></View><TouchableOpacity onPress={onClose}><X size={20} color="#64748b"/></TouchableOpacity></View><ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>{!data?<ActivityIndicator color={GREEN} style={{marginVertical:40}}/>:!data.reuniones?.length?<Text style={{textAlign:'center',color:'#94a3b8',marginVertical:40}}>Sin reuniones registradas.</Text>:data.reuniones.map((r:any)=>{const sol=r.solicitudreunion;const a=sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa;const b=sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento?.empresa;const otra=sol?.empresaEvento_id===empresa?.eeId?b:a;return <View key={r.id} style={{borderWidth:1,borderColor:'#e5e7eb',borderRadius:14,padding:12,marginBottom:9}}><View style={{flexDirection:'row',justifyContent:'space-between',gap:8}}><Text style={{fontWeight:'800',flex:1}}>{otra?.nombre??'Empresa'}</Text><Text style={{fontSize:10,fontWeight:'800',color:GREEN}}>{r.estadoReunion}</Text></View><Text style={{fontSize:11,color:'#64748b',marginTop:4}}>{new Date(r.fechaHoraInicioReunion).toLocaleString('es-BO',{timeZone:'America/La_Paz'})} · {r.mesa?`Mesa ${r.mesa.numeroMesa}`:r.tipoReunion}</Text></View>})}</ScrollView></View></View></RNModal>;
 }
 
 /* ── Badge helpers ───────────────────────────────────────────── */
@@ -291,7 +291,7 @@ export default function EmpresasScreen({ navigation }: any) {
           <ActivityIndicator color={GREEN} size="large" />
         </View>
       ) : (
-        <ScrollView
+        <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets
           className="flex-1"
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={GREEN} />}
         >

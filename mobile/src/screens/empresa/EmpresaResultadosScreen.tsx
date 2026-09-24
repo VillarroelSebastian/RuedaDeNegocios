@@ -210,7 +210,7 @@ export default function EmpresaResultadosScreen({ route }: any) {
               <Text style={s.modalSub}>Con: {selectedReu.contraparte ?? '—'}</Text>
             )}
 
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets showsVerticalScrollIndicator={false}>
               {saveOk ? (
                 <View style={s.successBox}>
                   <CheckCircle size={40} color={GREEN} />

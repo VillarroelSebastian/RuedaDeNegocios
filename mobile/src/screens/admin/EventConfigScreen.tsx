@@ -459,7 +459,7 @@ export default function EventConfigScreen({ navigation }: any) {
               <Text style={{ fontSize: 13, color: GREEN, fontWeight: '700' }}>Cerrar</Text>
             </TouchableOpacity>
           </View>
-          <ScrollView keyboardShouldPersistTaps="handled">
+          <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled">
             {pickerItems.map(item => (
               <TouchableOpacity
                 key={item}
@@ -516,7 +516,7 @@ export default function EventConfigScreen({ navigation }: any) {
       {pickerModal}
       {imagePreviewModal}
       <SafeAreaView className="flex-1 bg-[#F9FAFB]" edges={['top']}>
-        <ScrollView className="flex-1 p-4" showsVerticalScrollIndicator={false}>
+        <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets className="flex-1 p-4" showsVerticalScrollIndicator={false}>
           <View className="mb-6 mt-2 flex-row justify-between items-center">
             <View>
               <Text className="text-2xl font-bold text-gray-900">Eventos</Text>
@@ -657,7 +657,7 @@ export default function EventConfigScreen({ navigation }: any) {
       </View>
 
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-      <ScrollView className="flex-1 p-4" showsVerticalScrollIndicator={false}>
+      <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets className="flex-1 p-4" showsVerticalScrollIndicator={false}>
 
         {/* ── Información General ── */}
         <View className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mb-5 mt-2">

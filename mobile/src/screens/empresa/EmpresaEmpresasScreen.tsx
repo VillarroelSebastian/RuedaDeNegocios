@@ -543,7 +543,7 @@ export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?:
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets showsVerticalScrollIndicator={false}>
               {/* Big avatar */}
               <View style={s.profileHero}>
                 <View style={s.profileAvatar}>
@@ -696,7 +696,7 @@ export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?:
                   </TouchableOpacity>
                 </View>
               ) : (
-                <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                <ScrollView automaticallyAdjustKeyboardInsets showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                   {!!sendError && (
                     <View style={[s.errorBox, { marginHorizontal: 0, marginBottom: 14 }]}>
                       <AlertCircle size={14} color="#dc2626" style={{ marginRight: 6 }} />

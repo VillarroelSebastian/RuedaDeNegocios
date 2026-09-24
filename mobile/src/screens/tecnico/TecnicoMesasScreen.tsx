@@ -604,7 +604,7 @@ export default function TecnicoMesasScreen() {
       </View>
 
       {filtro === 'HISTORIAL' ? (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 14 }}
+        <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets style={{ flex: 1 }} contentContainerStyle={{ padding: 14 }}
           refreshControl={<RefreshControl refreshing={loadingHistorial} onRefresh={() => fetchHistorial(searchH)} tintColor={GREEN} />}
           showsVerticalScrollIndicator={false}>
           {loadingHistorial ? (
@@ -624,7 +624,7 @@ export default function TecnicoMesasScreen() {
           <View style={{ height: 20 }} />
         </ScrollView>
       ) : (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 14 }}
+        <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets style={{ flex: 1 }} contentContainerStyle={{ padding: 14 }}
           refreshControl={<RefreshControl refreshing={refreshing}
             onRefresh={() => { setRefreshing(true); fetchMesas(); }} tintColor={GREEN} />}
           showsVerticalScrollIndicator={false}>

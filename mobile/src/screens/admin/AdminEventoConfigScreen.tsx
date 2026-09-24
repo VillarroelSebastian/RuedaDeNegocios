@@ -102,7 +102,7 @@ export default function AdminEventoConfigScreen() {
     <SafeAreaView style={s.root} edges={['bottom']}>
       {modal}
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
 
         {/* Evento info banner */}
         {evento && (

@@ -14,7 +14,7 @@ export default function RegistroForoScreen({ navigation }: any) {
     }catch(e:any){setError(e.message||'Error de conexión.');}finally{setBusy(false);}
   }
   return <KeyboardAvoidingView behavior={Platform.OS==='ios'?'padding':'height'} style={{flex:1}}>
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{padding:20,flexGrow:1}}>
+    <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" contentContainerStyle={{padding:20,flexGrow:1}}>
       <Text style={{fontSize:24,fontWeight:'800',marginBottom:12}}>{done?'Tu registro está listo':'Registro personal al foro'}</Text>
       {done?<><Text>Ya puedes ingresar con tu correo y contraseña.</Text><TouchableOpacity onPress={()=>navigation.replace('Login')} style={{padding:16}}><Text style={{color:'#449D3A'}}>Iniciar sesión</Text></TouchableOpacity></>:<>
       <Text style={{marginBottom:16}}>Accede al programa, noticias y galería del evento.</Text>

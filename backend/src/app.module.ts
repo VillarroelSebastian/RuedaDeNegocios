@@ -18,7 +18,9 @@ import { AuditInterceptor } from './auth/audit.interceptor.js';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    JwtModule.register({ global: true, secret: process.env.JWT_SECRET || 'development-only-change-me', signOptions: { expiresIn: '8h' } }),
+    // 24 horas: la sesión debe seguir activa para que sigan llegando notificaciones
+    // push sin forzar un re-login constante durante el evento.
+    JwtModule.register({ global: true, secret: process.env.JWT_SECRET || 'development-only-change-me', signOptions: { expiresIn: '24h' } }),
     PrismaModule,
     PushModule,
     ImagenesModule,

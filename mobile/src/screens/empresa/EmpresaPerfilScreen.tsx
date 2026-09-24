@@ -432,7 +432,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
   return (
     <SafeAreaView style={s.root} edges={['top']}>
       {modal}
-      <ScrollView
+      <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets
         contentContainerStyle={s.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchAll(); }} tintColor={GREEN} />}
         showsVerticalScrollIndicator={false}
@@ -734,7 +734,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
                 </TouchableOpacity>
               </View>
             ) : (
-              <ScrollView>
+              <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
                 {!!saveError && <View style={s.errorBox}><Text style={s.errorText}>{saveError}</Text></View>}
                 <Text style={s.label}>Nombre</Text>
                 <TextInput style={s.input} value={editNombre} onChangeText={setEditNombre} placeholder="Tu nombre completo" placeholderTextColor="#9ca3af" />
@@ -772,7 +772,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
                 </TouchableOpacity>
               </View>
             ) : (
-              <ScrollView>
+              <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
                 {!!comercialError && <View style={s.errorBox}><Text style={s.errorText}>{comercialError}</Text></View>}
                 <Text style={s.label}>¿Qué ofrece tu empresa?</Text>
                 <TextInput style={[s.input, s.textArea]} value={comOferta} onChangeText={(t) => setComOferta(t.slice(0, LIMITES.oferta))} maxLength={LIMITES.oferta}
@@ -820,7 +820,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
                 </TouchableOpacity>
               </View>
             ) : (
-              <ScrollView>
+              <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
                 {!!addError && <View style={s.errorBox}><Text style={s.errorText}>{addError}</Text></View>}
                 <Text style={s.label}>Nombre *</Text>
                 <TextInput style={s.input} value={addNombre} onChangeText={setAddNombre} placeholder="Nombre" placeholderTextColor="#9ca3af" />

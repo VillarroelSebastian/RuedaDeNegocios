@@ -38,7 +38,7 @@ export default function ReportesScreen() {
       <TextInput value={filtro} onChangeText={setFiltro} placeholder="Filtrar por cualquier dato..." style={{ marginTop: 12, backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 11, paddingHorizontal: 13, paddingVertical: 10 }} />
       {tipo === 'ranking' && <View style={{ flexDirection: 'row', gap: 6, marginTop: 10 }}>{[['reuniones','Reuniones'],['estrellas','Estrellas'],['dinero','Dinero']].map(([k,l]) => <TouchableOpacity key={k} onPress={() => setOrden(k)} style={{ flex: 1, padding: 8, borderRadius: 9, borderWidth: 1, borderColor: orden === k ? GREEN : '#e2e8f0', alignItems: 'center' }}><Text style={{ fontSize: 11, color: orden === k ? GREEN : '#64748b', fontWeight: '700' }}>{l}</Text></TouchableOpacity>)}</View>}
     </View>
-    {loading ? <ActivityIndicator color={GREEN} style={{ marginTop: 45 }} /> : <ScrollView contentContainerStyle={{ padding: 14, gap: 10 }}>
+    {loading ? <ActivityIndicator color={GREEN} style={{ marginTop: 45 }} /> : <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets contentContainerStyle={{ padding: 14, gap: 10 }}>
       {tipo === 'ranking' && visibles.length > 0 && (() => {
         const campo = orden === 'estrellas' ? 'EstrellasDadas' : orden === 'dinero' ? 'DineroGeneradoAproxBs' : 'Reuniones';
         const top10 = visibles.slice(0, 10);

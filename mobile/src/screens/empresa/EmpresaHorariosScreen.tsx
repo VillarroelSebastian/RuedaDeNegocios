@@ -84,7 +84,7 @@ export default function EmpresaHorariosScreen() {
       </View></View>
     </Modal>
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-    <ScrollView contentContainerStyle={s.content}>
+    <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets contentContainerStyle={s.content}>
       <View><Text style={s.title}>Mi agenda disponible</Text><Text style={s.subtitle}>Define cuándo aceptas reuniones durante cada día del evento.</Text></View>
       {!configurado && <View style={s.info}><Info size={16} color="#1d4ed8" /><Text style={s.infoText}>Mientras no cambies nada, se usarán todos los horarios definidos por el administrador.</Text></View>}
       <TouchableOpacity onPress={copiarPrimero} style={s.copy}><Copy size={15} color={GREEN} /><Text style={s.copyText}>Copiar primer día a todos</Text></TouchableOpacity>

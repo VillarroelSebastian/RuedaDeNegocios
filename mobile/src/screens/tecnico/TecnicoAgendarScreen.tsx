@@ -253,7 +253,7 @@ export default function TecnicoAgendarScreen() {
               <TextInput value={busqueda} onChangeText={setBusqueda} placeholder="Buscar empresa..."
                 placeholderTextColor="#9ca3af" style={s.searchInput} />
             </View>
-            <ScrollView style={{ maxHeight: 400 }} contentContainerStyle={{ padding: 10 }}>
+            <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets style={{ maxHeight: 400 }} contentContainerStyle={{ padding: 10 }}>
               {filtradas.length === 0 ? (
                 <Text style={s.sinResultados}>Sin resultados.</Text>
               ) : (
@@ -283,7 +283,7 @@ export default function TecnicoAgendarScreen() {
       </Modal>
 
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+      <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={{ padding: 16, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
           <CalendarPlus size={22} color={GREEN} />
           <Text style={s.titulo}>Agendar reunión</Text>

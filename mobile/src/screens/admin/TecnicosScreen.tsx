@@ -136,7 +136,7 @@ export default function TecnicosScreen() {
       {loading ? (
         <View className="flex-1 justify-center items-center"><ActivityIndicator color={GREEN} size="large" /></View>
       ) : (
-        <ScrollView className="flex-1" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchTecnicos(); }} tintColor={GREEN} />}>
+        <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets className="flex-1" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchTecnicos(); }} tintColor={GREEN} />}>
           {tecnicos.length === 0 ? (
             <View className="items-center py-16">
               <User color="#d1d5db" size={40} />
@@ -210,7 +210,7 @@ export default function TecnicosScreen() {
               <Text className="text-lg font-bold text-gray-900">{editId ? 'Editar' : 'Nuevo'} técnico</Text>
               <TouchableOpacity onPress={() => setShowForm(false)}><X color="#9ca3af" size={22} /></TouchableOpacity>
             </View>
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets showsVerticalScrollIndicator={false}>
               <Text className="text-sm font-semibold text-gray-700 mb-2">Tipo de técnico *</Text>
               <View className="flex-row gap-2 mb-4">
                 {[['TECNICO','General'],['TECNICO_EVENTOS','Eventos en vivo']].map(([value,label]) => <TouchableOpacity key={value} onPress={() => set('rolEvento', value)} style={{ backgroundColor: form.rolEvento === value ? GREEN : '#f1f5f9' }} className="flex-1 rounded-xl py-3 items-center"><Text style={{ color: form.rolEvento === value ? '#fff' : '#475569', fontSize: 12, fontWeight: '700' }}>{label}</Text></TouchableOpacity>)}

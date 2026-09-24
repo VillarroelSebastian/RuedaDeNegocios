@@ -112,7 +112,7 @@ function PickerModal({ visible, title, items, selected, onSelect, onClose }: {
             <Text style={{ fontSize: 16, fontWeight: '700' }}>{title}</Text>
             <TouchableOpacity onPress={onClose}><Text style={{ color: '#6b7280', fontSize: 16 }}>✕</Text></TouchableOpacity>
           </View>
-          <ScrollView>
+          <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
             {items.map(item => (
               <TouchableOpacity
                 key={item}
@@ -458,7 +458,7 @@ function RegistroEmpresaScreen({ navigation }: any) {
         <StatusBar style="dark" />
         <StepBar step={3} />
         {lightboxUrl && <Lightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />}
-        <ScrollView contentContainerStyle={{ padding: 20 }}>
+        <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets contentContainerStyle={{ padding: 20 }}>
           <View style={{ alignItems: 'center', marginBottom: 24 }}>
             <View style={{ width: 72, height: 72, backgroundColor: '#dcfce7', borderRadius: 36, alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
               <Text style={{ fontSize: 36 }}>✅</Text>
@@ -569,7 +569,7 @@ function RegistroEmpresaScreen({ navigation }: any) {
       <StepBar step={step} />
 
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={{ padding: 20 }} keyboardShouldPersistTaps="handled">
+        <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={{ padding: 20 }} keyboardShouldPersistTaps="handled">
 
           {/* ─── STEP 0: Empresa ────────────────────────────────── */}
           {step === 0 && (

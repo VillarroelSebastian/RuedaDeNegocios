@@ -46,6 +46,7 @@ export default function LoginPage() {
       }
 
       const user = await res.json();
+      await import("@/lib/push").then(m=>m.desactivarPush()).catch(()=>{});
 
       // Limpiar TODAS las sesiones previas antes de guardar la nueva
       localStorage.removeItem("adminUser");
@@ -167,7 +168,7 @@ export default function LoginPage() {
                       name="password"
                       type={showPassword ? "text" : "password"}
                       value={contrasenia}
-                      onChange={(e) => setContrasenia(sinEspacios(e.target.value))}
+                      onChange={(e) => setContrasenia(e.target.value)}
                       autoComplete="current-password"
                       required
                       className="block w-full rounded-xl border border-gray-200 py-3.5 pl-10 pr-10 text-gray-900 placeholder:text-gray-400 focus:border-[#66A124] focus:ring-1 focus:ring-[#66A124] sm:text-sm bg-[#FAFAFA]"
