@@ -207,7 +207,7 @@ export default function EmpresaResultadosScreen({ route }: any) {
             </View>
 
             {selectedReu && (
-              <Text style={s.modalSub}>Con: {selectedReu.contraparte ?? '—'}</Text>
+              <Text style={s.modalSub}>Con: {selectedReu.contraparte?.nombre ?? '—'}</Text>
             )}
 
             <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets showsVerticalScrollIndicator={false}>
