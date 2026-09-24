@@ -1,4 +1,5 @@
 "use client";
+import RegistroForo from "@/components/RegistroForo";
 
 import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
@@ -158,7 +159,7 @@ const inputCls = "w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm
 /* ════════════════════════════════════════════════════════════════
    PAGE
 ══════════════════════════════════════════════════════════════════ */
-export default function RegistroPage() {
+function RegistroEmpresaPage() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [step, setStep] = useState(1);
@@ -1127,4 +1128,13 @@ export default function RegistroPage() {
       </footer>
     </div>
   );
+}
+
+export default function RegistroPage() {
+  const [tipo, setTipo] = useState<"empresa" | "foro">("empresa");
+  return <><div className="mx-auto flex w-full max-w-lg gap-2 px-4 pt-6" aria-label="Tipo de inscripción">
+    {(["empresa","foro"] as const).map(t => <button key={t} type="button" aria-pressed={tipo === t}
+      onClick={() => setTipo(t)} className={"flex-1 rounded-xl border p-3 font-bold " + (tipo === t ? "bg-[#449D3A] text-white" : "bg-white text-gray-700")}>
+      {t === "empresa" ? "Empresa" : "Foro · Personal"}</button>)}
+  </div>{tipo === "foro" ? <RegistroForo /> : <RegistroEmpresaPage />}</>;
 }

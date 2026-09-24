@@ -4368,6 +4368,109 @@ export class AppController implements OnModuleInit {
     return actualizada;
   }
 
+  // Admin/técnico edita el horario (y mesa, si es presencial) de una reunión
+  // que ya administran, sin depender de la aprobación de las empresas (a
+  // diferencia de empresa/reuniones/:id/cambiar-horario, que sí la requiere).
+  @Delete('tecnico/reuniones/:id')
+  async eliminarReunionStaff(@Param('id') id: string) {
+    const evento = await this.getPrincipalEvento();
+    if (!evento) throw new BadRequestException('No hay un evento activo');
+    const reunionId=Number(id);
+    const sol=await this.prisma.$transaction(async tx=>{
+      const reunion=await tx.reunion.findFirst({where:{id:reunionId,...this.filtroReunionOperativa(evento)},include:{solicitudreunion:true}});
+      if(!reunion||!reunion.estaActivo)throw new BadRequestException('Reunión no encontrada.');
+      if(reunion.estadoReunion==='EN_CURSO'||reunion.estadoReunion==='FINALIZADA')throw new BadRequestException('Solo puedes eliminar reuniones pendientes o canceladas.');
+      await tx.mesabloque.updateMany({where:{reunion_id:reunionId,estaActivo:1},data:{estaOcupado:0,estaActivo:0,creadoModificadoFecha:new Date()}});
+      await tx.cambioreunion.updateMany({where:{reunion_id:reunionId,estado:'PENDIENTE'},data:{estado:'CANCELADA',estaActivo:0,creadoModificadoFecha:new Date()}});
+      await tx.solicitudreunion.update({where:{id:reunion.solicitudReunion_id},data:{estadoSolicitud:'CANCELADA',estaActivo:0,creadoModificadoFecha:new Date()}});
+      await tx.reunion.update({where:{id:reunionId},data:{estaActivo:0,estadoReunion:'CANCELADA',creadoModificadoFecha:new Date()}});
+      return reunion.solicitudreunion;
+    },{isolationLevel:'Serializable'});
+    await Promise.all([sol.empresaEvento_id,sol.empresaEventorReceptora_id].map(ee=>this.notificar(ee,'reunion:cancelada','Reunión eliminada','El equipo eliminó una reunión de tu agenda.',reunionId,'reunion')));
+    return {ok:true};
+  }
+
+  @Put('tecnico/reuniones/:id/reprogramar')
+  async reprogramarReunionStaff(@Param('id') id: string, @Body() body: { inicio: string; mesaId?: number | null }) {
+    const reunionId = Number(id);
+    if (!body.inicio) throw new BadRequestException('inicio requerido');
+    const evento = await this.getPrincipalEvento();
+    if (!evento) throw new BadRequestException('No hay un evento activo');
+    const reunion = await this.prisma.reunion.findFirst({
+      where: { id: reunionId, ...this.filtroReunionOperativa(evento) },
+      include: { solicitudreunion: true },
+    });
+    if (!reunion || reunion.estaActivo === 0) throw new BadRequestException('Reunión no encontrada');
+    if (!['PROGRAMADA', 'REPROGRAMADA'].includes(reunion.estadoReunion))
+      throw new BadRequestException('Solo se pueden reprogramar reuniones programadas');
+
+    const sol = reunion.solicitudreunion;
+    if (!sol) throw new BadRequestException('La reunión no tiene una solicitud asociada');
+    const eeA = sol.empresaEvento_id;
+    const eeB = sol.empresaEventorReceptora_id;
+
+    const iniDate = new Date(body.inicio);
+    const finDate = new Date(iniDate.getTime() + evento.duracionReunion * 60000);
+    if (Number.isNaN(iniDate.getTime()) || iniDate <= new Date() ||
+        !this.horarioDentroDe(this.generarCandidatosInicioTecnico(evento), iniDate, finDate))
+      throw new BadRequestException('El horario debe ser futuro y pertenecer a un día configurado del evento.');
+
+    for (const eeCheck of [eeA, eeB]) {
+      const conflicto = await this.prisma.reunion.findFirst({
+        where: {
+          id: { not: reunionId }, estaActivo: 1, estadoReunion: { not: 'CANCELADA' },
+          fechaHoraInicioReunion: { lt: finDate }, fechaHoraFinReunion: { gt: iniDate },
+          solicitudreunion: { OR: [{ empresaEvento_id: eeCheck }, { empresaEventorReceptora_id: eeCheck }] },
+        },
+      });
+      if (conflicto) throw new BadRequestException('Una de las empresas ya tiene una reunión en ese horario.');
+    }
+
+    let mesaId: number | null = reunion.mesa_id;
+    if (['PRESENCIAL','MIXTA'].includes(reunion.tipoReunion)) {
+      mesaId = body.mesaId !== undefined ? (body.mesaId ? Number(body.mesaId) : null) : reunion.mesa_id;
+      if (!mesaId) {
+        mesaId = await this.elegirMesaBalanceada(evento.id, iniDate, finDate);
+        if (!mesaId) throw new BadRequestException('No hay mesas disponibles para ese horario');
+      } else {
+        const mesa=await this.prisma.mesa.findFirst({where:{id:mesaId,evento_id:evento.id,estaActivo:1,estaHabilitada:1}});
+        if(!mesa)throw new BadRequestException('La mesa no pertenece al evento o está inhabilitada.');
+        const ocupada = await this.prisma.reunion.findFirst({
+          where: {
+            id: { not: reunionId }, mesa_id: mesaId, estaActivo: 1, estadoReunion: { not: 'CANCELADA' },
+            fechaHoraInicioReunion: { lt: new Date(finDate.getTime()+evento.tiempoEntreReuniones*60000) }, fechaHoraFinReunion: { gt: new Date(iniDate.getTime()-evento.tiempoEntreReuniones*60000) },
+          },
+        });
+        if (ocupada) throw new BadRequestException('La mesa seleccionada ya está ocupada en ese horario');
+      }
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.mesabloque.updateMany({where:{reunion_id:reunionId,estaActivo:1},data:{estaActivo:0,estaOcupado:0,creadoModificadoFecha:new Date()}}),
+      ...(mesaId ? [this.prisma.mesabloque.create({data:{mesa_id:mesaId,reunion_id:reunionId,fechaHoraInicio:iniDate,fechaHoraFin:finDate,estaActivo:1,estaOcupado:1}})] : []),
+      this.prisma.cambioreunion.updateMany({where:{reunion_id:reunionId,estado:'PENDIENTE'},data:{estado:'CANCELADA',estaActivo:0,creadoModificadoFecha:new Date()}}),
+      this.prisma.reunion.update({
+        where: { id: reunionId },
+        data: {
+          fechaHoraInicioReunion: iniDate, fechaHoraFinReunion: finDate,
+          mesa_id: mesaId, estadoReunion: 'REPROGRAMADA', seEnvioNotificacionDeRetraso: 0,
+          creadoModificadoFecha: new Date(),
+        },
+      }),
+      this.prisma.solicitudreunion.update({
+        where: { id: sol.id },
+        data: { mesa_id: mesaId, fechaHoraInicioPropuesta: iniDate, fechaHoraFinPropuesta: finDate },
+      }),
+    ]);
+
+    const nuevaHora = this.fmtSlotAsistente(iniDate.toISOString());
+    await Promise.all([eeA, eeB].map((eeId) =>
+      this.notificar(eeId, 'reunion:reprogramada-staff', 'Reunión reprogramada',
+        `El equipo técnico cambió el horario de tu reunión a ${nuevaHora}.`, reunionId, 'reunion'),
+    ));
+    return { ok: true };
+  }
+
   @Post('tecnico/reuniones/:id/finalizar-evaluar')
   async finalizarEvaluarReunionTecnico(
     @Param('id') id: string,
@@ -6259,6 +6362,15 @@ export class AppController implements OnModuleInit {
       .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
   }
 
+  @Get('empresa/equipo')
+  async directorioEquipo() {
+    return this.prisma.usuario.findMany({
+      where: { estaActivo: 1, rolEvento: { in: ['ADMINISTRADOR', 'TECNICO', 'TECNICO_EVENTOS'] } },
+      select: { id: true, nombres: true, apellidoPaterno: true, rolEvento: true },
+      orderBy: { nombres: 'asc' },
+    });
+  }
+
   @Get('empresa/mensajes')
   async getMensajes(@Query('eeId') eeId: string, @Query('otroEeId') otroEeId: string) {
     if (!eeId || !otroEeId) throw new BadRequestException('eeId y otroEeId requeridos');
@@ -6307,12 +6419,11 @@ export class AppController implements OnModuleInit {
   @Post('empresa/mensajes')
   async enviarMensajeEmpresa(@Body() body: { eeId: number; euId: number; receptorEeId: number; contenido: string }) {
     const { eeId, euId, receptorEeId, contenido } = body;
-    if (!eeId || !euId || !receptorEeId || !contenido?.trim())
+    if (!eeId || !euId || receptorEeId == null || !Number.isInteger(Number(receptorEeId)) || Number(receptorEeId) < 0 || !contenido?.trim())
       throw new BadRequestException('eeId, euId, receptorEeId y contenido son requeridos');
     if (Number(eeId) === Number(receptorEeId))
       throw new BadRequestException('No puedes enviarte mensajes a tu propia empresa');
-    if (Number(receptorEeId) === 0)
-      throw new BadRequestException('No puedes responder a los mensajes del equipo del evento');
+    const paraStaff = Number(receptorEeId) === 0;
     const eventoId = await this.getPrincipalEventoId();
     if (!eventoId) throw new BadRequestException('No hay un evento activo');
     const eu = await this.prisma.empresa_usuario.findFirst({
@@ -6322,7 +6433,7 @@ export class AppController implements OnModuleInit {
     // Solo el encargado puede enviar mensajes en nombre de la empresa.
     if (eu.esResponsable !== 1)
       throw new BadRequestException('Solo el encargado de la empresa puede enviar mensajes');
-    await this.verificarEE(Number(receptorEeId));
+    if (!paraStaff) await this.verificarEE(Number(receptorEeId));
     const msg = await this.prisma.mensajeempresa.create({
       data: {
         evento_id: eventoId,
@@ -6338,36 +6449,49 @@ export class AppController implements OnModuleInit {
       where: { id: Number(eeId) },
       select: { empresa: { select: { nombre: true } } },
     });
-    await this.notificar(
-      Number(receptorEeId),
-      'mensaje:empresa',
-      'Nuevo mensaje',
-      `${emisor?.empresa?.nombre ?? 'Otra empresa'} te envio un mensaje.`,
-      msg.id,
-      'mensajeempresa',
-    );
-    // Evento especifico para que una conversacion abierta se refresque al instante.
-    try { this.notifGateway.emitirParaEe(Number(receptorEeId), 'mensaje:nuevo', { deEeId: Number(eeId) }); } catch {}
+    if (paraStaff) {
+      await this.notificarStaff(
+        eventoId,
+        'mensaje:empresa_staff',
+        'Nuevo mensaje de una empresa',
+        `${emisor?.empresa?.nombre ?? 'Una empresa'} te envió un mensaje.`,
+        msg.id,
+      );
+      try { this.notifGateway.emitirParaStaff('mensaje:nuevo', { deEeId: Number(eeId) }); } catch {}
+    } else {
+      await this.notificar(
+        Number(receptorEeId),
+        'mensaje:empresa',
+        'Nuevo mensaje',
+        `${emisor?.empresa?.nombre ?? 'Otra empresa'} te envio un mensaje.`,
+        msg.id,
+        'mensajeempresa',
+      );
+      // Evento especifico para que una conversacion abierta se refresque al instante.
+      try { this.notifGateway.emitirParaEe(Number(receptorEeId), 'mensaje:nuevo', { deEeId: Number(eeId) }); } catch {}
+    }
     return { ok: true, id: msg.id, fecha: msg.fechaCreacion };
   }
 
   // ── Mensajería: bandeja de admin/técnico ────────────────────────────────────
-  // El staff (emisorEe_id = 0) envía mensajes a empresas vía POST staff/mensajes
-  // (más abajo); aquí se lista y consulta ese historial agrupado por empresa,
-  // sin necesitar el eeId de una empresa concreta como en /empresa/mensajes.
+  // El staff comparte un único buzón (emisorEe_id/receptorEe_id = 0 = "equipo
+  // del evento"): tanto lo que el staff envía (POST staff/mensajes) como lo
+  // que una empresa le escribe al staff (POST empresa/mensajes con
+  // receptorEeId=0) aparece aquí, agrupado por empresa.
 
   @Get('staff/mensajes/conversaciones')
   async getConversacionesStaff() {
     const eventoId = await this.getPrincipalEventoId();
     if (!eventoId) return [];
     const msgs = await this.prisma.mensajeempresa.findMany({
-      where: { evento_id: eventoId, estaActivo: 1, receptorEe_id: { not: 0 } },
+      where: { evento_id: eventoId, estaActivo: 1, OR: [{ emisorEe_id: 0 }, { receptorEe_id: 0 }] },
       orderBy: { fechaCreacion: 'desc' },
     });
     const porEmpresa = new Map<number, any[]>();
     for (const m of msgs) {
-      if (!porEmpresa.has(m.receptorEe_id)) porEmpresa.set(m.receptorEe_id, []);
-      porEmpresa.get(m.receptorEe_id)!.push(m);
+      const eeId = m.emisorEe_id === 0 ? m.receptorEe_id : m.emisorEe_id;
+      if (!porEmpresa.has(eeId)) porEmpresa.set(eeId, []);
+      porEmpresa.get(eeId)!.push(m);
     }
     const ids = [...porEmpresa.keys()];
     const ees = ids.length
@@ -6382,17 +6506,29 @@ export class AppController implements OnModuleInit {
         const lista = porEmpresa.get(eeId)!;
         const ultimo = lista[0];
         const emp = empresaPorEe.get(eeId);
+        const noLeidos = lista.filter((m) => m.receptorEe_id === 0 && m.haSidoLeido === 0).length;
         return {
           eeId,
           nombre: emp?.nombre ?? 'Empresa',
           codigo: emp?.codigo ?? null,
           urlFotoPerfil: emp?.urlFotoPerfil ?? null,
           ultimoMensaje: ultimo.contenido,
+          esMio: ultimo.emisorEe_id === 0,
           fecha: ultimo.fechaCreacion,
-          totalEnviados: lista.length,
+          noLeidos,
         };
       })
       .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+  }
+
+  @Get('staff/mensajes/no-leidos')
+  async getNoLeidosStaff() {
+    const eventoId = await this.getPrincipalEventoId();
+    if (!eventoId) return { count: 0 };
+    const count = await this.prisma.mensajeempresa.count({
+      where: { evento_id: eventoId, estaActivo: 1, receptorEe_id: 0, haSidoLeido: 0 },
+    });
+    return { count };
   }
 
   @Get('staff/mensajes')
@@ -6400,17 +6536,36 @@ export class AppController implements OnModuleInit {
     if (!eeId) throw new BadRequestException('eeId requerido');
     const eventoId = await this.getPrincipalEventoId();
     if (!eventoId) return [];
+    const id = Number(eeId);
+    // Al abrir la conversación, los mensajes entrantes (de la empresa hacia el
+    // staff) quedan leídos.
+    await this.prisma.mensajeempresa.updateMany({
+      where: { emisorEe_id: id, receptorEe_id: 0, haSidoLeido: 0, estaActivo: 1 },
+      data: { haSidoLeido: 1, creadoModificadoFecha: new Date() },
+    });
     const msgs = await this.prisma.mensajeempresa.findMany({
-      where: { evento_id: eventoId, estaActivo: 1, emisorEe_id: 0, receptorEe_id: Number(eeId) },
+      where: {
+        evento_id: eventoId, estaActivo: 1,
+        OR: [{ emisorEe_id: 0, receptorEe_id: id }, { emisorEe_id: id, receptorEe_id: 0 }],
+      },
       orderBy: { fechaCreacion: 'asc' },
       take: 200,
     });
+    const euIds = [...new Set(msgs.map((m) => m.empresa_usuario_id).filter((x): x is number => !!x))];
+    const eus = euIds.length
+      ? await this.prisma.empresa_usuario.findMany({
+          where: { id: { in: euIds } },
+          include: { usuario: { select: { nombres: true, apellidoPaterno: true } } },
+        })
+      : [];
+    const autorPorEu = new Map(eus.map((e) => [e.id, `${e.usuario.nombres} ${e.usuario.apellidoPaterno}`]));
     return msgs.map((m) => ({
       id: m.id,
+      esMio: m.emisorEe_id === 0,
       contenido: m.contenido,
-      autor: m.remitenteNombre
-        ? `${m.remitenteNombre} · ${m.remitenteRol === 'ADMIN' ? 'Organización' : 'Técnico'}`
-        : null,
+      autor: m.emisorEe_id === 0
+        ? (m.remitenteNombre ? `${m.remitenteNombre} · ${m.remitenteRol === 'ADMIN' ? 'Organización' : 'Técnico'}` : null)
+        : (m.empresa_usuario_id ? autorPorEu.get(m.empresa_usuario_id) ?? null : null),
       fecha: m.fechaCreacion,
     }));
   }
@@ -6461,6 +6616,53 @@ export class AppController implements OnModuleInit {
       'mensajeempresa',
     );
     return { ok: true, id: msg.id, fecha: msg.fechaCreacion };
+  }
+
+  // ── Chat interno del equipo (admin + técnicos) ──────────────────────────────
+  // Un solo canal compartido por evento, no conversaciones 1 a 1: todo el
+  // staff ve y puede escribir en el mismo tablón para coordinarse.
+
+  @Get('staff/chat-interno')
+  async getChatInterno() {
+    const eventoId = await this.getPrincipalEventoId();
+    if (!eventoId) return [];
+    const mensajes = await this.prisma.mensajeinterno.findMany({
+      where: { evento_id: eventoId, estaActivo: 1 },
+      orderBy: { fechaCreacion: 'desc' },
+      take: 300,
+    });
+    return mensajes.reverse();
+  }
+
+  @Post('staff/chat-interno')
+  async enviarChatInterno(@Body() body: { usuarioId: number; contenido: string }, @Req() req: any) {
+    const usuarioId = req.user.sub;
+    const { contenido } = body;
+    if (!usuarioId || !contenido?.trim())
+      throw new BadRequestException('usuarioId y contenido son requeridos');
+    const usuario = await this.prisma.usuario.findUnique({
+      where: { id: Number(usuarioId) },
+      select: { nombres: true, apellidoPaterno: true, rolEvento: true },
+    });
+    if (!usuario) throw new BadRequestException('Usuario no encontrado');
+    if (!['ADMINISTRADOR', 'TECNICO', 'TECNICO_EVENTOS'].includes(usuario.rolEvento))
+      throw new BadRequestException('Solo el equipo del evento puede usar este chat');
+    const eventoId = await this.getPrincipalEventoId();
+    if (!eventoId) throw new BadRequestException('No hay un evento activo');
+
+    const rol = usuario.rolEvento === 'ADMINISTRADOR' ? 'ADMIN' : 'TECNICO';
+    const msg = await this.prisma.mensajeinterno.create({
+      data: {
+        evento_id: eventoId,
+        usuario_id: Number(usuarioId),
+        autorNombre: `${usuario.nombres} ${usuario.apellidoPaterno}`.trim(),
+        autorRol: rol,
+        contenido: contenido.trim().slice(0, 1000),
+        estaActivo: 1,
+      },
+    });
+    try { this.notifGateway.emitirParaStaff('chat-interno:nuevo', { id: msg.id, titulo: 'Chat del equipo', mensaje: 'Hay un nuevo mensaje del equipo.', excludeUserId: usuarioId }); } catch {}
+    return msg;
   }
 
   @Get('empresa/horarios')
@@ -6635,8 +6837,9 @@ export class AppController implements OnModuleInit {
   async getHorariosDisponiblesTecnico(
     @Query('eeId') eeId: string,
     @Query('eeReceptoraId') eeReceptoraId: string,
+    @Query('excludeReunionId') excludeReunionId?: string,
   ) {
-    return this.getHorariosDisponibles(eeId, eeReceptoraId, undefined, undefined, true, true);
+    return this.getHorariosDisponibles(eeId, eeReceptoraId, excludeReunionId, undefined, true, true);
   }
 
   @Get('empresa/mesas-disponibles')

@@ -51,6 +51,7 @@ export default function LoginPage() {
       localStorage.removeItem("adminUser");
       localStorage.removeItem("tecnicoUser");
       localStorage.removeItem("empresaUser");
+      localStorage.removeItem("foroUser");
 
       if (user.rolEvento === "ADMINISTRADOR") {
         localStorage.setItem("adminUser", JSON.stringify(user));
@@ -59,6 +60,9 @@ export default function LoginPage() {
         localStorage.setItem("tecnicoUser", JSON.stringify(user));
         const siguiente = new URLSearchParams(window.location.search).get("next");
         router.push(siguiente?.startsWith("/credencial/") ? siguiente : "/tecnico/dashboard");
+      } else if (user.rolEvento === "FORO") {
+        localStorage.setItem("foroUser", JSON.stringify(user));
+        router.push("/foro");
       } else if (user.rolEvento === "EMPRESA") {
         localStorage.setItem("empresaUser", JSON.stringify(user));
         router.push("/empresa/dashboard");
@@ -214,7 +218,7 @@ export default function LoginPage() {
                     href="/registro"
                     className="flex w-full justify-center rounded-xl bg-[#FAFAFA] border border-gray-200 px-3 py-3.5 text-sm font-bold text-[#374151] shadow-sm hover:bg-gray-100 transition-colors"
                   >
-                    Registrar mi empresa
+                    Registrarme al evento
                   </Link>
                 </div>
               </form>

@@ -154,6 +154,23 @@ model fotoevento {
   @@index([evento_id, visibleLanding])
 }
 
+// ── Chat interno del equipo (admin + técnicos) ──────────────────────────────
+// Canal único por evento, visible para todo el staff: no es una conversación
+// 1 a 1, es un tablón compartido para coordinarse entre sí.
+model mensajeinterno {
+  id            Int      @id @default(autoincrement())
+  evento_id     Int
+  usuario_id    Int
+  autorNombre   String   @db.VarChar(155)
+  autorRol      String   @db.VarChar(20)
+  contenido     String   @db.VarChar(1000)
+  estaActivo    Int      @default(1) @db.SmallInt
+  fechaCreacion DateTime @default(now()) @db.Timestamp(6)
+  evento        evento   @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([evento_id, estaActivo])
+}
+
 model ciudad {
   id      Int       @id @default(autoincrement())
   pais_id Int
@@ -344,6 +361,7 @@ model evento {
   fotoevento                     fotoevento[]
   asistenciaevento               asistenciaevento[]
   asistenciaauspiciador          asistenciaauspiciador[]
+  mensajeinterno                 mensajeinterno[]
 }
 
 model eventoreglaqr {
@@ -680,4 +698,16 @@ model asistenciaauspiciador {
   @@index([evento_id, auspiciadorpersona_id, fechaAsistencia], map: "asist_ausp_evento_persona_fecha_idx")
   @@index([evento_id, fechaHoraAsistencia])
   @@index([tecnico_id])
+}
+
+model pushsubscription {
+  id        Int      @id @default(autoincrement())
+  usuarioId Int
+  clave     String   @unique @db.VarChar(64)
+  tipo      String   @db.VarChar(10)
+  destino   String   @db.Text
+  p256dh    String?  @db.Text
+  auth      String?  @db.Text
+  actualizado DateTime @default(now()) @db.Timestamp(6)
+  @@index([usuarioId])
 }

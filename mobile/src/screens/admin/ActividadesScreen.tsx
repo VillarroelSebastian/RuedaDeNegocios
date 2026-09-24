@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  ActivityIndicator, RefreshControl, Modal
+  ActivityIndicator, RefreshControl, Modal, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useModal } from '../../components/AppModal';
 import { Plus, Clock, X, Radio } from 'lucide-react-native';
@@ -193,6 +193,7 @@ export default function ActividadesScreen({ mostrarCronograma = true }: { mostra
 
       {/* Modal Form */}
       <Modal visible={showForm} transparent animationType="slide">
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <View className="flex-1 bg-black/40 justify-end">
           <View className="bg-white rounded-t-3xl p-6 max-h-[90%]">
             <View className="flex-row items-center justify-between mb-4">
@@ -246,6 +247,7 @@ export default function ActividadesScreen({ mostrarCronograma = true }: { mostra
             </View>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
     </>

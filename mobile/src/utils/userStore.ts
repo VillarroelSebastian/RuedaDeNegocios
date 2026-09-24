@@ -6,9 +6,13 @@ const STORAGE_KEY = 'rueda_current_user';
 const BACKEND_PORT = 3334;
 
 let currentUser: any = null;
+const listeners = new Set<() => void>();
+const notify = () => listeners.forEach(fn => fn());
 
 const nativeFetch = global.fetch.bind(global);
 global.fetch = ((input: any, init: RequestInit = {}) => {
+  const target = typeof input === 'string' ? input : input?.url;
+  if (typeof target !== 'string' || !(target === API_URL || target.startsWith(API_URL.replace(/\/$/, '') + '/'))) return nativeFetch(input, init);
   const token = currentUser?.token;
   if (!token) return nativeFetch(input, init);
   const headers = new Headers(init.headers || (typeof Request !== 'undefined' && input instanceof Request ? input.headers : undefined));
@@ -17,13 +21,17 @@ global.fetch = ((input: any, init: RequestInit = {}) => {
 }) as typeof fetch;
 
 export const userStore = {
+  subscribe: (fn: () => void) => { listeners.add(fn); return () => { listeners.delete(fn); }; },
   set: async (user: any) => {
     currentUser = user;
+    notify();
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(user));
   },
   get: () => currentUser,
   clear: async () => {
+    if (currentUser?.token) await import('./push').then(m => m.desactivarPush(API_URL, currentUser.token)).catch(() => {});
     currentUser = null;
+    notify();
     await AsyncStorage.removeItem(STORAGE_KEY);
   },
   load: async (): Promise<any | null> => {
@@ -32,6 +40,7 @@ export const userStore = {
       if (stored) {
         const user = JSON.parse(stored);
         currentUser = user;
+    notify();
         return user;
       }
     } catch (e) {

@@ -8,7 +8,7 @@ export class RateLimitGuard implements CanActivate {
   constructor(private readonly prisma: PrismaService) {}
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest<any>();
-    if (!['/auth/login', '/auth/solicitar-reset', '/auth/confirmar-reset', '/public/imagenes/upload'].includes(req.path)) return true;
+    if (!['/public/registro-foro', '/auth/login', '/auth/solicitar-reset', '/auth/confirmar-reset', '/public/imagenes/upload'].includes(req.path)) return true;
     const now = Date.now(), windowMs = 15 * 60_000;
     const key = `${req.ip}:${req.path}:${String(req.body?.correo || '').trim().toLowerCase()}`;
     const keyHash = createHash('sha256').update(key).digest('hex');

@@ -22,3 +22,4 @@ node.zip
 node_portable/
 deploy/secrets.env
 deploy/entrega-privada/
+deploy/firebase-service-account.json

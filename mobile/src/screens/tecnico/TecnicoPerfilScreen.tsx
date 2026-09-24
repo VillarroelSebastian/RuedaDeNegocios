@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, Image,
-  TextInput, Modal as RNModal, ActivityIndicator,
+  TextInput, Modal as RNModal, ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { UserCircle, Lock, LogOut, Eye, EyeOff, Shield, Camera } from 'lucide-react-native';
@@ -199,6 +199,7 @@ export default function TecnicoPerfilScreen({ navigation }: any) {
 
       {/* ── Password modal ── */}
       <RNModal visible={showPwModal} transparent animationType="slide" onRequestClose={() => setShowPwModal(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
           <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 }}>
             <Text style={{ fontSize: 18, fontWeight: '800', color: '#0f172a', marginBottom: 20 }}>Cambiar contraseña</Text>
@@ -250,6 +251,7 @@ export default function TecnicoPerfilScreen({ navigation }: any) {
             </View>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </RNModal>
 
       {/* ── Header ── */}
@@ -260,6 +262,7 @@ export default function TecnicoPerfilScreen({ navigation }: any) {
         <Text style={{ fontSize: 22, fontWeight: '800', color: '#0f172a' }}>Mi Perfil</Text>
       </View>
 
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20 }} showsVerticalScrollIndicator={false}>
 
         {/* ── Avatar con botón de cámara ── */}
@@ -409,6 +412,7 @@ export default function TecnicoPerfilScreen({ navigation }: any) {
 
         <View style={{ height: 30 }} />
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

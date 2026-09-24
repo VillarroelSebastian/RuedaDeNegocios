@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, Modal, ActivityIndicator, StyleSheet,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { MessageSquare, X, Send, CheckCircle2 } from 'lucide-react-native';
 import { API_URL, userStore } from '../utils/userStore';
@@ -40,6 +41,7 @@ export default function EnviarMensajeEmpresaModal({ receptorEeId, empresaNombre,
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
       <View style={s.overlay}>
         <View style={s.card}>
           {ok ? (
@@ -99,6 +101,7 @@ export default function EnviarMensajeEmpresaModal({ receptorEeId, empresaNombre,
           )}
         </View>
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

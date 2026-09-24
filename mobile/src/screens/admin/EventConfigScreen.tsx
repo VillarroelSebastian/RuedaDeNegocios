@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TextInput, TouchableOpacity,
-  ActivityIndicator, Image, Modal,
+  ActivityIndicator, Image, Modal, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -656,6 +656,7 @@ export default function EventConfigScreen({ navigation }: any) {
         </Text>
       </View>
 
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
       <ScrollView className="flex-1 p-4" showsVerticalScrollIndicator={false}>
 
         {/* ── Información General ── */}
@@ -969,6 +970,7 @@ export default function EventConfigScreen({ navigation }: any) {
         </TouchableOpacity>
 
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
     </>
   );

@@ -6,6 +6,8 @@ import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
+import PushNotifications from './src/components/PushNotifications';
+import ForoScreen from './src/screens/ForoScreen';
 import LoginScreen      from './src/screens/auth/LoginScreen';
 import RegistroScreen   from './src/screens/RegistroScreen';
 import AdminNavigator   from './src/navigation/AdminNavigator';
@@ -14,7 +16,14 @@ import EmpresaNavigator from './src/navigation/EmpresaNavigator';
 import { userStore, API_URL } from './src/utils/userStore';
 
 const Stack = createNativeStackNavigator();
-const VALID_ROLES = ['ADMINISTRADOR', 'TECNICO', 'TECNICO_EVENTOS', 'EMPRESA'];
+const VALID_ROLES = ['ADMINISTRADOR', 'TECNICO', 'TECNICO_EVENTOS', 'EMPRESA', 'FORO'];
+
+function abrirNotificacion(data: any) {
+  const user = userStore.get();
+  if (!user || !navigationRef.isReady()) return;
+  const root = user.rolEvento === 'FORO' ? 'ForoRoot' : user.rolEvento === 'EMPRESA' ? 'EmpresaRoot' : user.rolEvento === 'ADMINISTRADOR' ? 'AdminRoot' : 'TecnicoRoot';
+  (navigationRef as any).navigate(root);
+}
 
 // Ref global de navegación: permite navegar desde fuera de componentes (p. ej.
 // al tocar "Ver" en una notificación push) directo a la sección correspondiente.
@@ -93,7 +102,8 @@ export default function App() {
           console.log('[App] Session restored. id:', user.id, 'role:', role);
           if (role === 'ADMINISTRADOR')  finish('AdminRoot');
           else if (role === 'TECNICO' || role === 'TECNICO_EVENTOS') finish('TecnicoRoot');
-          else                           finish('EmpresaRoot');
+          else if (role === 'FORO') finish('ForoRoot');
+          else finish('EmpresaRoot');
         } else {
           if (user) {
             console.warn('[App] Stored session invalid (role:', role, ') — clearing');
@@ -126,11 +136,13 @@ export default function App() {
       <NavigationContainer ref={navigationRef}>
         <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName={initialRoute}>
           <Stack.Screen name="Login"       component={LoginScreen}      />
+          <Stack.Screen name="ForoRoot" component={ForoScreen} />
           <Stack.Screen name="Registro"    component={RegistroScreen}   />
           <Stack.Screen name="AdminRoot"   component={AdminNavigator}   />
           <Stack.Screen name="TecnicoRoot" component={TecnicoNavigator} />
           <Stack.Screen name="EmpresaRoot" component={EmpresaNavigator} />
         </Stack.Navigator>
+        <PushNotifications onOpen={abrirNotificacion} />
         <StatusBar style="auto" />
       </NavigationContainer>
     </AppErrorBoundary>

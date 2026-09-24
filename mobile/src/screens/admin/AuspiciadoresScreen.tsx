@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Modal, RefreshControl, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, RefreshControl, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Handshake, Plus, X } from 'lucide-react-native';
 import { useModal } from '../../components/AppModal';
 import { API_URL } from '../../utils/userStore';
@@ -117,7 +117,7 @@ export default function AuspiciadoresScreen() {
             </View>)}<View className="h-8"/>
         </ScrollView>}
     </View>
-    <Modal visible={visible} transparent animationType="slide"><View className="flex-1 bg-black/40 justify-end"><View className="bg-white rounded-t-3xl max-h-[92%] p-5">
+    <Modal visible={visible} transparent animationType="slide"><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}><View className="flex-1 bg-black/40 justify-end"><View className="bg-white rounded-t-3xl max-h-[92%] p-5">
       <View className="flex-row justify-between items-center mb-4"><Text className="text-lg font-extrabold">{editId ? 'Editar' : 'Nuevo'} auspiciador</Text><TouchableOpacity onPress={() => setVisible(false)}><X color="#6b7280" size={22}/></TouchableOpacity></View>
       <ScrollView>
         {[['Empresa *','nombreEmpresa'],['Descripción *','descripcion']].map(([label,key]) => <View key={key} className="mb-3"><Text className="text-xs font-bold text-gray-700 mb-1">{label}</Text><TextInput value={(form as any)[key]} onChangeText={(v) => setForm((f) => ({ ...f, [key]: v }))} multiline={key === 'descripcion'} className="border border-gray-200 rounded-xl px-3 py-2.5"/></View>)}
@@ -128,6 +128,6 @@ export default function AuspiciadoresScreen() {
         {personas.map((p,i) => <View key={i} className="bg-gray-50 rounded-xl p-3 mb-2"><Text className="font-bold text-xs mb-2">Persona {i+1}</Text><TextInput value={p.nombreCompleto} onChangeText={(v) => setPersona(i,'nombreCompleto',v)} placeholder="Nombre completo *" className="bg-white border border-gray-200 rounded-lg px-3 py-2 mb-2"/><TextInput value={p.cargo} onChangeText={(v) => setPersona(i,'cargo',v)} placeholder="Cargo" className="bg-white border border-gray-200 rounded-lg px-3 py-2 mb-2"/><TextInput value={p.correo} onChangeText={(v) => setPersona(i,'correo',v)} placeholder="Correo para enviar credencial *" keyboardType="email-address" autoCapitalize="none" className="bg-white border border-gray-200 rounded-lg px-3 py-2"/></View>)}
       </ScrollView>
       <TouchableOpacity onPress={guardar} disabled={saving} style={{ backgroundColor: GREEN, opacity: saving ? .6 : 1 }} className="py-3.5 rounded-2xl items-center mt-4"><Text className="text-white font-extrabold">{saving ? 'Guardando…' : 'Guardar'}</Text></TouchableOpacity>
-    </View></View></Modal>
+    </View></View></KeyboardAvoidingView></Modal>
   </>;
 }

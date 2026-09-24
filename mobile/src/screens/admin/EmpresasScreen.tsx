@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  ActivityIndicator, RefreshControl, Modal as RNModal
+  ActivityIndicator, RefreshControl, Modal as RNModal, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { Search, Building2, Users, Eye, X, MessageSquare, KeyRound, CalendarClock } from 'lucide-react-native';
 import { API_URL } from '../../utils/userStore';
@@ -109,6 +109,7 @@ export function ParticipantesModal({ empresa, onClose, permitirCambiarPassword =
 
   return (
     <RNModal visible={!!empresa} transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
       <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
         <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '80%' }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' }}>
@@ -176,6 +177,7 @@ export function ParticipantesModal({ empresa, onClose, permitirCambiarPassword =
           </View>
         </View>
       </View>
+      </KeyboardAvoidingView>
     </RNModal>
   );
 }

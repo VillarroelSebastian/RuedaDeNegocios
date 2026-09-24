@@ -44,6 +44,20 @@ export default function GaleriaEvento({
   const [descripcion, setDescripcion] = useState("");
   const [ampliada, setAmpliada] = useState<Foto | null>(null);
   const [actualizandoLanding, setActualizandoLanding] = useState<number | null>(null);
+  const [descargando, setDescargando] = useState(false);
+  const [errorDescarga, setErrorDescarga] = useState("");
+  const descargarTodas = async () => {
+    setDescargando(true);setErrorDescarga("");
+    try {
+      const res = await fetch(API + "/galeria/descargar-todas");
+      if (!res.ok) throw new Error((await res.json()).message || "No se pudo descargar.");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");a.href=url;a.download="galeria-evento.zip";
+      document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
+    } catch (e: unknown) { const message=e instanceof Error?e.message:"Error de conexión.";setErrorDescarga(message);onError?.(message); }
+    finally {setDescargando(false);}
+  };
   const fileRef = useRef<HTMLInputElement>(null);
 
   const cargar = useCallback(async () => {
@@ -159,6 +173,7 @@ export default function GaleriaEvento({
 
   return (
     <div>
+      {esStaff && <div className="mb-4"><button onClick={descargarTodas} disabled={descargando || !fotos.length} className="w-full sm:w-auto rounded-xl border border-green-700 px-4 py-3 font-semibold text-green-800 disabled:opacity-50">{descargando ? "Preparando descarga…" : "Descargar todas las fotos (ZIP)"}</button>{errorDescarga&&<p role="alert" className="mt-2 text-sm text-red-700">{errorDescarga}</p>}</div>}
       {puedeSubir && (
         <div className="mb-6">
           <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-gray-500">

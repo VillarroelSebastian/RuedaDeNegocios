@@ -10,6 +10,8 @@ import {
   RefreshControl,
   TextInput,
 } from "react-native";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
 import { useFocusEffect } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
 import { Camera, Images, X, Trash2, Star, Building2, Wrench } from "lucide-react-native";
@@ -28,7 +30,20 @@ export default function TecnicoGaleriaScreen() {
   const [actualizandoLanding, setActualizandoLanding] = useState<number | null>(null);
   const actual = userStore.get();
   const esEmpresa = actual?.rolEvento === "EMPRESA";
-  const esStaff = !esEmpresa;
+  const esStaff = ["ADMINISTRADOR","TECNICO","TECNICO_EVENTOS"].includes(actual?.rolEvento);
+  const [descargando,setDescargando]=useState(false);
+  const descargarTodas=async()=>{
+    if(descargando)return;
+    setDescargando(true);
+    const destino=FileSystem.cacheDirectory+"galeria-"+Date.now()+".zip";
+    try{
+      const res=await FileSystem.downloadAsync(API_URL+"/galeria/descargar-todas",destino,{headers:{Authorization:"Bearer "+actual.token}});
+      if(res.status!==200)throw new Error("No se pudo descargar la galería. Verifica que las fotos estén disponibles.");
+      if(!await Sharing.isAvailableAsync())throw new Error("Este dispositivo no permite guardar o compartir archivos.");
+      await Sharing.shareAsync(res.uri,{mimeType:"application/zip",dialogTitle:"Guardar todas las fotos",UTI:"public.zip-archive"});
+    }catch(e:any){show({type:"error",title:"Descarga",message:e.message||"No se pudo descargar."});}
+    finally{await FileSystem.deleteAsync(destino,{idempotent:true}).catch(()=>{});setDescargando(false);}
+  };
 
   const grupos = useMemo(() => {
     if (!esStaff) return null;
@@ -208,6 +223,8 @@ export default function TecnicoGaleriaScreen() {
             tintColor={GREEN}
           />
         }
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
         ListHeaderComponent={
           <>
             <Text style={{ fontSize: 22, fontWeight: "800", marginBottom: 4 }}>
@@ -218,6 +235,7 @@ export default function TecnicoGaleriaScreen() {
                 ? "Agrupadas por quién las subió. Toca la estrella de una foto para mostrarla en el landing público."
                 : "Comparte fotografías en el repositorio del evento."}
             </Text>
+            {esStaff&&<TouchableOpacity disabled={descargando||!fotos.length} onPress={descargarTodas} style={{padding:14,borderWidth:1,borderColor:GREEN,borderRadius:12,marginBottom:12,opacity:descargando?.5:1}}><Text style={{color:GREEN,textAlign:"center",fontWeight:"700"}}>{descargando?"Preparando descarga…":"Descargar todas las fotos (ZIP)"}</Text></TouchableOpacity>}
             <TextInput
               value={descripcion}
               onChangeText={setDescripcion}

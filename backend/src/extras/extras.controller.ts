@@ -1,12 +1,14 @@
 import {
-  Controller, Get, Post, Put, Delete, Param, Body, Query, BadRequestException, Req,
+  Controller, Get, Post, Put, Delete, Param, Body, Query, BadRequestException, ForbiddenException, Req, Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { writeFileSync, mkdirSync, existsSync } from 'fs';
-import { join } from 'path';
+import { join, extname } from 'path';
 import { randomBytes, createHmac } from 'crypto';
 import * as nodemailer from 'nodemailer';
 import * as QRCode from 'qrcode';
 import * as bcrypt from 'bcrypt';
+import { ZipArchive } from 'archiver';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 const EVENT_TIME_ZONE = 'America/La_Paz';
@@ -666,8 +668,8 @@ export class ExtrasController {
   }
 
   @Get('galeria')
-  async galeriaPrivada(@Query('limit') limit?: string) {
-    const eventoId = await this.eventoPrincipalId();
+  async galeriaPrivada(@Req() req: any, @Query('limit') limit?: string) {
+    const eventoId = req.user.role === 'FORO' ? req.user.eventoId : await this.eventoPrincipalId();
     const take = Math.min(Number(limit) || 60, 200);
     return this.prisma.fotoevento.findMany({ where: { evento_id: eventoId, estaActivo: 1 }, orderBy: { fechaCreacion: 'desc' }, take });
   }
@@ -722,6 +724,55 @@ export class ExtrasController {
         descripcion: this.texto(body.descripcion, 305, 'Descripción', false),
       },
     });
+  }
+
+  // Solo staff: descarga todas las fotos activas del evento en un .zip.
+  @Get('galeria/descargar-todas')
+  async descargarTodasLasFotos(@Req() req: any, @Res() res: Response) {
+    const staff = ['ADMINISTRADOR', 'TECNICO', 'TECNICO_EVENTOS'].includes(req.user?.role);
+    if (!staff) throw new ForbiddenException('Solo un administrador o técnico puede descargar todas las fotos.');
+
+    const eventoId = await this.eventoPrincipalId();
+    const fotos = await this.prisma.fotoevento.findMany({
+      where: { evento_id: eventoId, estaActivo: 1 },
+      orderBy: { fechaCreacion: 'asc' },
+    });
+    if (!fotos.length) throw new BadRequestException('No hay fotos para descargar.');
+
+    for (const f of fotos) {
+      try {
+        const url = new URL(f.urlFoto);
+        const nombre = decodeURIComponent(url.pathname.slice('/uploads/'.length));
+        if (!url.pathname.startsWith('/uploads/') || !/^[a-zA-Z0-9_.-]+$/.test(nombre) ||
+            !existsSync(join(process.cwd(), 'uploads', nombre))) throw new Error();
+      } catch { throw new BadRequestException('Una foto no está disponible. No se generó una descarga incompleta.'); }
+    }
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', 'attachment; filename="galeria-evento.zip"');
+
+    const archive = new ZipArchive({ zlib: { level: 6 } });
+    archive.on('error', (error) => res.destroy(error));
+    res.on('close', () => { if (!res.writableFinished) archive.abort(); });
+    archive.pipe(res);
+
+    const nombresUsados = new Set<string>();
+    for (const f of fotos) {
+      try {
+        const url = new URL(f.urlFoto);
+        if (!url.pathname.startsWith('/uploads/')) continue;
+        const nombreArchivo = decodeURIComponent(url.pathname.slice('/uploads/'.length));
+        const rutaLocal = join(process.cwd(), 'uploads', nombreArchivo);
+        if (!existsSync(rutaLocal)) continue;
+        const ext = extname(nombreArchivo) || '.jpg';
+        const base = (f.autorNombre || 'foto').replace(/[^\w\- ]/g, '').trim().replace(/\s+/g, '_') || 'foto';
+        let nombreEnZip = `${base}_${f.id}${ext}`;
+        let n = 1;
+        while (nombresUsados.has(nombreEnZip)) nombreEnZip = `${base}_${f.id}_${n++}${ext}`;
+        nombresUsados.add(nombreEnZip);
+        archive.file(rutaLocal, { name: nombreEnZip });
+      } catch { /* se omite esa foto y se sigue con el resto */ }
+    }
+    await archive.finalize();
   }
 
   // Borra el autor su propia foto, o el staff cualquiera (moderación).

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, ActivityIndicator, RefreshControl, Image,
-  TouchableOpacity, Modal, TextInput,
+  TouchableOpacity, Modal, TextInput, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import {
   Calendar, Building2, Video, MapPin, Link2, X, CheckCircle2,
@@ -248,6 +248,7 @@ function LinkModal({ reunion, onClose, onGuardado }: Readonly<{ reunion: any; on
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
       <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
         <View style={{ backgroundColor: '#fff', borderRadius: 20, padding: 22, width: '100%', maxWidth: 380 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
@@ -289,6 +290,7 @@ function LinkModal({ reunion, onClose, onGuardado }: Readonly<{ reunion: any; on
           </View>
         </View>
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

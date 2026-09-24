@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { CalendarClock, CheckCircle2, Copy, Info, Plus, Power, Trash2 } from 'lucide-react-native';
@@ -83,6 +83,7 @@ export default function EmpresaHorariosScreen() {
         <Pressable onPress={() => setMensaje(null)} style={[s.modalButton, mensaje?.tipo === 'error' && { backgroundColor: '#dc2626' }]}><Text style={s.modalButtonText}>Aceptar</Text></Pressable>
       </View></View>
     </Modal>
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
     <ScrollView contentContainerStyle={s.content}>
       <View><Text style={s.title}>Mi agenda disponible</Text><Text style={s.subtitle}>Define cuándo aceptas reuniones durante cada día del evento.</Text></View>
       {!configurado && <View style={s.info}><Info size={16} color="#1d4ed8" /><Text style={s.infoText}>Mientras no cambies nada, se usarán todos los horarios definidos por el administrador.</Text></View>}
@@ -113,6 +114,7 @@ export default function EmpresaHorariosScreen() {
       })}
       <TouchableOpacity onPress={guardar} disabled={guardando} style={[s.save, guardando && { opacity: 0.55 }]}>{guardando ? <ActivityIndicator color="#fff" /> : <><CheckCircle2 size={17} color="#fff" /><Text style={s.saveText}>Guardar mi agenda</Text></>}</TouchableOpacity>
     </ScrollView>
+    </KeyboardAvoidingView>
   </SafeAreaView>;
 }
 

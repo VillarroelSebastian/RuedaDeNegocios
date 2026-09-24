@@ -1,3 +1,4 @@
+import RegistroForoScreen from './RegistroForoScreen';
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
@@ -166,7 +167,7 @@ const inp = { borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, paddingH
 const selBtn = (hasVal: boolean) => ({ ...inp, flexDirection: 'row' as const, justifyContent: 'space-between' as const, alignItems: 'center' as const });
 
 // ─── Main ────────────────────────────────────────────────────────────────────
-export default function RegistroScreen({ navigation }: any) {
+function RegistroEmpresaScreen({ navigation }: any) {
   const [step, setStep] = useState(0);
   const [evento, setEvento] = useState<EventoPublico | null>(null);
   const [paquetes, setPaquetes] = useState<PaqueteRegistro[]>([]);
@@ -863,4 +864,11 @@ export default function RegistroScreen({ navigation }: any) {
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
+}
+
+export default function RegistroScreen({ navigation }: any) {
+  const [tipo,setTipo]=useState('empresa');
+  return <SafeAreaView style={{flex:1,backgroundColor:'#fff'}}><View style={{flexDirection:'row',gap:8,padding:16}}>
+    {['empresa','foro'].map(t=><TouchableOpacity key={t} accessibilityRole="button" accessibilityState={{selected:tipo===t}} onPress={()=>setTipo(t)} style={{flex:1,borderWidth:1,borderColor:'#449D3A',borderRadius:12,padding:12,backgroundColor:tipo===t?'#449D3A':'#fff'}}><Text style={{textAlign:'center',fontWeight:'700',color:tipo===t?'#fff':'#166534'}}>{t==='empresa'?'Empresa':'Foro · Personal'}</Text></TouchableOpacity>)}
+  </View>{tipo==='foro'?<RegistroForoScreen navigation={navigation}/>:<RegistroEmpresaScreen navigation={navigation}/>}</SafeAreaView>;
 }

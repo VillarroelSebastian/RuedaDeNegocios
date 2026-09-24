@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   ActivityIndicator, RefreshControl, StyleSheet, Modal, Image, Linking,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import ImagenLightbox from '../../components/ImagenLightbox';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -715,6 +716,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
 
       {/* Edit profile modal */}
       <Modal visible={editModal} animationType="slide" transparent statusBarTranslucent>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <View style={s.overlay}>
           <View style={s.modalCard}>
             <View style={s.modalHeader}>
@@ -747,10 +749,12 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
             )}
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Ficha comercial modal */}
       <Modal visible={comercialModal} animationType="slide" transparent statusBarTranslucent>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <View style={s.overlay}>
           <View style={s.modalCard}>
             <View style={s.modalHeader}>
@@ -789,10 +793,12 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
             )}
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Add participant modal */}
       <Modal visible={addModal} animationType="slide" transparent statusBarTranslucent>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <View style={s.overlay}>
           <View style={s.modalCard}>
             <View style={s.modalHeader}>
@@ -834,10 +840,12 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
             )}
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Additional payment modal */}
       <Modal visible={pagoModal} animationType="slide" transparent statusBarTranslucent>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <View style={s.overlay}>
           <View style={s.modalCard}>
             <View style={s.modalHeader}>
@@ -895,10 +903,12 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
             )}
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Cambiar contraseña modal */}
       <Modal visible={passModal} animationType="slide" transparent statusBarTranslucent>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <View style={s.overlay}>
           <View style={s.modalCard}>
             <View style={s.modalHeader}>
@@ -962,6 +972,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
             )}
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  TextInput, ActivityIndicator, Linking,
+  TextInput, ActivityIndicator, Linking, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { CheckCircle, AlertCircle, FileText, Download, Eye, Info, XCircle } from 'lucide-react-native';
 import { API_URL } from '../../utils/userStore';
@@ -124,6 +124,7 @@ export default function PagoDetailScreen({ route, navigation }: any) {
     <>
     {modal}
     {verFicha && pago.empresa?.id && <FichaEmpresaModal empresaId={pago.empresa.id} onClose={() => setVerFicha(false)} />}
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
     <ScrollView className="flex-1 bg-[#F9FAFB]">
       <View className="p-4 space-y-4">
         {/* Resumen */}
@@ -251,6 +252,7 @@ export default function PagoDetailScreen({ route, navigation }: any) {
         <View className="h-8" />
       </View>
     </ScrollView>
+    </KeyboardAvoidingView>
     </>
   );
 }

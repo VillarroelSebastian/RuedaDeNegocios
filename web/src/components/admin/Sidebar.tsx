@@ -28,6 +28,7 @@ import {
   LogOut,
   Wifi,
   MessageSquare,
+  Users2,
 } from 'lucide-react';
 
 const menuItems = [
@@ -35,6 +36,7 @@ const menuItems = [
   { name: 'Eventos', icon: CalendarCheck, href: '/admin/eventos' },
   { name: 'Empresas', icon: Building2, href: '/admin/empresas' },
   { name: 'Mensajes', icon: MessageSquare, href: '/admin/mensajes' },
+  { name: 'Equipo del evento', icon: Users2, href: '/admin/equipo' },
   { name: 'Oportunidades', icon: Handshake, href: '/admin/oportunidades' },
   { name: 'Paquetes', icon: Package, href: '/admin/paquetes' },
   { name: 'Auspiciadores', icon: Handshake, href: '/admin/auspiciadores' },

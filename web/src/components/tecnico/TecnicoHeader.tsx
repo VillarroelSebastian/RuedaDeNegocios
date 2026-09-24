@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Bell, Clock, LogOut, Search, User, UserCircle } from 'lucide-react';
+import { Bell, Clock, LogOut, Search, User, UserCircle, MessageSquare } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
@@ -12,6 +13,7 @@ export default function TecnicoHeader() {
   const [showProfile, setShowProfile] = useState(false);
   const [showNotif, setShowNotif] = useState(false);
   const [notificaciones, setNotificaciones] = useState<any[]>([]);
+  const [mensajesNoLeidos, setMensajesNoLeidos] = useState(0);
   const [search, setSearch] = useState('');
   const [resultados, setResultados] = useState<any[]>([]);
   const [showSearch, setShowSearch] = useState(false);
@@ -34,10 +36,18 @@ export default function TecnicoHeader() {
     } catch {}
   };
 
+  const cargarMensajesNoLeidos = async () => {
+    try {
+      const res = await fetch(`${API}/staff/mensajes/no-leidos`);
+      if (res.ok) setMensajesNoLeidos((await res.json()).count || 0);
+    } catch {}
+  };
+
   useEffect(() => {
     void cargarNotificaciones();
-    const intervalo = window.setInterval(cargarNotificaciones, 15_000);
-    const alVolver = () => { if (document.visibilityState === 'visible') void cargarNotificaciones(); };
+    void cargarMensajesNoLeidos();
+    const intervalo = window.setInterval(() => { void cargarNotificaciones(); void cargarMensajesNoLeidos(); }, 15_000);
+    const alVolver = () => { if (document.visibilityState === 'visible') { void cargarNotificaciones(); void cargarMensajesNoLeidos(); } };
     window.addEventListener('focus', cargarNotificaciones);
     document.addEventListener('visibilitychange', alVolver);
     return () => { window.clearInterval(intervalo); window.removeEventListener('focus', cargarNotificaciones); document.removeEventListener('visibilitychange', alVolver); };
@@ -80,6 +90,11 @@ export default function TecnicoHeader() {
           </button>)}
         </div>}
       </div>
+
+      <Link href="/tecnico/mensajes" aria-label="Abrir mensajes" title="Mensajes" className="relative rounded-xl p-2 text-gray-600 hover:bg-gray-50">
+        <MessageSquare className="h-5 w-5" />
+        {mensajesNoLeidos > 0 && <span className="absolute -right-0.5 -top-0.5 block h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white" />}
+      </Link>
 
       <div ref={notifRef} className="relative">
         <button onClick={() => { setShowNotif(!showNotif); setShowProfile(false); if (!showNotif) void cargarNotificaciones(); }} aria-label="Abrir notificaciones" title="Notificaciones" className="relative rounded-xl p-2 text-gray-600 hover:bg-gray-50">

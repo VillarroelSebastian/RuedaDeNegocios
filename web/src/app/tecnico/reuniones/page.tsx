@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useCallback } from 'react';
-import { Building2, Clock, Video, MapPin, CheckCircle, AlertCircle, X, ChevronDown, Star } from 'lucide-react';
+import { Building2, Clock, Video, MapPin, CheckCircle, AlertCircle, X, ChevronDown, Star, Pencil } from 'lucide-react';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
@@ -26,6 +26,14 @@ function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString('es-BO', {
     day: 'numeric', month: 'short', timeZone: 'America/La_Paz',
   });
+}
+// Bolivia es UTC-4 todo el año (sin horario de verano), así que se puede
+// convertir a mano sin depender del huso horario del navegador.
+function toDatetimeLocalBolivia(iso: string) {
+  return new Date(new Date(iso).getTime() - 4 * 3600_000).toISOString().slice(0, 16);
+}
+function fromDatetimeLocalBolivia(value: string) {
+  return new Date(`${value}:00-04:00`).toISOString();
 }
 
 function Modal({ visible, type, title, message, onClose }: any) {
@@ -100,7 +108,7 @@ function getMapsUrl(sol: any): string | null {
   return null;
 }
 
-function ReunionRow({ r, onChange, onFinalizar }: { r: any; onChange: (id: number, estado: string) => void; onFinalizar: (r: any) => void }) {
+function ReunionRow({ r, onChange, onFinalizar, onEditar, onEliminar }: { onEliminar: (r: any) => void; r: any; onChange: (id: number, estado: string) => void; onFinalizar: (r: any) => void; onEditar: (r: any) => void }) {
   const [expanded, setExpanded] = useState(false);
   const sol        = r.solicitudreunion;
   const ea         = sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa;
@@ -145,6 +153,13 @@ function ReunionRow({ r, onChange, onFinalizar }: { r: any; onChange: (id: numbe
         <div className="shrink-0">
           <EstadoDropdown reunion={r} onChange={onChange} />
         </div>
+        {['PROGRAMADA', 'REPROGRAMADA'].includes(r.estadoReunion) && (
+          <button onClick={() => onEditar(r)} title="Editar horario"
+            className="shrink-0 flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-bold text-gray-600 hover:bg-gray-50">
+            <Pencil className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Editar</span>
+          </button>
+        )}
+        {['PROGRAMADA','REPROGRAMADA','CANCELADA'].includes(r.estadoReunion) && <button onClick={()=>onEliminar(r)} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700">Eliminar</button>}
         {r.estadoReunion === 'EN_CURSO' && (
           <button onClick={() => onFinalizar(r)} className="shrink-0 rounded-lg bg-orange-500 px-3 py-2 text-xs font-bold text-white hover:bg-orange-600">
             Finalizar y evaluar
@@ -194,6 +209,9 @@ export default function TecnicoReunionesPage() {
   const [evaluando, setEvaluando] = useState<any>(null);
   const [evaluacion, setEvaluacion] = useState({ calificacionA: 0, rangoA: '', observacionesA: '', calificacionB: 0, rangoB: '', observacionesB: '' });
   const [guardandoEvaluacion, setGuardandoEvaluacion] = useState(false);
+  const [editando, setEditando] = useState<any>(null);
+  const [nuevoHorario, setNuevoHorario] = useState('');
+  const [guardandoEdicion, setGuardandoEdicion] = useState(false);
 
   const fetchReuniones = useCallback(async () => {
     setLoading(true);
@@ -209,6 +227,17 @@ export default function TecnicoReunionesPage() {
   }, [filtroEst, filtroTip]);
 
   useEffect(() => { fetchReuniones(); }, [fetchReuniones]);
+
+  const eliminarReunion = async (r: any) => {
+    if (!window.confirm("¿Eliminar esta reunión? Se liberará la mesa y se avisará a ambas empresas.")) return;
+    try {
+      const res = await fetch(API + "/tecnico/reuniones/" + r.id, {method:"DELETE"});
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "No se pudo eliminar.");
+      setReuniones(prev=>prev.filter(x=>x.id!==r.id));
+      setModal({visible:true,type:"success",title:"Reunión eliminada",message:"La mesa quedó disponible y las empresas fueron notificadas."});
+    } catch(e: any) {setModal({visible:true,type:"error",title:"No se pudo eliminar",message:e.message});}
+  };
 
   const handleCambiarEstado = async (id: number, estado: string) => {
     if (estado === 'FINALIZADA') {
@@ -251,6 +280,29 @@ export default function TecnicoReunionesPage() {
     } finally { setGuardandoEvaluacion(false); }
   };
 
+  const abrirEditar = (r: any) => {
+    setEditando(r);
+    setNuevoHorario(toDatetimeLocalBolivia(r.fechaHoraInicioReunion));
+  };
+
+  const guardarEdicion = async () => {
+    if (!editando || !nuevoHorario) return;
+    setGuardandoEdicion(true);
+    try {
+      const res = await fetch(`${API}/tecnico/reuniones/${editando.id}/reprogramar`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inicio: fromDatetimeLocalBolivia(nuevoHorario) }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || 'No se pudo reprogramar');
+      setEditando(null);
+      setModal({ visible:true, type:'success', title:'Reunión reprogramada', message:'El nuevo horario ya está confirmado y se avisó a ambas empresas.' });
+      fetchReuniones();
+    } catch (error: any) {
+      setModal({ visible:true, type:'error', title:'No se pudo reprogramar', message:error.message });
+    } finally { setGuardandoEdicion(false); }
+  };
+
   const estados = ['TODOS', 'PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO', 'FINALIZADA', 'CANCELADA'];
   const tipos   = ['TODOS', 'PRESENCIAL', 'VIRTUAL', 'MIXTA'];
   const canceladasPorEmpresa = reuniones.filter((r) =>
@@ -282,6 +334,34 @@ export default function TecnicoReunionesPage() {
           </div>
         </div>;
       })()}
+
+      {editando && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6">
+            <div className="mb-4 flex items-start justify-between">
+              <div>
+                <h2 className="text-lg font-extrabold text-gray-900">Editar horario</h2>
+                <p className="text-sm text-gray-500 mt-0.5">Se avisará a ambas empresas del cambio.</p>
+              </div>
+              <button onClick={() => setEditando(null)}><X className="w-5 h-5 text-gray-400" /></button>
+            </div>
+            <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-gray-500">Nueva fecha y hora</label>
+            <input
+              type="datetime-local"
+              value={nuevoHorario}
+              onChange={(e) => setNuevoHorario(e.target.value)}
+              className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A]"
+            />
+            <button
+              disabled={guardandoEdicion || !nuevoHorario}
+              onClick={guardarEdicion}
+              className="mt-5 w-full rounded-xl bg-[#449D3A] py-3 text-sm font-bold text-white disabled:opacity-50"
+            >
+              {guardandoEdicion ? 'Guardando…' : 'Guardar nuevo horario'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Header */}
       <div className="mb-6">
@@ -356,7 +436,7 @@ export default function TecnicoReunionesPage() {
       ) : (
         <div className="space-y-3">
           {reuniones.map((r) => (
-            <ReunionRow key={r.id} r={r} onChange={handleCambiarEstado} onFinalizar={setEvaluando} />
+            <ReunionRow key={r.id} r={r} onChange={handleCambiarEstado} onFinalizar={setEvaluando} onEditar={abrirEditar} onEliminar={eliminarReunion} />
           ))}
         </div>
       )}

@@ -38,6 +38,7 @@ import CredencialesScreen         from '../screens/admin/CredencialesScreen';
 import StaffNotificacionesScreen  from '../screens/shared/StaffNotificacionesScreen';
 import StaffMensajesScreen        from '../screens/shared/StaffMensajesScreen';
 
+import ChatInternoScreen from '../screens/shared/ChatInternoScreen';
 const Tab        = createBottomTabNavigator();
 const AdminStack = createNativeStackNavigator();
 
@@ -70,6 +71,7 @@ function useTabBarStyle() {
 // ─── Pantalla "Más" ───────────────────────────────────────────────────────────
 function MenuScreen({ navigation }: any) {
   const menuItems = [
+    { name: 'Chat del equipo', icon: MessageSquare, screen: 'ChatInterno', desc: 'Admin y técnicos' },
     { name: 'Eventos',          icon: CalendarRange,     screen: 'Eventos',           desc: 'Gestión de eventos',      highlight: true },
     { name: 'Paquetes',         icon: Package,           screen: 'Paquetes',          desc: 'Precios, cupos y beneficios' },
     { name: 'Notificaciones',   icon: Bell,              screen: 'Notificaciones',    desc: 'Pagos y empresas pendientes' },
@@ -243,6 +245,7 @@ export default function AdminNavigator() {
       <AdminStack.Screen name="Eventos"      component={EventConfigScreen}  options={{ title: 'Gestión de Eventos' }} />
       <AdminStack.Screen name="Paquetes"     component={PaquetesScreen}      options={{ title: 'Paquetes' }} />
       <AdminStack.Screen name="Notificaciones" component={StaffNotificacionesScreen} options={{ title: 'Notificaciones' }} />
+      <AdminStack.Screen name="ChatInterno" component={ChatInternoScreen} options={{title:"Chat del equipo"}} />
       <AdminStack.Screen name="Mensajes" component={StaffMensajesScreen} options={{ title: 'Mensajes' }} />
       <AdminStack.Screen name="Actividades"  component={ActividadesScreen}  options={{ title: 'Actividades del Programa' }} />
       <AdminStack.Screen name="Auspiciadores" component={AuspiciadoresScreen} options={{ title: 'Auspiciadores' }} />

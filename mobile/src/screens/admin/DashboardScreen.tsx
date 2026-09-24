@@ -52,9 +52,17 @@ export default function DashboardScreen() {
   const [topEmpresas, setTopEmpresas] = useState<any[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [mensajesNoLeidos, setMensajesNoLeidos] = useState(0);
 
   const user      = userStore.get();
   const firstName = user?.nombres?.split(' ')[0] ?? 'Administrador';
+
+  useEffect(() => {
+    const cargar = () => fetch(`${API_URL}/staff/mensajes/no-leidos`).then((r) => r.json()).then((d) => setMensajesNoLeidos(d.count || 0)).catch(() => {});
+    cargar();
+    const iv = setInterval(cargar, 15000);
+    return () => clearInterval(iv);
+  }, []);
 
   const load = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -100,6 +108,7 @@ export default function DashboardScreen() {
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <TouchableOpacity style={s.headerIconBtn} onPress={() => navigation.navigate('Mensajes')} activeOpacity={0.8} accessibilityLabel="Mensajes">
             <MessageSquare color={GREEN_DARK} size={19} />
+            {mensajesNoLeidos > 0 && <View style={s.headerIconBadge} />}
           </TouchableOpacity>
           <TouchableOpacity style={s.headerAvatar} onPress={() => navigation.navigate('Configuracion')} activeOpacity={0.8}>
             <Text style={s.headerAvatarText}>{firstName[0]}</Text>
@@ -305,7 +314,8 @@ const s = StyleSheet.create({
   },
   headerGreeting:   { fontSize: 18, fontWeight: '800', color: '#0f172a' },
   headerSub:        { fontSize: 12, color: '#94a3b8', marginTop: 2 },
-  headerIconBtn:    { width: 40, height: 40, borderRadius: 20, backgroundColor: '#dcfce7', alignItems: 'center', justifyContent: 'center' },
+  headerIconBtn:    { width: 40, height: 40, borderRadius: 20, backgroundColor: '#dcfce7', alignItems: 'center', justifyContent: 'center', position: 'relative' },
+  headerIconBadge:  { position: 'absolute', top: 6, right: 6, width: 9, height: 9, borderRadius: 5, backgroundColor: '#ef4444', borderWidth: 1.5, borderColor: '#dcfce7' },
   headerAvatar:     { width: 40, height: 40, borderRadius: 20, backgroundColor: GREEN, alignItems: 'center', justifyContent: 'center' },
   headerAvatarText: { color: '#fff', fontWeight: '800', fontSize: 16 },
 

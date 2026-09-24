@@ -9,7 +9,7 @@ const PUBLIC_ROUTES = new Set([
   'GET /public/evento', 'GET /public/verificar-empresa', 'GET /public/credencial',
   'GET /public/credencial-auspiciador', 'GET /public/ciudades', 'POST /public/registro',
   'GET /public/actividades', 'GET /public/paquetes', 'GET /public/galeria',
-  'GET /public/cronograma-vivo', 'GET /evento-principal',
+  'POST /public/registro-foro', 'GET /public/cronograma-vivo', 'GET /evento-principal',
   'GET /public/seguimiento', 'POST /public/seguimiento/comprobante', 'POST /public/imagenes/upload',
 ]);
 
@@ -57,6 +57,16 @@ export class AuthGuard implements CanActivate {
       eventoId = principal?.id ?? null;
     }
     req.user = { sub: dbUser.id, role: dbUser.rolEvento, eventoId, eeIds, euIds } satisfies AuthUser;
+
+    if (dbUser.rolEvento === 'FORO') {
+      const evento = eventoId && await this.prisma.evento.findFirst({ where: { id: eventoId, estaActivo: { not: 0 } }, select: { id: true } });
+      if (!evento) throw new ForbiddenException('Tu inscripción no corresponde a un evento activo.');
+      const permitido = path.startsWith('/foro/') || path.startsWith('/push/') ||
+        (path === '/galeria' && req.method === 'GET');
+      if (!permitido) throw new ForbiddenException('La inscripción al foro no incluye funciones de negocios.');
+    }
+    if (path.startsWith('/foro/') && dbUser.rolEvento !== 'FORO')
+      throw new ForbiddenException('Se requiere una cuenta de foro.');
 
     if (path.startsWith('/admin/') && dbUser.rolEvento !== 'ADMINISTRADOR') {
       const tecnicoPuedeGestionarContenido = ['/admin/noticias', '/admin/actividades', '/admin/eventos', '/admin/imagenes', '/admin/perfil']

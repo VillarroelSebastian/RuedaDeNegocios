@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller.js';
+import { ForoController } from './foro/foro.controller.js';
+import { PushModule } from './push/push.module.js';
 import { AppService } from './app.service.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { ImagenesModule } from './imagenes/imagenes.module.js';
@@ -18,10 +20,11 @@ import { AuditInterceptor } from './auth/audit.interceptor.js';
     ConfigModule.forRoot({ isGlobal: true }),
     JwtModule.register({ global: true, secret: process.env.JWT_SECRET || 'development-only-change-me', signOptions: { expiresIn: '8h' } }),
     PrismaModule,
+    PushModule,
     ImagenesModule,
     ExtrasModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController, ForoController],
   providers: [AppService, NotificacionesGateway,
     { provide: APP_GUARD, useClass: RateLimitGuard },
     { provide: APP_GUARD, useClass: AuthGuard },

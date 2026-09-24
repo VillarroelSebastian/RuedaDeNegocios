@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, TextInput,
   ActivityIndicator, RefreshControl, StyleSheet, Modal, ScrollView,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -195,6 +196,7 @@ export default function EmpresaResultadosScreen({ route }: any) {
 
       {/* Evaluation modal */}
       <Modal visible={modalVisible} animationType="slide" transparent statusBarTranslucent>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <View style={s.overlay}>
           <View style={s.modalCard}>
             <View style={s.modalHeader}>
@@ -287,6 +289,7 @@ export default function EmpresaResultadosScreen({ route }: any) {
             </ScrollView>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );

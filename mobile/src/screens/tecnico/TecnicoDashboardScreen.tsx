@@ -179,6 +179,14 @@ export default function TecnicoDashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [modal,      setModal]      = useState<{ visible:boolean; type:string; title:string; message:string }>
     ({ visible:false, type:'info', title:'', message:'' });
+  const [mensajesNoLeidos, setMensajesNoLeidos] = useState(0);
+
+  useEffect(() => {
+    const cargar = () => fetch(`${API_URL}/staff/mensajes/no-leidos`).then((r) => r.json()).then((d) => setMensajesNoLeidos(d.count || 0)).catch(() => {});
+    cargar();
+    const iv = setInterval(cargar, 15000);
+    return () => clearInterval(iv);
+  }, []);
 
   const fetchData = useCallback(async () => {
     try {
@@ -234,8 +242,9 @@ export default function TecnicoDashboardScreen() {
           <Text style={{ fontSize:16, fontWeight:'800', color:'#0f172a' }}>Panel Técnico</Text>
           <Text style={{ fontSize:12, color:'#94a3b8' }}>{user?.nombres} {user?.apellidoPaterno}</Text>
         </View>
-        <TouchableOpacity onPress={() => navigation.navigate('TecnicoMensajes')} style={{ width:38, height:38, borderRadius:19, backgroundColor:'#dcfce7', alignItems:'center', justifyContent:'center' }} accessibilityLabel="Mensajes">
+        <TouchableOpacity onPress={() => navigation.navigate('TecnicoMensajes')} style={{ width:38, height:38, borderRadius:19, backgroundColor:'#dcfce7', alignItems:'center', justifyContent:'center', position:'relative' }} accessibilityLabel="Mensajes">
           <MessageSquare color="#166534" size={18} />
+          {mensajesNoLeidos > 0 && <View style={{ position:'absolute', top:5, right:5, width:9, height:9, borderRadius:5, backgroundColor:'#ef4444', borderWidth:1.5, borderColor:'#dcfce7' }} />}
         </TouchableOpacity>
         {evento && (
           <View style={{ backgroundColor:'#dcfce7', paddingHorizontal:10, paddingVertical:4, borderRadius:999 }}>
@@ -311,6 +320,7 @@ export default function TecnicoDashboardScreen() {
             <View style={{flex:1}}><Text style={{fontSize:15,fontWeight:'800',color:'#fff'}}>Monitorear eventos en vivo</Text><Text style={{fontSize:11,color:'rgba(255,255,255,0.75)',marginTop:1}}>Estados, transmisión y anuncios</Text></View><ChevronRight color="#fff" size={20}/>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => navigation.navigate('TecnicoGaleria')} activeOpacity={0.85} style={{ flexDirection:'row', alignItems:'center', gap:12, backgroundColor:'#2563eb', borderRadius:16, padding:16, marginBottom:20 }}><View style={{width:40,height:40,borderRadius:12,backgroundColor:'rgba(255,255,255,.15)',alignItems:'center',justifyContent:'center'}}><Images color="#fff" size={20}/></View><View style={{flex:1}}><Text style={{fontSize:15,fontWeight:'800',color:'#fff'}}>Fotos del evento</Text><Text style={{fontSize:11,color:'rgba(255,255,255,.75)'}}>Cámara o galería</Text></View><ChevronRight color="#fff" size={20}/></TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('ChatInterno')} style={{padding:16,backgroundColor:'#e0e7ff',borderRadius:16,marginBottom:12}}><Text style={{fontWeight:'800',color:'#3730a3'}}>Chat del equipo · Admin y técnicos</Text></TouchableOpacity>
           <TouchableOpacity onPress={() => navigation.navigate('TecnicoMensajes')} activeOpacity={0.85} style={{ flexDirection:'row', alignItems:'center', gap:12, backgroundColor:'#4f46e5', borderRadius:16, padding:16, marginBottom:20 }}><View style={{width:40,height:40,borderRadius:12,backgroundColor:'rgba(255,255,255,.15)',alignItems:'center',justifyContent:'center'}}><MessageSquare color="#fff" size={20}/></View><View style={{flex:1}}><Text style={{fontSize:15,fontWeight:'800',color:'#fff'}}>Mensajes</Text><Text style={{fontSize:11,color:'rgba(255,255,255,.75)'}}>Escribir a una empresa</Text></View><ChevronRight color="#fff" size={20}/></TouchableOpacity>
 
           {/* Próximas reuniones */}

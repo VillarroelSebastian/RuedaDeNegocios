@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Bell, ChevronDown, User, LogOut, Settings, X } from 'lucide-react';
+import { Search, Bell, ChevronDown, User, LogOut, Settings, X, MessageSquare } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -24,6 +24,7 @@ export default function Header() {
   const [showSearch, setShowSearch] = useState(false);
   const [notificaciones, setNotificaciones] = useState<Notificacion[]>([]);
   const [totalNoLeidas, setTotalNoLeidas] = useState(0);
+  const [mensajesNoLeidos, setMensajesNoLeidos] = useState(0);
   const [showNotif, setShowNotif] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -44,8 +45,9 @@ export default function Header() {
 
   useEffect(() => {
     fetchNotificaciones();
-    const interval = setInterval(fetchNotificaciones, 10_000);
-    const alVolver = () => { if (document.visibilityState === 'visible') fetchNotificaciones(); };
+    fetchMensajesNoLeidos();
+    const interval = setInterval(() => { fetchNotificaciones(); fetchMensajesNoLeidos(); }, 10_000);
+    const alVolver = () => { if (document.visibilityState === 'visible') { fetchNotificaciones(); fetchMensajesNoLeidos(); } };
     window.addEventListener('focus', fetchNotificaciones);
     document.addEventListener('visibilitychange', alVolver);
     return () => {
@@ -61,6 +63,14 @@ export default function Header() {
       const data = await res.json();
       setNotificaciones(data.notificaciones || []);
       setTotalNoLeidas(data.totalNoLeidas || 0);
+    } catch {}
+  };
+
+  const fetchMensajesNoLeidos = async () => {
+    try {
+      const res = await fetch(`${API}/staff/mensajes/no-leidos`);
+      const data = await res.json();
+      setMensajesNoLeidos(data.count || 0);
     } catch {}
   };
 
@@ -139,6 +149,19 @@ export default function Header() {
             </div>
           )}
         </div>
+
+        {/* Mensajes */}
+        <Link
+          href="/admin/mensajes"
+          aria-label="Abrir mensajes"
+          title="Mensajes"
+          className="relative p-2 text-gray-500 hover:text-gray-700 transition-colors rounded-lg hover:bg-gray-50"
+        >
+          <MessageSquare className="h-5 w-5" />
+          {mensajesNoLeidos > 0 && (
+            <span className="absolute top-1.5 right-1.5 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" />
+          )}
+        </Link>
 
         {/* Notifications */}
         <div ref={notifRef} className="relative">

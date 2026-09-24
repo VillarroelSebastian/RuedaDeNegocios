@@ -138,11 +138,13 @@ export default function StaffMensajesScreen() {
               <Text style={s.chatEmpty}>Escribe el primer mensaje para {activa.nombre}.</Text>
             }
             renderItem={({ item }: any) => (
-              <View style={[s.burbujaWrap, { alignItems: 'flex-end' }]}>
-                <View style={[s.burbuja, s.burbujaMia]}>
-                  {!!item.autor && <Text style={s.burbujaAutor}>{item.autor}</Text>}
-                  <Text style={[s.burbujaTexto, { color: '#fff' }]}>{item.contenido}</Text>
-                  <Text style={[s.burbujaHora, { color: 'rgba(255,255,255,0.6)' }]}>{fmtHora(item.fecha)}</Text>
+              <View style={[s.burbujaWrap, item.esMio ? { alignItems: 'flex-end' } : { alignItems: 'flex-start' }]}>
+                <View style={[s.burbuja, item.esMio ? s.burbujaMia : s.burbujaOtra]}>
+                  {!!item.autor && (
+                    <Text style={item.esMio ? s.burbujaAutor : s.burbujaAutorOtra}>{item.autor}</Text>
+                  )}
+                  <Text style={[s.burbujaTexto, item.esMio && { color: '#fff' }]}>{item.contenido}</Text>
+                  <Text style={[s.burbujaHora, item.esMio && { color: 'rgba(255,255,255,0.6)' }]}>{fmtHora(item.fecha)}</Text>
                 </View>
               </View>
             )}
@@ -205,13 +207,18 @@ export default function StaffMensajesScreen() {
           >
             <View style={s.convAvatar}>
               <Text style={s.convAvatarText}>{(item.nombre ?? 'E')[0].toUpperCase()}</Text>
+              {item.noLeidos > 0 && (
+                <View style={s.badge}><Text style={s.badgeText}>{item.noLeidos > 9 ? '9+' : String(item.noLeidos)}</Text></View>
+              )}
             </View>
             <View style={{ flex: 1, minWidth: 0 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Text style={s.convNombre} numberOfLines={1}>{item.nombre}</Text>
+                <Text style={[s.convNombre, item.noLeidos > 0 && { fontWeight: '800' }]} numberOfLines={1}>{item.nombre}</Text>
                 <Text style={s.convFecha}>{fmtFechaCorta(item.fecha)}</Text>
               </View>
-              <Text style={s.convUltimo} numberOfLines={1}>{item.ultimoMensaje}</Text>
+              <Text style={[s.convUltimo, item.noLeidos > 0 && { color: '#374151', fontWeight: '600' }]} numberOfLines={1}>
+                {item.esMio ? 'Tú: ' : ''}{item.ultimoMensaje}
+              </Text>
             </View>
           </TouchableOpacity>
         )}
@@ -294,6 +301,12 @@ const s = StyleSheet.create({
     backgroundColor: '#f0fdf4', alignItems: 'center', justifyContent: 'center',
   },
   convAvatarText: { fontSize: 18, fontWeight: '800', color: GREEN },
+  badge: {
+    position: 'absolute', top: -4, right: -4,
+    minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4,
+    backgroundColor: '#ef4444', alignItems: 'center', justifyContent: 'center',
+  },
+  badgeText: { color: '#fff', fontSize: 10, fontWeight: '800' },
   convNombre: { fontSize: 14, fontWeight: '700', color: '#0f172a', flex: 1, marginRight: 8 },
   convFecha:  { fontSize: 10, color: '#94a3b8' },
   convUltimo: { fontSize: 12, color: '#94a3b8', marginTop: 2 },
@@ -314,7 +327,9 @@ const s = StyleSheet.create({
   burbujaWrap: { width: '100%' },
   burbuja: { maxWidth: '78%', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8 },
   burbujaMia:  { backgroundColor: GREEN, borderTopRightRadius: 4 },
+  burbujaOtra: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#e2e8f0', borderTopLeftRadius: 4 },
   burbujaAutor: { fontSize: 10, fontWeight: '800', color: 'rgba(255,255,255,0.85)', marginBottom: 2 },
+  burbujaAutorOtra: { fontSize: 10, fontWeight: '800', color: GREEN, marginBottom: 2 },
   burbujaTexto: { fontSize: 14, color: '#0f172a', lineHeight: 20 },
   burbujaHora:  { fontSize: 9, color: '#94a3b8', marginTop: 3, textAlign: 'right' },
 

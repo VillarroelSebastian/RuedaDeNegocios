@@ -2,12 +2,13 @@ import {
   WebSocketGateway, WebSocketServer, SubscribeMessage, MessageBody, ConnectedSocket,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
+import { PushService } from '../push/push.service.js';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 @WebSocketGateway({ cors: { origin: '*' }, namespace: '/notificaciones' })
 export class NotificacionesGateway {
-  constructor(private readonly jwt: JwtService, private readonly prisma: PrismaService) {}
+  constructor(private readonly jwt: JwtService, private readonly prisma: PrismaService, private readonly push: PushService) {}
   @WebSocketServer()
   server: Server;
 
@@ -41,14 +42,17 @@ export class NotificacionesGateway {
 
   // Emit helpers — called from the controller after DB mutations
   emitirParaEe(eeId: number, evento: string, payload: object) {
-    this.server.to(`ee-${eeId}`).emit(evento, payload);
+    this.server?.to(`ee-${eeId}`).emit(evento, payload);
+    void this.push.enviar(eeId, evento, payload);
   }
 
   emitirParaStaff(evento: string, payload: object) {
-    this.server.to('staff').emit(evento, payload);
+    this.server?.to('staff').emit(evento, payload);
+    void this.push.enviar('staff', evento, payload);
   }
 
   emitirGlobal(evento: string, payload: object) {
-    this.server.emit(evento, payload);
+    this.server?.emit(evento, payload);
+    void this.push.enviar('global', evento, payload);
   }
 }

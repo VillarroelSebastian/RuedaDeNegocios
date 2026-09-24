@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   ActivityIndicator, RefreshControl, Linking, StyleSheet, Modal,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -296,6 +297,7 @@ export default function PagosAdicionalesScreen() {
 
       {/* Modal de gestión */}
       <Modal visible={!!selected} animationType="slide" transparent statusBarTranslucent>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <View style={s.overlay}>
           <View style={s.modalCard}>
             <View style={s.modalHeader}>
@@ -394,6 +396,7 @@ export default function PagosAdicionalesScreen() {
             )}
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );

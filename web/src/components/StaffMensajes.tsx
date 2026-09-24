@@ -211,15 +211,22 @@ export default function StaffMensajes({ storageKey }: { storageKey: "adminUser" 
                     activa?.eeId === c.eeId ? "bg-green-50" : "hover:bg-gray-50"
                   }`}
                 >
-                  <div className="w-11 h-11 rounded-xl bg-green-50 flex items-center justify-center shrink-0 font-bold text-[#449D3A]">
+                  <div className="w-11 h-11 rounded-xl bg-green-50 flex items-center justify-center shrink-0 font-bold text-[#449D3A] relative">
                     {(c.nombre ?? "E")[0].toUpperCase()}
+                    {c.noLeidos > 0 && (
+                      <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                        {c.noLeidos > 9 ? "9+" : c.noLeidos}
+                      </span>
+                    )}
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-bold text-gray-800 truncate">{c.nombre}</p>
+                      <p className={`text-sm truncate ${c.noLeidos > 0 ? "font-extrabold text-gray-900" : "font-bold text-gray-800"}`}>{c.nombre}</p>
                       <span className="text-[10px] text-gray-400 shrink-0">{fmtFechaCorta(c.fecha)}</span>
                     </div>
-                    <p className="text-xs truncate mt-0.5 text-gray-400">{c.ultimoMensaje}</p>
+                    <p className={`text-xs truncate mt-0.5 ${c.noLeidos > 0 ? "text-gray-700 font-semibold" : "text-gray-400"}`}>
+                      {c.esMio ? "Tú: " : ""}{c.ultimoMensaje}
+                    </p>
                   </div>
                 </button>
               ))
@@ -252,11 +259,15 @@ export default function StaffMensajes({ storageKey }: { storageKey: "adminUser" 
                   </p>
                 )}
                 {mensajes.map((m) => (
-                  <div key={m.id} className="flex justify-end">
-                    <div className="max-w-[75%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed bg-[#449D3A] text-white rounded-tr-sm">
-                      {!!m.autor && <p className="text-[10px] font-bold text-white/80 mb-0.5">{m.autor}</p>}
+                  <div key={m.id} className={`flex ${m.esMio ? "justify-end" : "justify-start"}`}>
+                    <div className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${
+                      m.esMio ? "bg-[#449D3A] text-white rounded-tr-sm" : "bg-white border border-gray-100 text-gray-800 rounded-tl-sm"
+                    }`}>
+                      {!!m.autor && (
+                        <p className={`text-[10px] font-bold mb-0.5 ${m.esMio ? "text-white/80" : "text-[#449D3A]"}`}>{m.autor}</p>
+                      )}
                       <p className="whitespace-pre-line break-words">{m.contenido}</p>
-                      <p className="text-[9px] mt-1 text-right text-white/60">{fmtHora(m.fecha)}</p>
+                      <p className={`text-[9px] mt-1 text-right ${m.esMio ? "text-white/60" : "text-gray-400"}`}>{fmtHora(m.fecha)}</p>
                     </div>
                   </div>
                 ))}

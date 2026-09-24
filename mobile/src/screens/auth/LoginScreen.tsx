@@ -120,6 +120,8 @@ export default function LoginScreen({ navigation }: any) {
         navigation.replace('AdminRoot');
       } else if (['TECNICO', 'TECNICO_EVENTOS'].includes(data.rolEvento)) {
         navigation.replace('TecnicoRoot');
+      } else if (data.rolEvento === 'FORO') {
+        navigation.replace('ForoRoot');
       } else if (data.rolEvento === 'EMPRESA') {
         navigation.replace('EmpresaRoot');
       } else {

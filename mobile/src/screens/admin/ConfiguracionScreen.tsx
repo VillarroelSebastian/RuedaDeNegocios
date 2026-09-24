@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  Image, ActivityIndicator
+  Image, ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { User, Camera, Save, LogOut, Lock, Eye, EyeOff } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
@@ -111,6 +111,7 @@ export default function ConfiguracionScreen({ navigation }: any) {
   return (
     <>
     {modal}
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
     <ScrollView className="flex-1 bg-[#F9FAFB]">
       <View className="p-4 space-y-4">
         {/* Perfil header */}
@@ -238,6 +239,7 @@ export default function ConfiguracionScreen({ navigation }: any) {
         <View className="h-8" />
       </View>
     </ScrollView>
+    </KeyboardAvoidingView>
     </>
   );
 }

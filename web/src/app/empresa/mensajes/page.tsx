@@ -26,10 +26,12 @@ function NuevaConversacionModal({ eeId, onClose, onElegir }: {
   eeId: number; onClose: () => void; onElegir: (ee: { eeId: number; nombre: string }) => void;
 }) {
   const [empresas, setEmpresas] = useState<any[]>([]);
+  const [equipo,setEquipo]=useState<any[]>([]);
   const [busqueda, setBusqueda] = useState("");
   const [cargando, setCargando] = useState(true);
 
   useEffect(() => {
+    fetch(`${API}/empresa/equipo`).then(r=>r.ok?r.json():[]).then(setEquipo).catch(()=>{});
     fetch(`${API}/empresa/directorio?eeId=${eeId}`)
       .then((r) => r.json())
       .then((d) => setEmpresas(Array.isArray(d) ? d : []))
@@ -40,6 +42,7 @@ function NuevaConversacionModal({ eeId, onClose, onElegir }: {
   const filtradas = empresas.filter((e) =>
     [e.nombre, e.rubro, e.codigo].some((v) => v && String(v).toLowerCase().includes(busqueda.toLowerCase()))
   );
+  const mostrarStaff = !busqueda.trim() || "equipo del evento organización".includes(busqueda.toLowerCase());
 
   return (
     <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4" onClick={onClose}>
@@ -57,18 +60,33 @@ function NuevaConversacionModal({ eeId, onClose, onElegir }: {
               autoFocus
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Buscar empresa..."
+              placeholder="Buscar empresa o técnico..."
               className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A]"
             />
           </div>
         </div>
         <div className="flex-1 overflow-y-auto p-2">
+          {equipo.filter(u=>(u.nombres+" "+u.apellidoPaterno+" "+u.rolEvento).toLowerCase().includes(busqueda.toLowerCase())).map(u=><button key={u.id} onClick={()=>onElegir({eeId:0,nombre:"Equipo del evento"})} className="w-full rounded-xl p-3 text-left hover:bg-indigo-50"><p className="font-bold">{u.nombres} {u.apellidoPaterno}</p><p className="text-xs text-gray-500">{u.rolEvento === "ADMINISTRADOR" ? "Administrador" : "Técnico"} · Canal compartido del equipo</p></button>)}
+          {mostrarStaff && (
+            <button
+              onClick={() => onElegir({ eeId: 0, nombre: "Equipo del evento" })}
+              className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-indigo-50 transition-colors text-left mb-1"
+            >
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center shrink-0 font-bold text-indigo-600">
+                <MessageSquare className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-gray-900 truncate">Equipo del evento</p>
+                <p className="text-xs text-gray-400 truncate">Escríbele directamente a admin/técnicos</p>
+              </div>
+            </button>
+          )}
           {cargando ? (
             <div className="flex justify-center py-8">
               <div className="w-6 h-6 border-4 border-[#449D3A] border-t-transparent rounded-full animate-spin" />
             </div>
           ) : filtradas.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-8">Sin resultados.</p>
+            !mostrarStaff && <p className="text-sm text-gray-400 text-center py-8">Sin resultados.</p>
           ) : (
             filtradas.map((e) => (
               <button
@@ -208,7 +226,7 @@ function MensajesContent() {
   );
 
   const esEncargado = !!ctx?.esResponsable;
-  const activaEsStaff = activa?.eeId === 0; // conversación con el equipo del evento (solo lectura)
+  const activaEsStaff = activa?.eeId === 0; // conversación con el equipo del evento
 
   return (
     <div className="p-4 sm:p-6 h-[calc(100vh-4rem)] flex flex-col">
@@ -224,7 +242,7 @@ function MensajesContent() {
         <div>
           <h1 className="text-2xl font-extrabold text-gray-900">Mensajes</h1>
           <p className="text-sm text-gray-400 mt-0.5">
-            {esEncargado ? "Conversa directamente con otras empresas del evento" : "Conversaciones de tu empresa (solo el encargado puede escribir)"}
+            {esEncargado ? "Conversa directamente con otras empresas y con el equipo del evento" : "Conversaciones de tu empresa (solo el encargado puede escribir)"}
           </p>
         </div>
         {esEncargado && (
@@ -330,12 +348,8 @@ function MensajesContent() {
                 <div ref={bottomRef} />
               </div>
 
-              {/* Input — solo el encargado puede escribir; la conversación con la organización es de solo lectura */}
-              {activaEsStaff ? (
-                <div className="px-4 py-3 border-t border-gray-100 shrink-0 text-center text-xs text-gray-400 bg-gray-50/50">
-                  Mensajes del equipo del evento — no puedes responder por aquí.
-                </div>
-              ) : !esEncargado ? (
+              {/* Input — solo el encargado puede escribir */}
+              {!esEncargado ? (
                 <div className="px-4 py-3 border-t border-gray-100 shrink-0 text-center text-xs text-gray-400 bg-gray-50/50">
                   Solo el encargado de la empresa puede enviar mensajes.
                 </div>
