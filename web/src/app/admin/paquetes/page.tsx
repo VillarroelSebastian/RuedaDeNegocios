@@ -55,6 +55,7 @@ export default function PaquetesPage() {
   const [lista, setLista] = useState<Paquete[]>([]);
   const [loading, setLoading] = useState(true);
   const [abierto, setAbierto] = useState(false);
+  const [paso, setPaso] = useState<"elegir" | "form">("elegir");
   const [editandoId, setEditandoId] = useState<number | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [subiendo, setSubiendo] = useState(false);
@@ -96,11 +97,25 @@ export default function PaquetesPage() {
   const abrirNuevo = () => {
     setEditandoId(null);
     setForm({ ...formVacio, orden: String(lista.length + 1) });
+    setPaso("elegir");
     setAbierto(true);
+  };
+
+  const elegirTipo = (t: "EMPRESA" | "FORO") => {
+    setForm((f) => ({
+      ...f, tipoPaquete: t,
+      ...(t === "FORO" ? {
+        credencialesIncluidas: "1", maxParticipantes: "1",
+        tipoParticipacion: "PRESENCIAL", nivelMesa: "NORMAL",
+        apareceEnCatalogo: false, destacadoEnListados: false, logoEnWeb: false,
+      } : {}),
+    }));
+    setPaso("form");
   };
 
   const abrirEdicion = (p: Paquete) => {
     setEditandoId(p.id);
+    setPaso("form");
     setForm({
       nombre: p.nombre,
       objetivo: p.objetivo ?? "",
@@ -300,43 +315,61 @@ export default function PaquetesPage() {
         </div>
       )}
 
-      {abierto && (
+      {abierto && paso === "elegir" && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-start sm:items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg my-4">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="font-extrabold text-gray-900">Nuevo paquete</h2>
+              <button onClick={() => setAbierto(false)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6">
+              <p className="text-sm text-gray-500 mb-5">¿Para qué tipo de inscripción es este paquete?</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <button onClick={() => elegirTipo("EMPRESA")}
+                  className="text-left bg-white border-2 border-gray-100 hover:border-[#449D3A] rounded-2xl p-5 transition-colors group">
+                  <div className="w-11 h-11 bg-green-50 rounded-xl flex items-center justify-center mb-3 group-hover:bg-green-100">
+                    <Building2 className="w-5 h-5 text-[#449D3A]" />
+                  </div>
+                  <h3 className="font-extrabold text-gray-900 mb-1">Empresa</h3>
+                  <p className="text-xs text-gray-500">Mesas de negocios, matchmaking y participantes.</p>
+                </button>
+                <button onClick={() => elegirTipo("FORO")}
+                  className="text-left bg-white border-2 border-gray-100 hover:border-[#449D3A] rounded-2xl p-5 transition-colors group">
+                  <div className="w-11 h-11 bg-green-50 rounded-xl flex items-center justify-center mb-3 group-hover:bg-green-100">
+                    <Users className="w-5 h-5 text-[#449D3A]" />
+                  </div>
+                  <h3 className="font-extrabold text-gray-900 mb-1">Foro · Personal</h3>
+                  <p className="text-xs text-gray-500">Inscripción individual: sin empresa ni mesas; credencial única.</p>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {abierto && paso === "form" && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-start sm:items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl my-4">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h2 className="font-extrabold text-gray-900">{editandoId ? "Editar paquete" : "Nuevo paquete"}</h2>
+              <div>
+                <h2 className="font-extrabold text-gray-900">{editandoId ? "Editar paquete" : "Nuevo paquete"}</h2>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {form.tipoPaquete === "FORO" ? "Foro · Personal" : "Empresa"}
+                  {!editandoId && (
+                    <button type="button" onClick={() => setPaso("elegir")} className="ml-2 font-semibold text-[#449D3A] hover:underline">
+                      Cambiar tipo
+                    </button>
+                  )}
+                </p>
+              </div>
               <button onClick={() => setAbierto(false)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1.5">Tipo de paquete</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {(["EMPRESA", "FORO"] as const).map((t) => (
-                    <button key={t} type="button" onClick={() => setForm({
-                        ...form, tipoPaquete: t,
-                        ...(t === "FORO" ? {
-                          credencialesIncluidas: "1", maxParticipantes: "1",
-                          tipoParticipacion: "PRESENCIAL", nivelMesa: "NORMAL",
-                          apareceEnCatalogo: false, destacadoEnListados: false, logoEnWeb: false,
-                        } : {}),
-                      })}
-                      className={`px-4 py-2.5 rounded-xl text-sm font-semibold border transition-colors ${
-                        form.tipoPaquete === t
-                          ? "bg-[#449D3A] text-white border-[#449D3A]"
-                          : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
-                      }`}>
-                      {t === "EMPRESA" ? "Empresa" : "Foro · Personal"}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-xs text-gray-400 mt-1.5">
-                  Foro es una inscripción individual (sin empresa ni mesas de negocios); credencial única.
-                </p>
-              </div>
-
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-gray-700 mb-1.5">
