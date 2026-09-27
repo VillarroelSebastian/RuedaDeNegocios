@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { StatusBar } from 'expo-status-bar';
 import { TouchableOpacity, View, Text, StyleSheet, ScrollView } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator }   from '@react-navigation/bottom-tabs';
@@ -151,7 +152,7 @@ function MessagesButton({ eeId }: { eeId: number | null }) {
 }
 
 const bell = StyleSheet.create({
-  btn:      { marginRight: 8, padding: 6 },
+  btn:      { marginRight: 6, padding: 6 },
   badge:    {
     position: 'absolute', top: 0, right: 0,
     minWidth: 16, height: 16, borderRadius: 8,
@@ -372,11 +373,12 @@ export default function EmpresaNavigator() {
   return (
     <>
       <AsistenteChatModal visible={chatOpen} onClose={() => setChatOpen(false)} />
+      <StatusBar style="dark" backgroundColor="#ffffff" />
       <Stack.Navigator
         screenOptions={{
           headerStyle:      { backgroundColor: '#ffffff' },
           headerTintColor:  '#0f172a',
-          headerTitleStyle: { fontWeight: 'bold' as const, fontSize: 16 },
+          headerTitleStyle: { fontWeight: 'bold' as const, fontSize: 15 },
           headerShadowVisible: false,
           headerBackTitle:  'Volver',
         }}
@@ -388,7 +390,7 @@ export default function EmpresaNavigator() {
             headerShown: true,
             headerTitle: 'Rueda de Negocios',
             headerRight: () => (
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', paddingRight: 4 }}>
                 <BellButton />
                 {!esForo && <MessagesButton eeId={eeId} />}
                 {esEncargado && !esForo && <AsistenteChatButton onOpen={() => setChatOpen(true)} />}

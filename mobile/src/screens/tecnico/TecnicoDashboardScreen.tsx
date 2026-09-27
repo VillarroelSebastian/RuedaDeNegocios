@@ -8,7 +8,7 @@ import { useNavigation } from '@react-navigation/native';
 import {
   LayoutDashboard, Video, Armchair, CalendarCheck, Building2,
   Clock, Calendar, ChevronRight, X, CheckCircle, AlertCircle, MapPin, CalendarPlus, QrCode, Radio, Images,
-  MessageSquare, Bell,
+  MessageSquare, Bell, Users,
 } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
 
@@ -239,18 +239,18 @@ export default function TecnicoDashboardScreen() {
 
       {/* Header */}
       <View style={{ backgroundColor:'#fff', paddingHorizontal:20, paddingVertical:16,
-        borderBottomWidth:1, borderBottomColor:'#f1f5f9', flexDirection:'row', alignItems:'center', gap:12 }}>
+        borderBottomWidth:1, borderBottomColor:'#f1f5f9', flexDirection:'row', alignItems:'center', gap:8 }}>
         <TouchableOpacity onPress={() => navigation.navigate('TecnicoPerfil')} style={{ width:40, height:40, borderRadius:20, backgroundColor:GREEN, alignItems:'center', justifyContent:'center' }}>
           {user?.urlFotoPerfil
             ? <Image source={{ uri: user.urlFotoPerfil }} style={{ width:40, height:40, borderRadius:20 }} />
             : <Text style={{ color:'#fff', fontWeight:'800', fontSize:16 }}>{user?.nombres?.[0] ?? 'T'}</Text>
           }
         </TouchableOpacity>
-        <View style={{ flex:1 }}>
-          <Text style={{ fontSize:16, fontWeight:'800', color:'#0f172a' }}>Panel Técnico</Text>
-          <Text style={{ fontSize:12, color:'#94a3b8' }}>{user?.nombres} {user?.apellidoPaterno}</Text>
+        <View style={{ flex:1, minWidth:0 }}>
+          <Text numberOfLines={1} style={{ fontSize:16, fontWeight:'800', color:'#0f172a' }}>Panel Técnico</Text>
+          <Text numberOfLines={1} style={{ fontSize:12, color:'#94a3b8' }}>{user?.nombres} {user?.apellidoPaterno}</Text>
         </View>
-        <TouchableOpacity onPress={() => navigation.navigate('TecnicoContenido')} style={{ width:38, height:38, borderRadius:19, backgroundColor:'#dcfce7', alignItems:'center', justifyContent:'center', position:'relative', marginRight:8 }} accessibilityLabel="Notificaciones">
+        <TouchableOpacity onPress={() => navigation.navigate('TecnicoContenido')} style={{ width:38, height:38, borderRadius:19, backgroundColor:'#dcfce7', alignItems:'center', justifyContent:'center', position:'relative' }} accessibilityLabel="Notificaciones">
           <Bell color="#166534" size={18} />
           {notifNoLeidas > 0 && <View style={{ position:'absolute', top:5, right:5, width:9, height:9, borderRadius:5, backgroundColor:'#ef4444', borderWidth:1.5, borderColor:'#dcfce7' }} />}
         </TouchableOpacity>
@@ -259,8 +259,8 @@ export default function TecnicoDashboardScreen() {
           {mensajesNoLeidos > 0 && <View style={{ position:'absolute', top:5, right:5, width:9, height:9, borderRadius:5, backgroundColor:'#ef4444', borderWidth:1.5, borderColor:'#dcfce7' }} />}
         </TouchableOpacity>
         {evento && (
-          <View style={{ backgroundColor:'#dcfce7', paddingHorizontal:10, paddingVertical:4, borderRadius:999 }}>
-            <Text style={{ fontSize:10, fontWeight:'700', color:'#166534' }}>{evento.nombre}</Text>
+          <View style={{ backgroundColor:'#dcfce7', paddingHorizontal:10, paddingVertical:4, borderRadius:999, flexShrink:1, maxWidth:'30%' }}>
+            <Text numberOfLines={1} style={{ fontSize:10, fontWeight:'700', color:'#166534' }}>{evento.nombre}</Text>
           </View>
         )}
       </View>
@@ -332,7 +332,7 @@ export default function TecnicoDashboardScreen() {
             <View style={{flex:1}}><Text style={{fontSize:15,fontWeight:'800',color:'#fff'}}>Monitorear eventos en vivo</Text><Text style={{fontSize:11,color:'rgba(255,255,255,0.75)',marginTop:1}}>Estados, transmisión y anuncios</Text></View><ChevronRight color="#fff" size={20}/>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => navigation.navigate('TecnicoGaleria')} activeOpacity={0.85} style={{ flexDirection:'row', alignItems:'center', gap:12, backgroundColor:'#2563eb', borderRadius:16, padding:16, marginBottom:20 }}><View style={{width:40,height:40,borderRadius:12,backgroundColor:'rgba(255,255,255,.15)',alignItems:'center',justifyContent:'center'}}><Images color="#fff" size={20}/></View><View style={{flex:1}}><Text style={{fontSize:15,fontWeight:'800',color:'#fff'}}>Fotos del evento</Text><Text style={{fontSize:11,color:'rgba(255,255,255,.75)'}}>Cámara o galería</Text></View><ChevronRight color="#fff" size={20}/></TouchableOpacity>
-          <TouchableOpacity onPress={() => navigation.navigate('ChatInterno')} style={{padding:16,backgroundColor:'#e0e7ff',borderRadius:16,marginBottom:12}}><Text style={{fontWeight:'800',color:'#3730a3'}}>Chat del equipo · Admin y técnicos</Text></TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('ChatInterno')} activeOpacity={0.85} style={{ flexDirection:'row', alignItems:'center', gap:12, backgroundColor:'#4338ca', borderRadius:16, padding:16, marginBottom:20 }}><View style={{width:40,height:40,borderRadius:12,backgroundColor:'rgba(255,255,255,.15)',alignItems:'center',justifyContent:'center'}}><Users color="#fff" size={20}/></View><View style={{flex:1,minWidth:0}}><Text style={{fontSize:15,fontWeight:'800',color:'#fff'}}>Chat del equipo</Text><Text numberOfLines={1} style={{fontSize:11,color:'rgba(255,255,255,.75)'}}>Admin y técnicos</Text></View><ChevronRight color="#fff" size={20}/></TouchableOpacity>
           <TouchableOpacity onPress={() => navigation.navigate('TecnicoMensajes')} activeOpacity={0.85} style={{ flexDirection:'row', alignItems:'center', gap:12, backgroundColor:'#4f46e5', borderRadius:16, padding:16, marginBottom:20 }}><View style={{width:40,height:40,borderRadius:12,backgroundColor:'rgba(255,255,255,.15)',alignItems:'center',justifyContent:'center'}}><MessageSquare color="#fff" size={20}/></View><View style={{flex:1}}><Text style={{fontSize:15,fontWeight:'800',color:'#fff'}}>Mensajes</Text><Text style={{fontSize:11,color:'rgba(255,255,255,.75)'}}>Escribir a una empresa</Text></View><ChevronRight color="#fff" size={20}/></TouchableOpacity>
 
           {/* Próximas reuniones */}

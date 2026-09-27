@@ -10,6 +10,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Mail, Lock, Eye, EyeOff, X, KeyRound, CheckCircle } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
 import { correoValido, sinEspacios } from '../../utils/validaciones';
+import { useAlturaTeclado } from '../../hooks/useAlturaTeclado';
 
 const GREEN  = '#449D3A';
 const GREEN2 = '#166534';
@@ -19,6 +20,8 @@ const RESET_STORAGE_KEY = 'rueda_password_reset';
 type ResetStep = 'correo' | 'codigo' | 'exito';
 
 export default function LoginScreen({ navigation }: any) {
+  // El teclado tapaba los campos del modal de recuperar contraseña (ver hook).
+  const alturaTeclado = useAlturaTeclado();
   const [correo,      setCorreo]      = useState('');
   const [contrasenia, setContrasenia] = useState('');
   const [showPwd,     setShowPwd]     = useState(false);
@@ -258,9 +261,9 @@ export default function LoginScreen({ navigation }: any) {
       </KeyboardAvoidingView>
 
       {/* ── Modal recuperar contraseña ─────────────────────────── */}
-      <Modal visible={resetVisible} animationType="slide" transparent statusBarTranslucent>
-        <KeyboardAvoidingView style={s.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <View style={s.modalCard}>
+      <Modal visible={resetVisible} animationType="slide" transparent>
+        <View style={[s.modalOverlay, { paddingBottom: alturaTeclado }]}>
+          <View style={[s.modalCard, alturaTeclado > 0 && s.modalCardConTeclado]}>
 
             {/* Header */}
             <View style={s.modalHeader}>
@@ -284,7 +287,7 @@ export default function LoginScreen({ navigation }: any) {
             {/* Paso 1: Correo */}
             {resetStep === 'correo' && (
               <>
-                <Text style={s.modalSub}>Ingresa tu correo y te enviaremos un código de verificación de 6 dígitos.</Text>
+                {alturaTeclado === 0 && <Text style={s.modalSub}>Ingresa tu correo y te enviaremos un código de verificación de 6 dígitos.</Text>}
                 <Text style={s.label}>Correo electrónico</Text>
                 <View style={s.inputRow}>
                   <Mail size={18} color="#9ca3af" style={{ marginRight: 10 }} />
@@ -397,7 +400,7 @@ export default function LoginScreen({ navigation }: any) {
 
             </ScrollView>
           </View>
-        </KeyboardAvoidingView>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -501,15 +504,23 @@ const s = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
+    justifyContent: 'flex-start',
   },
   modalCard: {
     backgroundColor: '#fff',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 28,
-    paddingBottom: 40,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    paddingHorizontal: 28,
+    paddingTop: 20,
+    paddingBottom: 28,
     maxHeight: '85%',
+  },
+  // El overlay ya descuenta el teclado, así que la tarjeta puede usar todo el
+  // alto libre: con el tope del 85% el botón de acción quedaba fuera.
+  modalCardConTeclado: {
+    maxHeight: '100%',
+    paddingTop: 16,
+    paddingBottom: 16,
   },
   modalHeader: {
     flexDirection: 'row',

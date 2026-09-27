@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   StatusBar, ActivityIndicator, Linking, ImageBackground, Image,
@@ -94,21 +94,33 @@ export default function HomeScreen({ navigation }: any) {
   const [actividades, setActividades] = useState<Actividad[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const load = async () => {
+  const [error, setError] = useState<string | null>(null);
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000);
+    try {
+      const evRes = await fetch(`${API_URL}/public/evento`, { signal: controller.signal });
+      if (!evRes.ok) throw new Error(`HTTP ${evRes.status}`);
+      const ev = await evRes.json();
+      if (ev && (!ev.id || !ev.nombre || !ev.stats)) throw new Error('Respuesta de evento no valida');
+      setEvento(ev);
+      // Las actividades son opcionales: su fallo no debe ocultar el evento.
       try {
-        const [evRes, actsRes] = await Promise.all([
-          fetch(`${API_URL}/public/evento`),
-          fetch(`${API_URL}/public/actividades`),
-        ]);
-        const ev   = evRes.ok   ? await evRes.json()   : null;
+        const actsRes = await fetch(`${API_URL}/public/actividades`, { signal: controller.signal });
         const acts = actsRes.ok ? await actsRes.json() : [];
-        if (ev && ev.id && ev.nombre && ev.stats) setEvento(ev);
         setActividades(Array.isArray(acts) ? acts.slice(0, 3) : []);
-      } catch { /* sin conexión */ } finally { setLoading(false); }
-    };
-    load();
+      } catch { setActividades([]); }
+    } catch {
+      setError('No se pudo conectar al servidor. Revisa tu internet y vuelve a intentar.');
+    } finally {
+      clearTimeout(timeout);
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => { void load(); }, [load]);
 
   // ── Loading ──────────────────────────────────────────────────────────────
   if (loading) {
@@ -130,8 +142,11 @@ export default function HomeScreen({ navigation }: any) {
       <View style={s.emptyScreen}>
         <StatusBar barStyle="dark-content" />
         <View style={s.emptyIcon}><Calendar size={36} color={C.green600} /></View>
-        <Text style={s.emptyTitle}>Sin evento activo</Text>
-        <Text style={s.emptySubtitle}>Contacta al administrador para más información.</Text>
+        <Text style={s.emptyTitle}>{error ? 'No se pudo cargar el evento' : 'Sin evento activo'}</Text>
+        <Text style={s.emptySubtitle}>{error ?? 'Contacta al administrador para conocer el evento.'}</Text>
+        <TouchableOpacity style={s.emptyBtn} onPress={load} activeOpacity={0.85}>
+          <Text style={s.emptyBtnText}>Reintentar</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={s.emptyBtn} onPress={() => navigation.navigate('Login')} activeOpacity={0.85}>
           <Text style={s.emptyBtnText}>Iniciar Sesión</Text>
         </TouchableOpacity>

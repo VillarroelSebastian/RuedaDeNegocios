@@ -22,7 +22,12 @@ module.exports = {
     },
     android: {
       package: "edu.univalle.ruedadenegocios",
-      versionCode: 2,
+      // Sin esto Android dibuja la app por debajo de la barra de estado
+      // (edge-to-edge, el modo por defecto desde Expo 54): la barra se ve
+      // transparente y el reloj/batería se enciman con la cabecera de cada
+      // pantalla. Desactivado, el sistema le reserva su propia franja.
+      edgeToEdgeEnabled: false,
+      versionCode: 8,
       googleServicesFile: process.env.GOOGLE_SERVICES_JSON ?? "./google-services.json",
       softwareKeyboardLayoutMode: "resize",
       adaptiveIcon: {

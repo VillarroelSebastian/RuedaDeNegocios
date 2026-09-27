@@ -3,6 +3,7 @@ import './global.css';
 import React, { useState, useEffect, Component } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, AppState } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
@@ -167,6 +168,7 @@ export default function App() {
 
   return (
     <AppErrorBoundary>
+      <SafeAreaProvider>
       <NavigationContainer ref={navigationRef}>
         <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName={initialRoute}>
           <Stack.Screen name="Login"       component={LoginScreen}      />
@@ -176,8 +178,9 @@ export default function App() {
           <Stack.Screen name="EmpresaRoot" component={EmpresaNavigator} />
         </Stack.Navigator>
         <PushNotifications onOpen={abrirNotificacion} />
-        <StatusBar style="auto" />
+        <StatusBar style="dark" />
       </NavigationContainer>
+      </SafeAreaProvider>
     </AppErrorBoundary>
   );
 }

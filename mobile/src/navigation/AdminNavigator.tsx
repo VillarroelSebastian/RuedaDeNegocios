@@ -1,4 +1,5 @@
 import React from 'react';
+import { StatusBar } from 'expo-status-bar';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import {
@@ -240,6 +241,8 @@ export default function AdminNavigator() {
   };
 
   return (
+    <>
+    <StatusBar style="dark" backgroundColor="#ffffff" />
     <AdminStack.Navigator screenOptions={screenOptions}>
       <AdminStack.Screen name="AdminTabs"    component={AdminTabs}          options={{ headerShown: false }} />
       <AdminStack.Screen name="Eventos"      component={EventConfigScreen}  options={{ title: 'Gestión de Eventos' }} />
@@ -267,5 +270,6 @@ export default function AdminNavigator() {
       <AdminStack.Screen name="PagosAdicionales"  component={PagosAdicionalesScreen}  options={{ title: 'Pagos Adicionales'        }} />
       <AdminStack.Screen name="EventoConfig"       component={AdminEventoConfigScreen} options={{ title: 'Configuración del Evento' }} />
     </AdminStack.Navigator>
+    </>
   );
 }

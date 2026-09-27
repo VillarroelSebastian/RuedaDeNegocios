@@ -1,9 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { AppState, View, Text, TouchableOpacity, Linking, Alert } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { userStore, API_URL } from '../utils/userStore';
 import { activarPush, desactivarPush, restaurarPush, escucharPush, pedirPermisoInicial } from '../utils/push';
 
 export default function PushNotifications({ onOpen }: { onOpen: (data: any) => boolean }) {
+  // La franja queda al final de la app, sobre la barra de navegación de
+  // Android: sin el inset inferior sus textos salían cortados por el borde.
+  const insets = useSafeAreaInsets();
   const [user, setUser] = useState(userStore.get());
   const [active, setActive] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -31,7 +35,7 @@ export default function PushNotifications({ onOpen }: { onOpen: (data: any) => b
     return () => { cancelled = true; stop?.(); };
   }, [onOpen]);
   if (!user?.token) return null;
-  return <View style={{ backgroundColor: '#f0fdf4', paddingHorizontal: 12, paddingVertical: 8, borderTopWidth: 1, borderColor: '#dcfce7' }}>
+  return <View style={{ backgroundColor: '#f0fdf4', paddingHorizontal: 12, paddingTop: 8, paddingBottom: 8 + insets.bottom, borderTopWidth: 1, borderColor: '#dcfce7' }}>
     <TouchableOpacity disabled={busy} onPress={async () => {
       setBusy(true); setMessage('');
       try {
