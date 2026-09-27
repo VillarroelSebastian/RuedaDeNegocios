@@ -315,7 +315,14 @@ export default function PaquetesPage() {
                 <label className="block text-xs font-bold text-gray-700 mb-1.5">Tipo de paquete</label>
                 <div className="grid grid-cols-2 gap-2">
                   {(["EMPRESA", "FORO"] as const).map((t) => (
-                    <button key={t} type="button" onClick={() => setForm({ ...form, tipoPaquete: t })}
+                    <button key={t} type="button" onClick={() => setForm({
+                        ...form, tipoPaquete: t,
+                        ...(t === "FORO" ? {
+                          credencialesIncluidas: "1", maxParticipantes: "1",
+                          tipoParticipacion: "PRESENCIAL", nivelMesa: "NORMAL",
+                          apareceEnCatalogo: false, destacadoEnListados: false, logoEnWeb: false,
+                        } : {}),
+                      })}
                       className={`px-4 py-2.5 rounded-xl text-sm font-semibold border transition-colors ${
                         form.tipoPaquete === t
                           ? "bg-[#449D3A] text-white border-[#449D3A]"
@@ -349,7 +356,7 @@ export default function PaquetesPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className={`grid grid-cols-1 gap-4 ${form.tipoPaquete === "FORO" ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
                 <div>
                   <label className="block text-xs font-bold text-gray-700 mb-1.5">
                     Costo (Bs.) <span className="text-red-500">*</span>
@@ -359,14 +366,16 @@ export default function PaquetesPage() {
                     className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#449D3A]"
                     placeholder="150" />
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1.5">
-                    Credenciales <span className="text-red-500">*</span>
-                  </label>
-                  <input type="number" min={1} value={form.credencialesIncluidas}
-                    onChange={(e) => setForm({ ...form, credencialesIncluidas: e.target.value })}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#449D3A]" />
-                </div>
+                {form.tipoPaquete === "EMPRESA" && (
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                      Credenciales <span className="text-red-500">*</span>
+                    </label>
+                    <input type="number" min={1} value={form.credencialesIncluidas}
+                      onChange={(e) => setForm({ ...form, credencialesIncluidas: e.target.value })}
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#449D3A]" />
+                  </div>
+                )}
                 <div>
                   <label className="block text-xs font-bold text-gray-700 mb-1.5">Orden</label>
                   <input type="number" min={0} value={form.orden}
@@ -375,63 +384,66 @@ export default function PaquetesPage() {
                 </div>
               </div>
 
-              {/* Lo que el paquete habilita dentro del sistema */}
-              <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-4">
-                <p className="text-xs font-extrabold text-gray-700 uppercase tracking-wide">
-                  Qué habilita este paquete
-                </p>
+              {/* Lo que el paquete habilita dentro del sistema — no aplica a Foro:
+                  no tiene mesas, matchmaking ni catálogo de empresas. */}
+              {form.tipoPaquete === "EMPRESA" && (
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-4">
+                  <p className="text-xs font-extrabold text-gray-700 uppercase tracking-wide">
+                    Qué habilita este paquete
+                  </p>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1.5">
-                      Máx. de participantes <span className="text-red-500">*</span>
-                    </label>
-                    <input type="number" min={1} value={form.maxParticipantes}
-                      onChange={(e) => setForm({ ...form, maxParticipantes: e.target.value })}
-                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:border-[#449D3A]" />
-                    <p className="text-[11px] text-gray-400 mt-1">
-                      Tope duro de personas. Los que superen las {form.credencialesIncluidas || 0} incluidas pagan extra.
-                    </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                        Máx. de participantes <span className="text-red-500">*</span>
+                      </label>
+                      <input type="number" min={1} value={form.maxParticipantes}
+                        onChange={(e) => setForm({ ...form, maxParticipantes: e.target.value })}
+                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:border-[#449D3A]" />
+                      <p className="text-[11px] text-gray-400 mt-1">
+                        Tope duro de personas. Los que superen las {form.credencialesIncluidas || 0} incluidas pagan extra.
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1.5">Modalidad</label>
+                      <select value={form.tipoParticipacion}
+                        onChange={(e) => setForm({ ...form, tipoParticipacion: e.target.value })}
+                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:border-[#449D3A]">
+                        <option value="PRESENCIAL">Presencial</option>
+                        <option value="VIRTUAL">Virtual</option>
+                        <option value="HIBRIDO">Híbrido</option>
+                      </select>
+                      <p className="text-[11px] text-gray-400 mt-1">
+                        En el registro ya no se elige a mano: la define el paquete.
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1.5">Nivel de mesa</label>
+                      <select value={form.nivelMesa}
+                        onChange={(e) => setForm({ ...form, nivelMesa: e.target.value })}
+                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:border-[#449D3A]">
+                        {NIVELES_MESA.map((n) => (
+                          <option key={n.val} value={n.val}>{n.label} — {n.desc}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1.5">Modalidad</label>
-                    <select value={form.tipoParticipacion}
-                      onChange={(e) => setForm({ ...form, tipoParticipacion: e.target.value })}
-                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:border-[#449D3A]">
-                      <option value="PRESENCIAL">Presencial</option>
-                      <option value="VIRTUAL">Virtual</option>
-                      <option value="HIBRIDO">Híbrido</option>
-                    </select>
-                    <p className="text-[11px] text-gray-400 mt-1">
-                      En el registro ya no se elige a mano: la define el paquete.
-                    </p>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1.5">Nivel de mesa</label>
-                    <select value={form.nivelMesa}
-                      onChange={(e) => setForm({ ...form, nivelMesa: e.target.value })}
-                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:border-[#449D3A]">
-                      {NIVELES_MESA.map((n) => (
-                        <option key={n.val} value={n.val}>{n.label} — {n.desc}</option>
-                      ))}
-                    </select>
+
+                  <div className="space-y-2">
+                    {CAPACIDADES.map(({ key, label, desc }) => (
+                      <label key={key} className="flex items-start gap-2.5 cursor-pointer">
+                        <input type="checkbox" checked={Boolean((form as any)[key])}
+                          onChange={(e) => setForm({ ...form, [key]: e.target.checked })}
+                          className="mt-0.5 w-4 h-4 accent-[#449D3A] flex-shrink-0" />
+                        <span>
+                          <span className="block text-sm font-semibold text-gray-800">{label}</span>
+                          <span className="block text-[11px] text-gray-400 leading-tight">{desc}</span>
+                        </span>
+                      </label>
+                    ))}
                   </div>
                 </div>
-
-                <div className="space-y-2">
-                  {CAPACIDADES.map(({ key, label, desc }) => (
-                    <label key={key} className="flex items-start gap-2.5 cursor-pointer">
-                      <input type="checkbox" checked={Boolean((form as any)[key])}
-                        onChange={(e) => setForm({ ...form, [key]: e.target.checked })}
-                        className="mt-0.5 w-4 h-4 accent-[#449D3A] flex-shrink-0" />
-                      <span>
-                        <span className="block text-sm font-semibold text-gray-800">{label}</span>
-                        <span className="block text-[11px] text-gray-400 leading-tight">{desc}</span>
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </div>
+              )}
 
               <div>
                 <label className="block text-xs font-bold text-gray-700 mb-1.5">Descripción</label>
