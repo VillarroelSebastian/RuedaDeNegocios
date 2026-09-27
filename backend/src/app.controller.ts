@@ -2386,6 +2386,7 @@ export class AppController implements OnModuleInit {
     @Query('estado') estado?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('tipo') tipo?: string,
   ) {
     const take = Number(limit) || 15;
     const skip = (Number(page) - 1) * take || 0;
@@ -2393,6 +2394,12 @@ export class AppController implements OnModuleInit {
     const where: any = { estaActivo: 1 };
     if (eventoId) where.evento_id = eventoId;
     if (estado) where.estadoVerificacionPago = estado;
+    // Por defecto solo empresas: el registro de foro es un empresaevento
+    // "sintético" (mismo mecanismo de pago) que se gestiona aparte en
+    // /admin/foro para no mezclarse con la verificación de empresas.
+    const tipoUpper = String(tipo ?? '').toUpperCase();
+    if (tipoUpper === 'FORO') where.empresa_usuario = { some: { usuario: { rolEvento: 'FORO' } } };
+    else where.empresa_usuario = { some: { usuario: { rolEvento: { not: 'FORO' } } } };
 
     const pagos = await this.prisma.empresaevento.findMany({
       where,

@@ -82,6 +82,24 @@ describe('Registro público de foro',()=>{
       .rejects.toThrow('inscripciones abren');
   });
 });
+describe('Verificación de pagos: separa empresas y foro',()=>{
+  it('admin/pagos sin tipo excluye a los usuarios de foro',async()=>{
+    const findMany=fn([]),count=fn(0);
+    const prisma={empresaevento:{findMany,count}};
+    const c=new AppController({} as any,prisma as any,{} as any,{} as any) as any;
+    c.getPrincipalEventoId=fn(2);
+    await c.getPagos();
+    expect(findMany.mock.calls[0][0].where.empresa_usuario).toMatchObject({some:{usuario:{rolEvento:{not:'FORO'}}}});
+  });
+  it('admin/pagos?tipo=FORO solo trae usuarios de foro',async()=>{
+    const findMany=fn([]),count=fn(0);
+    const prisma={empresaevento:{findMany,count}};
+    const c=new AppController({} as any,prisma as any,{} as any,{} as any) as any;
+    c.getPrincipalEventoId=fn(2);
+    await c.getPagos(undefined,undefined,undefined,'FORO');
+    expect(findMany.mock.calls[0][0].where.empresa_usuario).toMatchObject({some:{usuario:{rolEvento:'FORO'}}});
+  });
+});
 describe('Mensajes y galería',()=>{
   it('permite que una empresa inicie la conversación con receptor 0',async()=>{
     const prisma={empresa_usuario:{findFirst:fn({id:4,esResponsable:1})},mensajeempresa:{create:fn({id:9,fechaCreacion:new Date()})},empresaevento:{findUnique:fn({empresa:{nombre:'Empresa'}})}};

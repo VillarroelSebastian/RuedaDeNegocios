@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { UserPlus, Plus, Pencil, Trash2, X, Mail, Phone, Package } from "lucide-react";
+import Link from "next/link";
+import { UserPlus, Plus, Pencil, Trash2, X, Mail, Phone, Package, Eye, Clock, CheckCircle, AlertCircle, XCircle, CreditCard, Users } from "lucide-react";
 import { useModal } from "@/components/ui/Modal";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
@@ -23,9 +24,128 @@ type ForoUsuario = {
 
 const formVacio = { nombres: "", apellidoPaterno: "", apellidoMaterno: "", correo: "", telefono: "", cargo: "", paquete_id: "" };
 
+const PAGO_TABS = [
+  { value: '', label: 'Todos', icon: CreditCard },
+  { value: 'PENDIENTE', label: 'Pendientes', icon: Clock },
+  { value: 'COMPLETADO', label: 'Aprobados', icon: CheckCircle },
+  { value: 'OBSERVADO', label: 'Observados', icon: AlertCircle },
+  { value: 'RECHAZADO', label: 'Rechazados', icon: XCircle },
+];
+
+function badgeEstadoPago(estado: string) {
+  const map: Record<string, { cls: string; label: string }> = {
+    COMPLETADO: { cls: 'bg-green-100 text-green-700', label: 'Aprobado' },
+    PENDIENTE: { cls: 'bg-orange-100 text-orange-700', label: 'Pendiente' },
+    OBSERVADO: { cls: 'bg-yellow-100 text-yellow-700', label: 'Observado' },
+    RECHAZADO: { cls: 'bg-red-100 text-red-700', label: 'Rechazado' },
+  };
+  const b = map[estado] || { cls: 'bg-gray-100 text-gray-600', label: estado };
+  return <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold ${b.cls}`}>{b.label}</span>;
+}
+
+/* ─── Pagos de foro: reutiliza admin/pagos/[id] para aprobar/observar/rechazar ─── */
+function PagosForoPanel() {
+  const [pagos, setPagos] = useState<any[]>([]);
+  const [total, setTotal] = useState(0);
+  const [tab, setTab] = useState('PENDIENTE');
+  const [loading, setLoading] = useState(true);
+
+  const cargar = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ tipo: 'FORO', limit: '50', ...(tab && { estado: tab }) });
+      const res = await fetch(`${API}/admin/pagos?${params}`);
+      const data = await res.json();
+      setPagos(data.data || []);
+      setTotal(data.total || 0);
+    } catch { setPagos([]); }
+    finally { setLoading(false); }
+  }, [tab]);
+
+  useEffect(() => { cargar(); }, [cargar]);
+
+  return (
+    <div>
+      <div className="mb-5 max-w-full">
+        <div className="flex flex-wrap gap-1 rounded-xl bg-gray-100 p-1">
+          {PAGO_TABS.map((t) => {
+            const Icon = t.icon;
+            return (
+              <button key={t.value} onClick={() => setTab(t.value)}
+                className={`flex min-w-[100px] flex-1 items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  tab === t.value ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                }`}>
+                <Icon className="w-4 h-4" />{t.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {loading ? (
+        <p className="text-center text-gray-400 py-12">Cargando...</p>
+      ) : pagos.length === 0 ? (
+        <div className="text-center py-16 bg-white border border-dashed border-gray-300 rounded-2xl">
+          <CreditCard className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+          <p className="font-semibold text-gray-700">No hay pagos en esta categoría</p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  <th className="py-3 px-5 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Persona</th>
+                  <th className="py-3 px-5 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Institución</th>
+                  <th className="py-3 px-5 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Monto</th>
+                  <th className="py-3 px-5 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Fecha envío</th>
+                  <th className="py-3 px-5 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Estado</th>
+                  <th className="py-3 px-5 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {pagos.map((pago) => {
+                  const persona = pago.empresa_usuario?.[0]?.usuario;
+                  return (
+                    <tr key={pago.id} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="py-4 px-5">
+                        <p className="text-sm font-semibold text-gray-900">{persona ? `${persona.nombres} ${persona.apellidoPaterno}` : '—'}</p>
+                        <p className="text-[11px] text-gray-400">{persona?.correo}</p>
+                      </td>
+                      <td className="py-4 px-5 text-sm text-gray-600">{pago.empresa?.nombre}</td>
+                      <td className="py-4 px-5 text-sm font-semibold text-gray-900">
+                        {pago.montoPagado ? `${Number(pago.montoPagado).toLocaleString('es-BO')} BOB` : '—'}
+                      </td>
+                      <td className="py-4 px-5 text-sm text-gray-500">
+                        {pago.fechaHoraEnvioComprobante ? new Date(pago.fechaHoraEnvioComprobante).toLocaleDateString('es-BO') : '—'}
+                      </td>
+                      <td className="py-4 px-5">{badgeEstadoPago(pago.estadoVerificacionPago)}</td>
+                      <td className="py-4 px-5">
+                        <Link href={`/admin/pagos/${pago.id}`}>
+                          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold text-[#449D3A] border border-[#449D3A] hover:bg-green-50 transition-colors">
+                            <Eye className="w-3.5 h-3.5" /> Verificar
+                          </button>
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="px-5 py-3 border-t border-gray-100">
+            <p className="text-sm text-gray-500">{total} registro(s)</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ForoPage() {
   const { showSuccess, showError, showConfirm, ModalComponent } = useModal();
 
+  const [vista, setVista] = useState<'usuarios' | 'pagos'>('pagos');
   const [lista, setLista] = useState<ForoUsuario[]>([]);
   const [paquetes, setPaquetes] = useState<Paquete[]>([]);
   const [loading, setLoading] = useState(true);
@@ -118,16 +238,35 @@ export default function ForoPage() {
             <UserPlus className="w-6 h-6 text-[#449D3A]" /> Foro · Personal
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            Alta directa de inscripciones individuales de foro: se crea el acceso ya habilitado, sin pasar por pago.
+            Verifica los pagos de las inscripciones de foro, o crea usuarios directamente sin pasar por pago.
           </p>
         </div>
-        <button onClick={abrirNuevo}
-          className="inline-flex items-center justify-center gap-2 bg-[#449D3A] hover:bg-[#367d2e] text-white font-semibold px-5 py-2.5 rounded-xl transition-colors">
-          <Plus className="w-4 h-4" /> Nuevo usuario de foro
-        </button>
+        {vista === 'usuarios' && (
+          <button onClick={abrirNuevo}
+            className="inline-flex items-center justify-center gap-2 bg-[#449D3A] hover:bg-[#367d2e] text-white font-semibold px-5 py-2.5 rounded-xl transition-colors">
+            <Plus className="w-4 h-4" /> Nuevo usuario de foro
+          </button>
+        )}
       </div>
 
-      {loading ? (
+      <div className="mb-6 max-w-md">
+        <div className="flex gap-1 rounded-xl bg-gray-100 p-1">
+          <button onClick={() => setVista('pagos')}
+            className={`flex flex-1 items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
+              vista === 'pagos' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            }`}>
+            <CreditCard className="w-4 h-4" /> Verificar pagos
+          </button>
+          <button onClick={() => setVista('usuarios')}
+            className={`flex flex-1 items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
+              vista === 'usuarios' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            }`}>
+            <Users className="w-4 h-4" /> Alta directa
+          </button>
+        </div>
+      </div>
+
+      {vista === 'pagos' ? <PagosForoPanel /> : loading ? (
         <p className="text-center text-gray-400 py-12">Cargando...</p>
       ) : lista.length === 0 ? (
         <div className="text-center py-16 bg-white border border-dashed border-gray-300 rounded-2xl">
