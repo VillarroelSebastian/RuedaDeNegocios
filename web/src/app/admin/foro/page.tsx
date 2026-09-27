@@ -7,7 +7,7 @@ import { useModal } from "@/components/ui/Modal";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
-type Paquete = { id: number; nombre: string; costo: number };
+type Paquete = { id: number; nombre: string; costo: number; urlQR?: string | null };
 type ForoUsuario = {
   id: number;
   nombres: string;
@@ -44,7 +44,7 @@ function badgeEstadoPago(estado: string) {
 }
 
 /* ─── Pagos de foro: reutiliza admin/pagos/[id] para aprobar/observar/rechazar ─── */
-function PagosForoPanel() {
+function PagosForoPanel({ paquetes }: { paquetes: Paquete[] }) {
   const [pagos, setPagos] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [tab, setTab] = useState('PENDIENTE');
@@ -64,8 +64,39 @@ function PagosForoPanel() {
 
   useEffect(() => { cargar(); }, [cargar]);
 
+  const paquete = paquetes[0];
+
   return (
     <div>
+      {/* Precio y QR de pago: se configuran en Admin > Paquetes (tipo Foro) */}
+      {paquete ? (
+        <div className="mb-5 bg-white border border-gray-200 rounded-2xl p-5 flex flex-col sm:flex-row items-center gap-4">
+          {paquete.urlQR && (
+            <img src={paquete.urlQR} alt="QR de pago" className="w-20 h-20 rounded-lg border border-gray-200 object-contain shrink-0" />
+          )}
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-gray-900">{paquete.nombre} — Bs. {Number(paquete.costo)}</p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {paquete.urlQR ? 'Este es el QR de pago que ven quienes se registran como Foro.' : 'Este paquete todavía no tiene un QR de pago cargado.'}
+            </p>
+          </div>
+          <Link href="/admin/paquetes" className="shrink-0 text-sm font-bold text-[#449D3A] hover:underline">
+            {paquete.urlQR ? 'Editar precio / QR →' : 'Subir QR de pago →'}
+          </Link>
+        </div>
+      ) : (
+        <div className="mb-5 bg-amber-50 border border-amber-200 rounded-2xl p-5 flex flex-col sm:flex-row items-center gap-4">
+          <AlertCircle className="w-8 h-8 text-amber-500 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-amber-800">Todavía no configuraste el precio ni el QR de pago para Foro.</p>
+            <p className="text-xs text-amber-700 mt-0.5">Quienes se registren no verán ningún costo ni QR hasta que crees un paquete de tipo Foro.</p>
+          </div>
+          <Link href="/admin/paquetes" className="shrink-0 text-sm font-bold text-amber-800 hover:underline">
+            Crear paquete de Foro →
+          </Link>
+        </div>
+      )}
+
       <div className="mb-5 max-w-full">
         <div className="flex flex-wrap gap-1 rounded-xl bg-gray-100 p-1">
           {PAGO_TABS.map((t) => {
@@ -266,7 +297,7 @@ export default function ForoPage() {
         </div>
       </div>
 
-      {vista === 'pagos' ? <PagosForoPanel /> : loading ? (
+      {vista === 'pagos' ? <PagosForoPanel paquetes={paquetes} /> : loading ? (
         <p className="text-center text-gray-400 py-12">Cargando...</p>
       ) : lista.length === 0 ? (
         <div className="text-center py-16 bg-white border border-dashed border-gray-300 rounded-2xl">
