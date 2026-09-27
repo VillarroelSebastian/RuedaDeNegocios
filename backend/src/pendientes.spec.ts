@@ -22,6 +22,52 @@ describe('Permisos de foro',()=>{
     await expect(guard().canActivate(ctx({method:'GET',path,headers:{authorization:'Bearer test'}}))).resolves.toBe(true);
   });
 });
+describe('Registro público de foro',()=>{
+  function prismaForo(existenteGlobal: any = null){
+    const usuarioCreate = fn({ id: 42 });
+    const tx = {
+      empresa:{create:fn({id:1})},
+      empresaevento:{create:fn({id:2})},
+      usuario:{create:usuarioCreate},
+      empresa_usuario:{create:fn({id:3})},
+    };
+    const prisma = {
+      usuario:{findFirst:fn(existenteGlobal)},
+      ciudad:{findFirst:fn({id:1})},
+      $transaction: async (cb:any)=>cb(tx),
+    };
+    return { prisma, tx, usuarioCreate };
+  }
+  it('separa el nombre completo en nombres/apellido y usa la institución como empresa',async()=>{
+    const { prisma, tx } = prismaForo();
+    const c = new ExtrasController(prisma as any,{} as any) as any;
+    c.eventoPrincipalId = fn(2);
+    await c.registroPublicoForo({ nombres:'Ana María Rocha', correo:'ana@example.com', telefono:'70000000', profesion:'Abogada', institucion:'Universidad Boliviana' });
+    const datosUsuario = (tx.usuario.create.mock.calls[0][0] as any).data;
+    expect(datosUsuario).toMatchObject({ nombres:'Ana', apellidoPaterno:'María Rocha', rolEvento:'FORO', estaActivo:1 });
+    const datosEmpresa = (tx.empresa.create.mock.calls[0][0] as any).data;
+    expect(datosEmpresa.nombre).toBe('Universidad Boliviana');
+    const datosEu = (tx.empresa_usuario.create.mock.calls[0][0] as any).data;
+    expect(datosEu.cargo).toBe('Abogada');
+    const datosEe = (tx.empresaevento.create.mock.calls[0][0] as any).data;
+    expect(datosEe).toMatchObject({ estadoHabilitacionAcceso:'HABILITADO', estadoVerificacionPago:'COMPLETADO' });
+  });
+  it('usa el nombre completo también como apellido cuando solo hay una palabra',async()=>{
+    const { tx, prisma } = prismaForo();
+    const c = new ExtrasController(prisma as any,{} as any) as any;
+    c.eventoPrincipalId = fn(2);
+    await c.registroPublicoForo({ nombres:'Ana', correo:'ana2@example.com', telefono:'70000001', institucion:'ONG Beni' });
+    const datosUsuario = (tx.usuario.create.mock.calls[0][0] as any).data;
+    expect(datosUsuario).toMatchObject({ nombres:'Ana', apellidoPaterno:'Ana' });
+  });
+  it('rechaza un correo que pertenece a una cuenta interna',async()=>{
+    const { prisma } = prismaForo({ id:9, rolEvento:'ADMINISTRADOR' });
+    const c = new ExtrasController(prisma as any,{} as any) as any;
+    c.eventoPrincipalId = fn(2);
+    await expect(c.registroPublicoForo({ nombres:'Ana Pérez', correo:'admin@example.com', telefono:'70000000', institucion:'X' }))
+      .rejects.toThrow('cuenta interna');
+  });
+});
 describe('Mensajes y galería',()=>{
   it('permite que una empresa inicie la conversación con receptor 0',async()=>{
     const prisma={empresa_usuario:{findFirst:fn({id:4,esResponsable:1})},mensajeempresa:{create:fn({id:9,fechaCreacion:new Date()})},empresaevento:{findUnique:fn({empresa:{nombre:'Empresa'}})}};

@@ -11,7 +11,7 @@ import * as ImagePicker from 'expo-image-picker';
 import {
   User, Building2, LogOut, Edit3, UserPlus, UserX,
   ShieldCheck, Users, CreditCard, AlertCircle, Check, X, Upload,
-  Hash, QrCode, ExternalLink, CheckCircle2, Camera, Eye, EyeOff,
+  Hash, ExternalLink, CheckCircle2, Camera, Eye, EyeOff,
 } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
 import { LIMITES } from '../../utils/validaciones';
@@ -474,6 +474,31 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
           </View>
         )}
 
+        {/* Credencial digital — lo primero que se ve, con el mismo estilo de las credenciales imprimibles */}
+        {!!perfil?.urlCredencialQR && (
+          <View style={s.credCard}>
+            <View style={s.credAccent} />
+            <View style={s.credBody}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                {!!perfil?.evento?.urlLogoEvento && (
+                  <Image source={{ uri: perfil.evento.urlLogoEvento }} style={s.credLogo} resizeMode="contain" />
+                )}
+                <Text style={s.credNombre}>{perfil?.usuario?.nombres} {perfil?.usuario?.apellidoPaterno}</Text>
+                <Text style={s.credEmpresa}>{empresa?.empresa?.nombre}</Text>
+                {!!empresa?.cargo && <Text style={s.credCargo}>{empresa.cargo}</Text>}
+                {!!perfil?.evento && (
+                  <Text style={s.credEvento}>{perfil.evento.nombre} {perfil.evento.edicion}</Text>
+                )}
+                <TouchableOpacity onPress={() => Linking.openURL(perfil.urlCredencialQR)} activeOpacity={0.75} style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10 }}>
+                  <ExternalLink size={13} color={GREEN} style={{ marginRight: 5 }} />
+                  <Text style={s.credLink}>Descargar credencial</Text>
+                </TouchableOpacity>
+              </View>
+              <ImagenLightbox uri={perfil.urlCredencialQR} style={s.credQr} />
+            </View>
+          </View>
+        )}
+
         {/* Empresa info */}
         {empresa && (
           <View style={s.section}>
@@ -533,29 +558,6 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
           </View>
         )}
 
-        {/* Credencial digital (QR) */}
-        {!!perfil?.urlCredencialQR && (
-          <View style={s.section}>
-            <View style={s.sectionHeader}>
-              <QrCode size={16} color={GREEN} style={{ marginRight: 6 }} />
-              <Text style={s.sectionTitle}>Tu credencial digital</Text>
-            </View>
-            <View style={{ alignItems: 'center' }}>
-              <ImagenLightbox uri={perfil.urlCredencialQR} style={s.qrImage} />
-              <Text style={s.qrHint}>
-                Muestra este código en el evento. El técnico o administrador puede escanearlo para verificar que tu empresa está registrada correctamente.
-              </Text>
-              <TouchableOpacity
-                style={s.qrOpenBtn}
-                onPress={() => Linking.openURL(perfil.urlCredencialQR)}
-                activeOpacity={0.75}
-              >
-                <ExternalLink size={15} color={GREEN} />
-                <Text style={s.qrOpenBtnText}>Abrir / descargar credencial</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
 
         {/* Datos personales */}
         <View style={s.section}>
@@ -1063,14 +1065,19 @@ const s = StyleSheet.create({
   comercialLabel: { fontSize: 10, fontWeight: '800', color: '#166534', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 3 },
   comercialValue: { fontSize: 13, color: '#166534', lineHeight: 18 },
   hintText: { fontSize: 11, color: '#9ca3af', marginTop: 4, fontStyle: 'italic' },
-  qrImage: { width: 180, height: 180, borderRadius: 14, borderWidth: 1, borderColor: '#e2e8f0', marginBottom: 12 },
-  qrHint: { fontSize: 12, color: '#64748b', textAlign: 'center', marginBottom: 12, paddingHorizontal: 8, lineHeight: 17 },
-  qrOpenBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#f0fdf4', borderRadius: 12, borderWidth: 1, borderColor: '#bbf7d0',
-    paddingHorizontal: 16, paddingVertical: 10,
+  credCard: {
+    backgroundColor: '#fff', borderRadius: 20, borderWidth: 2, borderColor: GREEN,
+    overflow: 'hidden', marginBottom: 14,
   },
-  qrOpenBtnText: { fontSize: 13, fontWeight: '700', color: GREEN },
+  credAccent: { height: 6, backgroundColor: GREEN },
+  credBody: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 18 },
+  credLogo: { height: 32, width: 110, marginBottom: 8 },
+  credNombre: { fontSize: 17, fontWeight: '800', color: '#0f172a' },
+  credEmpresa: { fontSize: 13, fontWeight: '700', color: GREEN, marginTop: 2 },
+  credCargo: { fontSize: 12, color: '#6b7280', marginTop: 2 },
+  credEvento: { fontSize: 10, color: '#9ca3af', marginTop: 8 },
+  credLink: { fontSize: 12, fontWeight: '700', color: GREEN },
+  credQr: { width: 96, height: 96, borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0' },
   errorBox: {
     padding: 12, borderRadius: 12, marginBottom: 12,
     backgroundColor: '#fef2f2', borderWidth: 1, borderColor: '#fca5a5',

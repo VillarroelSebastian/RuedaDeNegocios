@@ -9,7 +9,7 @@ const PUBLIC_ROUTES = new Set([
   'GET /public/evento', 'GET /public/verificar-empresa', 'GET /public/credencial',
   'GET /public/credencial-auspiciador', 'GET /public/ciudades', 'POST /public/registro',
   'GET /public/actividades', 'GET /public/paquetes', 'GET /public/galeria',
-  'GET /public/cronograma-vivo', 'GET /evento-principal',
+  'POST /public/registro-foro', 'GET /public/cronograma-vivo', 'GET /evento-principal',
   'GET /public/seguimiento', 'POST /public/seguimiento/comprobante', 'POST /public/imagenes/upload',
 ]);
 

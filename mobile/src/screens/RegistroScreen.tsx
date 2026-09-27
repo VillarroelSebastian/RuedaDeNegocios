@@ -865,6 +865,149 @@ function RegistroEmpresaScreen({ navigation, tipo = 'empresa' }: any) {
   );
 }
 
+// ─── Registro Foro (individual, sin pago) ─────────────────────────────────────
+function RegistroForoScreen({ navigation }: any) {
+  const [nombres, setNombres] = useState('');
+  const [correo, setCorreo] = useState('');
+  const [telefono, setTelefono] = useState('');
+  const [profesion, setProfesion] = useState('');
+  const [institucion, setInstitucion] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [enviado, setEnviado] = useState(false);
+  const [modal, setModal] = useState<{ visible: boolean; type: ModalType; title: string; message: string }>({
+    visible: false, type: 'error', title: '', message: '',
+  });
+  const showModal = (type: ModalType, title: string, message: string) => setModal({ visible: true, type, title, message });
+  const closeModal = () => setModal((m) => ({ ...m, visible: false }));
+
+  const enviar = async () => {
+    if (nombres.trim().length < 3) return showModal('warning', 'Falta un dato', 'Escribe tu nombre completo.');
+    if (!correoValido(correo)) return showModal('warning', 'Falta un dato', 'Escribe un correo válido.');
+    if (telefono.trim().length < 6) return showModal('warning', 'Falta un dato', 'Escribe un teléfono válido.');
+    if (institucion.trim().length < 2) return showModal('warning', 'Falta un dato', 'Escribe tu institución u organización.');
+    setSubmitting(true);
+    try {
+      const res = await fetch(`${API_URL}/public/registro-foro`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombres: nombres.trim(), correo: correo.trim(), telefono: telefono.trim(), profesion: profesion.trim(), institucion: institucion.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || 'No se pudo completar el registro.');
+      setEnviado(true);
+    } catch (e: any) {
+      showModal('error', 'No se pudo registrar', e.message ?? 'Error de red');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (enviado) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+          <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#f0fdf4', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
+            <Text style={{ fontSize: 32 }}>✓</Text>
+          </View>
+          <Text style={{ fontSize: 20, fontWeight: '800', color: '#111827', marginBottom: 8, textAlign: 'center' }}>¡Registro completado!</Text>
+          <Text style={{ fontSize: 14, color: '#6b7280', textAlign: 'center', marginBottom: 24, lineHeight: 20 }}>
+            Revisa tu correo <Text style={{ fontWeight: '700', color: '#374151' }}>{correo}</Text>: te enviamos una contraseña temporal para ingresar a la plataforma.
+          </Text>
+          <TouchableOpacity onPress={() => navigation.replace('Login')}
+            style={{ backgroundColor: '#449D3A', borderRadius: 12, paddingVertical: 14, paddingHorizontal: 28 }}>
+            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Ir a iniciar sesión</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
+      <StatusBar style="dark" />
+      <AppModal {...modal} onClose={closeModal} />
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <ScrollView contentContainerStyle={{ padding: 20 }} keyboardShouldPersistTaps="handled">
+          <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginBottom: 16 }}>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: '#6b7280' }}>← Volver</Text>
+          </TouchableOpacity>
+          <Text style={{ fontSize: 22, fontWeight: '800', color: '#111827', marginBottom: 4 }}>Registro · Foro Personal</Text>
+          <Text style={{ fontSize: 13, color: '#6b7280', marginBottom: 24 }}>
+            Inscripción individual: comunicados, cronograma en vivo, galería y tu credencial de acceso.
+          </Text>
+
+          <Field label="Nombres y apellidos *">
+            <TextInput style={inp} value={nombres} onChangeText={setNombres} maxLength={155} placeholder="Tu nombre completo" placeholderTextColor="#9ca3af" />
+          </Field>
+          <Field label="Correo electrónico *">
+            <TextInput style={inp} value={correo} onChangeText={setCorreo} maxLength={105} keyboardType="email-address" autoCapitalize="none" placeholder="correo@ejemplo.com" placeholderTextColor="#9ca3af" />
+          </Field>
+          <Field label="Teléfono *">
+            <TextInput style={inp} value={telefono} onChangeText={setTelefono} maxLength={45} keyboardType="phone-pad" placeholder="+591 ..." placeholderTextColor="#9ca3af" />
+          </Field>
+          <Field label="Profesión / Ocupación">
+            <TextInput style={inp} value={profesion} onChangeText={setProfesion} maxLength={100} placeholder="Ej: Ingeniero comercial" placeholderTextColor="#9ca3af" />
+          </Field>
+          <Field label="Institución *">
+            <TextInput style={inp} value={institucion} onChangeText={setInstitucion} maxLength={105} placeholder="Empresa, universidad u organización" placeholderTextColor="#9ca3af" />
+          </Field>
+
+          <TouchableOpacity
+            onPress={enviar}
+            disabled={submitting}
+            style={{ backgroundColor: '#449D3A', borderRadius: 12, paddingVertical: 15, alignItems: 'center', marginTop: 10, opacity: submitting ? 0.7 : 1 }}
+          >
+            {submitting ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Completar registro</Text>}
+          </TouchableOpacity>
+          <Text style={{ fontSize: 11, color: '#9ca3af', textAlign: 'center', marginTop: 14 }}>
+            Te enviaremos una contraseña temporal por correo para que ingreses a la plataforma.
+          </Text>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
+
+// ─── Selector inicial ──────────────────────────────────────────────────────────
+function SelectorTipoRegistro({ onElegir }: { onElegir: (tipo: 'empresa' | 'foro') => void }) {
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
+      <StatusBar style="dark" />
+      <View style={{ flex: 1, padding: 20, justifyContent: 'center' }}>
+        <Text style={{ fontSize: 22, fontWeight: '800', color: '#111827', textAlign: 'center', marginBottom: 6 }}>
+          ¿Cómo quieres registrarte?
+        </Text>
+        <Text style={{ fontSize: 13, color: '#6b7280', textAlign: 'center', marginBottom: 28 }}>
+          Elige la opción que corresponde a tu inscripción en el evento.
+        </Text>
+        <TouchableOpacity onPress={() => onElegir('empresa')}
+          style={{ backgroundColor: '#fff', borderWidth: 2, borderColor: '#f3f4f6', borderRadius: 18, padding: 20, marginBottom: 14 }}>
+          <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: '#f0fdf4', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+            <Text style={{ fontSize: 22 }}>🏢</Text>
+          </View>
+          <Text style={{ fontSize: 16, fontWeight: '800', color: '#111827', marginBottom: 4 }}>Empresa</Text>
+          <Text style={{ fontSize: 13, color: '#6b7280', lineHeight: 18 }}>
+            Reuniones de negocios, mesas, mensajería con otras empresas y todo el paquete de inscripción empresarial.
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => onElegir('foro')}
+          style={{ backgroundColor: '#fff', borderWidth: 2, borderColor: '#f3f4f6', borderRadius: 18, padding: 20 }}>
+          <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: '#f0fdf4', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+            <Text style={{ fontSize: 22 }}>👤</Text>
+          </View>
+          <Text style={{ fontSize: 16, fontWeight: '800', color: '#111827', marginBottom: 4 }}>Foro · Personal</Text>
+          <Text style={{ fontSize: 13, color: '#6b7280', lineHeight: 18 }}>
+            Inscripción individual: comunicados, cronograma en vivo, galería del evento y tu credencial de acceso.
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
+}
+
 export default function RegistroScreen({ navigation }: any) {
-  return <RegistroEmpresaScreen navigation={navigation} />;
+  const [tipo, setTipo] = useState<'empresa' | 'foro' | null>(null);
+  if (tipo === 'empresa') return <RegistroEmpresaScreen navigation={navigation} />;
+  if (tipo === 'foro') return <RegistroForoScreen navigation={{ ...navigation, goBack: () => setTipo(null) }} />;
+  return <SelectorTipoRegistro onElegir={setTipo} />;
 }

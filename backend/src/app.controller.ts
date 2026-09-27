@@ -8837,6 +8837,7 @@ export class AppController implements OnModuleInit {
   async getEmpresaPerfil(@Query('usuarioId') usuarioId: string) {
     if (!usuarioId) throw new BadRequestException('usuarioId requerido');
     const eu = await this.getEmpresaCtx(Number(usuarioId));
+    const evento = eu.empresaevento?.evento;
     return {
       empresaUsuarioId: eu.id,
       empresaeventoId: eu.empresaevento_id,
@@ -8845,6 +8846,7 @@ export class AppController implements OnModuleInit {
       cargo: eu.cargo,
       esResponsable: eu.esResponsable === 1,
       urlCredencialQR: (eu as any).urlCredencialQR ?? null,
+      evento: evento ? { nombre: evento.nombre, edicion: evento.edicion, urlLogoEvento: evento.urlLogoEvento } : null,
     };
   }
 

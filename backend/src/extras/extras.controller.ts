@@ -580,16 +580,6 @@ export class ExtrasController {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) throw new BadRequestException('El correo no es válido.');
     if (!telefono || telefono.length > 45) throw new BadRequestException('El teléfono no es válido.');
 
-    const existenteGlobal = await this.prisma.usuario.findFirst({ where: { correo: { equals: correo, mode: 'insensitive' } } });
-    if (existenteGlobal) {
-      if (['ADMINISTRADOR', 'TECNICO', 'TECNICO_EVENTOS'].includes(existenteGlobal.rolEvento))
-        throw new BadRequestException('Ese correo pertenece a una cuenta interna.');
-      const yaInscrito = await this.prisma.empresa_usuario.findFirst({
-        where: { usuario_id: existenteGlobal.id, estaActivo: 1, empresaevento: { evento_id: eventoId, estaActivo: 1 } },
-      });
-      if (yaInscrito) throw new BadRequestException('Este correo ya está inscrito en el evento actual.');
-    }
-
     let paquete: { id: number; tipoParticipacion: string } | null = null;
     if (body.paquete_id) {
       paquete = await this.prisma.paquete.findFirst({
@@ -599,41 +589,79 @@ export class ExtrasController {
       if (!paquete) throw new BadRequestException('El paquete seleccionado no es un paquete de tipo Foro.');
     }
 
+    const creado = await this.crearUsuarioForo({
+      eventoId, nombres, apellidoPaterno, apellidoMaterno, correo, telefono, cargo,
+      paqueteId: paquete?.id ?? null, tipoParticipacion: paquete?.tipoParticipacion ?? null,
+    });
+    return { id: creado.usuario.id, nombres, apellidoPaterno, correo, correoEnviado: creado.correoEnviado };
+  }
+
+  // Núcleo compartido: crea el esqueleto empresa/empresaevento/usuario/
+  // empresa_usuario de un participante FORO ya habilitado (sin flujo de pago)
+  // y le envía la contraseña temporal por correo. Lo usan tanto la creación
+  // directa del admin como el autorregistro público.
+  private async crearUsuarioForo(datos: {
+    eventoId: number; nombres: string; apellidoPaterno: string; apellidoMaterno: string | null;
+    correo: string; telefono: string; cargo: string | null; institucionNombre?: string | null;
+    paqueteId?: number | null; tipoParticipacion?: string | null;
+  }) {
+    const { eventoId, nombres, apellidoPaterno, apellidoMaterno, correo, telefono, cargo } = datos;
+
+    const existenteGlobal = await this.prisma.usuario.findFirst({
+      where: { correo: { equals: correo, mode: 'insensitive' } },
+      orderBy: [{ estaActivo: 'desc' }, { id: 'desc' }],
+    });
+    if (existenteGlobal) {
+      if (['ADMINISTRADOR', 'TECNICO', 'TECNICO_EVENTOS'].includes(existenteGlobal.rolEvento))
+        throw new BadRequestException('Ese correo pertenece a una cuenta interna.');
+      const yaInscrito = await this.prisma.empresa_usuario.findFirst({
+        where: { usuario_id: existenteGlobal.id, estaActivo: 1, empresaevento: { evento_id: eventoId, estaActivo: 1 } },
+      });
+      if (yaInscrito) throw new BadRequestException('Este correo ya está inscrito en el evento actual.');
+    }
+
     const ciudad = await this.prisma.ciudad.findFirst({ orderBy: { id: 'asc' } });
     if (!ciudad) throw new BadRequestException('No existe una ciudad configurada para crear el acceso.');
 
+    // Si el correo ya tenía una cuenta (de otra edición del evento), se
+    // conserva usuario y contraseña; solo se crea la nueva inscripción.
     const pwd = randomBytes(6).toString('base64url');
     const hash = await bcrypt.hash(pwd, 10);
-    const nombreCompleto = `${nombres} ${apellidoPaterno}`.slice(0, 55);
+    const nombreEmpresa = (datos.institucionNombre?.trim() || `${nombres} ${apellidoPaterno}`).slice(0, 55);
 
     const creado = await this.prisma.$transaction(async (tx) => {
       const empresa = await tx.empresa.create({
         data: {
-          ciudad_id: ciudad.id, nombre: nombreCompleto, rubro: 'Foro', telefonoWhatsapp: telefono,
+          ciudad_id: ciudad.id, nombre: nombreEmpresa, rubro: 'Foro', telefonoWhatsapp: telefono,
           correoCorporativo: correo, estaActivo: 1,
         },
       });
       const ee = await tx.empresaevento.create({
         data: {
-          empresa_id: empresa.id, evento_id: eventoId, paquete_id: paquete?.id ?? null,
-          tipoParticipacion: paquete?.tipoParticipacion || 'PRESENCIAL',
+          empresa_id: empresa.id, evento_id: eventoId, paquete_id: datos.paqueteId ?? null,
+          tipoParticipacion: datos.tipoParticipacion || 'PRESENCIAL',
           estadoHabilitacionAcceso: 'HABILITADO', estadoVerificacionPago: 'COMPLETADO',
           numeroParticipantes: 1, estaActivo: 1,
         },
       });
-      const usuario = await tx.usuario.create({
-        data: {
-          nombres, apellidoPaterno, apellidoMaterno, correo, telefono, contrasenia: hash,
-          urlFotoPerfil: '', rolEvento: 'FORO', evento_id: eventoId, estaActivo: 1,
-        },
-      });
+      const usuario = existenteGlobal
+        ? await tx.usuario.update({
+            where: { id: existenteGlobal.id },
+            data: { estaActivo: 1, creadoModificadoFecha: new Date() },
+          })
+        : await tx.usuario.create({
+            data: {
+              nombres, apellidoPaterno, apellidoMaterno, correo, telefono, contrasenia: hash,
+              urlFotoPerfil: '', rolEvento: 'FORO', evento_id: eventoId, estaActivo: 1,
+            },
+          });
       const eu = await tx.empresa_usuario.create({
         data: {
           empresa_id: empresa.id, empresaevento_id: ee.id, usuario_id: usuario.id,
           cargo: cargo || '', esResponsable: 1, estaActivo: 1,
         },
       });
-      return { empresa, ee, usuario, eu };
+      return { empresa, ee, usuario, eu, reutilizado: !!existenteGlobal };
     });
 
     let correoEnviado = true;
@@ -647,13 +675,42 @@ export class ExtrasController {
         html: `${this.cabeceraCorreo()}<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#1f2937">
           <h2 style="color:#449D3A">Hola, ${nombres}</h2>
           <p>Ya tienes acceso a la plataforma del evento con tu inscripción de Foro.</p>
-          <div style="padding:18px;background:#f0fdf4;border-radius:12px"><b>Correo:</b> ${correo}<br/><b>Contraseña temporal:</b> ${pwd}</div>
+          ${creado.reutilizado
+            ? `<p>Ya tenías una cuenta con este correo: usa tu <b>contraseña habitual</b> para ingresar.</p>`
+            : `<div style="padding:18px;background:#f0fdf4;border-radius:12px"><b>Correo:</b> ${correo}<br/><b>Contraseña temporal:</b> ${pwd}</div>`}
           <p><a href="${(process.env.WEB_URL || 'http://localhost:3000').replace(/\/$/, '')}/auth/login">Ingresar a la plataforma</a></p>
         </div>`,
       });
     } catch { correoEnviado = false; }
 
-    return { id: creado.usuario.id, nombres, apellidoPaterno, correo, correoEnviado };
+    return { ...creado, correoEnviado };
+  }
+
+  // Autorregistro público del foro: datos mínimos, sin pago (el precio se
+  // definirá más adelante desde administración). Crea la cuenta ya habilitada
+  // y envía la contraseña temporal por correo, igual que la alta por admin.
+  @Post('public/registro-foro')
+  async registroPublicoForo(@Body() body: any) {
+    const eventoId = await this.eventoPrincipalId();
+    if (!eventoId) throw new BadRequestException('No hay un evento activo.');
+
+    const nombreCompleto = this.texto(body.nombres, 155, 'Nombres')!;
+    const profesion = this.texto(body.profesion, 100, 'Profesión/ocupación', false);
+    const institucion = this.texto(body.institucion, 105, 'Institución')!;
+    const correo = String(body.correo ?? '').trim().toLowerCase();
+    const telefono = String(body.telefono ?? '').trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) throw new BadRequestException('El correo no es válido.');
+    if (!telefono || telefono.length > 45) throw new BadRequestException('El teléfono no es válido.');
+
+    const partes = nombreCompleto.split(/\s+/);
+    const nombres = partes.shift()!;
+    const apellidoPaterno = partes.join(' ') || nombres;
+
+    const creado = await this.crearUsuarioForo({
+      eventoId, nombres, apellidoPaterno, apellidoMaterno: null, correo, telefono,
+      cargo: profesion, institucionNombre: institucion,
+    });
+    return { id: creado.usuario.id, nombres, correo, correoEnviado: creado.correoEnviado };
   }
 
   @Put('admin/foro-usuarios/:id')

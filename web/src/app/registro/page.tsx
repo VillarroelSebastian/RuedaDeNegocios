@@ -7,7 +7,7 @@ import {
   Building2, Users, CreditCard, CheckCircle2,
   ChevronRight, ChevronLeft, Plus, Trash2,
   Upload, QrCode, User, MapPin, FileText, ClipboardList,
-  AlertCircle, X, Check, RefreshCw,
+  AlertCircle, X, Check, RefreshCw, UserPlus, Briefcase, Mail, Phone, GraduationCap,
 } from "lucide-react";
 
 import { LIMITES, correoValido, validarNombreEmpresa, limpiarEspacios } from "@/lib/validaciones";
@@ -1129,6 +1129,158 @@ function RegistroEmpresaPage({ tipo = "empresa" }: { tipo?: "empresa" | "foro" }
   );
 }
 
+/* ─── Registro Foro (individual, sin pago) ──────────────────────── */
+function RegistroForoPage({ onVolver }: { onVolver: () => void }) {
+  const [nombres, setNombres] = useState("");
+  const [correo, setCorreo] = useState("");
+  const [telefono, setTelefono] = useState("");
+  const [profesion, setProfesion] = useState("");
+  const [institucion, setInstitucion] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [enviado, setEnviado] = useState(false);
+  const [modal, setModal] = useState<{ open: boolean; type: string; title: string; message: string }>({
+    open: false, type: "error", title: "", message: "",
+  });
+  const showModal = (type: string, title: string, message: string) => setModal({ open: true, type, title, message });
+
+  const enviar = async () => {
+    if (nombres.trim().length < 3) return showModal("error", "Falta un dato", "Escribe tu nombre completo.");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) return showModal("error", "Falta un dato", "Escribe un correo válido.");
+    if (telefono.trim().length < 6) return showModal("error", "Falta un dato", "Escribe un teléfono válido.");
+    if (institucion.trim().length < 2) return showModal("error", "Falta un dato", "Escribe tu institución u organización.");
+    setSubmitting(true);
+    try {
+      const res = await fetch(`${API}/public/registro-foro`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nombres: nombres.trim(), correo: correo.trim(), telefono: telefono.trim(), profesion: profesion.trim(), institucion: institucion.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || "No se pudo completar el registro.");
+      setEnviado(true);
+    } catch (e: any) {
+      showModal("error", "No se pudo registrar", e.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (enviado) {
+    return (
+      <div className="mx-auto w-full max-w-lg px-4 py-16 text-center">
+        <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-5">
+          <CheckCircle2 className="w-8 h-8 text-[#449D3A]" />
+        </div>
+        <h2 className="text-xl font-extrabold text-gray-900 mb-2">¡Registro completado!</h2>
+        <p className="text-sm text-gray-500 mb-6">
+          Revisa tu correo <span className="font-semibold text-gray-700">{correo}</span>: te enviamos una contraseña temporal para ingresar a la plataforma.
+        </p>
+        <Link href="/auth/login" className="inline-flex items-center justify-center gap-2 bg-[#449D3A] text-white font-semibold px-6 py-3 rounded-xl hover:bg-[#367d2e] transition-colors">
+          Ir a iniciar sesión
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto w-full max-w-lg px-4 py-8">
+      <Modal {...modal} onClose={() => setModal((m) => ({ ...m, open: false }))} />
+      <button onClick={onVolver} className="flex items-center gap-1.5 text-sm font-semibold text-gray-500 hover:text-gray-700 mb-6">
+        <ChevronLeft className="w-4 h-4" /> Volver
+      </button>
+      <h1 className="text-2xl font-extrabold text-gray-900 mb-1">Registro · Foro Personal</h1>
+      <p className="text-sm text-gray-500 mb-8">Inscripción individual: comunicados, cronograma en vivo, galería y tu credencial de acceso.</p>
+
+      <div className="space-y-5">
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-1.5">Nombres y apellidos *</label>
+          <div className="relative">
+            <User className="absolute left-3.5 top-3.5 w-4 h-4 text-gray-400" />
+            <input value={nombres} onChange={(e) => setNombres(e.target.value)} maxLength={155}
+              className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#449D3A]"
+              placeholder="Tu nombre completo" />
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-1.5">Correo electrónico *</label>
+          <div className="relative">
+            <Mail className="absolute left-3.5 top-3.5 w-4 h-4 text-gray-400" />
+            <input value={correo} onChange={(e) => setCorreo(e.target.value)} type="email" maxLength={105}
+              className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#449D3A]"
+              placeholder="correo@ejemplo.com" />
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-1.5">Teléfono *</label>
+          <div className="relative">
+            <Phone className="absolute left-3.5 top-3.5 w-4 h-4 text-gray-400" />
+            <input value={telefono} onChange={(e) => setTelefono(e.target.value)} maxLength={45}
+              className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#449D3A]"
+              placeholder="+591 ..." />
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-1.5">Profesión / Ocupación</label>
+          <div className="relative">
+            <Briefcase className="absolute left-3.5 top-3.5 w-4 h-4 text-gray-400" />
+            <input value={profesion} onChange={(e) => setProfesion(e.target.value)} maxLength={100}
+              className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#449D3A]"
+              placeholder="Ej: Ingeniero comercial" />
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-1.5">Institución *</label>
+          <div className="relative">
+            <GraduationCap className="absolute left-3.5 top-3.5 w-4 h-4 text-gray-400" />
+            <input value={institucion} onChange={(e) => setInstitucion(e.target.value)} maxLength={105}
+              className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#449D3A]"
+              placeholder="Empresa, universidad u organización" />
+          </div>
+        </div>
+      </div>
+
+      <button onClick={enviar} disabled={submitting}
+        className="mt-8 w-full bg-[#449D3A] text-white font-semibold py-3.5 rounded-xl hover:bg-[#367d2e] disabled:opacity-60 transition-colors">
+        {submitting ? "Registrando..." : "Completar registro"}
+      </button>
+      <p className="text-xs text-gray-400 mt-4 text-center">
+        Te enviaremos una contraseña temporal por correo para que ingreses a la plataforma.
+      </p>
+    </div>
+  );
+}
+
+/* ─── Selector inicial ───────────────────────────────────────────── */
+function SelectorTipoRegistro({ onElegir }: { onElegir: (tipo: "empresa" | "foro") => void }) {
+  return (
+    <div className="mx-auto w-full max-w-3xl px-4 py-10">
+      <h1 className="text-2xl font-extrabold text-gray-900 text-center mb-2">¿Cómo quieres registrarte?</h1>
+      <p className="text-sm text-gray-500 text-center mb-8">Elige la opción que corresponde a tu inscripción en el evento.</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+        <button onClick={() => onElegir("empresa")}
+          className="text-left bg-white border-2 border-gray-100 hover:border-[#449D3A] rounded-2xl p-6 transition-colors group">
+          <div className="w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center mb-4 group-hover:bg-green-100">
+            <Building2 className="w-6 h-6 text-[#449D3A]" />
+          </div>
+          <h3 className="font-extrabold text-gray-900 mb-1.5">Empresa</h3>
+          <p className="text-sm text-gray-500">Reuniones de negocios, mesas, mensajería con otras empresas y todo el paquete de inscripción empresarial.</p>
+        </button>
+        <button onClick={() => onElegir("foro")}
+          className="text-left bg-white border-2 border-gray-100 hover:border-[#449D3A] rounded-2xl p-6 transition-colors group">
+          <div className="w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center mb-4 group-hover:bg-green-100">
+            <UserPlus className="w-6 h-6 text-[#449D3A]" />
+          </div>
+          <h3 className="font-extrabold text-gray-900 mb-1.5">Foro · Personal</h3>
+          <p className="text-sm text-gray-500">Inscripción individual: comunicados, cronograma en vivo, galería del evento y tu credencial de acceso.</p>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function RegistroPage() {
-  return <RegistroEmpresaPage />;
+  const [tipo, setTipo] = useState<"empresa" | "foro" | null>(null);
+  if (tipo === "empresa") return <RegistroEmpresaPage />;
+  if (tipo === "foro") return <RegistroForoPage onVolver={() => setTipo(null)} />;
+  return <SelectorTipoRegistro onElegir={setTipo} />;
 }

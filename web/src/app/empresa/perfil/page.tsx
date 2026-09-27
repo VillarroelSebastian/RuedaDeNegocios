@@ -524,7 +524,7 @@ export default function EmpresaPerfilPage() {
     </div>
   );
 
-  const { usuario, empresa, cargo, esResponsable } = ctx;
+  const { usuario, empresa, cargo, esResponsable, evento } = ctx;
   const initials = `${(usuario.nombres ?? "?")[0]}${(usuario.apellidoPaterno ?? "")[0] ?? ""}`.toUpperCase();
 
   const {
@@ -601,6 +601,34 @@ export default function EmpresaPerfilPage() {
             </button>
           )}
         </div>
+
+        {/* Credencial digital — lo primero que se ve, con el mismo estilo de las credenciales imprimibles */}
+        {ctx.urlCredencialQR && (
+          <div className="relative bg-white border-2 border-[#449D3A] rounded-2xl overflow-hidden shadow-sm">
+            <div className="h-2 bg-gradient-to-r from-[#449D3A] to-emerald-500" />
+            <div className="p-6 flex flex-col sm:flex-row items-center gap-6">
+              <div className="flex-1 min-w-0 text-center sm:text-left">
+                {evento?.urlLogoEvento && (
+                  <img src={evento.urlLogoEvento} alt="Logo del evento" className="h-10 object-contain mb-3 mx-auto sm:mx-0" />
+                )}
+                <h2 className="text-xl font-extrabold text-gray-900">{usuario.nombres} {usuario.apellidoPaterno}</h2>
+                <p className="text-sm font-bold text-[#449D3A] mt-0.5">{empresa?.nombre}</p>
+                {cargo && <p className="text-xs text-gray-500 mt-0.5">{cargo}</p>}
+                {evento && <p className="text-[11px] text-gray-400 mt-3">{evento.nombre} {evento.edicion}</p>}
+                <a
+                  href={ctx.urlCredencialQR}
+                  download={`credencial-${empresa?.codigo ?? "rueda"}.png`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 mt-4 text-xs font-bold text-[#449D3A] hover:underline"
+                >
+                  <Download className="w-3.5 h-3.5" />Descargar credencial
+                </a>
+              </div>
+              <ImagenLightbox src={ctx.urlCredencialQR} className="w-36 h-36 rounded-xl border border-gray-100 overflow-hidden shrink-0" />
+            </div>
+          </div>
+        )}
 
         {/* Avatar banner */}
         <div className="bg-gradient-to-r from-[#449D3A] to-emerald-500 rounded-2xl p-6 text-white flex items-center gap-5">
@@ -860,31 +888,6 @@ export default function EmpresaPerfilPage() {
             </p>
           )}
         </div>
-
-        {/* Credencial digital (QR) */}
-        {ctx.urlCredencialQR && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-            <div className="flex items-center gap-2 mb-5">
-              <User className="w-5 h-5 text-[#449D3A]" />
-              <h2 className="font-bold text-gray-900">Tu credencial digital</h2>
-            </div>
-            <div className="flex flex-col sm:flex-row items-center gap-5">
-              <ImagenLightbox src={ctx.urlCredencialQR} className="w-40 h-40 rounded-xl border border-gray-100 overflow-hidden shrink-0" />
-              <div className="text-center sm:text-left">
-                <p className="text-sm text-gray-600 mb-3">Presenta este código QR en el evento como tu credencial de acceso.</p>
-                <a
-                  href={ctx.urlCredencialQR}
-                  download={`credencial-${empresa?.codigo ?? "rueda"}.png`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 bg-[#449D3A] hover:bg-[#3a8531] text-white text-sm font-bold px-4 py-2.5 rounded-xl transition-colors"
-                >
-                  <Download className="w-4 h-4" />Descargar credencial
-                </a>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* ═══ SECTION: Gestión de Participantes (Encargado only) ═══════════════ */}
         {esResponsable && (
