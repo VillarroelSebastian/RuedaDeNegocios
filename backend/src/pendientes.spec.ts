@@ -23,7 +23,7 @@ describe('Permisos de foro',()=>{
   });
 });
 describe('Registro público de foro',()=>{
-  function prismaForo(existenteGlobal: any = null){
+  function prismaForo(existenteGlobal: any = null, evento: any = { id: 2 }){
     const usuarioCreate = fn({ id: 42 });
     const tx = {
       empresa:{create:fn({id:1})},
@@ -32,17 +32,17 @@ describe('Registro público de foro',()=>{
       empresa_usuario:{create:fn({id:3})},
     };
     const prisma = {
+      evento:{findFirst:fn(evento)},
       usuario:{findFirst:fn(existenteGlobal)},
       ciudad:{findFirst:fn({id:1})},
       $transaction: async (cb:any)=>cb(tx),
     };
     return { prisma, tx, usuarioCreate };
   }
-  it('separa el nombre completo en nombres/apellido y usa la institución como empresa',async()=>{
+  it('usa nombres y apellidos por separado y la institución como empresa',async()=>{
     const { prisma, tx } = prismaForo();
     const c = new ExtrasController(prisma as any,{} as any) as any;
-    c.eventoPrincipalId = fn(2);
-    await c.registroPublicoForo({ nombres:'Ana María Rocha', correo:'ana@example.com', telefono:'70000000', profesion:'Abogada', institucion:'Universidad Boliviana' });
+    await c.registroPublicoForo({ nombres:'Ana', apellidoPaterno:'María Rocha', correo:'ana@example.com', telefono:'70000000', profesion:'Abogada', institucion:'Universidad Boliviana' });
     const datosUsuario = (tx.usuario.create.mock.calls[0][0] as any).data;
     expect(datosUsuario).toMatchObject({ nombres:'Ana', apellidoPaterno:'María Rocha', rolEvento:'FORO', estaActivo:1 });
     const datosEmpresa = (tx.empresa.create.mock.calls[0][0] as any).data;
@@ -52,20 +52,25 @@ describe('Registro público de foro',()=>{
     const datosEe = (tx.empresaevento.create.mock.calls[0][0] as any).data;
     expect(datosEe).toMatchObject({ estadoHabilitacionAcceso:'HABILITADO', estadoVerificacionPago:'COMPLETADO' });
   });
-  it('usa el nombre completo también como apellido cuando solo hay una palabra',async()=>{
-    const { tx, prisma } = prismaForo();
-    const c = new ExtrasController(prisma as any,{} as any) as any;
-    c.eventoPrincipalId = fn(2);
-    await c.registroPublicoForo({ nombres:'Ana', correo:'ana2@example.com', telefono:'70000001', institucion:'ONG Beni' });
-    const datosUsuario = (tx.usuario.create.mock.calls[0][0] as any).data;
-    expect(datosUsuario).toMatchObject({ nombres:'Ana', apellidoPaterno:'Ana' });
-  });
   it('rechaza un correo que pertenece a una cuenta interna',async()=>{
     const { prisma } = prismaForo({ id:9, rolEvento:'ADMINISTRADOR' });
     const c = new ExtrasController(prisma as any,{} as any) as any;
-    c.eventoPrincipalId = fn(2);
-    await expect(c.registroPublicoForo({ nombres:'Ana Pérez', correo:'admin@example.com', telefono:'70000000', institucion:'X' }))
+    await expect(c.registroPublicoForo({ nombres:'Ana', apellidoPaterno:'Pérez', correo:'admin@example.com', telefono:'70000000', institucion:'X' }))
       .rejects.toThrow('cuenta interna');
+  });
+  it('rechaza el registro si el período de inscripción ya cerró',async()=>{
+    const ayer = new Date(Date.now() - 86_400_000);
+    const { prisma } = prismaForo(null, { id:2, fechaFinSolicitudes: ayer, fechaInicioSolicitudes: null });
+    const c = new ExtrasController(prisma as any,{} as any) as any;
+    await expect(c.registroPublicoForo({ nombres:'Ana', apellidoPaterno:'Pérez', correo:'ana@example.com', telefono:'70000000', institucion:'X' }))
+      .rejects.toThrow('período de inscripción cerró');
+  });
+  it('rechaza el registro si las inscripciones todavía no abren',async()=>{
+    const manana = new Date(Date.now() + 86_400_000);
+    const { prisma } = prismaForo(null, { id:2, fechaInicioSolicitudes: manana, fechaFinSolicitudes: null });
+    const c = new ExtrasController(prisma as any,{} as any) as any;
+    await expect(c.registroPublicoForo({ nombres:'Ana', apellidoPaterno:'Pérez', correo:'ana@example.com', telefono:'70000000', institucion:'X' }))
+      .rejects.toThrow('inscripciones abren');
   });
 });
 describe('Mensajes y galería',()=>{

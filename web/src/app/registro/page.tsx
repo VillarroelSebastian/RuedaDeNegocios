@@ -1132,6 +1132,7 @@ function RegistroEmpresaPage({ tipo = "empresa" }: { tipo?: "empresa" | "foro" }
 /* ─── Registro Foro (individual, sin pago) ──────────────────────── */
 function RegistroForoPage({ onVolver }: { onVolver: () => void }) {
   const [nombres, setNombres] = useState("");
+  const [apellidos, setApellidos] = useState("");
   const [correo, setCorreo] = useState("");
   const [telefono, setTelefono] = useState("");
   const [profesion, setProfesion] = useState("");
@@ -1144,7 +1145,8 @@ function RegistroForoPage({ onVolver }: { onVolver: () => void }) {
   const showModal = (type: string, title: string, message: string) => setModal({ open: true, type, title, message });
 
   const enviar = async () => {
-    if (nombres.trim().length < 3) return showModal("error", "Falta un dato", "Escribe tu nombre completo.");
+    if (nombres.trim().length < 2) return showModal("error", "Falta un dato", "Escribe tus nombres.");
+    if (apellidos.trim().length < 2) return showModal("error", "Falta un dato", "Escribe tus apellidos.");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) return showModal("error", "Falta un dato", "Escribe un correo válido.");
     if (telefono.trim().length < 6) return showModal("error", "Falta un dato", "Escribe un teléfono válido.");
     if (institucion.trim().length < 2) return showModal("error", "Falta un dato", "Escribe tu institución u organización.");
@@ -1153,7 +1155,7 @@ function RegistroForoPage({ onVolver }: { onVolver: () => void }) {
       const res = await fetch(`${API}/public/registro-foro`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nombres: nombres.trim(), correo: correo.trim(), telefono: telefono.trim(), profesion: profesion.trim(), institucion: institucion.trim() }),
+        body: JSON.stringify({ nombres: nombres.trim(), apellidoPaterno: apellidos.trim(), correo: correo.trim(), telefono: telefono.trim(), profesion: profesion.trim(), institucion: institucion.trim() }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || "No se pudo completar el registro.");
@@ -1192,13 +1194,24 @@ function RegistroForoPage({ onVolver }: { onVolver: () => void }) {
       <p className="text-sm text-gray-500 mb-8">Inscripción individual: comunicados, cronograma en vivo, galería y tu credencial de acceso.</p>
 
       <div className="space-y-5">
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-1.5">Nombres y apellidos *</label>
-          <div className="relative">
-            <User className="absolute left-3.5 top-3.5 w-4 h-4 text-gray-400" />
-            <input value={nombres} onChange={(e) => setNombres(e.target.value)} maxLength={155}
-              className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#449D3A]"
-              placeholder="Tu nombre completo" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Nombres *</label>
+            <div className="relative">
+              <User className="absolute left-3.5 top-3.5 w-4 h-4 text-gray-400" />
+              <input value={nombres} onChange={(e) => setNombres(e.target.value)} maxLength={105}
+                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#449D3A]"
+                placeholder="Tus nombres" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Apellidos *</label>
+            <div className="relative">
+              <User className="absolute left-3.5 top-3.5 w-4 h-4 text-gray-400" />
+              <input value={apellidos} onChange={(e) => setApellidos(e.target.value)} maxLength={65}
+                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#449D3A]"
+                placeholder="Tus apellidos" />
+            </div>
           </div>
         </div>
         <div>

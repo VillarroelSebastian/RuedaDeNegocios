@@ -868,6 +868,7 @@ function RegistroEmpresaScreen({ navigation, tipo = 'empresa' }: any) {
 // ─── Registro Foro (individual, sin pago) ─────────────────────────────────────
 function RegistroForoScreen({ navigation }: any) {
   const [nombres, setNombres] = useState('');
+  const [apellidos, setApellidos] = useState('');
   const [correo, setCorreo] = useState('');
   const [telefono, setTelefono] = useState('');
   const [profesion, setProfesion] = useState('');
@@ -881,7 +882,8 @@ function RegistroForoScreen({ navigation }: any) {
   const closeModal = () => setModal((m) => ({ ...m, visible: false }));
 
   const enviar = async () => {
-    if (nombres.trim().length < 3) return showModal('warning', 'Falta un dato', 'Escribe tu nombre completo.');
+    if (nombres.trim().length < 2) return showModal('warning', 'Falta un dato', 'Escribe tus nombres.');
+    if (apellidos.trim().length < 2) return showModal('warning', 'Falta un dato', 'Escribe tus apellidos.');
     if (!correoValido(correo)) return showModal('warning', 'Falta un dato', 'Escribe un correo válido.');
     if (telefono.trim().length < 6) return showModal('warning', 'Falta un dato', 'Escribe un teléfono válido.');
     if (institucion.trim().length < 2) return showModal('warning', 'Falta un dato', 'Escribe tu institución u organización.');
@@ -890,7 +892,7 @@ function RegistroForoScreen({ navigation }: any) {
       const res = await fetch(`${API_URL}/public/registro-foro`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nombres: nombres.trim(), correo: correo.trim(), telefono: telefono.trim(), profesion: profesion.trim(), institucion: institucion.trim() }),
+        body: JSON.stringify({ nombres: nombres.trim(), apellidoPaterno: apellidos.trim(), correo: correo.trim(), telefono: telefono.trim(), profesion: profesion.trim(), institucion: institucion.trim() }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || 'No se pudo completar el registro.');
@@ -936,8 +938,11 @@ function RegistroForoScreen({ navigation }: any) {
             Inscripción individual: comunicados, cronograma en vivo, galería y tu credencial de acceso.
           </Text>
 
-          <Field label="Nombres y apellidos *">
-            <TextInput style={inp} value={nombres} onChangeText={setNombres} maxLength={155} placeholder="Tu nombre completo" placeholderTextColor="#9ca3af" />
+          <Field label="Nombres *">
+            <TextInput style={inp} value={nombres} onChangeText={setNombres} maxLength={105} placeholder="Tus nombres" placeholderTextColor="#9ca3af" />
+          </Field>
+          <Field label="Apellidos *">
+            <TextInput style={inp} value={apellidos} onChangeText={setApellidos} maxLength={65} placeholder="Tus apellidos" placeholderTextColor="#9ca3af" />
           </Field>
           <Field label="Correo electrónico *">
             <TextInput style={inp} value={correo} onChangeText={setCorreo} maxLength={105} keyboardType="email-address" autoCapitalize="none" placeholder="correo@ejemplo.com" placeholderTextColor="#9ca3af" />

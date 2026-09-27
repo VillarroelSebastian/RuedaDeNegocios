@@ -691,10 +691,22 @@ export class ExtrasController {
   // y envía la contraseña temporal por correo, igual que la alta por admin.
   @Post('public/registro-foro')
   async registroPublicoForo(@Body() body: any) {
-    const eventoId = await this.eventoPrincipalId();
-    if (!eventoId) throw new BadRequestException('No hay un evento activo.');
+    const evento = await this.prisma.evento.findFirst({ where: { esPrincipal: 1, estaActivo: { not: 0 } } });
+    if (!evento) throw new BadRequestException('No hay un evento activo.');
+    const ahora = new Date();
+    if (evento.fechaInicioSolicitudes && ahora < new Date(evento.fechaInicioSolicitudes)) {
+      throw new BadRequestException(
+        `Las inscripciones abren el ${new Date(evento.fechaInicioSolicitudes).toLocaleString('es-BO', { timeZone: EVENT_TIME_ZONE })}`,
+      );
+    }
+    if (evento.fechaFinSolicitudes && ahora > new Date(evento.fechaFinSolicitudes)) {
+      throw new BadRequestException(
+        `El período de inscripción cerró el ${new Date(evento.fechaFinSolicitudes).toLocaleString('es-BO', { timeZone: EVENT_TIME_ZONE })}`,
+      );
+    }
 
-    const nombreCompleto = this.texto(body.nombres, 155, 'Nombres')!;
+    const nombres = this.texto(body.nombres, 105, 'Nombres')!;
+    const apellidoPaterno = this.texto(body.apellidoPaterno, 65, 'Apellidos')!;
     const profesion = this.texto(body.profesion, 100, 'Profesión/ocupación', false);
     const institucion = this.texto(body.institucion, 105, 'Institución')!;
     const correo = String(body.correo ?? '').trim().toLowerCase();
@@ -702,12 +714,8 @@ export class ExtrasController {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) throw new BadRequestException('El correo no es válido.');
     if (!telefono || telefono.length > 45) throw new BadRequestException('El teléfono no es válido.');
 
-    const partes = nombreCompleto.split(/\s+/);
-    const nombres = partes.shift()!;
-    const apellidoPaterno = partes.join(' ') || nombres;
-
     const creado = await this.crearUsuarioForo({
-      eventoId, nombres, apellidoPaterno, apellidoMaterno: null, correo, telefono,
+      eventoId: evento.id, nombres, apellidoPaterno, apellidoMaterno: null, correo, telefono,
       cargo: profesion, institucionNombre: institucion,
     });
     return { id: creado.usuario.id, nombres, correo, correoEnviado: creado.correoEnviado };
