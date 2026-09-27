@@ -873,6 +873,9 @@ function RegistroForoScreen({ navigation }: any) {
   const [telefono, setTelefono] = useState('');
   const [profesion, setProfesion] = useState('');
   const [institucion, setInstitucion] = useState('');
+  const [paquete, setPaquete] = useState<any>(null);
+  const [comprobanteUrl, setComprobanteUrl] = useState('');
+  const [uploadingFile, setUploadingFile] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [enviado, setEnviado] = useState(false);
   const [modal, setModal] = useState<{ visible: boolean; type: ModalType; title: string; message: string }>({
@@ -881,18 +884,56 @@ function RegistroForoScreen({ navigation }: any) {
   const showModal = (type: ModalType, title: string, message: string) => setModal({ visible: true, type, title, message });
   const closeModal = () => setModal((m) => ({ ...m, visible: false }));
 
+  useEffect(() => {
+    fetch(`${API_URL}/public/paquetes?tipo=FORO`).then((r) => (r.ok ? r.json() : []))
+      .then((lista) => { if (Array.isArray(lista) && lista.length) setPaquete(lista[0]); })
+      .catch(() => {});
+  }, []);
+
+  const pickComprobante = async () => {
+    const result = await DocumentPicker.getDocumentAsync({
+      type: ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
+      copyToCacheDirectory: true,
+      multiple: false,
+    });
+    if (result.canceled || !result.assets?.length) return;
+    const asset = result.assets[0];
+    if (asset.size && asset.size > 10 * 1024 * 1024) {
+      showModal('warning', 'Archivo muy grande', 'El archivo no debe superar los 10 MB.');
+      return;
+    }
+    setUploadingFile(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', { uri: asset.uri, type: asset.mimeType ?? 'application/octet-stream', name: asset.name ?? 'comprobante' } as any);
+      const res = await fetch(`${API_URL}/public/imagenes/upload`, { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message ?? 'Error al subir');
+      setComprobanteUrl(data.url);
+    } catch (err: any) {
+      showModal('error', 'Error al subir', err.message ?? 'No se pudo subir el comprobante.');
+    } finally {
+      setUploadingFile(false);
+    }
+  };
+
   const enviar = async () => {
     if (nombres.trim().length < 2) return showModal('warning', 'Falta un dato', 'Escribe tus nombres.');
     if (apellidos.trim().length < 2) return showModal('warning', 'Falta un dato', 'Escribe tus apellidos.');
     if (!correoValido(correo)) return showModal('warning', 'Falta un dato', 'Escribe un correo válido.');
     if (telefono.trim().length < 6) return showModal('warning', 'Falta un dato', 'Escribe un teléfono válido.');
     if (institucion.trim().length < 2) return showModal('warning', 'Falta un dato', 'Escribe tu institución u organización.');
+    if (!comprobanteUrl) return showModal('warning', 'Falta el comprobante', 'Sube tu comprobante de pago para completar el registro.');
     setSubmitting(true);
     try {
       const res = await fetch(`${API_URL}/public/registro-foro`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nombres: nombres.trim(), apellidoPaterno: apellidos.trim(), correo: correo.trim(), telefono: telefono.trim(), profesion: profesion.trim(), institucion: institucion.trim() }),
+        body: JSON.stringify({
+          nombres: nombres.trim(), apellidoPaterno: apellidos.trim(), correo: correo.trim(), telefono: telefono.trim(),
+          profesion: profesion.trim(), institucion: institucion.trim(),
+          paquete_id: paquete?.id ?? null, comprobante: { urlComprobante: comprobanteUrl },
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || 'No se pudo completar el registro.');
@@ -911,9 +952,9 @@ function RegistroForoScreen({ navigation }: any) {
           <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#f0fdf4', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
             <Text style={{ fontSize: 32 }}>✓</Text>
           </View>
-          <Text style={{ fontSize: 20, fontWeight: '800', color: '#111827', marginBottom: 8, textAlign: 'center' }}>¡Registro completado!</Text>
+          <Text style={{ fontSize: 20, fontWeight: '800', color: '#111827', marginBottom: 8, textAlign: 'center' }}>¡Registro recibido!</Text>
           <Text style={{ fontSize: 14, color: '#6b7280', textAlign: 'center', marginBottom: 24, lineHeight: 20 }}>
-            Revisa tu correo <Text style={{ fontWeight: '700', color: '#374151' }}>{correo}</Text>: te enviamos una contraseña temporal para ingresar a la plataforma.
+            Revisamos tu comprobante y te avisaremos por correo a <Text style={{ fontWeight: '700', color: '#374151' }}>{correo}</Text> apenas tu cuenta quede habilitada.
           </Text>
           <TouchableOpacity onPress={() => navigation.replace('Login')}
             style={{ backgroundColor: '#449D3A', borderRadius: 12, paddingVertical: 14, paddingHorizontal: 28 }}>
@@ -957,15 +998,41 @@ function RegistroForoScreen({ navigation }: any) {
             <TextInput style={inp} value={institucion} onChangeText={setInstitucion} maxLength={105} placeholder="Empresa, universidad u organización" placeholderTextColor="#9ca3af" />
           </Field>
 
+          <View style={{ marginTop: 10, paddingTop: 18, borderTopWidth: 1, borderTopColor: '#f3f4f6' }}>
+            <Text style={{ fontSize: 15, fontWeight: '800', color: '#111827', marginBottom: 4 }}>Pago de inscripción</Text>
+            <Text style={{ fontSize: 13, color: '#6b7280', marginBottom: 12 }}>
+              {paquete ? `Costo: Bs. ${Number(paquete.costo)}. Realiza el pago y sube tu comprobante.` : 'Realiza el pago de tu inscripción y sube tu comprobante para que lo verifiquemos.'}
+            </Text>
+            {!!paquete?.urlQR && (
+              <Image source={{ uri: paquete.urlQR }} style={{ width: 160, height: 160, borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', alignSelf: 'center', marginBottom: 12 }} resizeMode="contain" />
+            )}
+            {comprobanteUrl ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#f0fdf4', borderWidth: 1, borderColor: '#bbf7d0', borderRadius: 12, padding: 12 }}>
+                <Text style={{ fontSize: 18 }}>✓</Text>
+                <Text style={{ flex: 1, fontSize: 13, color: '#374151' }}>Comprobante cargado correctamente.</Text>
+                <TouchableOpacity onPress={pickComprobante}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#449D3A' }}>Cambiar</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity onPress={pickComprobante} disabled={uploadingFile}
+                style={{ borderWidth: 2, borderStyle: 'dashed', borderColor: uploadingFile ? '#449D3A' : '#e5e7eb', borderRadius: 12, padding: 20, alignItems: 'center', backgroundColor: uploadingFile ? '#f0fdf4' : '#fafafa' }}>
+                {uploadingFile ? <ActivityIndicator color="#449D3A" /> : (
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: '#374151' }}>Toca para subir tu comprobante *</Text>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
+
           <TouchableOpacity
             onPress={enviar}
             disabled={submitting}
-            style={{ backgroundColor: '#449D3A', borderRadius: 12, paddingVertical: 15, alignItems: 'center', marginTop: 10, opacity: submitting ? 0.7 : 1 }}
+            style={{ backgroundColor: '#449D3A', borderRadius: 12, paddingVertical: 15, alignItems: 'center', marginTop: 20, opacity: submitting ? 0.7 : 1 }}
           >
             {submitting ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Completar registro</Text>}
           </TouchableOpacity>
           <Text style={{ fontSize: 11, color: '#9ca3af', textAlign: 'center', marginTop: 14 }}>
-            Te enviaremos una contraseña temporal por correo para que ingreses a la plataforma.
+            Tu registro quedará pendiente de verificación de pago; te avisaremos por correo cuando esté habilitado.
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>

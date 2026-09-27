@@ -1129,7 +1129,7 @@ function RegistroEmpresaPage({ tipo = "empresa" }: { tipo?: "empresa" | "foro" }
   );
 }
 
-/* ─── Registro Foro (individual, sin pago) ──────────────────────── */
+/* ─── Registro Foro (individual, con comprobante de pago) ──────────── */
 function RegistroForoPage({ onVolver }: { onVolver: () => void }) {
   const [nombres, setNombres] = useState("");
   const [apellidos, setApellidos] = useState("");
@@ -1137,6 +1137,9 @@ function RegistroForoPage({ onVolver }: { onVolver: () => void }) {
   const [telefono, setTelefono] = useState("");
   const [profesion, setProfesion] = useState("");
   const [institucion, setInstitucion] = useState("");
+  const [paquete, setPaquete] = useState<any>(null);
+  const [urlComprobante, setUrlComprobante] = useState("");
+  const [uploadingFile, setUploadingFile] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [enviado, setEnviado] = useState(false);
   const [modal, setModal] = useState<{ open: boolean; type: string; title: string; message: string }>({
@@ -1144,18 +1147,49 @@ function RegistroForoPage({ onVolver }: { onVolver: () => void }) {
   });
   const showModal = (type: string, title: string, message: string) => setModal({ open: true, type, title, message });
 
+  useEffect(() => {
+    fetch(`${API}/public/paquetes?tipo=FORO`).then((r) => (r.ok ? r.json() : []))
+      .then((lista) => { if (Array.isArray(lista) && lista.length) setPaquete(lista[0]); })
+      .catch(() => {});
+  }, []);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) { showModal("error", "Archivo muy grande", "El archivo no debe superar los 10 MB."); return; }
+    setUploadingFile(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch(`${API}/public/imagenes/upload`, { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok || !data.url) throw new Error(data?.message || "No se pudo guardar el archivo.");
+      setUrlComprobante(data.url);
+    } catch (error) {
+      showModal("error", "Error al subir", error instanceof Error ? error.message : "No se pudo subir el comprobante.");
+    } finally {
+      setUploadingFile(false);
+      e.target.value = "";
+    }
+  };
+
   const enviar = async () => {
     if (nombres.trim().length < 2) return showModal("error", "Falta un dato", "Escribe tus nombres.");
     if (apellidos.trim().length < 2) return showModal("error", "Falta un dato", "Escribe tus apellidos.");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) return showModal("error", "Falta un dato", "Escribe un correo válido.");
     if (telefono.trim().length < 6) return showModal("error", "Falta un dato", "Escribe un teléfono válido.");
     if (institucion.trim().length < 2) return showModal("error", "Falta un dato", "Escribe tu institución u organización.");
+    if (!urlComprobante) return showModal("error", "Falta el comprobante", "Sube tu comprobante de pago para completar el registro.");
     setSubmitting(true);
     try {
       const res = await fetch(`${API}/public/registro-foro`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nombres: nombres.trim(), apellidoPaterno: apellidos.trim(), correo: correo.trim(), telefono: telefono.trim(), profesion: profesion.trim(), institucion: institucion.trim() }),
+        body: JSON.stringify({
+          nombres: nombres.trim(), apellidoPaterno: apellidos.trim(), correo: correo.trim(), telefono: telefono.trim(),
+          profesion: profesion.trim(), institucion: institucion.trim(),
+          paquete_id: paquete?.id ?? null, comprobante: { urlComprobante },
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || "No se pudo completar el registro.");
@@ -1173,9 +1207,9 @@ function RegistroForoPage({ onVolver }: { onVolver: () => void }) {
         <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-5">
           <CheckCircle2 className="w-8 h-8 text-[#449D3A]" />
         </div>
-        <h2 className="text-xl font-extrabold text-gray-900 mb-2">¡Registro completado!</h2>
+        <h2 className="text-xl font-extrabold text-gray-900 mb-2">¡Registro recibido!</h2>
         <p className="text-sm text-gray-500 mb-6">
-          Revisa tu correo <span className="font-semibold text-gray-700">{correo}</span>: te enviamos una contraseña temporal para ingresar a la plataforma.
+          Revisamos tu comprobante de pago y te avisaremos por correo a <span className="font-semibold text-gray-700">{correo}</span> apenas tu cuenta quede habilitada.
         </p>
         <Link href="/auth/login" className="inline-flex items-center justify-center gap-2 bg-[#449D3A] text-white font-semibold px-6 py-3 rounded-xl hover:bg-[#367d2e] transition-colors">
           Ir a iniciar sesión
@@ -1252,12 +1286,45 @@ function RegistroForoPage({ onVolver }: { onVolver: () => void }) {
         </div>
       </div>
 
+      {/* Pago */}
+      <div className="mt-8 pt-6 border-t border-gray-100">
+        <h2 className="text-base font-extrabold text-gray-900 mb-1">Pago de inscripción</h2>
+        {paquete ? (
+          <p className="text-sm text-gray-500 mb-4">
+            Costo: <span className="font-bold text-gray-800">Bs. {Number(paquete.costo)}</span>. Realiza el pago y sube tu comprobante.
+          </p>
+        ) : (
+          <p className="text-sm text-gray-500 mb-4">Realiza el pago de tu inscripción y sube tu comprobante para que lo verifiquemos.</p>
+        )}
+        {paquete?.urlQR && (
+          <img src={paquete.urlQR} alt="QR de pago" className="w-40 h-40 rounded-xl border border-gray-200 object-contain mb-4 mx-auto sm:mx-0" />
+        )}
+        {urlComprobante ? (
+          <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl p-3">
+            <CheckCircle2 className="w-5 h-5 text-[#449D3A] shrink-0" />
+            <p className="text-sm text-gray-700 flex-1">Comprobante cargado correctamente.</p>
+            <label className="text-xs font-bold text-[#449D3A] cursor-pointer hover:underline">
+              Cambiar
+              <input type="file" accept="image/*,.pdf" className="hidden" onChange={handleFileUpload} />
+            </label>
+          </div>
+        ) : (
+          <label className={`block w-full border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${uploadingFile ? "border-[#449D3A] bg-green-50" : "border-gray-200 hover:border-[#449D3A] hover:bg-green-50"}`}>
+            <input type="file" accept="image/*,.pdf" className="hidden" onChange={handleFileUpload} disabled={uploadingFile} />
+            <Upload className={`w-6 h-6 mx-auto mb-2 ${uploadingFile ? "text-[#449D3A] animate-bounce" : "text-gray-400"}`} />
+            <p className={`text-sm font-semibold ${uploadingFile ? "text-[#449D3A]" : "text-gray-600"}`}>
+              {uploadingFile ? "Subiendo..." : "Haz clic para subir tu comprobante *"}
+            </p>
+          </label>
+        )}
+      </div>
+
       <button onClick={enviar} disabled={submitting}
         className="mt-8 w-full bg-[#449D3A] text-white font-semibold py-3.5 rounded-xl hover:bg-[#367d2e] disabled:opacity-60 transition-colors">
         {submitting ? "Registrando..." : "Completar registro"}
       </button>
       <p className="text-xs text-gray-400 mt-4 text-center">
-        Te enviaremos una contraseña temporal por correo para que ingreses a la plataforma.
+        Tu registro quedará pendiente de verificación de pago; te avisaremos por correo cuando esté habilitado.
       </p>
     </div>
   );

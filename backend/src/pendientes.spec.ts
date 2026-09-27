@@ -28,6 +28,7 @@ describe('Registro público de foro',()=>{
     const tx = {
       empresa:{create:fn({id:1})},
       empresaevento:{create:fn({id:2})},
+      empresaeventocomprobantes:{create:fn({id:5})},
       usuario:{create:usuarioCreate},
       empresa_usuario:{create:fn({id:3})},
     };
@@ -39,10 +40,11 @@ describe('Registro público de foro',()=>{
     };
     return { prisma, tx, usuarioCreate };
   }
-  it('usa nombres y apellidos por separado y la institución como empresa',async()=>{
+  const datosBase = { nombres:'Ana', apellidoPaterno:'María Rocha', correo:'ana@example.com', telefono:'70000000', profesion:'Abogada', institucion:'Universidad Boliviana', comprobante:{urlComprobante:'https://cdn.example.com/comprobante.png'} };
+  it('queda pendiente de verificación, con nombres/apellidos por separado y la institución como empresa',async()=>{
     const { prisma, tx } = prismaForo();
     const c = new ExtrasController(prisma as any,{} as any) as any;
-    await c.registroPublicoForo({ nombres:'Ana', apellidoPaterno:'María Rocha', correo:'ana@example.com', telefono:'70000000', profesion:'Abogada', institucion:'Universidad Boliviana' });
+    await c.registroPublicoForo(datosBase);
     const datosUsuario = (tx.usuario.create.mock.calls[0][0] as any).data;
     expect(datosUsuario).toMatchObject({ nombres:'Ana', apellidoPaterno:'María Rocha', rolEvento:'FORO', estaActivo:1 });
     const datosEmpresa = (tx.empresa.create.mock.calls[0][0] as any).data;
@@ -50,26 +52,33 @@ describe('Registro público de foro',()=>{
     const datosEu = (tx.empresa_usuario.create.mock.calls[0][0] as any).data;
     expect(datosEu.cargo).toBe('Abogada');
     const datosEe = (tx.empresaevento.create.mock.calls[0][0] as any).data;
-    expect(datosEe).toMatchObject({ estadoHabilitacionAcceso:'HABILITADO', estadoVerificacionPago:'COMPLETADO' });
+    expect(datosEe).toMatchObject({ estadoHabilitacionAcceso:'NO_HABILITADO', estadoVerificacionPago:'PENDIENTE' });
+    expect((tx.empresaeventocomprobantes.create.mock.calls[0][0] as any).data).toMatchObject({ urlComprobantePagoInscripcion: datosBase.comprobante.urlComprobante });
+  });
+  it('rechaza el registro si no se sube un comprobante de pago',async()=>{
+    const { prisma } = prismaForo();
+    const c = new ExtrasController(prisma as any,{} as any) as any;
+    await expect(c.registroPublicoForo({ ...datosBase, comprobante: undefined }))
+      .rejects.toThrow('comprobante de pago');
   });
   it('rechaza un correo que pertenece a una cuenta interna',async()=>{
     const { prisma } = prismaForo({ id:9, rolEvento:'ADMINISTRADOR' });
     const c = new ExtrasController(prisma as any,{} as any) as any;
-    await expect(c.registroPublicoForo({ nombres:'Ana', apellidoPaterno:'Pérez', correo:'admin@example.com', telefono:'70000000', institucion:'X' }))
+    await expect(c.registroPublicoForo({ ...datosBase, correo:'admin@example.com' }))
       .rejects.toThrow('cuenta interna');
   });
   it('rechaza el registro si el período de inscripción ya cerró',async()=>{
     const ayer = new Date(Date.now() - 86_400_000);
     const { prisma } = prismaForo(null, { id:2, fechaFinSolicitudes: ayer, fechaInicioSolicitudes: null });
     const c = new ExtrasController(prisma as any,{} as any) as any;
-    await expect(c.registroPublicoForo({ nombres:'Ana', apellidoPaterno:'Pérez', correo:'ana@example.com', telefono:'70000000', institucion:'X' }))
+    await expect(c.registroPublicoForo(datosBase))
       .rejects.toThrow('período de inscripción cerró');
   });
   it('rechaza el registro si las inscripciones todavía no abren',async()=>{
     const manana = new Date(Date.now() + 86_400_000);
     const { prisma } = prismaForo(null, { id:2, fechaInicioSolicitudes: manana, fechaFinSolicitudes: null });
     const c = new ExtrasController(prisma as any,{} as any) as any;
-    await expect(c.registroPublicoForo({ nombres:'Ana', apellidoPaterno:'Pérez', correo:'ana@example.com', telefono:'70000000', institucion:'X' }))
+    await expect(c.registroPublicoForo(datosBase))
       .rejects.toThrow('inscripciones abren');
   });
 });

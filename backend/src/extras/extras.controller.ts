@@ -597,15 +597,16 @@ export class ExtrasController {
   }
 
   // Núcleo compartido: crea el esqueleto empresa/empresaevento/usuario/
-  // empresa_usuario de un participante FORO ya habilitado (sin flujo de pago)
-  // y le envía la contraseña temporal por correo. Lo usan tanto la creación
-  // directa del admin como el autorregistro público.
+  // empresa_usuario de un participante FORO. Lo usan tanto la creación
+  // directa del admin (ya habilitado, sin pago) como el autorregistro
+  // público (pendiente de verificación de pago, como cualquier empresa).
   private async crearUsuarioForo(datos: {
     eventoId: number; nombres: string; apellidoPaterno: string; apellidoMaterno: string | null;
     correo: string; telefono: string; cargo: string | null; institucionNombre?: string | null;
-    paqueteId?: number | null; tipoParticipacion?: string | null;
+    paqueteId?: number | null; tipoParticipacion?: string | null; costo?: number | null;
+    pendiente?: boolean; urlComprobante?: string | null;
   }) {
-    const { eventoId, nombres, apellidoPaterno, apellidoMaterno, correo, telefono, cargo } = datos;
+    const { eventoId, nombres, apellidoPaterno, apellidoMaterno, correo, telefono, cargo, pendiente } = datos;
 
     const existenteGlobal = await this.prisma.usuario.findFirst({
       where: { correo: { equals: correo, mode: 'insensitive' } },
@@ -624,9 +625,12 @@ export class ExtrasController {
     if (!ciudad) throw new BadRequestException('No existe una ciudad configurada para crear el acceso.');
 
     // Si el correo ya tenía una cuenta (de otra edición del evento), se
-    // conserva usuario y contraseña; solo se crea la nueva inscripción.
+    // conserva usuario y contraseña; solo se crea la nueva inscripción. Si
+    // queda pendiente de pago usa la misma contraseña por defecto que el
+    // registro de empresa: la contraseña real se genera y se envía recién
+    // al aprobar el pago (admin/pagos/:id/aprobar), igual que una empresa.
     const pwd = randomBytes(6).toString('base64url');
-    const hash = await bcrypt.hash(pwd, 10);
+    const hash = await bcrypt.hash(pendiente ? 'Beni2026!' : pwd, 10);
     const nombreEmpresa = (datos.institucionNombre?.trim() || `${nombres} ${apellidoPaterno}`).slice(0, 55);
 
     const creado = await this.prisma.$transaction(async (tx) => {
@@ -640,10 +644,18 @@ export class ExtrasController {
         data: {
           empresa_id: empresa.id, evento_id: eventoId, paquete_id: datos.paqueteId ?? null,
           tipoParticipacion: datos.tipoParticipacion || 'PRESENCIAL',
-          estadoHabilitacionAcceso: 'HABILITADO', estadoVerificacionPago: 'COMPLETADO',
+          estadoHabilitacionAcceso: pendiente ? 'NO_HABILITADO' : 'HABILITADO',
+          estadoVerificacionPago: pendiente ? 'PENDIENTE' : 'COMPLETADO',
+          montoPagado: datos.costo ?? null,
+          fechaHoraEnvioComprobante: pendiente ? new Date() : null,
           numeroParticipantes: 1, estaActivo: 1,
         },
       });
+      if (pendiente && datos.urlComprobante) {
+        await tx.empresaeventocomprobantes.create({
+          data: { empresaEvento_id: ee.id, urlComprobantePagoInscripcion: datos.urlComprobante, estaActivo: 1 },
+        });
+      }
       const usuario = existenteGlobal
         ? await tx.usuario.update({
             where: { id: existenteGlobal.id },
@@ -664,31 +676,57 @@ export class ExtrasController {
       return { empresa, ee, usuario, eu, reutilizado: !!existenteGlobal };
     });
 
+    // Habilitado directo (alta del admin): se envía la contraseña ya mismo,
+    // porque la cuenta funciona de inmediato. Pendiente de pago: se avisa que
+    // se recibió el registro y se envía un enlace de seguimiento; la
+    // contraseña real llega recién al aprobar (mismo flujo que una empresa).
     let correoEnviado = true;
     try {
       const transporter = nodemailer.createTransport({ service: 'gmail', auth: { user: process.env.MAIL_USER, pass: process.env.MAIL_PASS } });
-      await transporter.sendMail({
-        from: process.env.MAIL_FROM || process.env.MAIL_USER,
-        to: correo,
-        attachments: this.adjuntoLogoCorreo(),
-        subject: 'Tu acceso al evento',
-        html: `${this.cabeceraCorreo()}<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#1f2937">
-          <h2 style="color:#449D3A">Hola, ${nombres}</h2>
-          <p>Ya tienes acceso a la plataforma del evento con tu inscripción de Foro.</p>
-          ${creado.reutilizado
-            ? `<p>Ya tenías una cuenta con este correo: usa tu <b>contraseña habitual</b> para ingresar.</p>`
-            : `<div style="padding:18px;background:#f0fdf4;border-radius:12px"><b>Correo:</b> ${correo}<br/><b>Contraseña temporal:</b> ${pwd}</div>`}
-          <p><a href="${(process.env.WEB_URL || 'http://localhost:3000').replace(/\/$/, '')}/auth/login">Ingresar a la plataforma</a></p>
-        </div>`,
-      });
+      const baseUrl = (process.env.WEB_URL || 'http://localhost:3000').replace(/\/$/, '');
+      if (pendiente) {
+        const trackingUrl = `${baseUrl}/seguimiento?ee=${creado.ee.id}&t=${this.seguimientoToken(creado.ee.id)}`;
+        await transporter.sendMail({
+          from: process.env.MAIL_FROM || process.env.MAIL_USER,
+          to: correo,
+          attachments: this.adjuntoLogoCorreo(),
+          subject: 'Registro de Foro recibido',
+          html: `${this.cabeceraCorreo()}<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#1f2937">
+            <h2 style="color:#449D3A">Hola, ${nombres}</h2>
+            <p>Recibimos tu registro de Foro y tu comprobante de pago. Nuestro equipo lo verificará y te avisaremos por correo cuando tu cuenta esté habilitada.</p>
+            <p><a href="${trackingUrl}" style="display:inline-block;background:#449D3A;color:#fff;text-decoration:none;font-weight:700;padding:12px 24px;border-radius:10px;font-size:14px">Ver estado de mi registro</a></p>
+          </div>`,
+        });
+      } else {
+        await transporter.sendMail({
+          from: process.env.MAIL_FROM || process.env.MAIL_USER,
+          to: correo,
+          attachments: this.adjuntoLogoCorreo(),
+          subject: 'Tu acceso al evento',
+          html: `${this.cabeceraCorreo()}<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#1f2937">
+            <h2 style="color:#449D3A">Hola, ${nombres}</h2>
+            <p>Ya tienes acceso a la plataforma del evento con tu inscripción de Foro.</p>
+            ${creado.reutilizado
+              ? `<p>Ya tenías una cuenta con este correo: usa tu <b>contraseña habitual</b> para ingresar.</p>`
+              : `<div style="padding:18px;background:#f0fdf4;border-radius:12px"><b>Correo:</b> ${correo}<br/><b>Contraseña temporal:</b> ${pwd}</div>`}
+            <p><a href="${baseUrl}/auth/login">Ingresar a la plataforma</a></p>
+          </div>`,
+        });
+      }
     } catch { correoEnviado = false; }
 
     return { ...creado, correoEnviado };
   }
 
-  // Autorregistro público del foro: datos mínimos, sin pago (el precio se
-  // definirá más adelante desde administración). Crea la cuenta ya habilitada
-  // y envía la contraseña temporal por correo, igual que la alta por admin.
+  private seguimientoToken(eeId: number): string {
+    const secret = process.env.JWT_SECRET || 'development-only-change-me';
+    return createHmac('sha256', secret).update(`seguimiento-${eeId}`).digest('hex');
+  }
+
+  // Autorregistro público del foro: datos personales + comprobante de pago,
+  // igual que el registro de empresa. Queda pendiente de verificación y el
+  // admin la aprueba desde Pagos (admin/pagos/:id/aprobar ya genera la
+  // credencial QR y envía las credenciales de acceso).
   @Post('public/registro-foro')
   async registroPublicoForo(@Body() body: any) {
     const evento = await this.prisma.evento.findFirst({ where: { esPrincipal: 1, estaActivo: { not: 0 } } });
@@ -713,12 +751,25 @@ export class ExtrasController {
     const telefono = String(body.telefono ?? '').trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) throw new BadRequestException('El correo no es válido.');
     if (!telefono || telefono.length > 45) throw new BadRequestException('El teléfono no es válido.');
+    const urlComprobante = this.texto(body?.comprobante?.urlComprobante, 505, 'Comprobante de pago', false);
+    if (!urlComprobante) throw new BadRequestException('Debes subir tu comprobante de pago para completar el registro.');
+
+    let paquete: { id: number; costo: any; tipoParticipacion: string } | null = null;
+    if (body.paquete_id) {
+      paquete = await this.prisma.paquete.findFirst({
+        where: { id: Number(body.paquete_id), evento_id: evento.id, estaActivo: 1, tipoPaquete: 'FORO' },
+        select: { id: true, costo: true, tipoParticipacion: true },
+      });
+      if (!paquete) throw new BadRequestException('El paquete seleccionado no es un paquete de tipo Foro.');
+    }
 
     const creado = await this.crearUsuarioForo({
       eventoId: evento.id, nombres, apellidoPaterno, apellidoMaterno: null, correo, telefono,
-      cargo: profesion, institucionNombre: institucion,
+      cargo: profesion, institucionNombre: institucion, pendiente: true, urlComprobante,
+      paqueteId: paquete?.id ?? null, tipoParticipacion: paquete?.tipoParticipacion ?? null,
+      costo: paquete ? Number(paquete.costo) : null,
     });
-    return { id: creado.usuario.id, nombres, correo, correoEnviado: creado.correoEnviado };
+    return { id: creado.usuario.id, nombres, correo };
   }
 
   @Put('admin/foro-usuarios/:id')
