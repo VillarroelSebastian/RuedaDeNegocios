@@ -4,6 +4,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { UserPlus, Plus, Pencil, Trash2, X, Mail, Phone, Package, Eye, Clock, CheckCircle, AlertCircle, XCircle, CreditCard, Users } from "lucide-react";
 import { useModal } from "@/components/ui/Modal";
+import ImagenLightbox from "@/components/ui/ImagenLightbox";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
@@ -72,7 +73,7 @@ function PagosForoPanel({ paquetes }: { paquetes: Paquete[] }) {
       {paquete ? (
         <div className="mb-5 bg-white border border-gray-200 rounded-2xl p-5 flex flex-col sm:flex-row items-center gap-4">
           {paquete.urlQR && (
-            <img src={paquete.urlQR} alt="QR de pago" className="w-20 h-20 rounded-lg border border-gray-200 object-contain shrink-0" />
+            <ImagenLightbox src={paquete.urlQR} alt="QR de pago" className="w-20 h-20 rounded-lg border border-gray-200 shrink-0" />
           )}
           <div className="flex-1 min-w-0">
             <p className="text-sm font-bold text-gray-900">{paquete.nombre} — Bs. {Number(paquete.costo)}</p>

@@ -12,6 +12,7 @@ import {
 
 import { LIMITES, correoValido, validarNombreEmpresa, limpiarEspacios } from "@/lib/validaciones";
 import { RUBROS, RUBROS_CON_OTRO, OTRO } from "@/lib/rubros";
+import ImagenLightbox from "@/components/ui/ImagenLightbox";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
@@ -1297,11 +1298,18 @@ function RegistroForoPage({ onVolver }: { onVolver: () => void }) {
           <p className="text-sm text-gray-500 mb-4">Realiza el pago de tu inscripción y sube tu comprobante para que lo verifiquemos.</p>
         )}
         {paquete?.urlQR && (
-          <img src={paquete.urlQR} alt="QR de pago" className="w-40 h-40 rounded-xl border border-gray-200 object-contain mb-4 mx-auto sm:mx-0" />
+          <ImagenLightbox src={paquete.urlQR} alt="QR de pago" className="w-40 h-40 rounded-xl border border-gray-200 mb-4 mx-auto sm:mx-0" />
         )}
         {urlComprobante ? (
           <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl p-3">
-            <CheckCircle2 className="w-5 h-5 text-[#449D3A] shrink-0" />
+            {urlComprobante.toLowerCase().includes(".pdf") ? (
+              <a href={urlComprobante} target="_blank" rel="noopener noreferrer"
+                className="w-14 h-14 rounded-lg border border-green-200 bg-white flex items-center justify-center shrink-0">
+                <FileText className="w-6 h-6 text-[#449D3A]" />
+              </a>
+            ) : (
+              <ImagenLightbox src={urlComprobante} alt="Comprobante de pago" className="w-14 h-14 rounded-lg border border-green-200 bg-white shrink-0" />
+            )}
             <p className="text-sm text-gray-700 flex-1">Comprobante cargado correctamente.</p>
             <label className="text-xs font-bold text-[#449D3A] cursor-pointer hover:underline">
               Cambiar

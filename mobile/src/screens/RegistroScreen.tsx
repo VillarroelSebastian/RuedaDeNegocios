@@ -876,6 +876,7 @@ function RegistroForoScreen({ navigation }: any) {
   const [paquete, setPaquete] = useState<any>(null);
   const [comprobanteUrl, setComprobanteUrl] = useState('');
   const [uploadingFile, setUploadingFile] = useState(false);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [enviado, setEnviado] = useState(false);
   const [modal, setModal] = useState<{ visible: boolean; type: ModalType; title: string; message: string }>({
@@ -1004,11 +1005,21 @@ function RegistroForoScreen({ navigation }: any) {
               {paquete ? `Costo: Bs. ${Number(paquete.costo)}. Realiza el pago y sube tu comprobante.` : 'Realiza el pago de tu inscripción y sube tu comprobante para que lo verifiquemos.'}
             </Text>
             {!!paquete?.urlQR && (
-              <Image source={{ uri: paquete.urlQR }} style={{ width: 160, height: 160, borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', alignSelf: 'center', marginBottom: 12 }} resizeMode="contain" />
+              <TouchableOpacity onPress={() => setLightboxUrl(paquete.urlQR)} style={{ alignSelf: 'center', marginBottom: 12 }}>
+                <Image source={{ uri: paquete.urlQR }} style={{ width: 160, height: 160, borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb' }} resizeMode="contain" />
+              </TouchableOpacity>
             )}
             {comprobanteUrl ? (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#f0fdf4', borderWidth: 1, borderColor: '#bbf7d0', borderRadius: 12, padding: 12 }}>
-                <Text style={{ fontSize: 18 }}>✓</Text>
+                {comprobanteUrl.toLowerCase().includes('.pdf') ? (
+                  <View style={{ width: 40, height: 40, borderRadius: 8, backgroundColor: '#fff', borderWidth: 1, borderColor: '#bbf7d0', alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ fontSize: 16 }}>📄</Text>
+                  </View>
+                ) : (
+                  <TouchableOpacity onPress={() => setLightboxUrl(comprobanteUrl)}>
+                    <Image source={{ uri: comprobanteUrl }} style={{ width: 40, height: 40, borderRadius: 8, borderWidth: 1, borderColor: '#bbf7d0' }} resizeMode="contain" />
+                  </TouchableOpacity>
+                )}
                 <Text style={{ flex: 1, fontSize: 13, color: '#374151' }}>Comprobante cargado correctamente.</Text>
                 <TouchableOpacity onPress={pickComprobante}>
                   <Text style={{ fontSize: 12, fontWeight: '700', color: '#449D3A' }}>Cambiar</Text>
@@ -1036,6 +1047,7 @@ function RegistroForoScreen({ navigation }: any) {
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>
+      {lightboxUrl && <Lightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />}
     </SafeAreaView>
   );
 }

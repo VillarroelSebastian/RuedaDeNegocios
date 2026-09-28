@@ -439,20 +439,20 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
       >
         {/* Header */}
         <View style={s.profileHeader}>
-          <TouchableOpacity onPress={cambiarFoto} activeOpacity={0.8} style={{ position: 'relative' }}>
+          <View style={{ position: 'relative' }}>
             <View style={s.avatar}>
               {perfil?.usuario?.urlFotoPerfil ? (
-                <Image source={{ uri: perfil.usuario.urlFotoPerfil }} style={{ width: 56, height: 56, borderRadius: 28 }} />
+                <ImagenLightbox uri={perfil.usuario.urlFotoPerfil} style={{ width: '100%', height: '100%' }} />
               ) : (
                 <Text style={s.avatarText}>{(user?.nombres ?? 'U')[0].toUpperCase()}</Text>
               )}
             </View>
-            <View style={s.avatarCamBadge}>
+            <TouchableOpacity onPress={cambiarFoto} activeOpacity={0.8} style={s.avatarCamBadge}>
               {subiendoFoto
                 ? <ActivityIndicator size="small" color="#fff" />
                 : <Camera size={12} color="#fff" />}
-            </View>
-          </TouchableOpacity>
+            </TouchableOpacity>
+          </View>
           <View style={{ flex: 1 }}>
             <Text style={s.profileName}>{perfil?.usuario?.nombres ?? user?.nombres ?? '—'}</Text>
             <Text style={s.profileEmail}>{perfil?.usuario?.correo ?? user?.correo}</Text>

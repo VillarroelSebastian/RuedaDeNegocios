@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { Package, Plus, Pencil, Trash2, X, Check, Users, Building2, Upload, QrCode } from "lucide-react";
 import { useModal } from "@/components/ui/Modal";
+import ImagenLightbox from "@/components/ui/ImagenLightbox";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
@@ -498,9 +499,8 @@ export default function PaquetesPage() {
                 <label className="block text-xs font-bold text-gray-700 mb-1.5">QR de pago del paquete</label>
                 <div className="flex items-center gap-3">
                   {form.urlQR && (
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img src={form.urlQR} alt="QR de pago"
-                      className="w-20 h-20 object-contain border border-gray-200 rounded-xl bg-white p-1" />
+                    <ImagenLightbox src={form.urlQR} alt="QR de pago"
+                      className="w-20 h-20 border border-gray-200 rounded-xl bg-white p-1" />
                   )}
                   <input ref={fileRef} type="file" accept="image/*" className="hidden"
                     onChange={(e) => { const f = e.target.files?.[0]; if (f) subirQR(f); }} />
