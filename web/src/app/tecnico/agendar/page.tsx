@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, Suspense } from "react";
 import {
   Building2, Search, Check, CheckCircle2, AlertCircle, Users, Monitor,
   ChevronLeft, Table2, CalendarPlus, Send,
 } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
@@ -101,7 +102,10 @@ function SelectorEmpresa({ titulo, empresas, seleccionada, excluirEeId, onSelect
   );
 }
 
-export default function TecnicoAgendarPage() {
+function TecnicoAgendarPageInner() {
+  const searchParams = useSearchParams();
+  const eeAPre = searchParams.get("eeA");
+  const eeBPre = searchParams.get("eeB");
   const [empresas, setEmpresas] = useState<any[]>([]);
   const [cargandoEmpresas, setCargandoEmpresas] = useState(true);
 
@@ -144,6 +148,20 @@ export default function TecnicoAgendarPage() {
       .catch(() => {})
       .finally(() => setCargandoEmpresas(false));
   }, []);
+
+  // Llega desde Oportunidades con las 2 empresas ya decididas: se saltan
+  // directo al paso 2 en vez de repetir la búsqueda/selección.
+  useEffect(() => {
+    if (cargandoEmpresas || !eeAPre || !eeBPre || empresas.length === 0) return;
+    const a = empresas.find((e) => String(e.eeId) === eeAPre);
+    const b = empresas.find((e) => String(e.eeId) === eeBPre);
+    if (a && b) {
+      setEmpA(a);
+      setEmpB(b);
+      setPaso(2);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cargandoEmpresas, empresas, eeAPre, eeBPre]);
 
   // ── Derivados del horario (mismo patrón que NuevaSolicitudModal) ──
   const fechasDisponibles = useMemo(() =>
@@ -356,6 +374,13 @@ export default function TecnicoAgendarPage() {
           <button onClick={() => setPaso(1)} className="flex items-center gap-1 text-sm font-bold text-gray-500 hover:text-gray-700">
             <ChevronLeft className="w-4 h-4" />Atrás
           </button>
+          {empA && empB && (
+            <div className="flex items-center justify-center gap-3 bg-green-50 border border-green-100 rounded-xl p-3 text-sm">
+              <span className="font-bold text-gray-800 truncate">{empA.nombre}</span>
+              <span className="text-gray-300 font-bold">vs</span>
+              <span className="font-bold text-gray-800 truncate">{empB.nombre}</span>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             {(["PRESENCIAL", "VIRTUAL"] as const).map((t) => (
               <button key={t} onClick={() => setTipo(t)}
@@ -582,5 +607,13 @@ export default function TecnicoAgendarPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function TecnicoAgendarPage() {
+  return (
+    <Suspense fallback={<div className="p-8">Cargando…</div>}>
+      <TecnicoAgendarPageInner />
+    </Suspense>
   );
 }

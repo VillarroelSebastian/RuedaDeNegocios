@@ -1,9 +1,9 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Building2, ChevronLeft, ChevronRight, Search, Sparkles } from 'lucide-react-native';
-import { API_URL } from '../../utils/userStore';
+import { Building2, CalendarPlus, ChevronLeft, ChevronRight, Lightbulb, Search, Sparkles } from 'lucide-react-native';
+import { API_URL, userStore } from '../../utils/userStore';
 
 const GREEN = '#449D3A';
 const PAGE_SIZE = 10;
@@ -12,6 +12,13 @@ type Oportunidad = { empresaA: EmpresaOportunidad; empresaB: EmpresaOportunidad;
 
 export default function OportunidadesStaffScreen({ mostrarEncabezado = true }: { mostrarEncabezado?: boolean } = {}) {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<any>();
+  const esAdmin = userStore.get()?.rolEvento === 'ADMINISTRADOR';
+  const agendar = (item: Oportunidad) => {
+    const params = { eeA: item.empresaA.empresaeventoId, eeB: item.empresaB.empresaeventoId };
+    if (esAdmin) navigation.navigate('AgendarReunion', params);
+    else navigation.navigate('TecnicoAgendar', params);
+  };
   const [items, setItems] = useState<Oportunidad[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -45,6 +52,15 @@ export default function OportunidadesStaffScreen({ mostrarEncabezado = true }: {
     )}
     <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 40 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); cargar(); }} />}>
     {!!error && <Text style={{ borderRadius: 12, backgroundColor: '#fef2f2', padding: 12, color: '#b91c1c' }}>{error}</Text>}
+    {!!items.length && (
+      <View style={{ flexDirection: 'row', gap: 10, borderRadius: 16, backgroundColor: '#f0fdf4', borderWidth: 1, borderColor: '#dcfce7', padding: 12 }}>
+        <Lightbulb size={18} color="#f59e0b" style={{ marginTop: 1 }} />
+        <Text style={{ flex: 1, fontSize: 11, color: '#166534', lineHeight: 16 }}>
+          <Text style={{ fontWeight: '800' }}>¿Cómo leer esta lista? </Text>
+          Cada tarjeta junta dos empresas con algo que ofrecerse. Los motivos en verde explican por qué. Si te convence, toca &quot;Agendar reunión&quot; y salta directo a elegir horario.
+        </Text>
+      </View>
+    )}
     {!!items.length && <View style={{ gap: 10, borderRadius: 16, backgroundColor: '#fff', padding: 12 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, paddingHorizontal: 10 }}><Search size={17} color="#9ca3af" /><TextInput value={busqueda} onChangeText={(value) => { setBusqueda(value); setPagina(1); }} placeholder="Empresa, código, rubro o motivo" style={{ flex: 1, height: 42, fontSize: 13 }} /></View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 7 }}>{['TODOS', ...rubros].map((item) => <TouchableOpacity key={item} onPress={() => { setRubro(item); setPagina(1); }} style={{ borderRadius: 20, paddingHorizontal: 11, paddingVertical: 7, backgroundColor: rubro === item ? GREEN : '#f3f4f6' }}><Text style={{ fontSize: 11, fontWeight: '700', color: rubro === item ? '#fff' : '#4b5563' }}>{item === 'TODOS' ? 'Todos los rubros' : item}</Text></TouchableOpacity>)}</ScrollView>
@@ -56,6 +72,11 @@ export default function OportunidadesStaffScreen({ mostrarEncabezado = true }: {
     {visibles.map((item) => <View key={`${item.empresaA.empresaeventoId}-${item.empresaB.empresaeventoId}`} style={{ borderRadius: 16, borderWidth: 1, borderColor: '#dcfce7', backgroundColor: '#fff', padding: 14 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><Empresa data={item.empresaA} /><Sparkles size={19} color="#f59e0b" /><Empresa data={item.empresaB} /></View>
       <View style={{ marginTop: 12, gap: 6 }}>{item.motivos.map((m: string, i: number) => <Text key={i} style={{ borderRadius: 9, backgroundColor: '#f0fdf4', padding: 8, fontSize: 11, fontWeight: '600', color: '#166534' }}>{m}</Text>)}</View>
+      <TouchableOpacity onPress={() => agendar(item)} activeOpacity={0.85}
+        style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: GREEN, borderRadius: 12, paddingVertical: 11 }}>
+        <CalendarPlus size={15} color="#fff" />
+        <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>Agendar reunión entre estas empresas</Text>
+      </TouchableOpacity>
     </View>)}
     {totalPaginas > 1 && <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 12 }}><TouchableOpacity disabled={paginaActual === 1} onPress={() => setPagina((p) => Math.max(1, p - 1))} style={{ opacity: paginaActual === 1 ? 0.35 : 1, borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 10, padding: 9 }}><ChevronLeft size={18} color="#374151" /></TouchableOpacity><Text style={{ fontSize: 12, fontWeight: '700', color: '#6b7280' }}>{paginaActual} / {totalPaginas}</Text><TouchableOpacity disabled={paginaActual === totalPaginas} onPress={() => setPagina((p) => Math.min(totalPaginas, p + 1))} style={{ opacity: paginaActual === totalPaginas ? 0.35 : 1, borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 10, padding: 9 }}><ChevronRight size={18} color="#374151" /></TouchableOpacity></View>}
     </ScrollView>

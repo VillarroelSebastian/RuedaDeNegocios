@@ -297,10 +297,13 @@ export default function ConfiguracionDeEventoPage() {
       enlaceTiktok: orNull(formData.enlaceTiktok),
       ciudadEvento: orNull(formData.ciudadEvento),
       paisEvento: orNull(formData.paisEvento),
+      // Ya no son "rangos": cada fila es un QR para una cantidad exacta de
+      // cupos adicionales (rangoDesde === rangoHasta), con precio calculado
+      // solo a partir de costoParticipanteExtra.
       reglasQR: reglasQR.map(r => ({
         rangoDesde: Number(r.rangoDesde),
-        rangoHasta: Number(r.rangoHasta),
-        monto: Number(r.monto),
+        rangoHasta: Number(r.rangoDesde),
+        monto: Number(r.rangoDesde) * Number(formData.costoParticipanteExtra),
         urlQR: r.urlQR || '',
       })),
     };
@@ -370,6 +373,8 @@ export default function ConfiguracionDeEventoPage() {
   if (loading) {
     return <div className={styles.loader}>Cargando evento...</div>;
   }
+
+  const qrHabilitado = Number(formData.costoParticipanteExtra) > 0;
 
   return (
     <div className={styles.pageContainer}>
@@ -666,44 +671,60 @@ export default function ConfiguracionDeEventoPage() {
           <div className={styles.qrContainer}>
             <div className={styles.sectionHeader} style={{marginBottom: 0}}>
               <QrCode className={styles.icon} />
-              <h2 className={styles.sectionTitle}>QR para pagos adicionales</h2>
+              <h2 className={styles.sectionTitle}>QR de pago adicional</h2>
             </div>
-            <button onClick={addRule} className={styles.uploadButton} style={{marginTop: 0}}>
-              <Plus size={14} /> Agregar Regla
+            <button onClick={addRule} disabled={!qrHabilitado} className={styles.uploadButton} style={{marginTop: 0, opacity: qrHabilitado ? 1 : 0.5, cursor: qrHabilitado ? 'pointer' : 'not-allowed'}}>
+              <Plus size={14} /> Agregar QR
             </button>
           </div>
-          
-          <p style={{margin: '0.75rem 0', color: '#6b7280', fontSize: '0.8rem'}}>
-            El rango corresponde al total de participantes que tendrá la empresa después de aprobar los nuevos cupos. El importe se calcula automáticamente con el precio por participante adicional.
-          </p>
+
+          {!qrHabilitado ? (
+            <p style={{margin: '0.75rem 0', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '0.75rem', padding: '0.75rem', color: '#92400e', fontSize: '0.8rem'}}>
+              Configura primero el <strong>precio por participante adicional</strong> (arriba) para habilitar los QR de pago adicional.
+            </p>
+          ) : (
+            <p style={{margin: '0.75rem 0', color: '#6b7280', fontSize: '0.8rem'}}>
+              Un QR por cantidad de cupos adicionales. Genera el QR bancario por el monto exacto que se indica y súbelo aquí; el precio se calcula solo con el precio por participante adicional de arriba.
+            </p>
+          )}
           <div className={styles.tableContainer}>
             <table className={styles.table}>
               <thead>
                 <tr>
-                  <th className={styles.th} style={{width: '45%'}}>Total resultante de participantes</th>
-                  <th className={styles.th} style={{width: '45%'}}>Imagen QR</th>
+                  <th className={styles.th} style={{width: '25%'}}>Cupos adicionales</th>
+                  <th className={styles.th} style={{width: '20%'}}>Precio del QR</th>
+                  <th className={styles.th} style={{width: '40%'}}>Imagen QR</th>
                   <th className={styles.th} style={{textAlign: 'right'}}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                {reglasQR.map((regla, index) => (
-                  <tr key={index}>
+                {reglasQR.map((regla, index) => {
+                  const cupos = Number(regla.rangoDesde) || 1;
+                  const precio = cupos * Number(formData.costoParticipanteExtra || 0);
+                  return (
+                  <tr key={index} style={{opacity: qrHabilitado ? 1 : 0.5}}>
                     <td className={styles.td}>
-                      <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem'}}>
-                        <input type="number" value={regla.rangoDesde} onChange={(e) => handleQRChange(index, 'rangoDesde', Number(e.target.value))} className={styles.input} style={{width: '4rem', padding: '0.5rem'}} />
-                        <span style={{fontSize: '0.75rem', color: '#6b7280'}}>a</span>
-                        <input type="number" value={regla.rangoHasta} onChange={(e) => handleQRChange(index, 'rangoHasta', Number(e.target.value))} className={styles.input} style={{width: '4rem', padding: '0.5rem'}} />
-                      </div>
+                      <input type="number" min="1" disabled={!qrHabilitado} value={cupos}
+                        onChange={(e) => {
+                          const v = Number(e.target.value) || 1;
+                          handleQRChange(index, 'rangoDesde', v);
+                          handleQRChange(index, 'rangoHasta', v);
+                        }}
+                        className={styles.input} style={{width: '4.5rem', padding: '0.5rem'}} />
                     </td>
                     <td className={styles.td}>
-                      <input 
-                        type="file" 
-                        accept="image/*" 
+                      <strong style={{fontSize: '0.85rem', color: '#166534'}}>Bs. {precio.toLocaleString('es-BO')}</strong>
+                    </td>
+                    <td className={styles.td}>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        disabled={!qrHabilitado}
                         onChange={(e) => handleImageUpload(e, 'urlQR', index)}
-                        style={{display: 'none'}} 
+                        style={{display: 'none'}}
                         id={`upload-qr-${index}`}
                       />
-                      <label htmlFor={`upload-qr-${index}`} className={styles.uploadButton} style={{marginTop: 0}}>
+                      <label htmlFor={`upload-qr-${index}`} className={styles.uploadButton} style={{marginTop: 0, opacity: qrHabilitado ? 1 : 0.5, cursor: qrHabilitado ? 'pointer' : 'not-allowed'}}>
                         <QrCode size={14} /> Subir QR
                       </label>
                       {regla.urlQR && (
@@ -713,12 +734,13 @@ export default function ConfiguracionDeEventoPage() {
                       )}
                     </td>
                     <td className={styles.td} style={{textAlign: 'right'}}>
-                      <button onClick={() => removeRule(index)} className={styles.deleteButton}>
+                      <button onClick={() => removeRule(index)} disabled={!qrHabilitado} className={styles.deleteButton}>
                         <Trash2 size={16} />
                       </button>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

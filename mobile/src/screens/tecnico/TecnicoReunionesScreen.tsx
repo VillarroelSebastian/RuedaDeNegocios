@@ -179,7 +179,7 @@ function ReunionCard({ r, onCambiarEstado, onEditar, onEliminar }: { onEditar:(r
   );
 }
 
-export default function TecnicoReunionesScreen() {
+export default function TecnicoReunionesScreen({ embedded = false }: { embedded?: boolean } = {}) {
   const insets = useSafeAreaInsets();
   const [reuniones,  setReuniones]  = useState<any[]>([]);
   const [loading,    setLoading]    = useState(true);
@@ -307,10 +307,14 @@ export default function TecnicoReunionesScreen() {
       </RNModal>
 
       {/* Header */}
-      <View style={{ backgroundColor:'#fff', paddingHorizontal:16, paddingTop: insets.top + 16, paddingBottom:14,
+      <View style={{ backgroundColor:'#fff', paddingHorizontal:16, paddingTop: embedded ? 12 : insets.top + 16, paddingBottom:14,
         borderBottomWidth:1, borderBottomColor:'#f1f5f9' }}>
-        <Text style={{ fontSize:22, fontWeight:'800', color:'#0f172a' }}>Reuniones</Text>
-        <Text style={{ fontSize:12, color:'#94a3b8', marginTop:2 }}>{reuniones.length} resultado(s)</Text>
+        {!embedded && (
+          <>
+            <Text style={{ fontSize:22, fontWeight:'800', color:'#0f172a' }}>Reuniones</Text>
+            <Text style={{ fontSize:12, color:'#94a3b8', marginTop:2 }}>{reuniones.length} resultado(s)</Text>
+          </>
+        )}
 
         {/* Filtro estado */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop:10 }}>

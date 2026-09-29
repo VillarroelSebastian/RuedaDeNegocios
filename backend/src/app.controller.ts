@@ -8685,8 +8685,9 @@ export class AppController implements OnModuleInit {
     if (!ee) throw new BadRequestException('Empresa no encontrada.');
     const nuevos = Math.max(1, Number(cantidad));
     const total = ee.numeroParticipantes + nuevos;
-    const regla = ee.evento.eventoreglaqr.find((r: any) => total >= r.rangoDesde && total <= r.rangoHasta)
-      || ee.evento.eventoreglaqr.find((r: any) => nuevos >= r.rangoDesde && nuevos <= r.rangoHasta);
+    // Un QR por cantidad de cupos adicionales (ya no por el total resultante
+    // de participantes): se busca el que coincide exactamente con lo pedido.
+    const regla = ee.evento.eventoreglaqr.find((r: any) => nuevos >= r.rangoDesde && nuevos <= r.rangoHasta);
     return { cantidad: nuevos, total, urlQR: regla?.urlQR || ee.paquete?.urlQR || null, monto: Number(ee.evento.costoParticipanteExtra) * nuevos };
   }
 

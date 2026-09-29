@@ -200,7 +200,7 @@ function ReunionRow({ r, onChange, onFinalizar, onEditar, onEliminar }: { onElim
   );
 }
 
-export default function TecnicoReunionesPage() {
+export default function TecnicoReunionesPage({ embedded = false }: { embedded?: boolean } = {}) {
   const [reuniones, setReuniones] = useState<any[]>([]);
   const [loading,   setLoading]   = useState(true);
   const [filtroEst, setFiltroEst] = useState('TODOS');
@@ -312,7 +312,7 @@ export default function TecnicoReunionesPage() {
   );
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className={embedded ? "" : "p-6 max-w-6xl mx-auto"}>
       {porEliminar && <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4"><div role="dialog" aria-modal="true" aria-labelledby="eliminar-reunion" className="w-full max-w-sm rounded-2xl bg-white p-6"><h2 id="eliminar-reunion" className="text-lg font-bold">Eliminar reunión</h2><p className="my-4 text-sm">Se liberará la mesa y se avisará a ambas empresas.</p><div className="flex gap-3"><button onClick={()=>setPorEliminar(null)} className="flex-1 rounded-xl border p-3">Volver</button><button onClick={()=>void eliminarReunion(porEliminar)} className="flex-1 rounded-xl bg-red-600 p-3 text-white">Eliminar</button></div></div></div>}
       <Modal {...modal} onClose={() => setModal((m: any) => ({ ...m, visible:false }))} />
       {evaluando && (() => {
@@ -367,10 +367,12 @@ export default function TecnicoReunionesPage() {
       )}
 
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-extrabold text-gray-900">Reuniones</h1>
-        <p className="text-sm text-gray-500 mt-1">{reuniones.length} resultado(s)</p>
-      </div>
+      {!embedded && (
+        <div className="mb-6">
+          <h1 className="text-2xl font-extrabold text-gray-900">Reuniones</h1>
+          <p className="text-sm text-gray-500 mt-1">{reuniones.length} resultado(s)</p>
+        </div>
+      )}
 
       {canceladasPorEmpresa.length > 0 && (
         <div className="mb-6 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-900">

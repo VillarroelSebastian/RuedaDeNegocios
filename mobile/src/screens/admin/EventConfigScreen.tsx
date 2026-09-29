@@ -326,8 +326,13 @@ export default function EventConfigScreen({ navigation }: any) {
   const handleQRChange = (index: number, field: string, value: string) =>
     setReglasQR((prev) => prev.map((r, i) => i === index ? { ...r, [field]: value } : r));
 
-  const addRule = () =>
+  const addRule = () => {
+    if (!(Number(formData.costoParticipanteExtra) > 0)) {
+      show({ type: 'warning', title: 'Falta el precio', message: 'Configura primero el precio por participante adicional para habilitar los QR de pago adicional.' });
+      return;
+    }
     setReglasQR((prev) => [...prev, { rangoDesde: '1', rangoHasta: '1', monto: '0', urlQR: '' }]);
+  };
 
   const removeRule = (index: number) => {
     if (reglasQR.length <= 1) {
@@ -409,9 +414,12 @@ export default function EventConfigScreen({ navigation }: any) {
       enlaceTiktok: orNull(formData.enlaceTiktok),
       paisEvento: orNull(formData.paisEvento),
       ciudadEvento: orNull(formData.ciudadEvento),
+      // Ya no son "rangos": cada fila es un QR para una cantidad exacta de
+      // cupos adicionales (rangoDesde === rangoHasta), precio calculado solo
+      // a partir de costoParticipanteExtra.
       reglasQR: reglasQR.map((r) => ({
-        rangoDesde: Number(r.rangoDesde), rangoHasta: Number(r.rangoHasta),
-        monto: Number(r.monto), urlQR: r.urlQR || '',
+        rangoDesde: Number(r.rangoDesde), rangoHasta: Number(r.rangoDesde),
+        monto: Number(r.rangoDesde) * Number(formData.costoParticipanteExtra || 0), urlQR: r.urlQR || '',
       })),
     };
     try {
@@ -642,6 +650,8 @@ export default function EventConfigScreen({ navigation }: any) {
   }
 
   // ── VISTA FORMULARIO ─────────────────────────────────────────────────────────
+  const qrHabilitado = Number(formData.costoParticipanteExtra) > 0;
+
   return (
     <>
     {modal}
@@ -888,40 +898,46 @@ export default function EventConfigScreen({ navigation }: any) {
           <Text className="text-[11px] text-gray-500 mt-2">Se usa únicamente cuando una empresa ya inscrita solicita cupos adicionales.</Text>
         </View>
 
-        {/* ── Reglas QR ── */}
+        {/* ── QR de pago adicional ── */}
         <View className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mb-5">
           <View className="flex-row justify-between items-center mb-4 border-b border-gray-100 pb-3">
             <View className="flex-row items-center gap-2">
               <QrCode color={GREEN} size={20} />
-              <Text className="text-base font-bold text-gray-900 ml-1">QR para pagos adicionales</Text>
+              <Text className="text-base font-bold text-gray-900 ml-1">QR de pago adicional</Text>
             </View>
-            <TouchableOpacity onPress={addRule} className="bg-[#f4f7ee] p-2 rounded-lg border border-[#d3e5b5]">
+            <TouchableOpacity onPress={addRule} className="bg-[#f4f7ee] p-2 rounded-lg border border-[#d3e5b5]" style={{ opacity: qrHabilitado ? 1 : 0.5 }}>
               <Plus color="#4d8321" size={16} />
             </TouchableOpacity>
           </View>
 
-          {reglasQR.map((regla, index) => (
-            <View key={index} className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-3">
+          {!qrHabilitado && (
+            <View className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3">
+              <Text className="text-xs font-bold text-amber-800">Configura primero el precio por participante adicional (arriba) para habilitar los QR de pago adicional.</Text>
+            </View>
+          )}
+
+          {reglasQR.map((regla, index) => {
+            const cupos = Number(regla.rangoDesde) || 1;
+            const precio = cupos * Number(formData.costoParticipanteExtra || 0);
+            return (
+            <View key={index} className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-3" style={{ opacity: qrHabilitado ? 1 : 0.5 }}>
               <View className="flex-row justify-between items-center mb-3">
-                <Text className="text-xs font-bold text-gray-700">Regla #{index + 1}</Text>
-                <TouchableOpacity onPress={() => removeRule(index)} className="bg-red-50 p-1.5 rounded-full">
+                <Text className="text-xs font-bold text-gray-700">QR #{index + 1}</Text>
+                <TouchableOpacity onPress={() => removeRule(index)} disabled={!qrHabilitado} className="bg-red-50 p-1.5 rounded-full">
                   <Trash2 color="#ef4444" size={14} />
                 </TouchableOpacity>
               </View>
 
-              <Text className="text-xs font-semibold text-gray-600 mb-1.5">Total resultante de participantes *</Text>
-              <View className="flex-row items-center gap-2 mb-3">
-                <TextInput value={regla.rangoDesde} onChangeText={(t) => handleQRChange(index, 'rangoDesde', t)}
-                  keyboardType="numeric" className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-center" placeholder="Mín" />
-                <Text className="text-gray-400 font-bold">a</Text>
-                <TextInput value={regla.rangoHasta} onChangeText={(t) => handleQRChange(index, 'rangoHasta', t)}
-                  keyboardType="numeric" className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-center" placeholder="Máx" />
-              </View>
+              <Text className="text-xs font-semibold text-gray-600 mb-1.5">Cupos adicionales *</Text>
+              <TextInput value={regla.rangoDesde} editable={qrHabilitado}
+                onChangeText={(t) => { handleQRChange(index, 'rangoDesde', t); handleQRChange(index, 'rangoHasta', t); }}
+                keyboardType="numeric" className="bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm mb-2" placeholder="Cantidad" />
+              <Text className="text-xs font-semibold text-gray-600 mb-3">Precio del QR: <Text style={{ color: '#166534', fontWeight: '800' }}>Bs. {precio.toLocaleString('es-BO')}</Text></Text>
 
               <Text className="text-xs font-semibold text-gray-600 mb-1.5">Imagen QR de pago</Text>
               <TouchableOpacity
                 onPress={() => handlePickImage('urlQR', index)}
-                disabled={uploadingField === `urlQR-${index}`}
+                disabled={!qrHabilitado || uploadingField === `urlQR-${index}`}
                 className="flex-row items-center justify-center gap-2 py-2.5 rounded-xl border"
                 style={{
                   borderColor: regla.urlQR ? GREEN : '#e5e7eb',
@@ -948,7 +964,8 @@ export default function EventConfigScreen({ navigation }: any) {
                 </TouchableOpacity>
               ) : null}
             </View>
-          ))}
+            );
+          })}
         </View>
 
         {/* ── Guardar ── */}

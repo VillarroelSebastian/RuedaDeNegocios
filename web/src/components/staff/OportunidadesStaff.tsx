@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Building2, ChevronLeft, ChevronRight, Search, Sparkles } from "lucide-react";
+import Link from "next/link";
+import { Building2, CalendarPlus, ChevronLeft, ChevronRight, Lightbulb, Search, Sparkles } from "lucide-react";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 const PAGE_SIZE = 12;
@@ -30,6 +31,13 @@ export default function OportunidadesStaff() {
   const [rubro, setRubro] = useState("TODOS");
   const [orden, setOrden] = useState<"RELEVANCIA" | "ALFABETICO">("RELEVANCIA");
   const [pagina, setPagina] = useState(1);
+  const [base, setBase] = useState<"/admin" | "/tecnico">("/tecnico");
+
+  useEffect(() => {
+    try {
+      setBase(localStorage.getItem("adminUser") ? "/admin" : "/tecnico");
+    } catch { /* SSR: se queda en /tecnico, se recalcula en cliente */ }
+  }, []);
 
   useEffect(() => {
     fetch(`${API}/staff/oportunidades`).then(async (r) => {
@@ -61,6 +69,16 @@ export default function OportunidadesStaff() {
       <p className="mt-1 text-sm text-gray-500">Mejores conexiones sugeridas según oferta, demanda e intereses. La lista prioriza calidad y cobertura, no todas las combinaciones posibles.</p>
     </div>
 
+    {!cargando && !error && items.length > 0 && (
+      <div className="flex items-start gap-3 rounded-2xl border border-green-100 bg-green-50 p-4">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm"><Lightbulb className="h-4.5 w-4.5 text-amber-500" /></div>
+        <div className="text-xs text-green-900">
+          <p className="font-bold">¿Cómo leer esta lista?</p>
+          <p className="mt-0.5 leading-relaxed text-green-800">Cada tarjeta junta dos empresas que probablemente tengan algo que ofrecerse (mismo rubro, o la oferta de una coincide con la demanda de la otra). Los motivos en verde explican por qué. Si te convence, presiona <strong>&quot;Agendar reunión&quot;</strong> y salta directo a elegir horario: las empresas ya quedan seleccionadas.</p>
+        </div>
+      </div>
+    )}
+
     {!cargando && !error && items.length > 0 && <div className="grid gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_220px_180px]">
       <label className="relative block">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
@@ -85,9 +103,15 @@ export default function OportunidadesStaff() {
           <span>{filtrados.length} recomendación(es) priorizada(s)</span>
           <span>Página {paginaActual} de {totalPaginas}</span>
         </div>
-        <div className="grid gap-4 lg:grid-cols-2">{visibles.map((item) => <article key={`${item.empresaA.empresaeventoId}-${item.empresaB.empresaeventoId}`} className="rounded-2xl border border-green-100 bg-white p-5 shadow-sm">
+        <div className="grid gap-4 lg:grid-cols-2">{visibles.map((item) => <article key={`${item.empresaA.empresaeventoId}-${item.empresaB.empresaeventoId}`} className="flex flex-col rounded-2xl border border-green-100 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3"><Empresa empresa={item.empresaA} /><Sparkles className="h-5 w-5 text-amber-500" /><Empresa empresa={item.empresaB} /></div>
-          <div className="mt-4 space-y-1.5">{item.motivos.map((motivo, i) => <p key={i} className="rounded-lg bg-green-50 px-3 py-2 text-xs font-semibold text-green-800">{motivo}</p>)}</div>
+          <div className="mt-4 flex-1 space-y-1.5">{item.motivos.map((motivo, i) => <p key={i} className="rounded-lg bg-green-50 px-3 py-2 text-xs font-semibold text-green-800">{motivo}</p>)}</div>
+          <Link
+            href={`${base}/agendar?eeA=${item.empresaA.empresaeventoId}&eeB=${item.empresaB.empresaeventoId}`}
+            className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-[#449D3A] px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#3a8531]"
+          >
+            <CalendarPlus className="h-4 w-4" /> Agendar reunión entre estas empresas
+          </Link>
         </article>)}</div>
         {totalPaginas > 1 && <div className="flex items-center justify-center gap-3">
           <button onClick={() => setPagina((p) => Math.max(1, p - 1))} disabled={paginaActual === 1} className="inline-flex items-center gap-1 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-bold text-gray-700 disabled:cursor-not-allowed disabled:opacity-40"><ChevronLeft className="h-4 w-4" />Anterior</button>

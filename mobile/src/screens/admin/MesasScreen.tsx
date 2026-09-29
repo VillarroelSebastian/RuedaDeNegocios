@@ -334,7 +334,7 @@ function SolicitudPendienteRow({ s }: { s: any }) {
 
 type FiltroEstado = 'EN_USO' | 'PROGRAMADA' | 'LIBRE' | 'TODAS' | 'INHABILITADA' | 'HISTORIAL';
 
-export default function MesasScreen() {
+export default function MesasScreen({ embedded = false }: { embedded?: boolean } = {}) {
   const { show: showModal, modal } = useModal();
   const insets = useSafeAreaInsets();
 
@@ -605,9 +605,9 @@ export default function MesasScreen() {
       </Modal>
 
       {/* Header */}
-      <View style={{ backgroundColor: '#fff', paddingHorizontal: 16, paddingTop: insets.top + 16, paddingBottom: 12,
+      <View style={{ backgroundColor: '#fff', paddingHorizontal: 16, paddingTop: embedded ? 12 : insets.top + 16, paddingBottom: 12,
         borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
-        <Text style={{ fontSize: 22, fontWeight: '800', color: '#0f172a' }}>Mesas del evento</Text>
+        {!embedded && <Text style={{ fontSize: 22, fontWeight: '800', color: '#0f172a' }}>Mesas del evento</Text>}
 
         {eventoConfig && (
           <View style={{ flexDirection: 'row', gap: 14, marginTop: 6, marginBottom: 8 }}>

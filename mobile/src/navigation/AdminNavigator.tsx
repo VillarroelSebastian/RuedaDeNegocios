@@ -4,7 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import {
   LayoutDashboard, Building2, CreditCard, Armchair, MoreHorizontal,
-  CalendarCheck, Newspaper, Users, BarChart3, Settings, ListChecks,
+  CalendarCheck, Newspaper, Users, BarChart3, Settings,
   CalendarRange, Handshake,
   Package, QrCode, FileText, Bell, LogOut, Wifi, MessageSquare,
 } from 'lucide-react-native';
@@ -17,16 +17,14 @@ import DashboardScreen    from '../screens/admin/DashboardScreen';
 import EmpresasScreen     from '../screens/admin/EmpresasScreen';
 import PagosUnificadoScreen from '../screens/admin/PagosUnificadoScreen';
 import PagoDetailScreen   from '../screens/admin/PagoDetailScreen';
-import MesasScreen        from '../screens/admin/MesasScreen';
+import MesasUnificadoScreen from '../screens/admin/MesasUnificadoScreen';
 import ActividadesScreen  from '../screens/admin/ActividadesScreen';
 import NoticiasScreen     from '../screens/admin/NoticiasScreen';
 import TecnicosScreen     from '../screens/admin/TecnicosScreen';
 import EstadisticasScreen from '../screens/admin/EstadisticasScreen';
 import ConfiguracionScreen from '../screens/admin/ConfiguracionScreen';
-import AgendaScreen                from '../screens/admin/AgendaScreen';
 import EventConfigScreen           from '../screens/admin/EventConfigScreen';
 import AuspiciadoresScreen         from '../screens/admin/AuspiciadoresScreen';
-import TecnicoReunionesScreen     from '../screens/tecnico/TecnicoReunionesScreen';
 import TecnicoVirtualesScreen     from '../screens/tecnico/TecnicoVirtualesScreen';
 import TecnicoGaleriaScreen       from '../screens/tecnico/TecnicoGaleriaScreen';
 import OportunidadesStaffScreen   from '../screens/shared/OportunidadesStaffScreen';
@@ -74,8 +72,6 @@ function MenuScreen({ navigation }: any) {
     { name: 'Mensajes',         icon: MessageSquare,     screen: 'Mensajes',          desc: 'Empresas y equipo del evento' },
     { name: 'Cronograma en vivo', icon: CalendarCheck,   screen: 'Actividades',       desc: 'CRUD y estado en tiempo real' },
     { name: 'Auspiciadores',     icon: Users,             screen: 'Auspiciadores',     desc: 'Credenciales y aportes'     },
-    { name: 'Agenda',           icon: ListChecks,        screen: 'Agenda',            desc: 'Ocupación de mesas'       },
-    { name: 'Control reuniones',icon: CalendarCheck,     screen: 'ControlReuniones',  desc: 'Finalizar o cancelar'     },
     { name: 'Virtuales',        icon: Wifi,              screen: 'Virtuales',         desc: 'Enlaces y mensajes'       },
     { name: 'Agendar reunión',  icon: CalendarCheck,     screen: 'AgendarReunion',    desc: 'Crear una reunión'        },
     { name: 'Oportunidades',    icon: Handshake,         screen: 'Oportunidades',     desc: 'Conectar empresas afines' },
@@ -211,7 +207,7 @@ function AdminTabs() {
           options={{ title: 'Empresas', tabBarIcon: IconEmpresas }} />
         <Tab.Screen name="Pagos"      component={PagosUnificadoScreen}
           options={{ title: 'Pagos',    tabBarIcon: IconPagos }} />
-        <Tab.Screen name="Mesas"      component={MesasScreen}
+        <Tab.Screen name="Mesas"      component={MesasUnificadoScreen}
           options={{ title: 'Mesas',    tabBarIcon: IconMesas }} />
         <Tab.Screen name="Menu"       component={MenuScreen}
           options={{ title: 'Más',      tabBarIcon: IconMenu }} />
@@ -253,11 +249,9 @@ export default function AdminNavigator() {
       <AdminStack.Screen name="Reportes"     component={ReportesScreen}      options={{ title: 'Reportes' }} />
       <AdminStack.Screen name="Credenciales" component={CredencialesScreen}  options={{ title: 'Credenciales QR' }} />
       <AdminStack.Screen name="Configuracion"component={ConfiguracionScreen}options={{ title: 'Configuración' }} />
-      <AdminStack.Screen name="Agenda"       component={AgendaScreen}       options={{ title: 'Agenda de Mesas' }} />
       <AdminStack.Screen name="Oportunidades" options={{ title: 'Oportunidades' }}>
         {() => <OportunidadesStaffScreen mostrarEncabezado={false} />}
       </AdminStack.Screen>
-      <AdminStack.Screen name="ControlReuniones" component={TecnicoReunionesScreen} options={{ title: 'Control de Reuniones' }} />
       <AdminStack.Screen name="Virtuales" component={TecnicoVirtualesScreen} options={{ title: 'Reuniones Virtuales' }} />
       <AdminStack.Screen name="AgendarReunion" component={TecnicoAgendarScreen} options={{ title: 'Agendar reunión' }} />
       <AdminStack.Screen name="PagoDetail"        component={PagoDetailScreen}        options={{ title: 'Verificar Pago'           }} />

@@ -4,7 +4,7 @@ import {
   StyleSheet, Modal, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import {
   Search, Check, CheckCircle2, AlertCircle, Users, Video, ChevronLeft,
   CalendarPlus, Send, Building2,
@@ -39,6 +39,9 @@ function rangosDia(dias: any[], fecha: string | null) {
 
 export default function TecnicoAgendarScreen() {
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
+  const eeAPre = route.params?.eeA ?? null;
+  const eeBPre = route.params?.eeB ?? null;
 
   const [empresas, setEmpresas] = useState<any[]>([]);
   const [cargandoEmp, setCargandoEmp] = useState(true);
@@ -83,6 +86,20 @@ export default function TecnicoAgendarScreen() {
       .catch(() => {})
       .finally(() => setCargandoEmp(false));
   }, []);
+
+  // Llega desde Oportunidades con las 2 empresas ya decididas: se saltan
+  // directo al paso 2 en vez de repetir la búsqueda/selección.
+  useEffect(() => {
+    if (cargandoEmp || eeAPre == null || eeBPre == null || empresas.length === 0) return;
+    const a = empresas.find((e) => String(e.eeId) === String(eeAPre));
+    const b = empresas.find((e) => String(e.eeId) === String(eeBPre));
+    if (a && b) {
+      setEmpA(a);
+      setEmpB(b);
+      setPaso(2);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cargandoEmp, empresas, eeAPre, eeBPre]);
 
   // ── Derivados del horario ──
   const fechasDisponibles = useMemo(() =>
@@ -365,6 +382,13 @@ export default function TecnicoAgendarScreen() {
               <ChevronLeft size={17} color="#64748b" />
               <Text style={s.backText}>Atrás</Text>
             </TouchableOpacity>
+            {empA && empB && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#f0fdf4', borderWidth: 1, borderColor: '#dcfce7', borderRadius: 12, padding: 12, marginBottom: 4 }}>
+                <Text style={{ fontWeight: '700', color: '#166534', flexShrink: 1 }} numberOfLines={1}>{empA.nombre}</Text>
+                <Text style={{ color: '#9ca3af', fontWeight: '700' }}>vs</Text>
+                <Text style={{ fontWeight: '700', color: '#166534', flexShrink: 1 }} numberOfLines={1}>{empB.nombre}</Text>
+              </View>
+            )}
             {(['PRESENCIAL', 'VIRTUAL'] as const).map((t) => (
               <TouchableOpacity
                 key={t}

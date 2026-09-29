@@ -371,6 +371,9 @@ model evento {
   mensajeinterno                 mensajeinterno[]
 }
 
+// Un QR por cantidad exacta de cupos adicionales (rangoDesde === rangoHasta
+// en filas nuevas; el nombre "rango" se conserva por compatibilidad). El
+// precio (monto) se calcula solo a partir de evento.costoParticipanteExtra.
 model eventoreglaqr {
   id                Int       @id @default(autoincrement())
   evento_id         Int
