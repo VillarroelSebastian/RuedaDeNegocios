@@ -218,7 +218,7 @@ export default function Header() {
               </div>
               <div className="flex flex-wrap gap-x-4 gap-y-1 px-4 py-2 border-t border-gray-100">
                 <Link href="/admin/pagos" onClick={() => setShowNotif(false)} className="text-xs font-semibold text-[#449D3A] hover:underline">Pagos iniciales →</Link>
-                <Link href="/admin/pagos-adicionales" onClick={() => setShowNotif(false)} className="text-xs font-semibold text-[#449D3A] hover:underline">Pagos adicionales →</Link>
+                <Link href="/admin/pagos?tab=adicionales" onClick={() => setShowNotif(false)} className="text-xs font-semibold text-[#449D3A] hover:underline">Pagos adicionales →</Link>
               </div>
             </div>
           )}

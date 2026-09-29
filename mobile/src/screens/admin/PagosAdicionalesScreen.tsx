@@ -41,7 +41,7 @@ function badgeEstado(estado: string) {
   );
 }
 
-export default function PagosAdicionalesScreen() {
+export default function PagosAdicionalesScreen({ embedded = false }: { embedded?: boolean } = {}) {
   const { show, modal } = useModal();
   const [tab, setTab]           = useState('');
   const [pagos, setPagos]       = useState<any[]>([]);
@@ -169,17 +169,19 @@ export default function PagosAdicionalesScreen() {
   };
 
   return (
-    <SafeAreaView style={s.root} edges={['top']}>
+    <SafeAreaView style={embedded ? { flex: 1, backgroundColor: '#f8fafc' } : s.root} edges={embedded ? [] : ['top']}>
       {modal}
 
       {/* Header */}
-      <View style={s.header}>
-        <CreditCard color={GREEN} size={20} style={{ marginRight: 8 }} />
-        <View>
-          <Text style={s.headerTitle}>Pagos Adicionales</Text>
-          <Text style={s.headerSub}>Cupos extra solicitados por empresas</Text>
+      {!embedded && (
+        <View style={s.header}>
+          <CreditCard color={GREEN} size={20} style={{ marginRight: 8 }} />
+          <View>
+            <Text style={s.headerTitle}>Pagos Adicionales</Text>
+            <Text style={s.headerSub}>Cupos extra solicitados por empresas</Text>
+          </View>
         </View>
-      </View>
+      )}
 
       {/* Tabs */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tabsScroll} contentContainerStyle={s.tabsRow}>

@@ -16,7 +16,7 @@ const TABS = [
   { value: 'RECHAZADO', label: 'Rechazados' },
 ];
 
-export default function PagosScreen({ navigation }: any) {
+export default function PagosScreen({ navigation, embedded = false }: any) {
   const [tab, setTab] = useState('');
   const [pagos, setPagos] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
@@ -53,11 +53,15 @@ export default function PagosScreen({ navigation }: any) {
 
   return (
     <View className="flex-1 bg-[#F9FAFB]">
-      <View className="bg-white px-4 pt-12 pb-4 border-b border-gray-100">
-        <Text className="text-2xl font-bold text-gray-900">Pagos</Text>
-        <Text className="text-sm text-gray-500 mt-1">Verifica y aprueba comprobantes de pago</Text>
+      <View className={embedded ? "bg-white px-4 pt-3 pb-3 border-b border-gray-100" : "bg-white px-4 pt-12 pb-4 border-b border-gray-100"}>
+        {!embedded && (
+          <>
+            <Text className="text-2xl font-bold text-gray-900">Pagos</Text>
+            <Text className="text-sm text-gray-500 mt-1">Verifica y aprueba comprobantes de pago</Text>
+          </>
+        )}
         {/* Tabs */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mt-3 -mx-4 px-4">
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} className={embedded ? "-mx-4 px-4" : "mt-3 -mx-4 px-4"}>
           <View className="flex-row gap-2">
             {TABS.map((t) => (
               <TouchableOpacity

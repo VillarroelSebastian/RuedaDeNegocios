@@ -1,8 +1,9 @@
 "use client";
 import React, { useState, useEffect, useCallback, Suspense } from 'react';
-import { CreditCard, Eye, ChevronLeft, ChevronRight, AlertCircle, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { CreditCard, Eye, ChevronLeft, ChevronRight, AlertCircle, CheckCircle, XCircle, Clock, PlusCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import PagosAdicionales from '@/components/admin/PagosAdicionales';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
@@ -14,7 +15,7 @@ const TABS = [
   { value: 'RECHAZADO', label: 'Rechazados', icon: XCircle },
 ];
 
-function PagosPageContent() {
+function PagosPageContent({ embedded = false }: { embedded?: boolean }) {
   const searchParams = useSearchParams();
   const defaultEstado = searchParams.get('estado') || '';
   const [tab, setTab] = useState(defaultEstado);
@@ -53,11 +54,13 @@ function PagosPageContent() {
   const totalPages = Math.ceil(total / limit);
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto min-w-0">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Verificación de Pagos</h1>
-        <p className="text-sm text-gray-500 mt-1">Revisa y aprueba los comprobantes de pago de las empresas inscritas.</p>
-      </div>
+    <div className={embedded ? "min-w-0" : "p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto min-w-0"}>
+      {!embedded && (
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-900">Verificación de Pagos</h1>
+          <p className="text-sm text-gray-500 mt-1">Revisa y aprueba los comprobantes de pago de las empresas inscritas.</p>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="mb-6 max-w-full">
@@ -164,10 +167,56 @@ function PagosPageContent() {
   );
 }
 
-export default function PagosPage() {
+function PagosIniciales({ embedded = false }: { embedded?: boolean } = {}) {
   return (
     <Suspense fallback={<div className="p-8">Cargando pagos...</div>}>
-      <PagosPageContent />
+      <PagosPageContent embedded={embedded} />
+    </Suspense>
+  );
+}
+
+// Unifica "Pagos Iniciales" (verificación de inscripción) y "Pagos
+// Adicionales" (cupos extra): son dos flujos de pago distintos, pero no
+// tenía sentido que vivieran en secciones separadas del menú.
+function AdminPagosPageInner() {
+  const searchParams = useSearchParams();
+  const [tab, setTab] = useState<'iniciales' | 'adicionales'>(
+    searchParams.get('tab') === 'adicionales' ? 'adicionales' : 'iniciales',
+  );
+
+  return (
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto min-w-0">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <CreditCard className="w-6 h-6 text-[#449D3A]" /> Pagos
+        </h1>
+        <p className="text-sm text-gray-500 mt-1">Verifica pagos de inscripción y solicitudes de cupos adicionales.</p>
+      </div>
+
+      <div className="inline-flex gap-1 rounded-xl bg-gray-100 p-1 mb-6">
+        <button onClick={() => setTab('iniciales')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+            tab === 'iniciales' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+          }`}>
+          <CreditCard className="w-4 h-4" /> Iniciales
+        </button>
+        <button onClick={() => setTab('adicionales')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+            tab === 'adicionales' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+          }`}>
+          <PlusCircle className="w-4 h-4" /> Adicionales
+        </button>
+      </div>
+
+      {tab === 'iniciales' ? <PagosIniciales embedded /> : <PagosAdicionales embedded />}
+    </div>
+  );
+}
+
+export default function AdminPagosPage() {
+  return (
+    <Suspense fallback={<div className="p-8">Cargando pagos...</div>}>
+      <AdminPagosPageInner />
     </Suspense>
   );
 }

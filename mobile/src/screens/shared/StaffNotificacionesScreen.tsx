@@ -13,7 +13,7 @@ export default function StaffNotificacionesScreen({ navigation }: any) {
   useFocusEffect(useCallback(() => { cargar(); const timer = setInterval(() => cargar(false), 15000); return () => clearInterval(timer); }, [cargar]));
   const abrir = (n: any) => {
     if (!admin) { navigation.navigate('TecnicoTabs', { screen: 'TecnicoVirtuales' }); return; }
-    if (String(n.enlace).includes('pagos-adicionales')) navigation.navigate('PagosAdicionales');
+    if (String(n.enlace).includes('pagos-adicionales')) navigation.navigate('AdminTabs', { screen: 'Pagos', params: { initialTab: 'adicionales' } });
     else if (String(n.enlace).match(/\/admin\/pagos\/(\d+)/)) navigation.navigate('PagoDetail', { id: Number(String(n.enlace).match(/\d+$/)?.[0]) });
     else navigation.navigate('AdminTabs', { screen: 'Empresas' });
   };

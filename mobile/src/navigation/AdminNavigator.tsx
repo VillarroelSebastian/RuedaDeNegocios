@@ -5,7 +5,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import {
   LayoutDashboard, Building2, CreditCard, Armchair, MoreHorizontal,
   CalendarCheck, Newspaper, Users, BarChart3, Settings, ListChecks,
-  CalendarRange, PlusCircle, Handshake,
+  CalendarRange, Handshake,
   Package, QrCode, FileText, Bell, LogOut, Wifi, MessageSquare,
 } from 'lucide-react-native';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
@@ -15,7 +15,7 @@ import { useModal } from '../components/AppModal';
 
 import DashboardScreen    from '../screens/admin/DashboardScreen';
 import EmpresasScreen     from '../screens/admin/EmpresasScreen';
-import PagosScreen        from '../screens/admin/PagosScreen';
+import PagosUnificadoScreen from '../screens/admin/PagosUnificadoScreen';
 import PagoDetailScreen   from '../screens/admin/PagoDetailScreen';
 import MesasScreen        from '../screens/admin/MesasScreen';
 import ActividadesScreen  from '../screens/admin/ActividadesScreen';
@@ -25,7 +25,6 @@ import EstadisticasScreen from '../screens/admin/EstadisticasScreen';
 import ConfiguracionScreen from '../screens/admin/ConfiguracionScreen';
 import AgendaScreen                from '../screens/admin/AgendaScreen';
 import EventConfigScreen           from '../screens/admin/EventConfigScreen';
-import PagosAdicionalesScreen      from '../screens/admin/PagosAdicionalesScreen';
 import AuspiciadoresScreen         from '../screens/admin/AuspiciadoresScreen';
 import TecnicoReunionesScreen     from '../screens/tecnico/TecnicoReunionesScreen';
 import TecnicoVirtualesScreen     from '../screens/tecnico/TecnicoVirtualesScreen';
@@ -73,7 +72,6 @@ function MenuScreen({ navigation }: any) {
     { name: 'Paquetes',         icon: Package,           screen: 'Paquetes',          desc: 'Precios, cupos y beneficios', highlight: true },
     { name: 'Notificaciones',   icon: Bell,              screen: 'Notificaciones',    desc: 'Pagos y empresas pendientes' },
     { name: 'Mensajes',         icon: MessageSquare,     screen: 'Mensajes',          desc: 'Empresas y equipo del evento' },
-    { name: 'Pagos Adicionales',icon: PlusCircle,        screen: 'PagosAdicionales',  desc: 'Cupos extra de empresas'  },
     { name: 'Cronograma en vivo', icon: CalendarCheck,   screen: 'Actividades',       desc: 'CRUD y estado en tiempo real' },
     { name: 'Auspiciadores',     icon: Users,             screen: 'Auspiciadores',     desc: 'Credenciales y aportes'     },
     { name: 'Agenda',           icon: ListChecks,        screen: 'Agenda',            desc: 'Ocupación de mesas'       },
@@ -211,7 +209,7 @@ function AdminTabs() {
           options={{ title: 'Eventos',  tabBarIcon: IconEventos }} />
         <Tab.Screen name="Empresas"   component={EmpresasScreen}
           options={{ title: 'Empresas', tabBarIcon: IconEmpresas }} />
-        <Tab.Screen name="Pagos"      component={PagosScreen}
+        <Tab.Screen name="Pagos"      component={PagosUnificadoScreen}
           options={{ title: 'Pagos',    tabBarIcon: IconPagos }} />
         <Tab.Screen name="Mesas"      component={MesasScreen}
           options={{ title: 'Mesas',    tabBarIcon: IconMesas }} />
@@ -263,7 +261,6 @@ export default function AdminNavigator() {
       <AdminStack.Screen name="Virtuales" component={TecnicoVirtualesScreen} options={{ title: 'Reuniones Virtuales' }} />
       <AdminStack.Screen name="AgendarReunion" component={TecnicoAgendarScreen} options={{ title: 'Agendar reunión' }} />
       <AdminStack.Screen name="PagoDetail"        component={PagoDetailScreen}        options={{ title: 'Verificar Pago'           }} />
-      <AdminStack.Screen name="PagosAdicionales"  component={PagosAdicionalesScreen}  options={{ title: 'Pagos Adicionales'        }} />
     </AdminStack.Navigator>
     </>
   );
