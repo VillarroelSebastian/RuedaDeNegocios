@@ -88,7 +88,7 @@ function NuevaConversacionModal({ onClose, onElegir }: {
   );
 }
 
-export default function StaffMensajes({ storageKey }: { storageKey: "adminUser" | "tecnicoUser" }) {
+export default function StaffMensajes({ storageKey, embedded = false }: { storageKey: "adminUser" | "tecnicoUser"; embedded?: boolean }) {
   const [user, setUser] = useState<any>(null);
   const [convs, setConvs] = useState<any[]>([]);
   const [activa, setActiva] = useState<{ eeId: number; nombre: string } | null>(null);
@@ -165,7 +165,7 @@ export default function StaffMensajes({ storageKey }: { storageKey: "adminUser" 
   );
 
   return (
-    <div className="p-4 sm:p-6 h-[calc(100vh-4rem)] flex flex-col">
+    <div className={embedded ? "p-4 sm:p-6 h-full flex flex-col" : "p-4 sm:p-6 h-[calc(100vh-4rem)] flex flex-col"}>
       {modalNueva && (
         <NuevaConversacionModal
           onClose={() => setModalNueva(false)}
@@ -173,11 +173,13 @@ export default function StaffMensajes({ storageKey }: { storageKey: "adminUser" 
         />
       )}
 
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-2xl font-extrabold text-gray-900">Mensajes</h1>
-          <p className="text-sm text-gray-400 mt-0.5">Escríbele directamente a cualquier empresa habilitada del evento</p>
-        </div>
+      <div className={`flex items-center mb-4 ${embedded ? "justify-end" : "justify-between"}`}>
+        {!embedded && (
+          <div>
+            <h1 className="text-2xl font-extrabold text-gray-900">Mensajes</h1>
+            <p className="text-sm text-gray-400 mt-0.5">Escríbele directamente a cualquier empresa habilitada del evento</p>
+          </div>
+        )}
         <button
           onClick={() => setModalNueva(true)}
           className="flex items-center gap-2 bg-[#449D3A] hover:bg-[#3a8531] text-white text-sm font-bold px-4 py-2.5 rounded-xl transition-colors"

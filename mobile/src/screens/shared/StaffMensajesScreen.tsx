@@ -20,7 +20,7 @@ function fmtFechaCorta(iso: string) {
   return d.toLocaleDateString('es-BO', { day: '2-digit', month: 'short' });
 }
 
-export default function StaffMensajesScreen() {
+export default function StaffMensajesScreen({ embedded = false }: { embedded?: boolean } = {}) {
   const user = userStore.get();
 
   const [convs, setConvs] = useState<any[]>([]);
@@ -178,14 +178,14 @@ export default function StaffMensajesScreen() {
 
   return (
     <SafeAreaView style={s.root} edges={['top']}>
-      <View style={s.header}>
-        <Text style={s.headerTitle}>Mensajes</Text>
+      <View style={[s.header, embedded && { justifyContent: 'flex-end' }]}>
+        {!embedded && <Text style={s.headerTitle}>Mensajes</Text>}
         <TouchableOpacity style={s.nuevaBtn} onPress={abrirNueva} activeOpacity={0.8}>
           <Plus size={15} color="#fff" />
           <Text style={s.nuevaBtnText}>Nuevo</Text>
         </TouchableOpacity>
       </View>
-      <Text style={s.headerSub}>Escríbele directamente a cualquier empresa habilitada del evento</Text>
+      {!embedded && <Text style={s.headerSub}>Escríbele directamente a cualquier empresa habilitada del evento</Text>}
 
       <FlatList
         data={convs}

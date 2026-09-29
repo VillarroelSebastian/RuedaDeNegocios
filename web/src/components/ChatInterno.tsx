@@ -13,7 +13,7 @@ function fmtFecha(iso: string) {
   return new Date(iso).toLocaleDateString("es-BO", { weekday: "long", day: "numeric", month: "long" });
 }
 
-export default function ChatInterno({ storageKey }: { storageKey: "adminUser" | "tecnicoUser" }) {
+export default function ChatInterno({ storageKey, embedded = false }: { storageKey: "adminUser" | "tecnicoUser"; embedded?: boolean }) {
   const [user, setUser] = useState<any>(null);
   const [mensajes, setMensajes] = useState<any[]>([]);
   const [texto, setTexto] = useState("");
@@ -61,13 +61,15 @@ export default function ChatInterno({ storageKey }: { storageKey: "adminUser" | 
   let fechaAnterior = "";
 
   return (
-    <div className="p-4 sm:p-6 h-[calc(100vh-4rem)] flex flex-col">
-      <div className="mb-4">
-        <h1 className="text-2xl font-extrabold text-gray-900 flex items-center gap-2">
-          <Users className="w-6 h-6 text-[#449D3A]" /> Equipo del evento
-        </h1>
-        <p className="text-sm text-gray-400 mt-0.5">Canal compartido entre administración y técnicos para coordinarse</p>
-      </div>
+    <div className={embedded ? "p-4 sm:p-6 h-full flex flex-col" : "p-4 sm:p-6 h-[calc(100vh-4rem)] flex flex-col"}>
+      {!embedded && (
+        <div className="mb-4">
+          <h1 className="text-2xl font-extrabold text-gray-900 flex items-center gap-2">
+            <Users className="w-6 h-6 text-[#449D3A]" /> Equipo del evento
+          </h1>
+          <p className="text-sm text-gray-400 mt-0.5">Canal compartido entre administración y técnicos para coordinarse</p>
+        </div>
+      )}
 
       {error && (
         <div className="bg-red-50 text-red-700 rounded-xl p-3 text-sm mb-3">{error}</div>

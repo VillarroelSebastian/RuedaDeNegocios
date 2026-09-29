@@ -15,7 +15,7 @@ function fmtHora(iso: string) {
   return new Date(iso).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' });
 }
 
-export default function ChatInternoScreen() {
+export default function ChatInternoScreen({ embedded = false }: { embedded?: boolean } = {}) {
   const user = userStore.get();
 
   const [mensajes, setMensajes] = useState<any[]>([]);
@@ -67,13 +67,15 @@ export default function ChatInternoScreen() {
   return (
     <SafeAreaView style={s.root} edges={['top']}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0} style={{ flex: 1 }}>
-        <View style={s.header}>
-          <View style={s.headerIcon}><Users size={16} color={GREEN} /></View>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={s.headerTitle}>Equipo del evento</Text>
-            <Text style={s.headerSub}>Canal compartido entre administración y técnicos</Text>
+        {!embedded && (
+          <View style={s.header}>
+            <View style={s.headerIcon}><Users size={16} color={GREEN} /></View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={s.headerTitle}>Equipo del evento</Text>
+              <Text style={s.headerSub}>Canal compartido entre administración y técnicos</Text>
+            </View>
           </View>
-        </View>
+        )}
 
         <FlatList
           ref={listRef}
