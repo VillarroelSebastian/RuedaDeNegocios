@@ -228,7 +228,9 @@ export class ExtrasController {
         evento_id: eventoId, estaActivo: 1,
         ...(['EMPRESA', 'FORO'].includes(tipoPaquete) ? { tipoPaquete } : {}),
       },
-      orderBy: [{ esPrincipal: 'desc' }, { orden: 'asc' }, { costo: 'asc' }],
+      // "esPrincipal" solo debe ganar la ordenación dentro de su propio tipo
+      // (FORO vs FORO, nunca contra EMPRESA); por eso tipoPaquete va primero.
+      orderBy: [{ tipoPaquete: 'asc' }, { esPrincipal: 'desc' }, { orden: 'asc' }, { costo: 'asc' }],
       include: { _count: { select: { empresaevento: true, auspiciador: true } } },
     });
   }
