@@ -7,6 +7,7 @@ import { useModal } from '../../components/AppModal';
 import { Plus, Clock, X, Radio } from 'lucide-react-native';
 import { API_URL } from '../../utils/userStore';
 import CronogramaVivo from '../../components/CronogramaVivo';
+import FechaHoraInput from '../../components/FechaHoraInput';
 
 const GREEN = '#449D3A';
 
@@ -205,9 +206,6 @@ export default function ActividadesScreen({ mostrarCronograma = true }: { mostra
                 { label: 'Nombre *', key: 'nombreActividad', placeholder: 'Nombre del evento' },
                 { label: 'Sala / Espacio *', key: 'nombreSalaEspacio', placeholder: 'Auditorio Principal' },
                 { label: 'Capacidad *', key: 'capacidadPersonasSala', placeholder: '50', keyboardType: 'numeric' },
-                { label: 'Fecha (YYYY-MM-DD) *', key: 'fechaActividad', placeholder: '2024-05-15' },
-                { label: 'Hora inicio (HH:MM) *', key: 'horaInicioActividad', placeholder: '10:00' },
-                { label: 'Hora fin (HH:MM) *', key: 'horaFinActividad', placeholder: '11:30' },
                 { label: 'Expositor', key: 'nombreCompletoPilaExpositor', placeholder: 'Nombre completo' },
                 { label: 'Link de transmisión', key: 'linkReunionVirtual', placeholder: 'https://...' },
               ].map(({ label, key, placeholder, keyboardType }: any) => (
@@ -223,6 +221,20 @@ export default function ActividadesScreen({ mostrarCronograma = true }: { mostra
                   />
                 </View>
               ))}
+              <View className="mb-3">
+                <Text className="text-sm font-semibold text-gray-700 mb-1">Fecha *</Text>
+                <FechaHoraInput modo="date" valor={form.fechaActividad} onCambiar={(v) => set('fechaActividad', v)} placeholder="Seleccionar fecha" />
+              </View>
+              <View className="flex-row gap-3 mb-3">
+                <View className="flex-1">
+                  <Text className="text-sm font-semibold text-gray-700 mb-1">Hora inicio *</Text>
+                  <FechaHoraInput modo="time" valor={form.horaInicioActividad} onCambiar={(v) => set('horaInicioActividad', v)} placeholder="Seleccionar hora" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-sm font-semibold text-gray-700 mb-1">Hora fin *</Text>
+                  <FechaHoraInput modo="time" valor={form.horaFinActividad} onCambiar={(v) => set('horaFinActividad', v)} placeholder="Seleccionar hora" />
+                </View>
+              </View>
               <View className="mb-3">
                 <Text className="text-sm font-semibold text-gray-700 mb-1">Descripción</Text>
                 <TextInput

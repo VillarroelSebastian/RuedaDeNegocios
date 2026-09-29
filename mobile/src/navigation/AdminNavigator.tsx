@@ -5,7 +5,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import {
   LayoutDashboard, Building2, CreditCard, Armchair, MoreHorizontal,
   CalendarCheck, Newspaper, Users, BarChart3, Settings, ListChecks,
-  CalendarRange, PlusCircle, SlidersHorizontal, Handshake,
+  CalendarRange, PlusCircle, Handshake,
   Package, QrCode, FileText, Bell, LogOut, Wifi, MessageSquare,
 } from 'lucide-react-native';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
@@ -26,7 +26,6 @@ import ConfiguracionScreen from '../screens/admin/ConfiguracionScreen';
 import AgendaScreen                from '../screens/admin/AgendaScreen';
 import EventConfigScreen           from '../screens/admin/EventConfigScreen';
 import PagosAdicionalesScreen      from '../screens/admin/PagosAdicionalesScreen';
-import AdminEventoConfigScreen     from '../screens/admin/AdminEventoConfigScreen';
 import AuspiciadoresScreen         from '../screens/admin/AuspiciadoresScreen';
 import TecnicoReunionesScreen     from '../screens/tecnico/TecnicoReunionesScreen';
 import TecnicoVirtualesScreen     from '../screens/tecnico/TecnicoVirtualesScreen';
@@ -71,12 +70,10 @@ function useTabBarStyle() {
 // ─── Pantalla "Más" ───────────────────────────────────────────────────────────
 function MenuScreen({ navigation }: any) {
   const menuItems = [
-    { name: 'Eventos',          icon: CalendarRange,     screen: 'Eventos',           desc: 'Gestión de eventos',      highlight: true },
-    { name: 'Paquetes',         icon: Package,           screen: 'Paquetes',          desc: 'Precios, cupos y beneficios' },
+    { name: 'Paquetes',         icon: Package,           screen: 'Paquetes',          desc: 'Precios, cupos y beneficios', highlight: true },
     { name: 'Notificaciones',   icon: Bell,              screen: 'Notificaciones',    desc: 'Pagos y empresas pendientes' },
     { name: 'Mensajes',         icon: MessageSquare,     screen: 'Mensajes',          desc: 'Empresas y equipo del evento' },
     { name: 'Pagos Adicionales',icon: PlusCircle,        screen: 'PagosAdicionales',  desc: 'Cupos extra de empresas'  },
-    { name: 'Config. Evento',   icon: SlidersHorizontal, screen: 'EventoConfig',       desc: 'Reglas del evento'        },
     { name: 'Cronograma en vivo', icon: CalendarCheck,   screen: 'Actividades',       desc: 'CRUD y estado en tiempo real' },
     { name: 'Auspiciadores',     icon: Users,             screen: 'Auspiciadores',     desc: 'Credenciales y aportes'     },
     { name: 'Agenda',           icon: ListChecks,        screen: 'Agenda',            desc: 'Ocupación de mesas'       },
@@ -177,6 +174,7 @@ const ms = StyleSheet.create({
 
 // ─── Iconos de tabs (fuera del componente para evitar re-renders) ─────────────
 const IconDashboard    = ({ color }: { color: string }) => <LayoutDashboard color={color} size={22} />;
+const IconEventos      = ({ color }: { color: string }) => <CalendarRange   color={color} size={22} />;
 const IconEmpresas     = ({ color }: { color: string }) => <Building2       color={color} size={22} />;
 const IconPagos        = ({ color }: { color: string }) => <CreditCard      color={color} size={22} />;
 const IconMesas        = ({ color }: { color: string }) => <Armchair        color={color} size={22} />;
@@ -209,6 +207,8 @@ function AdminTabs() {
       <Tab.Navigator screenOptions={{ ...baseTabOptions, tabBarStyle }}>
         <Tab.Screen name="Dashboard" component={DashboardScreen}
           options={{ title: 'Panel',    tabBarIcon: IconDashboard }} />
+        <Tab.Screen name="Eventos"    component={EventConfigScreen}
+          options={{ title: 'Eventos',  tabBarIcon: IconEventos }} />
         <Tab.Screen name="Empresas"   component={EmpresasScreen}
           options={{ title: 'Empresas', tabBarIcon: IconEmpresas }} />
         <Tab.Screen name="Pagos"      component={PagosScreen}
@@ -243,7 +243,6 @@ export default function AdminNavigator() {
     <StatusBar style="dark" backgroundColor="#ffffff" />
     <AdminStack.Navigator screenOptions={screenOptions}>
       <AdminStack.Screen name="AdminTabs"    component={AdminTabs}          options={{ headerShown: false }} />
-      <AdminStack.Screen name="Eventos"      component={EventConfigScreen}  options={{ title: 'Gestión de Eventos' }} />
       <AdminStack.Screen name="Paquetes"     component={PaquetesScreen}      options={{ title: 'Paquetes' }} />
       <AdminStack.Screen name="Notificaciones" component={StaffNotificacionesScreen} options={{ title: 'Notificaciones' }} />
       <AdminStack.Screen name="Mensajes" component={EquipoMensajesScreen} options={{ title: 'Mensajes' }} />
@@ -265,7 +264,6 @@ export default function AdminNavigator() {
       <AdminStack.Screen name="AgendarReunion" component={TecnicoAgendarScreen} options={{ title: 'Agendar reunión' }} />
       <AdminStack.Screen name="PagoDetail"        component={PagoDetailScreen}        options={{ title: 'Verificar Pago'           }} />
       <AdminStack.Screen name="PagosAdicionales"  component={PagosAdicionalesScreen}  options={{ title: 'Pagos Adicionales'        }} />
-      <AdminStack.Screen name="EventoConfig"       component={AdminEventoConfigScreen} options={{ title: 'Configuración del Evento' }} />
     </AdminStack.Navigator>
     </>
   );

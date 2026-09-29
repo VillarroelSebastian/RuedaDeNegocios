@@ -12,6 +12,7 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import { API_URL } from '../../utils/userStore';
 import { useModal } from '../../components/AppModal';
+import FechaHoraInput from '../../components/FechaHoraInput';
 
 const GREEN = '#449D3A';
 type DiaReunion = { fecha: string; rangos: Array<{ desde: string; hasta: string }> };
@@ -682,28 +683,22 @@ export default function EventConfigScreen({ navigation }: any) {
           <View className="flex-row gap-3 mb-4">
             <View className="flex-1">
               <Text className="text-xs font-bold text-gray-700 mb-2">Fecha inicio *</Text>
-              <TextInput value={formData.fechaInicioEvento} onChangeText={(t) => handleChange('fechaInicioEvento', t)}
-                className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm" placeholder="YYYY-MM-DD" />
+              <FechaHoraInput modo="date" valor={formData.fechaInicioEvento} onCambiar={(v) => handleChange('fechaInicioEvento', v)} placeholder="Seleccionar fecha" />
             </View>
             <View className="flex-1">
               <Text className="text-xs font-bold text-gray-700 mb-2">Fecha fin *</Text>
-              <TextInput value={formData.fechaFinEvento} onChangeText={(t) => handleChange('fechaFinEvento', t)}
-                className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm" placeholder="YYYY-MM-DD" />
+              <FechaHoraInput modo="date" valor={formData.fechaFinEvento} onCambiar={(v) => handleChange('fechaFinEvento', v)} placeholder="Seleccionar fecha" />
             </View>
           </View>
 
           <View className="flex-row gap-3 mb-4">
             <View className="flex-1">
               <Text className="text-xs font-bold text-gray-700 mb-2">Hora inicio *</Text>
-              <TextInput value={formData.horaInicioEvento} onChangeText={(t) => handleChange('horaInicioEvento', t)}
-                keyboardType="numbers-and-punctuation" maxLength={5}
-                className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm" placeholder="08:00" />
+              <FechaHoraInput modo="time" valor={formData.horaInicioEvento} onCambiar={(v) => handleChange('horaInicioEvento', v)} placeholder="Seleccionar hora" />
             </View>
             <View className="flex-1">
               <Text className="text-xs font-bold text-gray-700 mb-2">Hora fin *</Text>
-              <TextInput value={formData.horaFinEvento} onChangeText={(t) => handleChange('horaFinEvento', t)}
-                keyboardType="numbers-and-punctuation" maxLength={5}
-                className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm" placeholder="18:00" />
+              <FechaHoraInput modo="time" valor={formData.horaFinEvento} onCambiar={(v) => handleChange('horaFinEvento', v)} placeholder="Seleccionar hora" />
             </View>
           </View>
 
@@ -714,21 +709,21 @@ export default function EventConfigScreen({ navigation }: any) {
           <View className="flex-row gap-3 mb-3">
             <View className="flex-1">
               <Text className="text-[11px] font-bold text-gray-700 mb-2">Inicio inscripciones *</Text>
-              <TextInput value={formData.fechaInicioInscripciones} onChangeText={(t) => handleChange('fechaInicioInscripciones', t)} className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-3 py-3 text-sm" placeholder="YYYY-MM-DD" />
+              <FechaHoraInput modo="date" valor={formData.fechaInicioInscripciones} onCambiar={(v) => handleChange('fechaInicioInscripciones', v)} placeholder="Seleccionar fecha" />
             </View>
             <View className="w-24">
               <Text className="text-[11px] font-bold text-gray-700 mb-2">Hora (24 h)</Text>
-              <TextInput value={formData.horaInicioInscripciones} onChangeText={(t) => handleChange('horaInicioInscripciones', t)} keyboardType="numbers-and-punctuation" maxLength={5} className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-3 py-3 text-sm" placeholder="08:00" />
+              <FechaHoraInput modo="time" valor={formData.horaInicioInscripciones} onCambiar={(v) => handleChange('horaInicioInscripciones', v)} placeholder="Hora" />
             </View>
           </View>
           <View className="flex-row gap-3 mb-4">
             <View className="flex-1">
               <Text className="text-[11px] font-bold text-gray-700 mb-2">Límite para inscribirse *</Text>
-              <TextInput value={formData.fechaFinInscripciones} onChangeText={(t) => handleChange('fechaFinInscripciones', t)} className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-3 py-3 text-sm" placeholder="YYYY-MM-DD" />
+              <FechaHoraInput modo="date" valor={formData.fechaFinInscripciones} onCambiar={(v) => handleChange('fechaFinInscripciones', v)} placeholder="Seleccionar fecha" />
             </View>
             <View className="w-24">
               <Text className="text-[11px] font-bold text-gray-700 mb-2">Hora (24 h)</Text>
-              <TextInput value={formData.horaFinInscripciones} onChangeText={(t) => handleChange('horaFinInscripciones', t)} keyboardType="numbers-and-punctuation" maxLength={5} className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-3 py-3 text-sm" placeholder="18:00" />
+              <FechaHoraInput modo="time" valor={formData.horaFinInscripciones} onCambiar={(v) => handleChange('horaFinInscripciones', v)} placeholder="Hora" />
             </View>
           </View>
 
@@ -843,9 +838,9 @@ export default function EventConfigScreen({ navigation }: any) {
             return <View key={fecha} className="border border-gray-100 rounded-xl p-3 mb-3">
               <Text className="text-sm font-bold text-gray-800 mb-2">{new Date(`${fecha}T12:00:00`).toLocaleDateString('es-BO', { weekday: 'long', day: '2-digit', month: 'long' })}</Text>
               {rangos.map((rango, ri) => <View key={ri} className="flex-row items-center gap-2 mb-2">
-                <TextInput value={rango.desde} onChangeText={(valor) => actualizarRangosDia(fecha, rangos.map((r, i) => i === ri ? { ...r, desde: valor } : r))} keyboardType="numbers-and-punctuation" maxLength={5} placeholder="08:00" className="flex-1 bg-[#FAFAFA] border border-gray-200 rounded-lg px-3 py-2 text-sm text-center" />
+                <View className="flex-1"><FechaHoraInput modo="time" valor={rango.desde} onCambiar={(v) => actualizarRangosDia(fecha, rangos.map((r, i) => i === ri ? { ...r, desde: v } : r))} placeholder="Desde" /></View>
                 <Text className="text-xs text-gray-500">hasta</Text>
-                <TextInput value={rango.hasta} onChangeText={(valor) => actualizarRangosDia(fecha, rangos.map((r, i) => i === ri ? { ...r, hasta: valor } : r))} keyboardType="numbers-and-punctuation" maxLength={5} placeholder="18:00" className="flex-1 bg-[#FAFAFA] border border-gray-200 rounded-lg px-3 py-2 text-sm text-center" />
+                <View className="flex-1"><FechaHoraInput modo="time" valor={rango.hasta} onCambiar={(v) => actualizarRangosDia(fecha, rangos.map((r, i) => i === ri ? { ...r, hasta: v } : r))} placeholder="Hasta" /></View>
                 {rangos.length > 1 && <TouchableOpacity onPress={() => actualizarRangosDia(fecha, rangos.filter((_, i) => i !== ri))}><Trash2 size={16} color="#dc2626" /></TouchableOpacity>}
               </View>)}
               <TouchableOpacity onPress={() => actualizarRangosDia(fecha, [...rangos, { desde: '', hasta: '' }])} className="flex-row items-center gap-1 mt-1"><Plus size={14} color={GREEN} /><Text style={{ color: GREEN, fontSize: 11, fontWeight: '700' }}>Agregar rango</Text></TouchableOpacity>
