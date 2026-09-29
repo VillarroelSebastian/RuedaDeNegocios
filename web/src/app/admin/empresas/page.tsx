@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, Building2, Users, Eye, Trash2, ChevronLeft, ChevronRight, Filter, X, MessageSquare, KeyRound, CalendarClock, Copy, Check, CreditCard } from 'lucide-react';
+import { Search, Building2, Users, Eye, Trash2, ChevronLeft, ChevronRight, Filter, X, MessageSquare, KeyRound, CalendarClock, Copy, Check, CreditCard, ShieldOff, ShieldCheck } from 'lucide-react';
 import ImagenLightbox from '@/components/ui/ImagenLightbox';
 import { useModal } from '@/components/ui/Modal';
 import { EnviarMensajeEmpresaModal } from '@/components/EnviarMensajeEmpresaModal';
@@ -19,6 +19,7 @@ const ESTADOS_PAGO = [
 
 /* ── Participants Modal ──────────────────────────────────────── */
 function ParticipantesModal({ empresa, onClose, permitirCambiarPassword = true }: { empresa: { id: number; nombre: string } | null; onClose: () => void; permitirCambiarPassword?: boolean }) {
+  const { showConfirm, ModalComponent: ModalConfirmReenvio } = useModal();
   const [participantes, setParticipantes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [credencial, setCredencial] = useState<{ correo: string; password: string } | null>(null);
@@ -43,6 +44,14 @@ function ParticipantesModal({ empresa, onClose, permitirCambiarPassword = true }
       setParticipanteCorreo(null); setCorreoNuevo('');
     } catch (error: any) { setAvisoReenvio({ ok: false, texto: error.message }); }
     finally { setGuardandoCorreo(false); }
+  };
+
+  const confirmarReenvioCredenciales = (p: any) => {
+    showConfirm(
+      'Reenviar credenciales',
+      `¿Generar y reenviar las credenciales de acceso de ${p.nombres} al correo ${p.correo}?`,
+      () => reenviarCredenciales(p),
+    );
   };
 
   const reenviarCredenciales = async (p: any) => {
@@ -92,6 +101,7 @@ function ParticipantesModal({ empresa, onClose, permitirCambiarPassword = true }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={onClose}>
+      <ModalConfirmReenvio />
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between p-6 border-b border-gray-100">
           <div>
@@ -162,10 +172,10 @@ function ParticipantesModal({ empresa, onClose, permitirCambiarPassword = true }
                       {p.estaActivo ? 'Activo' : 'Inactivo'}
                     </span>
                     {permitirCambiarPassword && p.estaActivo && <div className="mt-1 flex flex-wrap justify-end gap-1">
-                      <button disabled={reiniciando === p.usuarioId} onClick={() => reiniciarPassword(p)} className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-white px-2 py-1 text-[10px] font-bold text-amber-700 disabled:opacity-50"><KeyRound className="h-3 w-3" />Generar</button>
-                      <button disabled={reiniciando === p.usuarioId} onClick={() => { setParticipanteManual(p); setPasswordManual(''); setCredencial(null); }} className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-white px-2 py-1 text-[10px] font-bold text-blue-700 disabled:opacity-50">Escribir</button>
-                      <button disabled={guardandoCorreo} onClick={() => { setParticipanteCorreo(p); setCorreoNuevo(p.correo ?? ''); setAvisoReenvio(null); }} className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2 py-1 text-[10px] font-bold text-gray-700 disabled:opacity-50">Editar correo</button>
-                      <button disabled={reenviando === p.usuarioId} onClick={() => reenviarCredenciales(p)} className="inline-flex items-center gap-1 rounded-lg border border-green-200 bg-white px-2 py-1 text-[10px] font-bold text-green-700 disabled:opacity-50">{reenviando === p.usuarioId ? 'Enviando…' : 'Reenviar credenciales'}</button>
+                      <button disabled={reiniciando === p.usuarioId} onClick={() => { setParticipanteCorreo(null); setParticipanteManual(null); reiniciarPassword(p); }} className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-white px-2 py-1 text-[10px] font-bold text-amber-700 disabled:opacity-50"><KeyRound className="h-3 w-3" />Generar</button>
+                      <button disabled={reiniciando === p.usuarioId} onClick={() => { setParticipanteCorreo(null); setCredencial(null); setParticipanteManual(p); setPasswordManual(''); }} className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-white px-2 py-1 text-[10px] font-bold text-blue-700 disabled:opacity-50">Escribir</button>
+                      <button disabled={guardandoCorreo} onClick={() => { setCredencial(null); setParticipanteManual(null); setParticipanteCorreo(p); setCorreoNuevo(p.correo ?? ''); setAvisoReenvio(null); }} className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2 py-1 text-[10px] font-bold text-gray-700 disabled:opacity-50">Editar correo</button>
+                      <button disabled={reenviando === p.usuarioId} onClick={() => confirmarReenvioCredenciales(p)} className="inline-flex items-center gap-1 rounded-lg border border-green-200 bg-white px-2 py-1 text-[10px] font-bold text-green-700 disabled:opacity-50">{reenviando === p.usuarioId ? 'Enviando…' : 'Reenviar credenciales'}</button>
                     </div>}
                   </div>
                 </div>
@@ -292,11 +302,33 @@ export function EmpresasRegistradasPage({ modoTecnico = false }: { modoTecnico?:
 
   const badgeAcceso = (estado: string) => {
     const isHab = estado === 'HABILITADO';
+    const isInhabilitada = estado === 'INHABILITADO';
     return (
-      <span className={`inline-flex items-center gap-1 text-[11px] font-semibold ${isHab ? 'text-green-600' : 'text-gray-400'}`}>
-        <span className={`w-2 h-2 rounded-full ${isHab ? 'bg-green-500' : 'bg-gray-300'}`} />
-        {isHab ? 'Habilitado' : 'No habilitado'}
+      <span className={`inline-flex items-center gap-1 text-[11px] font-semibold ${isInhabilitada ? 'text-red-500' : isHab ? 'text-green-600' : 'text-gray-400'}`}>
+        <span className={`w-2 h-2 rounded-full ${isInhabilitada ? 'bg-red-500' : isHab ? 'bg-green-500' : 'bg-gray-300'}`} />
+        {isInhabilitada ? 'Inhabilitada' : isHab ? 'Habilitado' : 'No habilitado'}
       </span>
+    );
+  };
+
+  const toggleInhabilitar = (emp: any) => {
+    const inhabilitando = emp.estadoHabilitacionAcceso !== 'INHABILITADO';
+    showConfirm(
+      inhabilitando ? `¿Inhabilitar empresa "${emp.nombre}"?` : `¿Reactivar empresa "${emp.nombre}"?`,
+      inhabilitando
+        ? 'La empresa perderá acceso a reuniones, mensajes y oportunidades en este evento hasta que la reactives. No se elimina ningún dato.'
+        : 'La empresa recupera su acceso normal en este evento.',
+      async () => {
+        try {
+          const res = await fetch(`${API}/admin/empresas/${emp.id}/inhabilitar`, { method: 'PUT' });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data?.message || 'No se pudo actualizar el estado de la empresa.');
+          showSuccess(inhabilitando ? 'Empresa inhabilitada' : 'Empresa reactivada', '');
+          fetchEmpresas();
+        } catch (e: any) {
+          showError('Error', e.message || 'No se pudo actualizar el estado de la empresa.');
+        }
+      },
     );
   };
 
@@ -467,6 +499,15 @@ export function EmpresasRegistradasPage({ modoTecnico = false }: { modoTecnico?:
                           </button>
                         )}
                         {emp.empresaEventoId && <button onClick={() => setAgendaEmpresa({ eeId: emp.empresaEventoId, nombre: emp.nombre })} className="p-1.5 rounded-lg text-gray-400 hover:text-violet-600 hover:bg-violet-50" title="Ver agenda"><CalendarClock className="h-4 w-4" /></button>}
+                        {!modoTecnico && emp.empresaEventoId && (
+                          <button
+                            onClick={() => toggleInhabilitar(emp)}
+                            className={`p-1.5 rounded-lg transition-colors ${emp.estadoHabilitacionAcceso === 'INHABILITADO' ? 'text-amber-500 hover:text-amber-600 hover:bg-amber-50' : 'text-gray-400 hover:text-amber-500 hover:bg-amber-50'}`}
+                            title={emp.estadoHabilitacionAcceso === 'INHABILITADO' ? 'Reactivar empresa' : 'Inhabilitar empresa'}
+                          >
+                            {emp.estadoHabilitacionAcceso === 'INHABILITADO' ? <ShieldCheck className="w-4 h-4" /> : <ShieldOff className="w-4 h-4" />}
+                          </button>
+                        )}
                         {!modoTecnico && <button
                           onClick={() => handleDelete(emp.id, emp.nombre)}
                           className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"

@@ -2238,6 +2238,31 @@ export class AppController implements OnModuleInit {
     return { ok: true, empresaId, inscripcionesDesactivadas: eeIds.length, participantesDesactivados: euIds.length };
   }
 
+  // Alternativa reversible a eliminar: bloquea el acceso de la empresa al
+  // evento actual (INHABILITADO) sin tocar estaActivo ni su historial. Se
+  // puede revertir con el mismo endpoint. No se confunde con NO_HABILITADO
+  // (pago aún no aprobado) porque usa un valor propio.
+  @Put('admin/empresas/:id/inhabilitar')
+  async toggleInhabilitarEmpresa(@Param('id') id: string) {
+    const empresaId = Number(id);
+    const eventoId = await this.getPrincipalEventoId();
+    const inscripcion = await this.prisma.empresaevento.findFirst({
+      where: { empresa_id: empresaId, ...(eventoId ? { evento_id: eventoId } : {}), estaActivo: 1 },
+    });
+    if (!inscripcion) throw new BadRequestException('La empresa no está activa en este evento.');
+    const inhabilitando = inscripcion.estadoHabilitacionAcceso !== 'INHABILITADO';
+    const actualizada = await this.prisma.empresaevento.update({
+      where: { id: inscripcion.id },
+      data: {
+        estadoHabilitacionAcceso: inhabilitando
+          ? 'INHABILITADO'
+          // Al reactivar, se restaura según si ya tenía el pago aprobado o no.
+          : (inscripcion.estadoVerificacionPago === 'COMPLETADO' ? 'HABILITADO' : 'NO_HABILITADO'),
+      },
+    });
+    return { ok: true, inhabilitada: inhabilitando, estadoHabilitacionAcceso: actualizada.estadoHabilitacionAcceso };
+  }
+
   @Get(['admin/empresas/:id/participantes', 'tecnico/empresas/:id/participantes'])
   async getAdminEmpresaParticipantes(@Param('id') id: string) {
     const eventoId = await this.getPrincipalEventoId();
@@ -2426,11 +2451,14 @@ export class AppController implements OnModuleInit {
         data: { estadoVerificacionPago: 'PROCESANDO' },
       });
       if (claimed.count !== 1) throw new BadRequestException('El pago ya fue procesado o no está disponible.');
+      const previo = await tx.empresaevento.findUnique({ where: { id: pagoId }, select: { estadoHabilitacionAcceso: true } });
       const aprobado = await tx.empresaevento.update({
       where: { id: pagoId },
       data: {
         estadoVerificacionPago: 'COMPLETADO',
-        estadoHabilitacionAcceso: 'HABILITADO',
+        // Si un admin la inhabilitó a mano, aprobar el pago no debe revertir esa
+        // decisión por sí solo: se mantiene inhabilitada hasta que la reactiven.
+        ...(previo?.estadoHabilitacionAcceso === 'INHABILITADO' ? {} : { estadoHabilitacionAcceso: 'HABILITADO' }),
         fechaHoraVerificacionPago: new Date(),
         observacionSobreComprobante: null,
       },

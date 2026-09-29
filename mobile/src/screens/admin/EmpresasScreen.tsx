@@ -53,6 +53,7 @@ export function ParticipantesModal({ empresa, onClose, permitirCambiarPassword =
   const [guardandoCorreo, setGuardandoCorreo] = useState(false);
   const [reenviando, setReenviando] = useState<number | null>(null);
   const [avisoReenvio, setAvisoReenvio] = useState<{ ok: boolean; texto: string } | null>(null);
+  const [confirmandoReenvio, setConfirmandoReenvio] = useState<any | null>(null);
 
   const guardarCorreo = async (p: any) => {
     if (!correoNuevo.trim()) return;
@@ -84,6 +85,7 @@ export function ParticipantesModal({ empresa, onClose, permitirCambiarPassword =
       setCredencial({ correo: p.correo, nuevaContrasenia: 'ERROR: la contraseña escrita debe cumplir las reglas de seguridad (mínimo 8 caracteres).' });
       return;
     }
+    setEditandoCorreo(null);
     setReiniciando(p.usuarioId);
     try {
       const res = await fetch(`${API_URL}/admin/participantes/${p.usuarioId}/password-temporal`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(manual ? { nuevaContrasenia: passwordManual.trim() } : {}) });
@@ -109,6 +111,14 @@ export function ParticipantesModal({ empresa, onClose, permitirCambiarPassword =
 
   return (
     <RNModal visible={!!empresa} transparent animationType="slide" onRequestClose={onClose}>
+      <AppModal
+        visible={!!confirmandoReenvio}
+        type="confirm"
+        title="Reenviar credenciales"
+        message={confirmandoReenvio ? `¿Generar y reenviar las credenciales de acceso de ${confirmandoReenvio.nombres} al correo ${confirmandoReenvio.correo}?` : ''}
+        onClose={() => setConfirmandoReenvio(null)}
+        onConfirm={() => { const p = confirmandoReenvio; setConfirmandoReenvio(null); if (p) reenviarCredenciales(p); }}
+      />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
       <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
         <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '80%' }}>
@@ -167,7 +177,7 @@ export function ParticipantesModal({ empresa, onClose, permitirCambiarPassword =
                       <Text style={{ fontSize: 11, color: '#9ca3af' }}>{p.correo}</Text>
                     </View>
                   </View>
-                  <View style={{alignItems:'flex-end',gap:5,maxWidth:130}}>{p.esResponsable && <View style={{ backgroundColor: '#dcfce7', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 }}><Text style={{ fontSize: 10, fontWeight: '700', color: '#166534' }}>Responsable</Text></View>}<Text style={{fontSize:10,fontWeight:'600',color:p.estaActivo?'#9ca3af':'#ef4444'}}>{p.estaActivo?'Activo':'Inactivo'}</Text>{permitirCambiarPassword && p.estaActivo && <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 4 }}><TouchableOpacity disabled={reiniciando===p.usuarioId} onPress={()=>reiniciarPassword(p)} style={{flexDirection:'row',alignItems:'center',gap:4,borderWidth:1,borderColor:'#fcd34d',borderRadius:8,paddingHorizontal:7,paddingVertical:5,opacity:reiniciando===p.usuarioId?0.5:1}}><KeyRound size={12} color="#b45309"/><Text style={{fontSize:10,fontWeight:'700',color:'#b45309'}}>Generar</Text></TouchableOpacity><TouchableOpacity disabled={reiniciando===p.usuarioId || !passwordManual.trim()} onPress={()=>reiniciarPassword(p, true)} style={{borderWidth:1,borderColor:GREEN,borderRadius:8,paddingHorizontal:7,paddingVertical:5,opacity:passwordManual.trim()?1:.4}}><Text style={{fontSize:10,fontWeight:'700',color:GREEN}}>Aplicar escrita</Text></TouchableOpacity><TouchableOpacity disabled={guardandoCorreo} onPress={()=>{ setEditandoCorreo(p); setCorreoNuevo(p.correo ?? ''); setAvisoReenvio(null); }} style={{borderWidth:1,borderColor:'#d1d5db',borderRadius:8,paddingHorizontal:7,paddingVertical:5}}><Text style={{fontSize:10,fontWeight:'700',color:'#374151'}}>Editar correo</Text></TouchableOpacity><TouchableOpacity disabled={reenviando===p.usuarioId} onPress={()=>reenviarCredenciales(p)} style={{borderWidth:1,borderColor:'#86efac',borderRadius:8,paddingHorizontal:7,paddingVertical:5,opacity:reenviando===p.usuarioId?0.5:1}}><Text style={{fontSize:10,fontWeight:'700',color:GREEN}}>{reenviando===p.usuarioId?'Enviando…':'Reenviar'}</Text></TouchableOpacity></View>}</View>
+                  <View style={{alignItems:'flex-end',gap:5,maxWidth:130}}>{p.esResponsable && <View style={{ backgroundColor: '#dcfce7', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 }}><Text style={{ fontSize: 10, fontWeight: '700', color: '#166534' }}>Responsable</Text></View>}<Text style={{fontSize:10,fontWeight:'600',color:p.estaActivo?'#9ca3af':'#ef4444'}}>{p.estaActivo?'Activo':'Inactivo'}</Text>{permitirCambiarPassword && p.estaActivo && <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 4 }}><TouchableOpacity disabled={reiniciando===p.usuarioId} onPress={()=>reiniciarPassword(p)} style={{flexDirection:'row',alignItems:'center',gap:4,borderWidth:1,borderColor:'#fcd34d',borderRadius:8,paddingHorizontal:7,paddingVertical:5,opacity:reiniciando===p.usuarioId?0.5:1}}><KeyRound size={12} color="#b45309"/><Text style={{fontSize:10,fontWeight:'700',color:'#b45309'}}>Generar</Text></TouchableOpacity><TouchableOpacity disabled={reiniciando===p.usuarioId || !passwordManual.trim()} onPress={()=>reiniciarPassword(p, true)} style={{borderWidth:1,borderColor:GREEN,borderRadius:8,paddingHorizontal:7,paddingVertical:5,opacity:passwordManual.trim()?1:.4}}><Text style={{fontSize:10,fontWeight:'700',color:GREEN}}>Aplicar escrita</Text></TouchableOpacity><TouchableOpacity disabled={guardandoCorreo} onPress={()=>{ setCredencial(null); setEditandoCorreo(p); setCorreoNuevo(p.correo ?? ''); setAvisoReenvio(null); }} style={{borderWidth:1,borderColor:'#d1d5db',borderRadius:8,paddingHorizontal:7,paddingVertical:5}}><Text style={{fontSize:10,fontWeight:'700',color:'#374151'}}>Editar correo</Text></TouchableOpacity><TouchableOpacity disabled={reenviando===p.usuarioId} onPress={()=>setConfirmandoReenvio(p)} style={{borderWidth:1,borderColor:'#86efac',borderRadius:8,paddingHorizontal:7,paddingVertical:5,opacity:reenviando===p.usuarioId?0.5:1}}><Text style={{fontSize:10,fontWeight:'700',color:GREEN}}>{reenviando===p.usuarioId?'Enviando…':'Reenviar'}</Text></TouchableOpacity></View>}</View>
                 </View>
               ))
             )}
@@ -256,6 +266,28 @@ export default function EmpresasScreen({ navigation }: any) {
     });
   };
 
+  const toggleInhabilitar = (emp: any) => {
+    const inhabilitando = emp.estadoHabilitacionAcceso !== 'INHABILITADO';
+    showModal(
+      'confirm',
+      inhabilitando ? 'Inhabilitar empresa' : 'Reactivar empresa',
+      inhabilitando
+        ? `"${emp.nombre}" perderá acceso a reuniones, mensajes y oportunidades en este evento hasta que la reactives. No se elimina ningún dato.`
+        : `"${emp.nombre}" recupera su acceso normal en este evento.`,
+      async () => {
+        closeModal();
+        try {
+          const res = await fetch(`${API_URL}/admin/empresas/${emp.id}/inhabilitar`, { method: 'PUT' });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data?.message || 'No se pudo actualizar el estado de la empresa.');
+          await fetchEmpresas(1, search);
+        } catch (e: any) {
+          showModal('error', 'No se pudo actualizar', e.message || 'Intenta nuevamente.');
+        }
+      },
+    );
+  };
+
   return (
     <View className="flex-1 bg-[#F9FAFB]">
       <AppModal {...appModal} onClose={closeModal} onConfirm={appModal.onConfirm} />
@@ -318,6 +350,12 @@ export default function EmpresasScreen({ navigation }: any) {
                       <Text className="text-xs text-gray-400">{emp.participantesRegistrados ?? 0}/{emp.numeroParticipantes} cupos</Text>
                     </View>
                   </View>
+                  {emp.estadoHabilitacionAcceso === 'INHABILITADO' && (
+                    <View className="flex-row items-center gap-1 mt-1">
+                      <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#ef4444' }} />
+                      <Text style={{ fontSize: 11, fontWeight: '600', color: '#ef4444' }}>Inhabilitada</Text>
+                    </View>
+                  )}
                 </View>
               </View>
               <View className="flex-row gap-2 mt-3 pt-3 border-t border-gray-50">
@@ -335,6 +373,16 @@ export default function EmpresasScreen({ navigation }: any) {
                   >
                     <Eye color={GREEN} size={14} />
                     <Text style={{ fontSize: 12, fontWeight: '600', color: GREEN }}>Ver pago</Text>
+                  </TouchableOpacity>
+                )}
+                {emp.empresaEventoId && (
+                  <TouchableOpacity
+                    onPress={() => toggleInhabilitar(emp)}
+                    style={{ paddingHorizontal: 16, paddingVertical: 8, backgroundColor: '#fffbeb', borderRadius: 12 }}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: '#d97706' }}>
+                      {emp.estadoHabilitacionAcceso === 'INHABILITADO' ? 'Reactivar' : 'Inhabilitar'}
+                    </Text>
                   </TouchableOpacity>
                 )}
                 <TouchableOpacity
