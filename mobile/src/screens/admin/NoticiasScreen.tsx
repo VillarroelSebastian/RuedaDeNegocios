@@ -68,7 +68,7 @@ export default function NoticiasScreen() {
     setSaving(true);
     try {
       const user = userStore.get();
-      const payload = { ...form, usuario_id: user?.id || 1 };
+      const payload = { ...form, estadoPublicacion: 'PUBLICADO', usuario_id: user?.id || 1 };
       const url = editId ? `${API_URL}/admin/noticias/${editId}` : `${API_URL}/admin/noticias`;
       await fetch(url, { method: editId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       show({ type: 'success', title: '¡Listo!', message: editId ? 'Comunicado actualizado.' : 'Comunicado publicado.' });
@@ -195,20 +195,6 @@ export default function NoticiasScreen() {
                     <Text style={{ color: GREEN }} className="text-sm font-semibold">{uploading ? 'Subiendo...' : 'Seleccionar imagen'}</Text>
                   </TouchableOpacity>
                 )}
-              </View>
-              {/* Estado */}
-              <View className="mb-3">
-                <Text className="text-sm font-semibold text-gray-700 mb-2">Estado de publicación</Text>
-                <View className="flex-row gap-3">
-                  {['PUBLICADO', 'BORRADOR'].map((s) => (
-                    <TouchableOpacity key={s} onPress={() => set('estadoPublicacion', s)}
-                      style={{ borderWidth: 1.5, borderColor: form.estadoPublicacion === s ? GREEN : '#e5e7eb', borderRadius: 999, paddingHorizontal: 14, paddingVertical: 7 }}>
-                      <Text style={{ color: form.estadoPublicacion === s ? GREEN : '#6b7280', fontWeight: '600', fontSize: 13 }}>
-                        {s === 'PUBLICADO' ? 'Publicar' : 'Borrador'}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
               </View>
             </ScrollView>
             <View className="flex-row gap-3 mt-4">

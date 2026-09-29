@@ -3718,7 +3718,7 @@ export class AppController implements OnModuleInit {
     const importes = numeros.map((n) => Number(n.replace(/[.,]/g, ''))).filter(Number.isFinite);
     if (importes.length === 0) return 0;
     // Para "más de" se usa el piso del rango: estimación deliberadamente conservadora.
-    return Math.max(...importes);
+    return Math.min(...importes);
   }
 
   private async resumenImpactoEvento(evento: any) {

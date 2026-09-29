@@ -134,7 +134,7 @@ export default function EstadisticasPage() {
     { label: 'EMPRESAS QUE ASISTIERON', value: stats.kpis.empresasAsistentes ?? 0, icon: Users, color: 'text-cyan-600', bg: 'bg-cyan-50' },
     { label: 'PERSONAS QUE ASISTIERON', value: stats.kpis.personasAsistentes ?? 0, icon: CalendarCheck, color: 'text-teal-600', bg: 'bg-teal-50' },
     { label: 'CALIFICACIÓN PROMEDIO', value: `${Number(stats.kpis.promedioCalificacion ?? 0).toFixed(2)}/5`, icon: Star, color: 'text-yellow-600', bg: 'bg-yellow-50' },
-    { label: 'DINERO GENERADO APROX.', value: `Bs. ${Number(stats.kpis.totalGeneradoAprox ?? 0).toLocaleString('es-BO')}`, icon: DollarSign, color: 'text-emerald-700', bg: 'bg-emerald-50' },
+    { label: 'DINERO GENERADO APROX.', value: `Bs. ${Number(stats.kpis.totalGeneradoAprox ?? 0).toLocaleString('es-BO')}`, icon: DollarSign, color: 'text-emerald-700', bg: 'bg-emerald-50', note: 'Estimado de negocios cerrados en reuniones, según lo que reportan las empresas. No es el dinero recaudado del evento.' },
     { label: 'ÍNDICE DE ÉXITO', value: `${stats.kpis.indiceExito ?? 0}%`, icon: Award, color: 'text-violet-600', bg: 'bg-violet-50' },
   ];
 
@@ -220,6 +220,7 @@ export default function EstadisticasPage() {
               </div>
               <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">{k.label}</p>
               <p className="text-3xl font-bold text-gray-900">{k.value}</p>
+              {'note' in k && k.note && <p className="text-[11px] text-gray-400 mt-1.5 leading-snug">{k.note}</p>}
             </div>
           );
         })}

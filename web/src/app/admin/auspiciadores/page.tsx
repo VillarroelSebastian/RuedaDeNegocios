@@ -9,7 +9,13 @@ import { useModal } from "@/components/ui/Modal";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
-type Persona = { id?: number; nombreCompleto: string; cargo: string; correo: string; urlCredencialQR?: string | null };
+type Persona = {
+  id?: number; nombreCompleto: string; cargo: string; correo: string; telefono: string; urlCredencialQR?: string | null;
+  // Solo en el formulario: el nombre se captura separado y se concatena a
+  // nombreCompleto al guardar (así lo almacena/usa el backend hoy: credenciales,
+  // correos y asistencia leen nombreCompleto).
+  nombres?: string; apellidoPaterno?: string; apellidoMaterno?: string;
+};
 type Paquete = { id: number; nombre: string; costo: number };
 type Auspiciador = {
   id: number;
@@ -30,7 +36,7 @@ const APORTES = [
   { val: "AMBOS",   label: "Ambos",   icon: Handshake, desc: "Dinero e insumos" },
 ] as const;
 
-const personaVacia = (): Persona => ({ nombreCompleto: "", cargo: "", correo: "" });
+const personaVacia = (): Persona => ({ nombreCompleto: "", cargo: "", correo: "", telefono: "", nombres: "", apellidoPaterno: "", apellidoMaterno: "" });
 
 export default function AuspiciadoresPage() {
   const { showSuccess, showError, showConfirm, ModalComponent } = useModal();
@@ -98,7 +104,10 @@ export default function AuspiciadoresPage() {
       cantidadIngresos: a.cantidadIngresos,
     });
     setPersonas(a.personas.length
-      ? a.personas.map((p) => ({ ...p, cargo: p.cargo ?? "", correo: p.correo ?? "" }))
+      ? a.personas.map((p) => {
+          const [nombres = "", apellidoPaterno = "", ...resto] = (p.nombreCompleto || "").trim().split(/\s+/);
+          return { ...p, cargo: p.cargo ?? "", correo: p.correo ?? "", telefono: (p as any).telefono ?? "", nombres, apellidoPaterno, apellidoMaterno: resto.join(" ") };
+        })
       : [personaVacia()]);
     setAbierto(true);
   };
@@ -112,15 +121,24 @@ export default function AuspiciadoresPage() {
       return showError("Falta un dato", "Indica el monto aportado (mayor a 0).");
     if (form.tipoAporte !== "DINERO" && !form.detalleAporte.trim())
       return showError("Falta un dato", "Describe qué insumos aporta al evento.");
-    const sinNombre = personas.findIndex((p) => !p.nombreCompleto.trim());
-    if (sinNombre >= 0)
-      return showError("Falta un dato", `Escribe el nombre de la persona ${sinNombre + 1}.`);
+    const sinNombres = personas.findIndex((p) => !p.nombres?.trim());
+    if (sinNombres >= 0)
+      return showError("Falta un dato", `Escribe los nombres de la persona ${sinNombres + 1}.`);
+    const sinApellido = personas.findIndex((p) => !p.apellidoPaterno?.trim());
+    if (sinApellido >= 0)
+      return showError("Falta un dato", `Escribe el apellido paterno de la persona ${sinApellido + 1}.`);
+    const sinCargo = personas.findIndex((p) => !p.cargo.trim());
+    if (sinCargo >= 0)
+      return showError("Falta un dato", `Escribe el cargo de la persona ${sinCargo + 1}.`);
     const sinCorreo = personas.findIndex((p) => !p.correo.trim());
     if (sinCorreo >= 0)
       return showError("Falta un dato", `Escribe el correo de la persona ${sinCorreo + 1}; ahí recibirá su credencial.`);
     const correoInvalido = personas.findIndex((p) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.correo.trim()));
     if (correoInvalido >= 0)
       return showError("Correo inválido", `Revisa el correo de la persona ${correoInvalido + 1}.`);
+    const sinTelefono = personas.findIndex((p) => !p.telefono.trim());
+    if (sinTelefono >= 0)
+      return showError("Falta un dato", `Escribe el teléfono de la persona ${sinTelefono + 1}.`);
 
     setGuardando(true);
     try {
@@ -133,9 +151,10 @@ export default function AuspiciadoresPage() {
           montoAporte: form.montoAporte ? Number(form.montoAporte) : null,
           paquete_id: form.paquete_id ? Number(form.paquete_id) : null,
           personas: personas.map((p) => ({
-            nombreCompleto: p.nombreCompleto.trim(),
+            nombreCompleto: [p.nombres, p.apellidoPaterno, p.apellidoMaterno].map((s) => (s || "").trim()).filter(Boolean).join(" "),
             cargo: p.cargo.trim() || null,
             correo: p.correo.trim(),
+            telefono: p.telefono.trim(),
           })),
         }),
       });
@@ -430,21 +449,38 @@ export default function AuspiciadoresPage() {
                 <p className="text-[11px] text-gray-400 mb-2">
                   Cada persona recibe su propia credencial QR en el correo indicado.
                 </p>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {personas.map((p, i) => (
-                    <div key={i} className="grid min-w-0 grid-cols-1 md:grid-cols-[1.4fr_1fr_1.4fr] gap-2 items-center">
-                      <input value={p.nombreCompleto} maxLength={155}
-                        onChange={(e) => setPersonas(personas.map((x, j) => j === i ? { ...x, nombreCompleto: e.target.value } : x))}
-                        className="w-full min-w-0 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#449D3A]"
-                        placeholder={`Nombre completo ${i + 1} *`} />
-                      <input value={p.cargo} maxLength={105}
-                        onChange={(e) => setPersonas(personas.map((x, j) => j === i ? { ...x, cargo: e.target.value } : x))}
-                        className="w-full min-w-0 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#449D3A]"
-                        placeholder="Cargo" />
-                      <input value={p.correo} maxLength={105} type="email"
-                        onChange={(e) => setPersonas(personas.map((x, j) => j === i ? { ...x, correo: e.target.value } : x))}
-                        className="w-full min-w-0 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#449D3A]"
-                        placeholder="Correo para enviar credencial *" />
+                    <div key={i} className="rounded-xl border border-gray-100 bg-gray-50/50 p-3">
+                      <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-2">Persona {i + 1}</p>
+                      <div className="grid min-w-0 grid-cols-1 md:grid-cols-3 gap-2">
+                        <input value={p.nombres || ""} maxLength={105}
+                          onChange={(e) => setPersonas(personas.map((x, j) => j === i ? { ...x, nombres: e.target.value } : x))}
+                          className="w-full min-w-0 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#449D3A]"
+                          placeholder="Nombres *" />
+                        <input value={p.apellidoPaterno || ""} maxLength={105}
+                          onChange={(e) => setPersonas(personas.map((x, j) => j === i ? { ...x, apellidoPaterno: e.target.value } : x))}
+                          className="w-full min-w-0 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#449D3A]"
+                          placeholder="Apellido paterno *" />
+                        <input value={p.apellidoMaterno || ""} maxLength={105}
+                          onChange={(e) => setPersonas(personas.map((x, j) => j === i ? { ...x, apellidoMaterno: e.target.value } : x))}
+                          className="w-full min-w-0 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#449D3A]"
+                          placeholder="Apellido materno" />
+                      </div>
+                      <div className="grid min-w-0 grid-cols-1 md:grid-cols-3 gap-2 mt-2">
+                        <input value={p.cargo} maxLength={105}
+                          onChange={(e) => setPersonas(personas.map((x, j) => j === i ? { ...x, cargo: e.target.value } : x))}
+                          className="w-full min-w-0 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#449D3A]"
+                          placeholder="Cargo *" />
+                        <input value={p.correo} maxLength={105} type="email"
+                          onChange={(e) => setPersonas(personas.map((x, j) => j === i ? { ...x, correo: e.target.value } : x))}
+                          className="w-full min-w-0 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#449D3A]"
+                          placeholder="Correo para enviar credencial *" />
+                        <input value={p.telefono} maxLength={45} type="tel"
+                          onChange={(e) => setPersonas(personas.map((x, j) => j === i ? { ...x, telefono: e.target.value } : x))}
+                          className="w-full min-w-0 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#449D3A]"
+                          placeholder="Teléfono *" />
+                      </div>
                     </div>
                   ))}
                 </div>

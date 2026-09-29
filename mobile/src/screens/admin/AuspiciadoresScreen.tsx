@@ -5,8 +5,8 @@ import { useModal } from '../../components/AppModal';
 import { API_URL } from '../../utils/userStore';
 
 const GREEN = '#449D3A';
-type Persona = { nombreCompleto: string; cargo: string; correo: string };
-const personaVacia = (): Persona => ({ nombreCompleto: '', cargo: '', correo: '' });
+type Persona = { nombreCompleto: string; cargo: string; correo: string; telefono: string; nombres: string; apellidoPaterno: string; apellidoMaterno: string };
+const personaVacia = (): Persona => ({ nombreCompleto: '', cargo: '', correo: '', telefono: '', nombres: '', apellidoPaterno: '', apellidoMaterno: '' });
 const formVacio = { nombreEmpresa: '', descripcion: '', tipoAporte: 'DINERO', montoAporte: '', detalleAporte: '', cantidadIngresos: 1 };
 
 export default function AuspiciadoresScreen() {
@@ -43,7 +43,10 @@ export default function AuspiciadoresScreen() {
       montoAporte: a.montoAporte == null ? '' : String(a.montoAporte), detalleAporte: a.detalleAporte || '',
       cantidadIngresos: a.cantidadIngresos,
     });
-    setPersonas(a.personas.map((p: any) => ({ nombreCompleto: p.nombreCompleto, cargo: p.cargo || '', correo: p.correo || '' })));
+    setPersonas(a.personas.map((p: any) => {
+      const [nombres = '', apellidoPaterno = '', ...resto] = String(p.nombreCompleto || '').trim().split(/\s+/);
+      return { nombreCompleto: p.nombreCompleto, cargo: p.cargo || '', correo: p.correo || '', telefono: p.telefono || '', nombres, apellidoPaterno, apellidoMaterno: resto.join(' ') };
+    }));
     setVisible(true);
   };
   const cambiarCantidad = (cantidad: number) => {
@@ -65,14 +68,20 @@ export default function AuspiciadoresScreen() {
       return show({ type: 'warning', title: 'Monto requerido', message: 'Indica un monto mayor a cero.' });
     if (form.tipoAporte !== 'DINERO' && !form.detalleAporte.trim())
       return show({ type: 'warning', title: 'Detalle requerido', message: 'Describe los insumos aportados.' });
-    const invalida = personas.findIndex((p) => !p.nombreCompleto.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.correo.trim()));
+    const invalida = personas.findIndex((p) =>
+      !p.nombres.trim() || !p.apellidoPaterno.trim() || !p.cargo.trim() || !p.telefono.trim() ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.correo.trim()));
     if (invalida >= 0)
-      return show({ type: 'warning', title: 'Persona incompleta', message: `Completa el nombre y un correo válido para la persona ${invalida + 1}.` });
+      return show({ type: 'warning', title: 'Persona incompleta', message: `Completa nombres, apellido paterno, cargo, teléfono y un correo válido para la persona ${invalida + 1}.` });
     setSaving(true);
     try {
+      const personasEnvio = personas.map((p) => ({
+        nombreCompleto: [p.nombres, p.apellidoPaterno, p.apellidoMaterno].map((s) => s.trim()).filter(Boolean).join(' '),
+        cargo: p.cargo.trim(), correo: p.correo.trim(), telefono: p.telefono.trim(),
+      }));
       const res = await fetch(editId ? `${API_URL}/admin/auspiciadores/${editId}` : `${API_URL}/admin/auspiciadores`, {
         method: editId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, montoAporte: form.montoAporte ? Number(form.montoAporte) : null, personas }),
+        body: JSON.stringify({ ...form, montoAporte: form.montoAporte ? Number(form.montoAporte) : null, personas: personasEnvio }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || 'No se pudo guardar');
@@ -125,7 +134,15 @@ export default function AuspiciadoresScreen() {
         {form.tipoAporte !== 'INSUMOS' && <View className="mb-3"><Text className="text-xs font-bold mb-1">Monto (Bs.) *</Text><TextInput value={form.montoAporte} onChangeText={(v) => setForm((f) => ({ ...f, montoAporte: v }))} keyboardType="numeric" className="border border-gray-200 rounded-xl px-3 py-2.5"/></View>}
         {form.tipoAporte !== 'DINERO' && <View className="mb-3"><Text className="text-xs font-bold mb-1">Detalle de insumos *</Text><TextInput value={form.detalleAporte} onChangeText={(v) => setForm((f) => ({ ...f, detalleAporte: v }))} className="border border-gray-200 rounded-xl px-3 py-2.5"/></View>}
         <View className="flex-row items-center justify-between my-3"><Text className="text-xs font-bold">Cantidad de credenciales *</Text><View className="flex-row items-center gap-4"><TouchableOpacity onPress={() => cambiarCantidad(form.cantidadIngresos - 1)}><Text className="text-2xl">−</Text></TouchableOpacity><Text className="text-lg font-extrabold">{form.cantidadIngresos}</Text><TouchableOpacity onPress={() => cambiarCantidad(form.cantidadIngresos + 1)}><Text className="text-2xl">+</Text></TouchableOpacity></View></View>
-        {personas.map((p,i) => <View key={i} className="bg-gray-50 rounded-xl p-3 mb-2"><Text className="font-bold text-xs mb-2">Persona {i+1}</Text><TextInput value={p.nombreCompleto} onChangeText={(v) => setPersona(i,'nombreCompleto',v)} placeholder="Nombre completo *" className="bg-white border border-gray-200 rounded-lg px-3 py-2 mb-2"/><TextInput value={p.cargo} onChangeText={(v) => setPersona(i,'cargo',v)} placeholder="Cargo" className="bg-white border border-gray-200 rounded-lg px-3 py-2 mb-2"/><TextInput value={p.correo} onChangeText={(v) => setPersona(i,'correo',v)} placeholder="Correo para enviar credencial *" keyboardType="email-address" autoCapitalize="none" className="bg-white border border-gray-200 rounded-lg px-3 py-2"/></View>)}
+        {personas.map((p,i) => <View key={i} className="bg-gray-50 rounded-xl p-3 mb-2">
+          <Text className="font-bold text-xs mb-2">Persona {i+1}</Text>
+          <TextInput value={p.nombres} onChangeText={(v) => setPersona(i,'nombres',v)} placeholder="Nombres *" className="bg-white border border-gray-200 rounded-lg px-3 py-2 mb-2"/>
+          <TextInput value={p.apellidoPaterno} onChangeText={(v) => setPersona(i,'apellidoPaterno',v)} placeholder="Apellido paterno *" className="bg-white border border-gray-200 rounded-lg px-3 py-2 mb-2"/>
+          <TextInput value={p.apellidoMaterno} onChangeText={(v) => setPersona(i,'apellidoMaterno',v)} placeholder="Apellido materno" className="bg-white border border-gray-200 rounded-lg px-3 py-2 mb-2"/>
+          <TextInput value={p.cargo} onChangeText={(v) => setPersona(i,'cargo',v)} placeholder="Cargo *" className="bg-white border border-gray-200 rounded-lg px-3 py-2 mb-2"/>
+          <TextInput value={p.correo} onChangeText={(v) => setPersona(i,'correo',v)} placeholder="Correo para enviar credencial *" keyboardType="email-address" autoCapitalize="none" className="bg-white border border-gray-200 rounded-lg px-3 py-2 mb-2"/>
+          <TextInput value={p.telefono} onChangeText={(v) => setPersona(i,'telefono',v)} placeholder="Teléfono *" keyboardType="phone-pad" className="bg-white border border-gray-200 rounded-lg px-3 py-2"/>
+        </View>)}
       </ScrollView>
       <TouchableOpacity onPress={guardar} disabled={saving} style={{ backgroundColor: GREEN, opacity: saving ? .6 : 1 }} className="py-3.5 rounded-2xl items-center mt-4"><Text className="text-white font-extrabold">{saving ? 'Guardando…' : 'Guardar'}</Text></TouchableOpacity>
     </View></View></KeyboardAvoidingView></Modal>

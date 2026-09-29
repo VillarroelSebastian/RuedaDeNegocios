@@ -78,7 +78,7 @@ export default function NoticiasPage() {
     setSaving(true);
     try {
     const user = JSON.parse(localStorage.getItem('adminUser') || localStorage.getItem('tecnicoUser') || '{}');
-      const payload = { ...form, usuario_id: user.id || 1 };
+      const payload = { ...form, estadoPublicacion: 'PUBLICADO', usuario_id: user.id || 1 };
       const url = editId ? `${API}/admin/noticias/${editId}` : `${API}/admin/noticias`;
       await fetch(url, { method: editId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       showSuccess(editId ? 'Comunicado actualizado' : 'Comunicado publicado', '');
@@ -232,26 +232,12 @@ export default function NoticiasPage() {
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Tipo</label>
-                  <select value={form.tipoNoticia} onChange={(e) => set('tipoNoticia', e.target.value)}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A] bg-white">
-                    {TIPOS.map((t) => <option key={t}>{t}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Estado de publicación</label>
-                  <div className="space-y-2 mt-1">
-                    {['PUBLICADO', 'BORRADOR'].map((s) => (
-                      <label key={s} className="flex items-center gap-2 cursor-pointer">
-                        <input type="radio" checked={form.estadoPublicacion === s} onChange={() => set('estadoPublicacion', s)}
-                          className="text-[#449D3A] focus:ring-[#449D3A]" />
-                        <span className="text-sm text-gray-700">{s === 'PUBLICADO' ? 'Publicar inmediatamente' : 'Guardar como borrador'}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Tipo</label>
+                <select value={form.tipoNoticia} onChange={(e) => set('tipoNoticia', e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A] bg-white">
+                  {TIPOS.map((t) => <option key={t}>{t}</option>)}
+                </select>
               </div>
             </div>
 
@@ -259,11 +245,6 @@ export default function NoticiasPage() {
               <button onClick={() => setShowForm(false)}
                 className="px-5 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50">
                 Cancelar
-              </button>
-              <button onClick={() => { const f2 = { ...form, estadoPublicacion: 'BORRADOR' }; setForm(f2); setTimeout(handleSave, 0); }}
-                disabled={saving}
-                className="px-5 py-2.5 border border-gray-300 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50">
-                Guardar borrador
               </button>
               <button onClick={handleSave} disabled={saving}
                 className="px-6 py-2.5 bg-[#449D3A] text-white font-semibold rounded-xl hover:bg-[#367d2e] disabled:opacity-50 transition-colors">

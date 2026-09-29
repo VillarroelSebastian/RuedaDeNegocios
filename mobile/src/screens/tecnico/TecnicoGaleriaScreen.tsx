@@ -235,7 +235,7 @@ export default function TecnicoGaleriaScreen() {
                 ? "Agrupadas por quién las subió. Toca la estrella de una foto para mostrarla en el landing público."
                 : "Comparte fotografías en el repositorio del evento."}
             </Text>
-            {esStaff&&<TouchableOpacity disabled={descargando||!fotos.length} onPress={descargarTodas} style={{padding:14,borderWidth:1,borderColor:GREEN,borderRadius:12,marginBottom:12,opacity:descargando?.5:1}}><Text style={{color:GREEN,textAlign:"center",fontWeight:"700"}}>{descargando?"Preparando descarga…":"Descargar todas las fotos (ZIP)"}</Text></TouchableOpacity>}
+            {esStaff&&<TouchableOpacity disabled={descargando||!fotosLanding.length} onPress={descargarTodas} style={{padding:14,borderWidth:1,borderColor:GREEN,borderRadius:12,marginBottom:12,opacity:descargando?.5:1}}><Text style={{color:GREEN,textAlign:"center",fontWeight:"700"}}>{descargando?"Preparando descarga…":`Descargar fotos del landing (ZIP · ${fotosLanding.length})`}</Text></TouchableOpacity>}
             <TextInput
               value={descripcion}
               onChangeText={setDescripcion}

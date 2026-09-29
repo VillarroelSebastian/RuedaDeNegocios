@@ -20,11 +20,10 @@ const menuItems = [
   { name: 'Virtuales',        icon: Video,           href: '/tecnico/virtuales' },
   { name: 'Buscador',         icon: Search,          href: '/tecnico/buscar' },
   { name: 'Oportunidades',    icon: Handshake,       href: '/tecnico/oportunidades' },
-  { name: 'Cronograma en Vivo', icon: Radio,         href: '/tecnico/cronograma-vivo' },
+  { name: 'Actividades y cronograma', icon: Radio,   href: '/tecnico/cronograma-vivo' },
   { name: 'Galería del evento', icon: Images,        href: '/tecnico/galeria' },
   { name: 'Asistencia QR',    icon: QrCode,          href: '/tecnico/asistencia' },
   { name: 'Comunicados',      icon: Newspaper,         href: '/tecnico/notificaciones' },
-  { name: 'Actividades del cronograma', icon: CalendarDays, href: '/tecnico/eventos' },
   { name: 'Mi Perfil',        icon: UserCircle,      href: '/tecnico/perfil' },
 ];
 

@@ -62,6 +62,9 @@ model paquete {
   credencialesIncluidas Int     @db.SmallInt
   urlQR                 String? @db.VarChar(505)
   orden                 Int     @default(0) @db.SmallInt
+  // Solo aplica a paquetes FORO: cuál se usa para mostrar precio/QR únicos en
+  // Admin > Foro · Personal cuando hay más de un paquete FORO en el evento.
+  esPrincipal           Int     @default(0) @db.SmallInt
   // EMPRESA | FORO — a qué tipo de inscripción aplica este paquete. Los
   // paquetes FORO generan usuarios con rolEvento FORO en vez de EMPRESA.
   tipoPaquete           String  @default("EMPRESA") @db.VarChar(20)
@@ -126,6 +129,7 @@ model auspiciadorpersona {
   nombreCompleto  String                  @db.VarChar(155)
   cargo           String?                 @db.VarChar(105)
   correo          String?                 @db.VarChar(105)
+  telefono        String?                 @db.VarChar(45)
   urlCredencialQR String?                 @db.VarChar(505)
   estaActivo      Int                     @default(1) @db.SmallInt
   fechaCreacion   DateTime                @default(now()) @db.Timestamp(6)

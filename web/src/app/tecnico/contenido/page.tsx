@@ -11,6 +11,6 @@ export default function ContenidoTecnicoPage() {
         <button key={id} onClick={() => setTab(id)} className={`rounded-xl px-4 py-2 text-sm font-bold ${tab === id ? 'bg-[#449D3A] text-white' : 'bg-gray-100 text-gray-600'}`}>{label}</button>)}
     </div>
     {tab === "comunicados" && <AdminNoticiasPage />}
-    {tab === "actividades" && <AdminActividadesPage />}
+    {tab === "actividades" && <div className="p-4 sm:p-6"><AdminActividadesPage embedded /></div>}
   </div>;
 }

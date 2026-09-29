@@ -1,7 +1,8 @@
 "use client";
 import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, Pencil, Trash2, Calendar, Clock, MapPin, X } from 'lucide-react';
+import { Plus, Pencil, Trash2, Calendar, Clock, MapPin, X, Radio } from 'lucide-react';
 import { useModal } from '@/components/ui/Modal';
+import CronogramaVivo from '@/components/CronogramaVivo';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
@@ -39,7 +40,7 @@ const defaultForm = {
   linkReunionVirtual: '',
 };
 
-export default function ActividadesPage() {
+function ActividadesCRUD({ embedded = false }: { embedded?: boolean }) {
   const { showSuccess, showError, showConfirm, ModalComponent } = useModal();
   const [actividades, setActividades] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -112,16 +113,18 @@ export default function ActividadesPage() {
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
+    <div className={embedded ? "" : "p-8 max-w-7xl mx-auto"}>
       <ModalComponent />
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Eventos del programa</h1>
-          <p className="text-sm text-gray-500 mt-1">Administra seminarios, talleres y actividades dentro de la rueda de negocios.</p>
-        </div>
+        {!embedded && (
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Eventos del programa</h1>
+            <p className="text-sm text-gray-500 mt-1">Administra seminarios, talleres y actividades dentro de la rueda de negocios.</p>
+          </div>
+        )}
         <button onClick={openCreate}
-          className="flex w-full sm:w-auto items-center justify-center gap-2 bg-[#449D3A] text-white font-semibold px-5 py-2.5 rounded-xl hover:bg-[#367d2e] transition-colors shadow-sm">
+          className="flex w-full sm:w-auto items-center justify-center gap-2 bg-[#449D3A] text-white font-semibold px-5 py-2.5 rounded-xl hover:bg-[#367d2e] transition-colors shadow-sm sm:ml-auto">
           <Plus className="w-4 h-4" /> Crear evento
         </button>
       </div>
@@ -293,6 +296,54 @@ export default function ActividadesPage() {
             </div>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+// Unifica el programa de actividades (CRUD) y el cronograma en vivo (marcar
+// qué está pasando ahora): son dos vistas del mismo dato, no tenía sentido
+// que vivieran en secciones separadas del menú.
+export default function AdminActividadesPage({ embedded = false }: { embedded?: boolean } = {}) {
+  const { showError, ModalComponent } = useModal();
+  const [tab, setTab] = useState<"programa" | "vivo">("programa");
+  const [usuarioId, setUsuarioId] = useState<number | null>(null);
+
+  useEffect(() => {
+    try { setUsuarioId(JSON.parse(localStorage.getItem('adminUser') || localStorage.getItem('tecnicoUser') || 'null')?.id ?? null); } catch {}
+  }, []);
+
+  return (
+    <div className={embedded ? "" : "p-4 sm:p-8 max-w-7xl mx-auto"}>
+      <ModalComponent />
+      {!embedded && (
+        <div className="mb-6">
+          <h1 className="text-2xl font-extrabold text-gray-900 flex items-center gap-2">
+            <Calendar className="w-6 h-6 text-[#449D3A]" /> Actividades y cronograma
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">Administra el programa de actividades y marca qué está pasando ahora en vivo.</p>
+        </div>
+      )}
+
+      <div className="inline-flex gap-1 rounded-xl bg-gray-100 p-1 mb-6">
+        <button onClick={() => setTab("programa")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+            tab === "programa" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+          }`}>
+          <Calendar className="w-4 h-4" /> Programa
+        </button>
+        <button onClick={() => setTab("vivo")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+            tab === "vivo" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+          }`}>
+          <Radio className="w-4 h-4" /> En vivo
+        </button>
+      </div>
+
+      {tab === "programa" ? (
+        <ActividadesCRUD embedded />
+      ) : (
+        <CronogramaVivo staff usuarioId={usuarioId} onError={(m) => showError("No se pudo actualizar", m)} />
       )}
     </div>
   );

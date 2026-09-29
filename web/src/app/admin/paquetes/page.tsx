@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { Package, Plus, Pencil, Trash2, X, Check, Users, Building2, Upload, QrCode } from "lucide-react";
+import { Package, Plus, Pencil, Trash2, X, Check, Users, Building2, Upload, QrCode, Star } from "lucide-react";
 import { useModal } from "@/components/ui/Modal";
 import ImagenLightbox from "@/components/ui/ImagenLightbox";
 
@@ -21,6 +21,7 @@ type Paquete = {
   nivelMesa: "NORMAL" | "PREFERENCIAL" | "VIP";
   tipoParticipacion: "PRESENCIAL" | "VIRTUAL" | "HIBRIDO";
   tipoPaquete: "EMPRESA" | "FORO";
+  esPrincipal: number;
   apareceEnCatalogo: number;
   logoEnWeb: number;
   destacadoEnListados: number;
@@ -191,6 +192,16 @@ export default function PaquetesPage() {
     }
   };
 
+  const marcarPrincipal = async (p: Paquete) => {
+    try {
+      const res = await fetch(`${API}/admin/paquetes/${p.id}/principal`, { method: "PUT" });
+      if (!res.ok) throw new Error((await res.json())?.message || "No se pudo marcar como principal.");
+      await cargar();
+    } catch (e: any) {
+      showError("No se pudo marcar como principal", e.message);
+    }
+  };
+
   const eliminar = (p: Paquete) =>
     showConfirm("Eliminar paquete", `¿Quitar "${p.nombre}" del formulario de inscripción?`, async () => {
       try {
@@ -245,21 +256,34 @@ export default function PaquetesPage() {
           {lista.map((p) => {
             const beneficios = String(p.contenido ?? "").split("\n").filter(Boolean);
             const usos = (p._count?.empresaevento ?? 0) + (p._count?.auspiciador ?? 0);
+            const foroPaquetes = lista.filter((x) => x.tipoPaquete === "FORO");
+            const mostrarPrincipal = p.tipoPaquete === "FORO" && foroPaquetes.length > 1;
             return (
               <div key={p.id} className="bg-white border border-gray-200 rounded-2xl p-5 flex flex-col">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="font-extrabold text-gray-900">{p.nombre}</h3>
                       {p.tipoPaquete === "FORO" && (
                         <span className="inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700">
                           FORO
                         </span>
                       )}
+                      {p.tipoPaquete === "FORO" && p.esPrincipal === 1 && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">
+                          <Star className="w-3 h-3 fill-amber-500 text-amber-500" /> Principal
+                        </span>
+                      )}
                     </div>
                     {p.objetivo && <p className="text-xs text-[#449D3A] font-semibold mt-0.5">{p.objetivo}</p>}
                   </div>
                   <div className="flex gap-1 flex-shrink-0">
+                    {mostrarPrincipal && p.esPrincipal !== 1 && (
+                      <button onClick={() => marcarPrincipal(p)} title="Marcar como paquete principal de Foro"
+                        className="p-2 rounded-lg text-gray-500 hover:bg-amber-50 hover:text-amber-600">
+                        <Star className="w-4 h-4" />
+                      </button>
+                    )}
                     <button onClick={() => abrirEdicion(p)} title="Editar"
                       className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-800">
                       <Pencil className="w-4 h-4" />
@@ -317,7 +341,7 @@ export default function PaquetesPage() {
       )}
 
       {abierto && paso === "elegir" && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-start sm:items-center justify-center p-4 overflow-y-auto">
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg my-4">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
               <h2 className="font-extrabold text-gray-900">Nuevo paquete</h2>
@@ -351,7 +375,7 @@ export default function PaquetesPage() {
       )}
 
       {abierto && paso === "form" && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-start sm:items-center justify-center p-4 overflow-y-auto">
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl my-4">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
               <div>

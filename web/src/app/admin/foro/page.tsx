@@ -8,7 +8,7 @@ import ImagenLightbox from "@/components/ui/ImagenLightbox";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
-type Paquete = { id: number; nombre: string; costo: number; urlQR?: string | null };
+type Paquete = { id: number; nombre: string; costo: number; urlQR?: string | null; esPrincipal?: number };
 type ForoUsuario = {
   id: number;
   nombres: string;
@@ -65,7 +65,9 @@ function PagosForoPanel({ paquetes }: { paquetes: Paquete[] }) {
 
   useEffect(() => { cargar(); }, [cargar]);
 
-  const paquete = paquetes[0];
+  // La lista ya viene ordenada con el principal primero (ver GET /admin/paquetes),
+  // pero por si acaso se busca explícitamente antes de caer al primero.
+  const paquete = paquetes.find((p) => p.esPrincipal === 1) ?? paquetes[0];
 
   return (
     <div>

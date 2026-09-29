@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { User, Lock, Camera, Save, LogOut, Mail, KeyRound, CheckCircle2, X, Eye, EyeOff, Send, Settings2, AlertCircle } from 'lucide-react';
+import { User, Lock, Camera, Save, LogOut, Mail, KeyRound, CheckCircle2, X, Eye, EyeOff, Send } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useModal } from '@/components/ui/Modal';
 
@@ -15,120 +15,6 @@ function maskEmail(email: string) {
   return `${visible}${'*'.repeat(Math.max(2, user.length - 2))}@${domain}`;
 }
 
-// ─── Tab: Evento ──────────────────────────────────────────────────────────────
-
-function TabEvento() {
-  const [config, setConfig] = useState<any>(null);
-  const [form, setForm] = useState<any>({});
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
-
-  useEffect(() => {
-    fetch(`${API}/admin/evento/config`)
-      .then((r) => r.json())
-      .then((d) => {
-        setConfig(d);
-        setForm({
-          costoParticipanteExtra: d.costoParticipanteExtra ?? 0,
-          duracionReunion: d.duracionReunion ?? 20,
-          tiempoEntreReuniones: d.tiempoEntreReuniones ?? 5,
-        });
-      })
-      .catch(() => setMsg({ type: 'err', text: 'No se pudo cargar la configuración del evento.' }))
-      .finally(() => setLoading(false));
-  }, []);
-
-  const handleSave = async () => {
-    setSaving(true);
-    setMsg(null);
-    try {
-      const res = await fetch(`${API}/admin/evento/config`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          costoParticipanteExtra: Number(form.costoParticipanteExtra),
-          duracionReunion: Number(form.duracionReunion),
-          tiempoEntreReuniones: Number(form.tiempoEntreReuniones),
-        }),
-      });
-      if (!res.ok) throw new Error('Error al guardar');
-      setMsg({ type: 'ok', text: 'Configuración del evento guardada correctamente.' });
-    } catch {
-      setMsg({ type: 'err', text: 'No se pudo guardar la configuración.' });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const setF = (k: string, v: string) => setForm((f: any) => ({ ...f, [k]: v }));
-
-  if (loading) return (
-    <div className="flex items-center justify-center h-40">
-      <div className="w-8 h-8 border-4 border-[#449D3A] border-t-transparent rounded-full animate-spin" />
-    </div>
-  );
-
-  return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-6">
-      {config && (
-        <div className="bg-gray-50 rounded-xl px-4 py-3 text-sm">
-          <p className="font-semibold text-gray-700">{config.nombre} — Edición {config.edicion}</p>
-          <p className="text-xs text-gray-400 mt-0.5">Los cambios aplican al evento principal activo.</p>
-        </div>
-      )}
-
-      {msg && (
-        <div className={`flex items-center gap-2 rounded-xl p-3 text-sm ${msg.type === 'ok' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-          {msg.type === 'ok' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
-          {msg.text}
-        </div>
-      )}
-
-      <div>
-        <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-4">Inscripción y cupos adicionales</h3>
-        <div className="mb-4 rounded-xl border border-green-200 bg-green-50 p-4">
-          <p className="text-sm font-bold text-green-800">Los paquetes son el sistema oficial de inscripción.</p>
-          <p className="mt-1 text-xs text-gray-600">Allí se definen el precio inicial, credenciales, máximo de participantes, modalidad y QR.</p>
-          <a href="/admin/paquetes" className="mt-2 inline-block text-xs font-bold text-[#449D3A] hover:underline">Ir a configurar paquetes →</a>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Precio por participante adicional (Bs.)</label>
-            <input type="number" min={0} value={form.costoParticipanteExtra ?? ''} onChange={(e) => setF('costoParticipanteExtra', e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
-            <p className="text-xs text-gray-400 mt-1">Solo se usa cuando una empresa ya inscrita solicita nuevos cupos.</p>
-          </div>
-        </div>
-      </div>
-
-      <div>
-        <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-4">Tiempos de reuniones</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Duración de reunión (minutos)</label>
-            <input type="number" min={5} max={60} value={form.duracionReunion ?? ''} onChange={(e) => setF('duracionReunion', e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Tiempo entre reuniones (minutos)</label>
-            <input type="number" min={0} max={30} value={form.tiempoEntreReuniones ?? ''} onChange={(e) => setF('tiempoEntreReuniones', e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
-          </div>
-        </div>
-      </div>
-
-      <div className="flex justify-end pt-2">
-        <button onClick={handleSave} disabled={saving}
-          className="flex items-center gap-2 bg-[#449D3A] text-white font-semibold px-6 py-2.5 rounded-xl hover:bg-[#367d2e] disabled:opacity-50 transition-colors shadow-sm">
-          <Save className="w-4 h-4" />
-          {saving ? 'Guardando...' : 'Guardar configuración del evento'}
-        </button>
-      </div>
-    </div>
-  );
-}
-
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function ConfiguracionPage() {
@@ -139,7 +25,7 @@ export default function ConfiguracionPage() {
   const [form, setForm] = useState({ nombres: '', apellidoPaterno: '', apellidoMaterno: '', correo: '', telefono: '', urlFotoPerfil: '' });
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [tab, setTab] = useState<'perfil' | 'evento' | 'seguridad'>('perfil');
+  const [tab, setTab] = useState<'perfil' | 'seguridad'>('perfil');
 
   // ── Cambio de contraseña por email ────────────────────────────────────────
   const [resetStep, setResetStep] = useState<ResetStep>('idle');
@@ -369,7 +255,6 @@ export default function ConfiguracionPage() {
       <div className="flex gap-1 bg-gray-100 p-1 rounded-xl mb-6 w-fit">
         {([
           { key: 'perfil',    label: 'Mi perfil' },
-          { key: 'evento',    label: 'Evento' },
           { key: 'seguridad', label: 'Seguridad' },
         ] as const).map(({ key, label }) => (
           <button key={key} onClick={() => setTab(key)}
@@ -433,9 +318,6 @@ export default function ConfiguracionPage() {
           </div>
         </div>
       )}
-
-      {/* ── TAB EVENTO ─────────────────────────────────────────────────────── */}
-      {tab === 'evento' && <TabEvento />}
 
       {/* ── TAB SEGURIDAD ──────────────────────────────────────────────────── */}
       {tab === 'seguridad' && (

@@ -1,31 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { Radio } from "lucide-react";
-import CronogramaVivo from "@/components/CronogramaVivo";
-import { useModal } from "@/components/ui/Modal";
-import ActividadesPage from "../../admin/actividades/page";
-
-export default function TecnicoCronogramaVivoPage() {
-  const { showError, ModalComponent } = useModal();
-  const [usuarioId, setUsuarioId] = useState<number | null>(null);
-  useEffect(() => { try { setUsuarioId(JSON.parse(localStorage.getItem('tecnicoUser') || 'null')?.id ?? null); } catch {} }, []);
-
-  return (
-    <div className="p-4 sm:p-6 max-w-5xl mx-auto">
-      <ModalComponent />
-      <div className="mb-6">
-        <h1 className="text-2xl font-extrabold text-gray-900 flex items-center gap-2">
-          <Radio className="w-6 h-6 text-red-600" /> Cronograma en vivo
-        </h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Actualiza en tiempo real qué está pasando en el evento.
-        </p>
-      </div>
-      <CronogramaVivo staff usuarioId={usuarioId} onError={(m) => showError("No se pudo actualizar", m)} />
-      <div className="mt-10 border-t border-gray-200 pt-8">
-        <ActividadesPage />
-      </div>
-    </div>
-  );
-}
+// Reutiliza la página unificada de Actividades + Cronograma en vivo de admin
+// (mismas pestañas "Programa" / "En vivo"); técnicos tienen los mismos
+// permisos de staff sobre el cronograma.
+export { default } from "../../admin/actividades/page";

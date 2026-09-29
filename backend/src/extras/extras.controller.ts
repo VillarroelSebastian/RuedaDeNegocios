@@ -228,8 +228,24 @@ export class ExtrasController {
         evento_id: eventoId, estaActivo: 1,
         ...(['EMPRESA', 'FORO'].includes(tipoPaquete) ? { tipoPaquete } : {}),
       },
-      orderBy: [{ orden: 'asc' }, { costo: 'asc' }],
+      orderBy: [{ esPrincipal: 'desc' }, { orden: 'asc' }, { costo: 'asc' }],
       include: { _count: { select: { empresaevento: true, auspiciador: true } } },
+    });
+  }
+
+  // Solo relevante para paquetes FORO: cuál se muestra en Admin > Foro ·
+  // Personal cuando hay 2+ paquetes FORO en el mismo evento.
+  @Put('admin/paquetes/:id/principal')
+  async marcarPaquetePrincipal(@Param('id') id: string) {
+    const paqueteId = Number(id);
+    const paquete = await this.prisma.paquete.findFirst({ where: { id: paqueteId, estaActivo: 1 } });
+    if (!paquete) throw new BadRequestException('El paquete no existe o ya fue eliminado.');
+    return this.prisma.$transaction(async (tx) => {
+      await tx.paquete.updateMany({
+        where: { evento_id: paquete.evento_id, tipoPaquete: paquete.tipoPaquete, id: { not: paqueteId } },
+        data: { esPrincipal: 0 },
+      });
+      return tx.paquete.update({ where: { id: paqueteId }, data: { esPrincipal: 1, creadoModificadoFecha: new Date() } });
     });
   }
 
@@ -401,6 +417,7 @@ export class ExtrasController {
         nombreCompleto: String(p?.nombreCompleto ?? '').replace(/\s+/g, ' ').trim(),
         cargo: String(p?.cargo ?? '').replace(/\s+/g, ' ').trim() || null,
         correo: String(p?.correo ?? '').trim().toLowerCase(),
+        telefono: String(p?.telefono ?? '').replace(/\s+/g, ' ').trim() || null,
       }))
       .filter((p: any) => p.nombreCompleto);
 
@@ -417,6 +434,10 @@ export class ExtrasController {
         throw new BadRequestException(`El correo de ${p.nombreCompleto} es obligatorio para enviar su credencial.`);
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.correo))
         throw new BadRequestException(`El correo "${p.correo}" no es válido.`);
+      if (!p.telefono)
+        throw new BadRequestException(`El teléfono de ${p.nombreCompleto} es obligatorio.`);
+      if (p.telefono.length > 45)
+        throw new BadRequestException(`El teléfono de ${p.nombreCompleto} supera los 45 caracteres.`);
     }
     const repetido = limpias.find((p: any, i: number) =>
       limpias.findIndex((otra: any) => otra.correo === p.correo) !== i);
@@ -1030,10 +1051,10 @@ export class ExtrasController {
 
     const eventoId = await this.eventoPrincipalId();
     const fotos = await this.prisma.fotoevento.findMany({
-      where: { evento_id: eventoId, estaActivo: 1 },
+      where: { evento_id: eventoId, estaActivo: 1, visibleLanding: 1 },
       orderBy: { fechaCreacion: 'asc' },
     });
-    if (!fotos.length) throw new BadRequestException('No hay fotos para descargar.');
+    if (!fotos.length) throw new BadRequestException('No hay fotos del landing para descargar.');
 
     for (const f of fotos) {
       try {

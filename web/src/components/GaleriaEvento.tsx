@@ -173,7 +173,7 @@ export default function GaleriaEvento({
 
   return (
     <div>
-      {esStaff && <div className="mb-4"><button onClick={descargarTodas} disabled={descargando || !fotos.length} className="w-full sm:w-auto rounded-xl border border-green-700 px-4 py-3 font-semibold text-green-800 disabled:opacity-50">{descargando ? "Preparando descarga…" : "Descargar todas las fotos (ZIP)"}</button>{errorDescarga&&<p role="alert" className="mt-2 text-sm text-red-700">{errorDescarga}</p>}</div>}
+      {esStaff && <div className="mb-4"><button onClick={descargarTodas} disabled={descargando || !fotosLanding.length} className="w-full sm:w-auto rounded-xl border border-green-700 px-4 py-3 font-semibold text-green-800 disabled:opacity-50">{descargando ? "Preparando descarga…" : `Descargar fotos del landing (ZIP · ${fotosLanding.length})`}</button>{errorDescarga&&<p role="alert" className="mt-2 text-sm text-red-700">{errorDescarga}</p>}</div>}
       {puedeSubir && (
         <div className="mb-6">
           <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-gray-500">
