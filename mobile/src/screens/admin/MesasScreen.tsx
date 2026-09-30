@@ -162,14 +162,15 @@ function CompanyChip({ empresa }: { empresa: any }) {
 }
 
 function ReunionRow({
-  r, mesaNumero, acting, onMessage, onChangeLink, onCambiarEstado, onEditarHorario, onEliminar, mostrarMesa,
+  r, mesa, mesaNumero, acting, onMessage, onChangeLink, onCambiarEstado, onEditarHorario, onEliminar, onAsignarTecnico, mostrarMesa,
 }: {
-  r: any; mesaNumero: number; acting: boolean;
+  r: any; mesa?: any; mesaNumero: number; acting: boolean;
   onMessage: (reunionId: number, empresa: 'A' | 'B', empresaNombre: string, encargadoNombre: string) => void;
   onChangeLink: (reunion: any) => void;
   onCambiarEstado: (reunion: any, estado: string, asistentes?: number) => void;
   onEditarHorario: (reunion: any) => void;
   onEliminar: (reunion: any) => void;
+  onAsignarTecnico: (mesa: any) => void;
   mostrarMesa?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -230,6 +231,21 @@ function ReunionRow({
 
       {expanded && (
         <View style={{ paddingHorizontal: 12, paddingBottom: 12, gap: 8 }}>
+          {mesa && (
+            <TouchableOpacity onPress={() => onAsignarTecnico(mesa)}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, paddingVertical: 9,
+                borderRadius: 10, borderWidth: 1, borderColor: '#e5e7eb', backgroundColor: '#fff' }}>
+              <UserCheck color={mesa.tecnicoasignado ? GREEN : '#d1d5db'} size={15} />
+              {mesa.tecnicoasignado ? (
+                <Text style={{ fontSize: 12, color: '#4b5563', flex: 1 }} numberOfLines={1}>
+                  Técnico de esta mesa: <Text style={{ fontWeight: '700', color: '#1f2937' }}>{mesa.tecnicoasignado.nombres} {mesa.tecnicoasignado.apellidoPaterno}</Text>
+                </Text>
+              ) : (
+                <Text style={{ fontSize: 12, color: '#6b7280', flex: 1 }}>Asignar técnico a esta mesa</Text>
+              )}
+              <Text style={{ fontSize: 10, fontWeight: '700', color: GREEN }}>Cambiar</Text>
+            </TouchableOpacity>
+          )}
           {esEnCurso && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <UserCheck color="#6b7280" size={16} />
@@ -625,7 +641,7 @@ export default function MesasScreen({ embedded = false }: { embedded?: boolean }
   // Vista Agenda: todas las reuniones activas, agrupadas por día (sin
   // importar la mesa), con el mismo control que da la vista Mesas.
   const reunionesAgenda = mesas
-    .flatMap((mesa) => (mesa.reunion ?? []).map((r: any) => ({ ...r, mesa_id: mesa.numeroMesa })))
+    .flatMap((mesa) => (mesa.reunion ?? []).map((r: any) => ({ ...r, mesa_id: mesa.numeroMesa, _mesa: mesa })))
     .filter((r: any) => r.estadoReunion === 'PROGRAMADA' || r.estadoReunion === 'EN_CURSO' || r.estadoReunion === 'REPROGRAMADA')
     .filter((r: any) => {
       if (!search.trim()) return true;
@@ -924,9 +940,9 @@ export default function MesasScreen({ embedded = false }: { embedded?: boolean }
               </View>
               <View style={{ backgroundColor: '#fff', borderRadius: 18, borderWidth: 1, borderColor: '#f1f5f9', overflow: 'hidden' }}>
                 {diasAgenda[dia].map((r) => (
-                  <ReunionRow key={r.id} r={r} mesaNumero={r.mesa_id} acting={acting} mostrarMesa
+                  <ReunionRow key={r.id} r={r} mesa={r._mesa} mesaNumero={r.mesa_id} acting={acting} mostrarMesa
                     onMessage={openMessageModal} onChangeLink={openLinkModal} onCambiarEstado={cambiarEstadoReunion}
-                    onEditarHorario={abrirEditar} onEliminar={confirmarEliminar} />
+                    onEditarHorario={abrirEditar} onEliminar={confirmarEliminar} onAsignarTecnico={setAsignandoMesa} />
                 ))}
               </View>
             </View>
@@ -995,9 +1011,9 @@ export default function MesasScreen({ embedded = false }: { embedded?: boolean }
                 </TouchableOpacity>
 
                 {mesa.reunion && mesa.reunion.length > 0 && mesa.reunion.map((r: any) => (
-                  <ReunionRow key={r.id} r={{ ...r, mesa_id: mesa.numeroMesa }} mesaNumero={mesa.numeroMesa} acting={acting}
+                  <ReunionRow key={r.id} r={{ ...r, mesa_id: mesa.numeroMesa }} mesa={mesa} mesaNumero={mesa.numeroMesa} acting={acting}
                     onMessage={openMessageModal} onChangeLink={openLinkModal} onCambiarEstado={cambiarEstadoReunion}
-                    onEditarHorario={abrirEditar} onEliminar={confirmarEliminar} />
+                    onEditarHorario={abrirEditar} onEliminar={confirmarEliminar} onAsignarTecnico={setAsignandoMesa} />
                 ))}
 
                 {mesa.solicitudesEnEspera && mesa.solicitudesEnEspera.length > 0 && mesa.solicitudesEnEspera.map((s: any) => (

@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import {
   Building2, Clock, Video, Search, ExternalLink,
   Wifi, AlertCircle, RefreshCw, Mail, Send, X,
@@ -53,6 +54,8 @@ function CompanyChip({ empresa, colorClass }: { empresa: any; colorClass: string
 }
 
 export default function TecnicoVirtualesPage() {
+  const pathname = usePathname();
+  const base = pathname?.startsWith('/admin') ? '/admin' : '/tecnico';
   const { showSuccess, showError, ModalComponent } = useModal();
   const [reuniones, setReuniones] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -301,7 +304,7 @@ export default function TecnicoVirtualesPage() {
                 {/* Acciones: todas en su propia fila, mismo tamaño, envuelven si no caben */}
                 <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-gray-50">
                   {r.estadoReunion === 'EN_CURSO' && (
-                    <Link href="/tecnico/reuniones" className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-orange-600">
+                    <Link href={`${base}/reuniones`} className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-orange-600">
                       Finalizar y evaluar
                     </Link>
                   )}
@@ -317,7 +320,7 @@ export default function TecnicoVirtualesPage() {
                     </a>
                   )}
                   <Link
-                    href={`/tecnico/virtuales/${r.id}`}
+                    href={`${base}/virtuales/${r.id}`}
                     className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
                   >
                     Ver detalles

@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, usePathname } from 'next/navigation';
 import {
   ArrowLeft, Building2, Clock, Calendar, User,
   ExternalLink, Copy, CheckCircle, AlertCircle, X, Wifi,
@@ -79,6 +79,8 @@ function CompanyCard({ empresa, label }: { empresa: any; label: string }) {
 export default function VirtualDetailPage() {
   const params = useParams();
   const id = params?.id;
+  const pathname = usePathname();
+  const base = pathname?.startsWith('/admin') ? '/admin' : '/tecnico';
 
   const [reunion, setReunion] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -154,7 +156,7 @@ export default function VirtualDetailPage() {
     return (
       <div className="p-6 max-w-4xl mx-auto text-center mt-20">
         <p className="text-gray-400 font-semibold">No se encontró la reunión.</p>
-        <Link href="/tecnico/virtuales" className="mt-4 inline-block text-[#449D3A] font-semibold hover:underline">
+        <Link href={`${base}/virtuales`} className="mt-4 inline-block text-[#449D3A] font-semibold hover:underline">
           ← Volver a reuniones virtuales
         </Link>
       </div>
@@ -182,7 +184,7 @@ export default function VirtualDetailPage() {
       {/* Back + Status */}
       <div className="flex items-center justify-between mb-6">
         <Link
-          href="/tecnico/virtuales"
+          href={`${base}/virtuales`}
           className="flex items-center gap-2 text-sm font-semibold text-gray-500 hover:text-gray-800 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -346,7 +348,7 @@ export default function VirtualDetailPage() {
 
           {/* Back button */}
           <Link
-            href="/tecnico/virtuales"
+            href={`${base}/virtuales`}
             className="flex items-center justify-center gap-2 w-full py-2.5 border border-gray-200 text-sm font-semibold text-gray-600 rounded-xl hover:bg-gray-50 transition-colors bg-white"
           >
             <ArrowLeft className="w-4 h-4" />

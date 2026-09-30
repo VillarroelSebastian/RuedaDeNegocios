@@ -148,14 +148,15 @@ function HistorialRow({ r }: { r: any }) {
 }
 
 function ReunionSlot({
-  r, mesaNumero, acting, onMessage, onChangeLink, onCambiarEstado, onEditarHorario, onEliminar, mostrarMesa,
+  r, mesa, mesaNumero, acting, onMessage, onChangeLink, onCambiarEstado, onEditarHorario, onEliminar, onAsignarTecnico, mostrarMesa,
 }: {
-  r: any; mesaNumero: number; acting: boolean;
+  r: any; mesa?: any; mesaNumero: number; acting: boolean;
   onMessage: (reunionId: number, empresa: 'A' | 'B', empresaNombre: string, encargadoNombre: string) => void;
   onChangeLink: (reunion: any) => void;
   onCambiarEstado: (reunion: any, estado: string, asistentes?: number) => void;
   onEditarHorario: (reunion: any) => void;
   onEliminar: (reunion: any) => void;
+  onAsignarTecnico: (mesa: any) => void;
   mostrarMesa?: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -213,6 +214,20 @@ function ReunionSlot({
       </div>
       {open && (
         <div className="px-4 pb-4 bg-gray-50/50 border-t border-gray-100 space-y-3 pt-3">
+          {mesa && (
+            <button onClick={() => onAsignarTecnico(mesa)}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition-colors text-left">
+              <UserCheck className={`w-4 h-4 shrink-0 ${mesa.tecnicoasignado ? 'text-[#449D3A]' : 'text-gray-300'}`} />
+              {mesa.tecnicoasignado ? (
+                <span className="text-xs text-gray-600 flex-1">
+                  Técnico de esta mesa: <span className="font-semibold text-gray-800">{mesa.tecnicoasignado.nombres} {mesa.tecnicoasignado.apellidoPaterno}</span>
+                </span>
+              ) : (
+                <span className="text-xs text-gray-500 flex-1">Asignar técnico a esta mesa</span>
+              )}
+              <span className="text-[10px] font-bold text-[#449D3A] shrink-0">Cambiar</span>
+            </button>
+          )}
           {esEnCurso && (
             <div className="flex items-center gap-2">
               <UserCheck className="w-4 h-4 text-gray-400 shrink-0" />
@@ -823,9 +838,9 @@ export default function MesasGrid() {
                 </div>
                 <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
                   {diasAgenda[dia].map((r) => (
-                    <ReunionSlot key={r.id} r={r} mesaNumero={r.mesa_id} acting={acting} mostrarMesa
+                    <ReunionSlot key={r.id} r={r} mesa={r._mesa} mesaNumero={r.mesa_id} acting={acting} mostrarMesa
                       onMessage={openMessageModal} onChangeLink={openLinkModal} onCambiarEstado={cambiarEstadoReunion}
-                      onEditarHorario={abrirEditar} onEliminar={confirmarEliminar} />
+                      onEditarHorario={abrirEditar} onEliminar={confirmarEliminar} onAsignarTecnico={setAsignandoMesa} />
                   ))}
                 </div>
               </div>
@@ -869,9 +884,9 @@ export default function MesasGrid() {
                 </button>
 
                 {mesa.reunion && mesa.reunion.length > 0 && mesa.reunion.map((r: any) => (
-                  <ReunionSlot key={r.id} r={{ ...r, mesa_id: mesa.numeroMesa }} mesaNumero={mesa.numeroMesa} acting={acting}
+                  <ReunionSlot key={r.id} r={{ ...r, mesa_id: mesa.numeroMesa }} mesa={mesa} mesaNumero={mesa.numeroMesa} acting={acting}
                     onMessage={openMessageModal} onChangeLink={openLinkModal} onCambiarEstado={cambiarEstadoReunion}
-                    onEditarHorario={abrirEditar} onEliminar={confirmarEliminar} />
+                    onEditarHorario={abrirEditar} onEliminar={confirmarEliminar} onAsignarTecnico={setAsignandoMesa} />
                 ))}
 
                 {mesa.solicitudesEnEspera && mesa.solicitudesEnEspera.length > 0 && mesa.solicitudesEnEspera.map((s: any) => (
