@@ -49,7 +49,6 @@ function VirtualCard({ r, acting, onEditLink, onMessage, onFinalizar }: {
   onMessage: (reunionId: number, empresa: 'A' | 'B', empresaNombre: string, encargadoNombre: string) => void;
   onFinalizar: (reunion: any, asistentes: number) => void;
 }) {
-  const [finalizando, setFinalizando] = useState(false);
   const [asistentes, setAsistentes] = useState(String(r.cantidadAsistentesRegistrados ?? ''));
   const sol = r.solicitudreunion;
   const eeA = sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento;
@@ -120,8 +119,8 @@ function VirtualCard({ r, acting, onEditLink, onMessage, onFinalizar }: {
           </View>
         </View>
 
-        {/* Finalizar reunión en curso */}
-        {r.estadoReunion === 'EN_CURSO' && (finalizando ? (
+        {/* Finalizar reunión en curso: asistentes + botón, sin paso extra de confirmación */}
+        {r.estadoReunion === 'EN_CURSO' && (
           <View style={{ marginTop: 12, gap: 8 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <UserCheck color="#6b7280" size={16} />
@@ -130,27 +129,14 @@ function VirtualCard({ r, acting, onEditLink, onMessage, onFinalizar }: {
                 style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4,
                   fontSize: 13, color: '#111827', textAlign: 'center', width: 60 }} />
             </View>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <TouchableOpacity onPress={() => setFinalizando(false)}
-                style={{ flex: 1, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', alignItems: 'center' }}>
-                <Text style={{ fontSize: 12, fontWeight: '700', color: '#6b7280' }}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity disabled={acting} onPress={() => onFinalizar(r, Number(asistentes) || 0)}
-                style={{ flex: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-                  paddingVertical: 10, borderRadius: 12, backgroundColor: acting ? '#9ca3af' : GREEN }}>
-                <CheckCircle2 color="#fff" size={14} />
-                <Text style={{ fontSize: 12, fontWeight: '700', color: '#fff' }}>Confirmar</Text>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity disabled={acting} onPress={() => onFinalizar(r, Number(asistentes) || 0)}
+              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+                paddingVertical: 10, borderRadius: 12, backgroundColor: acting ? '#9ca3af' : GREEN }}>
+              <CheckCircle2 color="#fff" size={14} />
+              <Text style={{ fontSize: 12, fontWeight: '700', color: '#fff' }}>Finalizar reunión</Text>
+            </TouchableOpacity>
           </View>
-        ) : (
-          <TouchableOpacity onPress={() => setFinalizando(true)}
-            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-              marginTop: 12, paddingVertical: 10, borderRadius: 12, backgroundColor: '#f97316' }}>
-            <CheckCircle2 color="#fff" size={14} />
-            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>Finalizar y evaluar</Text>
-          </TouchableOpacity>
-        ))}
+        )}
 
         {/* Enlace virtual */}
         {canceladaPorEmpresa && (

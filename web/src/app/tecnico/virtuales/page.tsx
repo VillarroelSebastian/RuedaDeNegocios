@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   Building2, Clock, Video, Search, ExternalLink,
-  Wifi, AlertCircle, RefreshCw, Mail, Send, X, UserCheck, Square,
+  Wifi, AlertCircle, RefreshCw, Mail, Send, X, UserCheck, Check,
 } from 'lucide-react';
 import { useModal } from '@/components/ui/Modal';
 
@@ -63,7 +63,6 @@ function VirtualCard({
   onMessage: (reunionId: number, empresa: 'A' | 'B', empresaNombre: string, encargadoNombre: string) => void;
   onFinalizar: (reunion: any, asistentes: number) => void;
 }) {
-  const [finalizando, setFinalizando] = useState(false);
   const [asistentes, setAsistentes] = useState(String(r.cantidadAsistentesRegistrados ?? ''));
 
   const sol = r.solicitudreunion;
@@ -112,59 +111,52 @@ function VirtualCard({
         </div>
       </div>
 
-      {finalizando ? (
-        <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-gray-50">
+      {r.estadoReunion === 'EN_CURSO' && (
+        <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-50">
           <UserCheck className="w-4 h-4 text-gray-400 shrink-0" />
           <label className="text-xs text-gray-600 font-semibold shrink-0">Asistentes:</label>
           <input type="number" min="0" value={asistentes} onChange={(e) => setAsistentes(e.target.value)}
             className="w-20 border border-gray-200 rounded-lg px-2 py-1 text-sm text-center focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
-          <button disabled={acting} onClick={() => onFinalizar(r, Number(asistentes) || 0)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#449D3A] hover:bg-[#367d2e] text-white text-xs font-bold disabled:opacity-50 transition-colors">
-            <Square className="w-3 h-3" /> Confirmar
-          </button>
-          <button onClick={() => setFinalizando(false)}
-            className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
-            Cancelar
-          </button>
-        </div>
-      ) : (
-        <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-gray-50">
-          {r.estadoReunion === 'EN_CURSO' && (
-            <button onClick={() => setFinalizando(true)} className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-orange-600">
-              Finalizar y evaluar
-            </button>
-          )}
-          {link && enlaceOperativo && (
-            <a
-              href={link}
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition-colors"
-            >
-              <ExternalLink className="w-3 h-3" />
-              Abrir enlace
-            </a>
-          )}
-          <Link
-            href={`${base}/virtuales/${r.id}`}
-            className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
-          >
-            Ver detalles
-          </Link>
-          <button
-            onClick={() => onMessage(r.id, 'A', ea?.nombre ?? 'Empresa A', nombreEncA)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-green-200 text-green-700 text-xs font-semibold hover:bg-green-50 transition-colors max-w-[180px]"
-          >
-            <Mail className="w-3 h-3 shrink-0" /> <span className="truncate">Mensaje a {ea?.nombre ?? 'Empresa A'}</span>
-          </button>
-          <button
-            onClick={() => onMessage(r.id, 'B', eb?.nombre ?? 'Empresa B', nombreEncB)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-blue-200 text-blue-700 text-xs font-semibold hover:bg-blue-50 transition-colors max-w-[180px]"
-          >
-            <Mail className="w-3 h-3 shrink-0" /> <span className="truncate">Mensaje a {eb?.nombre ?? 'Empresa B'}</span>
-          </button>
         </div>
       )}
+
+      <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-gray-50">
+        {r.estadoReunion === 'EN_CURSO' && (
+          <button disabled={acting} onClick={() => onFinalizar(r, Number(asistentes) || 0)}
+            className="flex items-center gap-1.5 rounded-lg bg-[#449D3A] hover:bg-[#367d2e] px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50 transition-colors">
+            <Check className="w-3.5 h-3.5" /> Finalizar reunión
+          </button>
+        )}
+        {link && enlaceOperativo && (
+          <a
+            href={link}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition-colors"
+          >
+            <ExternalLink className="w-3 h-3" />
+            Abrir enlace
+          </a>
+        )}
+        <Link
+          href={`${base}/virtuales/${r.id}`}
+          className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+        >
+          Ver detalles
+        </Link>
+        <button
+          onClick={() => onMessage(r.id, 'A', ea?.nombre ?? 'Empresa A', nombreEncA)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-green-200 text-green-700 text-xs font-semibold hover:bg-green-50 transition-colors max-w-[180px]"
+        >
+          <Mail className="w-3 h-3 shrink-0" /> <span className="truncate">Mensaje a {ea?.nombre ?? 'Empresa A'}</span>
+        </button>
+        <button
+          onClick={() => onMessage(r.id, 'B', eb?.nombre ?? 'Empresa B', nombreEncB)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-blue-200 text-blue-700 text-xs font-semibold hover:bg-blue-50 transition-colors max-w-[180px]"
+        >
+          <Mail className="w-3 h-3 shrink-0" /> <span className="truncate">Mensaje a {eb?.nombre ?? 'Empresa B'}</span>
+        </button>
+      </div>
 
       {canceladaPorEmpresa && (
         <div className="mt-3 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">

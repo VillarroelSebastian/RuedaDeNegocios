@@ -5303,8 +5303,11 @@ export class AppController implements OnModuleInit {
   // Si un evento histórico no tiene ambos límites, se mantienen sus fechas del
   // evento como respaldo para no alterar agendas ya existentes.
   private ventanaReunionesEvento(evento: any): { start: Date; end: Date } {
-    // Una logística ya guardada conserva sus propios días. Esto evita mover
-    // agendas históricas hasta que el administrador vuelva a guardar el evento.
+    const ventanaEvento = this.normalizarVentanaFechas(evento.fechaInicioEvento, evento.fechaFinEvento);
+    // Una logística ya guardada conserva sus propios días, pero solo los que
+    // siguen dentro del rango actual del evento: si el admin acorta o mueve
+    // las fechas, los días viejos fuera de rango dejan de ofrecerse aunque no
+    // se haya vuelto a guardar la logística.
     try {
       const diasGuardados = JSON.parse(evento.horariosReunionJson || '[]');
       const fechasGuardadas = Array.isArray(diasGuardados)
@@ -5312,6 +5315,10 @@ export class AppController implements OnModuleInit {
             .filter((dia: any) => dia?.habilitado !== false && Array.isArray(dia?.rangos) && dia.rangos.length > 0)
             .map((dia: any) => String(dia?.fecha || ''))
             .filter((fecha: string) => /^\d{4}-\d{2}-\d{2}$/.test(fecha))
+            .filter((fecha: string) => {
+              const mediodia = this.fechaHoraBolivia(fecha, 12, 0);
+              return mediodia >= ventanaEvento.start && mediodia < ventanaEvento.end;
+            })
             .sort()
         : [];
       if (fechasGuardadas.length > 0) {
@@ -5320,19 +5327,8 @@ export class AppController implements OnModuleInit {
           end: this.fechaHoraBolivia(fechasGuardadas[fechasGuardadas.length - 1], 24, 0),
         };
       }
-    } catch { /* configuración antigua o corrupta: aplicar las fechas disponibles */ }
-    const tienePeriodoInscripciones = evento.fechaInicioSolicitudes && evento.fechaFinSolicitudes;
-    if (!tienePeriodoInscripciones) {
-      return this.normalizarVentanaFechas(evento.fechaInicioEvento, evento.fechaFinEvento);
-    }
-    // De las inscripciones se toman solamente los días. Las horas válidas son
-    // las que el administrador define debajo, en Logística de Reuniones.
-    const primerDia = claveFechaBolivia(new Date(evento.fechaInicioSolicitudes));
-    const ultimoDia = claveFechaBolivia(new Date(evento.fechaFinSolicitudes));
-    return {
-      start: this.fechaHoraBolivia(primerDia, 0, 0),
-      end: this.fechaHoraBolivia(ultimoDia, 24, 0),
-    };
+    } catch { /* configuración antigua o corrupta: aplicar las fechas del evento */ }
+    return ventanaEvento;
   }
 
   private ventanaGeneralEvento(evento: any): { start: Date; end: Date } {
