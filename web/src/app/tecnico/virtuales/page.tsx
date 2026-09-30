@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   Building2, Clock, Video, Search, ExternalLink,
-  Wifi, AlertCircle, RefreshCw, Mail, Send, X, UserCheck, Check,
+  Wifi, AlertCircle, RefreshCw, Mail, Send, X, Play, Check,
 } from 'lucide-react';
 import { useModal } from '@/components/ui/Modal';
 
@@ -57,14 +57,12 @@ function CompanyChip({ empresa, colorClass }: { empresa: any; colorClass: string
 }
 
 function VirtualCard({
-  r, base, acting, onMessage, onFinalizar,
+  r, base, acting, onMessage, onCambiarEstado,
 }: {
   r: any; base: string; acting: boolean;
   onMessage: (reunionId: number, empresa: 'A' | 'B', empresaNombre: string, encargadoNombre: string) => void;
-  onFinalizar: (reunion: any, asistentes: number) => void;
+  onCambiarEstado: (reunion: any, estado: string) => void;
 }) {
-  const [asistentes, setAsistentes] = useState(String(r.cantidadAsistentesRegistrados ?? ''));
-
   const sol = r.solicitudreunion;
   const eeA = sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento;
   const eeB = sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento;
@@ -78,7 +76,9 @@ function VirtualCard({
   const tip = TIPO_CFG[r.tipoReunion] ?? TIPO_CFG.VIRTUAL;
   const link = sol?.enlaceReunionVirtual;
   const cancelada = r.estadoReunion === 'CANCELADA';
-  const enlaceOperativo = ['PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO'].includes(r.estadoReunion);
+  const esProgramada = r.estadoReunion === 'PROGRAMADA' || r.estadoReunion === 'REPROGRAMADA';
+  const esEnCurso = r.estadoReunion === 'EN_CURSO';
+  const enlaceOperativo = esProgramada || esEnCurso;
   const canceladaPorEmpresa = cancelada && /^Cancelada por /i.test(r.observacionesReunion ?? '');
 
   return (
@@ -111,18 +111,15 @@ function VirtualCard({
         </div>
       </div>
 
-      {r.estadoReunion === 'EN_CURSO' && (
-        <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-50">
-          <UserCheck className="w-4 h-4 text-gray-400 shrink-0" />
-          <label className="text-xs text-gray-600 font-semibold shrink-0">Asistentes:</label>
-          <input type="number" min="0" value={asistentes} onChange={(e) => setAsistentes(e.target.value)}
-            className="w-20 border border-gray-200 rounded-lg px-2 py-1 text-sm text-center focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
-        </div>
-      )}
-
       <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-gray-50">
-        {r.estadoReunion === 'EN_CURSO' && (
-          <button disabled={acting} onClick={() => onFinalizar(r, Number(asistentes) || 0)}
+        {esProgramada && (
+          <button disabled={acting} onClick={() => onCambiarEstado(r, 'EN_CURSO')}
+            className="flex items-center gap-1.5 rounded-lg bg-[#449D3A] hover:bg-[#367d2e] px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50 transition-colors">
+            <Play className="w-3.5 h-3.5" /> Iniciar
+          </button>
+        )}
+        {esEnCurso && (
+          <button disabled={acting} onClick={() => onCambiarEstado(r, 'FINALIZADA')}
             className="flex items-center gap-1.5 rounded-lg bg-[#449D3A] hover:bg-[#367d2e] px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50 transition-colors">
             <Check className="w-3.5 h-3.5" /> Finalizar reunión
           </button>
@@ -171,7 +168,7 @@ function VirtualCard({
 export default function TecnicoVirtualesPage() {
   const pathname = usePathname();
   const base = pathname?.startsWith('/admin') ? '/admin' : '/tecnico';
-  const { showSuccess, showError, ModalComponent } = useModal();
+  const { showSuccess, showError, showConfirm, ModalComponent } = useModal();
   const [reuniones, setReuniones] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -218,19 +215,27 @@ export default function TecnicoVirtualesPage() {
     finally { setSending(false); }
   };
 
-  const finalizarReunion = async (reunion: any, asistentes: number) => {
-    setActing(true);
-    try {
-      const res = await fetch(`${API}/tecnico/reuniones/${reunion.id}/estado`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ estadoReunion: 'FINALIZADA', asistentes }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.message || 'No se pudo finalizar la reunión.');
-      showSuccess('Reunión finalizada', 'La reunión quedó registrada y las empresas fueron notificadas para evaluar.');
-      load();
-    } catch (e: any) { showError('Error', e?.message || 'No se pudo finalizar la reunión.'); }
-    finally { setActing(false); }
+  const cambiarEstado = (reunion: any, estado: string) => {
+    const titulos: Record<string, string> = { EN_CURSO: 'Iniciar reunión', FINALIZADA: 'Finalizar reunión' };
+    const mensajes: Record<string, string> = {
+      EN_CURSO: '¿Deseas marcar esta reunión como iniciada?',
+      FINALIZADA: 'La reunión quedará registrada y se avisará a ambas empresas para que la evalúen.',
+    };
+    showConfirm(titulos[estado] ?? 'Actualizar reunión', mensajes[estado] ?? '¿Deseas continuar?', async () => {
+      setActing(true);
+      try {
+        const res = await fetch(`${API}/tecnico/reuniones/${reunion.id}/estado`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ estadoReunion: estado }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.message || 'No se pudo actualizar el estado de la reunión.');
+        const doneLabels: Record<string, string> = { EN_CURSO: 'Reunión iniciada correctamente.', FINALIZADA: 'Reunión finalizada y registrada.' };
+        showSuccess('Listo', doneLabels[estado] ?? 'Estado actualizado.');
+        load();
+      } catch (e: any) { showError('Error', e?.message || 'No se pudo actualizar el estado de la reunión.'); }
+      finally { setActing(false); }
+    });
   };
 
   useEffect(() => {
@@ -395,7 +400,7 @@ export default function TecnicoVirtualesPage() {
           {filtered.map((r) => (
             <VirtualCard key={r.id} r={r} base={base} acting={acting}
               onMessage={(reunionId, empresa, empresaNombre, encargadoNombre) => { setMsgModal({ reunionId, empresa, empresaNombre, encargadoNombre }); setMsgText(''); }}
-              onFinalizar={finalizarReunion} />
+              onCambiarEstado={cambiarEstado} />
           ))}
         </div>
       )}

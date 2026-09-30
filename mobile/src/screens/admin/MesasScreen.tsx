@@ -6,7 +6,7 @@ import {
 import {
   Armchair, Building2, Clock, Video, MapPin, ChevronDown,
   ChevronUp, Timer, Star, History, Mail, Link2, Send, X,
-  Play, Square, XCircle, UserCheck, Lock, Unlock, Pencil, Trash2, Calendar,
+  Play, Check, XCircle, UserCheck, Lock, Unlock, Pencil, Trash2, Calendar,
 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { API_URL } from '../../utils/userStore';
@@ -174,7 +174,6 @@ function ReunionRow({
   mostrarMesa?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const [asistentes, setAsistentes] = useState(String(r.cantidadAsistentesRegistrados ?? ''));
   const sol = r.solicitudreunion;
   const eeA = sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento;
   const eeB = sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento;
@@ -246,16 +245,6 @@ function ReunionRow({
               <Text style={{ fontSize: 10, fontWeight: '700', color: GREEN }}>Cambiar</Text>
             </TouchableOpacity>
           )}
-          {esEnCurso && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <UserCheck color="#6b7280" size={16} />
-              <Text style={{ fontSize: 12, color: '#374151', fontWeight: '600' }}>Asistentes:</Text>
-              <TextInput value={asistentes} onChangeText={setAsistentes} keyboardType="numeric"
-                style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4,
-                  fontSize: 13, color: '#111827', textAlign: 'center', width: 60 }} />
-            </View>
-          )}
-
           {/* Todas las acciones de la reunión en una sola barra que envuelve */}
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
             {esProgramada && (
@@ -275,10 +264,10 @@ function ReunionRow({
               </TouchableOpacity>
             )}
             {esEnCurso && (
-              <TouchableOpacity disabled={acting} onPress={() => onCambiarEstado(r, 'FINALIZADA', Number(asistentes) || 0)}
+              <TouchableOpacity disabled={acting} onPress={() => onCambiarEstado(r, 'FINALIZADA')}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 6,
                   paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, backgroundColor: acting ? '#9ca3af' : GREEN }}>
-                <Square color="#fff" size={12} />
+                <Check color="#fff" size={12} />
                 <Text style={{ color: '#fff', fontWeight: '700', fontSize: 11 }}>Finalizar reunión</Text>
               </TouchableOpacity>
             )}
@@ -529,7 +518,7 @@ export default function MesasScreen({ embedded = false }: { embedded?: boolean }
     setLinkText(reunion.solicitudreunion?.enlaceReunionVirtual ?? '');
   };
 
-  const cambiarEstadoReunion = (reunion: any, estado: string, asistentes?: number) => {
+  const cambiarEstadoReunion = (reunion: any, estado: string) => {
     const labels: Record<string, string> = { EN_CURSO: 'iniciar', CANCELADA: 'cancelar', FINALIZADA: 'finalizar' };
     showModal({
       type: 'confirm',
@@ -539,10 +528,8 @@ export default function MesasScreen({ embedded = false }: { embedded?: boolean }
       onConfirm: async () => {
         setActing(true);
         try {
-          const body: any = { estadoReunion: estado };
-          if (asistentes !== undefined) body.asistentes = asistentes;
           const res = await fetch(`${API_URL}/admin/reuniones/${reunion.id}/estado`, {
-            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estadoReunion: estado }),
           });
           if (!res.ok) throw new Error();
           const doneLabels: Record<string, string> = {

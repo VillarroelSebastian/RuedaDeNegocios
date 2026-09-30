@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Clock, Users, Armchair, Building2, Video, MapPin, ChevronDown, ChevronUp,
   Search, X, Timer, Star, History, Mail, Link2, Send,
-  Play, Square, XCircle, UserCheck, Lock, Unlock, Calendar, Pencil, Trash2,
+  Play, Check, XCircle, UserCheck, Lock, Unlock, Calendar, Pencil, Trash2,
 } from 'lucide-react';
 import { useModal } from '@/components/ui/Modal';
 
@@ -160,7 +160,6 @@ function ReunionSlot({
   mostrarMesa?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const [asistentes, setAsistentes] = useState(String(r.cantidadAsistentesRegistrados ?? ''));
   const sol   = r.solicitudreunion;
   const eeA   = sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento;
   const eeB   = sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento;
@@ -228,15 +227,6 @@ function ReunionSlot({
               <span className="text-[10px] font-bold text-[#449D3A] shrink-0">Cambiar</span>
             </button>
           )}
-          {esEnCurso && (
-            <div className="flex items-center gap-2">
-              <UserCheck className="w-4 h-4 text-gray-400 shrink-0" />
-              <label className="text-xs text-gray-600 font-semibold shrink-0">Asistentes:</label>
-              <input type="number" min="0" value={asistentes} onChange={(e) => setAsistentes(e.target.value)}
-                className="w-20 border border-gray-200 rounded-lg px-2 py-1 text-sm text-center focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
-            </div>
-          )}
-
           {/* Todas las acciones de la reunión en una sola barra que envuelve */}
           <div className="flex flex-wrap gap-1.5">
             {esProgramada && (
@@ -252,9 +242,9 @@ function ReunionSlot({
               </button>
             )}
             {esEnCurso && (
-              <button disabled={acting} onClick={() => onCambiarEstado(r, 'FINALIZADA', Number(asistentes) || 0)}
+              <button disabled={acting} onClick={() => onCambiarEstado(r, 'FINALIZADA')}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#449D3A] hover:bg-[#367d2e] text-white text-xs font-bold disabled:opacity-50 transition-colors">
-                <Square className="w-3 h-3" /> Finalizar reunión
+                <Check className="w-3 h-3" /> Finalizar reunión
               </button>
             )}
             {esVirtual && link && (
@@ -472,16 +462,14 @@ export default function MesasGrid() {
     setLinkText(reunion.solicitudreunion?.enlaceReunionVirtual ?? '');
   };
 
-  const cambiarEstadoReunion = (reunion: any, estado: string, asistentes?: number) => {
+  const cambiarEstadoReunion = (reunion: any, estado: string) => {
     const labels: Record<string, string> = { EN_CURSO: 'iniciar', CANCELADA: 'cancelar', FINALIZADA: 'finalizar' };
     const titulos: Record<string, string> = { EN_CURSO: 'Iniciar reunión', CANCELADA: 'Cancelar reunión', FINALIZADA: 'Finalizar reunión' };
     showConfirm(titulos[estado] ?? 'Actualizar reunión', `¿Deseas ${labels[estado]} esta reunión en la Mesa ${reunion.mesa_id}?`, async () => {
       setActing(true);
       try {
-        const body: any = { estadoReunion: estado };
-        if (asistentes !== undefined) body.asistentes = asistentes;
         const res = await fetch(`${API}/admin/reuniones/${reunion.id}/estado`, {
-          method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+          method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estadoReunion: estado }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data?.message || 'No se pudo actualizar el estado de la reunión.');

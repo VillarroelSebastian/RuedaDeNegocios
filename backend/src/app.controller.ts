@@ -4944,7 +4944,7 @@ export class AppController implements OnModuleInit {
   }
 
   @Post('tecnico/reuniones/:id/mensaje')
-  async sendTecnicoMensaje(@Param('id') id: string, @Body() body: { empresa: string; mensaje: string }) {
+  async sendTecnicoMensaje(@Param('id') id: string, @Body() body: { empresa: string; mensaje: string }, @Req() req: any) {
     if (!body.mensaje?.trim()) throw new BadRequestException('El mensaje no puede estar vacío');
     const evento = await this.getPrincipalEvento();
     if (!evento) throw new BadRequestException('No hay un evento activo');
@@ -4970,9 +4970,32 @@ export class AppController implements OnModuleInit {
     const usuario = ee?.empresa_usuario?.[0]?.usuario;
     if (!usuario?.correo) throw new BadRequestException('No se encontró el encargado de la empresa');
 
+    // Mismo canal que "staff/mensajes": queda en la conversación "Equipo del
+    // evento" de la empresa, no solo como notificación puntual de esta reunión.
+    const usuarioId = Number(req.user?.sub) || 0;
+    const staff = usuarioId
+      ? await this.prisma.usuario.findUnique({ where: { id: usuarioId }, select: { nombres: true, apellidoPaterno: true, rolEvento: true } })
+      : null;
+    const rol = staff?.rolEvento === 'ADMINISTRADOR' ? 'ADMIN' : 'TECNICO';
+    const nombreStaff = staff ? `${staff.nombres} ${staff.apellidoPaterno}`.trim() : 'Equipo del evento';
+    const msg = await this.prisma.mensajeempresa.create({
+      data: {
+        evento_id: evento.id,
+        emisorEe_id: 0,
+        receptorEe_id: ee.id,
+        empresa_usuario_id: null,
+        remitenteRol: rol,
+        remitenteNombre: nombreStaff,
+        contenido: body.mensaje.trim().slice(0, 1000),
+        haSidoLeido: 0,
+        estaActivo: 1,
+      },
+    });
+    try { this.notifGateway.emitirParaEe(ee.id, 'mensaje:nuevo', { deEeId: 0 }); } catch {}
+
     await this.notificar(
-      ee.id, 'mensaje:tecnico', 'Mensaje del técnico',
-      body.mensaje.trim().slice(0, 200), Number(id), 'reunion',
+      ee.id, 'mensaje:staff', 'Mensaje del equipo del evento',
+      body.mensaje.trim().slice(0, 200), msg.id, 'mensajeempresa',
     );
 
     const transporter = createMailTransporter();

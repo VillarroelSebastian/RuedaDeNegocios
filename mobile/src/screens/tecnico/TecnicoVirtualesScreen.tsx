@@ -4,7 +4,7 @@ import {
   RefreshControl, Image, TextInput, Linking, Modal, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import {
-  AlertTriangle, Building2, Clock, Video, Armchair, Search, Link2, X, CheckCircle2, Mail, Send, UserCheck,
+  AlertTriangle, Building2, Clock, Video, Armchair, Search, Link2, X, CheckCircle2, Mail, Send, Play,
 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -44,12 +44,11 @@ const FILTROS = [
   { key: 'CANCELADA',  label: 'Canceladas'  },
 ];
 
-function VirtualCard({ r, acting, onEditLink, onMessage, onFinalizar }: {
+function VirtualCard({ r, acting, onEditLink, onMessage, onCambiarEstado }: {
   r: any; acting: boolean; onEditLink: (r: any) => void;
   onMessage: (reunionId: number, empresa: 'A' | 'B', empresaNombre: string, encargadoNombre: string) => void;
-  onFinalizar: (reunion: any, asistentes: number) => void;
+  onCambiarEstado: (reunion: any, estado: string) => void;
 }) {
-  const [asistentes, setAsistentes] = useState(String(r.cantidadAsistentesRegistrados ?? ''));
   const sol = r.solicitudreunion;
   const eeA = sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento;
   const eeB = sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento;
@@ -63,7 +62,9 @@ function VirtualCard({ r, acting, onEditLink, onMessage, onFinalizar }: {
   const tip = TIPO_CFG[r.tipoReunion]    ?? TIPO_CFG.VIRTUAL;
   const link = sol?.enlaceReunionVirtual;
   const cancelada = r.estadoReunion === 'CANCELADA';
-  const enlaceOperativo = ['PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO'].includes(r.estadoReunion);
+  const esProgramada = r.estadoReunion === 'PROGRAMADA' || r.estadoReunion === 'REPROGRAMADA';
+  const esEnCurso = r.estadoReunion === 'EN_CURSO';
+  const enlaceOperativo = esProgramada || esEnCurso;
   const canceladaPorEmpresa = cancelada && /^Cancelada por /i.test(r.observacionesReunion ?? '');
 
   return (
@@ -119,23 +120,14 @@ function VirtualCard({ r, acting, onEditLink, onMessage, onFinalizar }: {
           </View>
         </View>
 
-        {/* Finalizar reunión en curso: asistentes + botón, sin paso extra de confirmación */}
-        {r.estadoReunion === 'EN_CURSO' && (
-          <View style={{ marginTop: 12, gap: 8 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <UserCheck color="#6b7280" size={16} />
-              <Text style={{ fontSize: 12, color: '#374151', fontWeight: '600' }}>Asistentes:</Text>
-              <TextInput value={asistentes} onChangeText={setAsistentes} keyboardType="numeric"
-                style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4,
-                  fontSize: 13, color: '#111827', textAlign: 'center', width: 60 }} />
-            </View>
-            <TouchableOpacity disabled={acting} onPress={() => onFinalizar(r, Number(asistentes) || 0)}
-              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-                paddingVertical: 10, borderRadius: 12, backgroundColor: acting ? '#9ca3af' : GREEN }}>
-              <CheckCircle2 color="#fff" size={14} />
-              <Text style={{ fontSize: 12, fontWeight: '700', color: '#fff' }}>Finalizar reunión</Text>
-            </TouchableOpacity>
-          </View>
+        {/* Iniciar / Finalizar */}
+        {(esProgramada || esEnCurso) && (
+          <TouchableOpacity disabled={acting} onPress={() => onCambiarEstado(r, esProgramada ? 'EN_CURSO' : 'FINALIZADA')}
+            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+              marginTop: 12, paddingVertical: 10, borderRadius: 12, backgroundColor: acting ? '#9ca3af' : GREEN }}>
+            {esProgramada ? <Play color="#fff" size={14} /> : <CheckCircle2 color="#fff" size={14} />}
+            <Text style={{ fontSize: 12, fontWeight: '700', color: '#fff' }}>{esProgramada ? 'Iniciar' : 'Finalizar reunión'}</Text>
+          </TouchableOpacity>
         )}
 
         {/* Enlace virtual */}
@@ -339,18 +331,29 @@ export default function TecnicoVirtualesScreen() {
     finally { setSending(false); }
   };
 
-  const finalizarReunion = async (reunion: any, asistentes: number) => {
-    setActing(true);
-    try {
-      const res = await fetch(`${API_URL}/tecnico/reuniones/${reunion.id}/estado`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ estadoReunion: 'FINALIZADA', asistentes }),
-      });
-      if (!res.ok) throw new Error();
-      showModal({ type: 'success', title: 'Reunión finalizada', message: 'La reunión quedó registrada y las empresas fueron notificadas para evaluar.' });
-      fetchReuniones();
-    } catch { showModal({ type: 'error', title: 'Error', message: 'No se pudo finalizar la reunión.' }); }
-    finally { setActing(false); }
+  const cambiarEstado = (reunion: any, estado: string) => {
+    const titulos: Record<string, string> = { EN_CURSO: 'Iniciar reunión', FINALIZADA: 'Finalizar reunión' };
+    const mensajes: Record<string, string> = {
+      EN_CURSO: '¿Deseas marcar esta reunión como iniciada?',
+      FINALIZADA: 'La reunión quedará registrada y se avisará a ambas empresas para que la evalúen.',
+    };
+    showModal({
+      type: 'confirm', title: titulos[estado] ?? 'Actualizar reunión', message: mensajes[estado] ?? '¿Deseas continuar?',
+      onConfirm: async () => {
+        setActing(true);
+        try {
+          const res = await fetch(`${API_URL}/tecnico/reuniones/${reunion.id}/estado`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ estadoReunion: estado }),
+          });
+          if (!res.ok) throw new Error();
+          const doneLabels: Record<string, string> = { EN_CURSO: 'Reunión iniciada correctamente.', FINALIZADA: 'Reunión finalizada y registrada.' };
+          showModal({ type: 'success', title: 'Listo', message: doneLabels[estado] ?? 'Estado actualizado.' });
+          fetchReuniones();
+        } catch { showModal({ type: 'error', title: 'Error', message: 'No se pudo actualizar el estado de la reunión.' }); }
+        finally { setActing(false); }
+      },
+    });
   };
 
   useEffect(() => {
@@ -538,7 +541,7 @@ export default function TecnicoVirtualesScreen() {
           ) : (
             filtered.map((r) => <VirtualCard key={r.id} r={r} acting={acting} onEditLink={setLinkModal}
               onMessage={(reunionId, empresa, empresaNombre, encargadoNombre) => { setMsgModal({ reunionId, empresa, empresaNombre, encargadoNombre }); setMsgText(''); }}
-              onFinalizar={finalizarReunion} />)
+              onCambiarEstado={cambiarEstado} />)
           )}
           <View style={{ height: 20 }} />
         </ScrollView>
