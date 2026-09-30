@@ -54,6 +54,7 @@ export function ParticipantesModal({ empresa, onClose, permitirCambiarPassword =
   const [reenviando, setReenviando] = useState<number | null>(null);
   const [avisoReenvio, setAvisoReenvio] = useState<{ ok: boolean; texto: string } | null>(null);
   const [confirmandoReenvio, setConfirmandoReenvio] = useState<any | null>(null);
+  const [confirmandoPassword, setConfirmandoPassword] = useState<{ p: any; manual: boolean } | null>(null);
 
   const guardarCorreo = async (p: any) => {
     if (!correoNuevo.trim()) return;
@@ -119,6 +120,14 @@ export function ParticipantesModal({ empresa, onClose, permitirCambiarPassword =
         onClose={() => setConfirmandoReenvio(null)}
         onConfirm={() => { const p = confirmandoReenvio; setConfirmandoReenvio(null); if (p) reenviarCredenciales(p); }}
       />
+      <AppModal
+        visible={!!confirmandoPassword}
+        type="confirm"
+        title="Generar nueva contraseña"
+        message={confirmandoPassword ? `Esto cambiará la contraseña de acceso de ${confirmandoPassword.p.nombres}. La contraseña actual dejará de funcionar. ¿Deseas continuar?` : ''}
+        onClose={() => setConfirmandoPassword(null)}
+        onConfirm={() => { const c = confirmandoPassword; setConfirmandoPassword(null); if (c) reiniciarPassword(c.p, c.manual); }}
+      />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
       <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
         <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '80%' }}>
@@ -177,7 +186,7 @@ export function ParticipantesModal({ empresa, onClose, permitirCambiarPassword =
                       <Text style={{ fontSize: 11, color: '#9ca3af' }}>{p.correo}</Text>
                     </View>
                   </View>
-                  <View style={{alignItems:'flex-end',gap:5,maxWidth:130}}>{p.esResponsable && <View style={{ backgroundColor: '#dcfce7', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 }}><Text style={{ fontSize: 10, fontWeight: '700', color: '#166534' }}>Responsable</Text></View>}<Text style={{fontSize:10,fontWeight:'600',color:p.estaActivo?'#9ca3af':'#ef4444'}}>{p.estaActivo?'Activo':'Inactivo'}</Text>{permitirCambiarPassword && p.estaActivo && <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 4 }}><TouchableOpacity disabled={reiniciando===p.usuarioId} onPress={()=>reiniciarPassword(p)} style={{flexDirection:'row',alignItems:'center',gap:4,borderWidth:1,borderColor:'#fcd34d',borderRadius:8,paddingHorizontal:7,paddingVertical:5,opacity:reiniciando===p.usuarioId?0.5:1}}><KeyRound size={12} color="#b45309"/><Text style={{fontSize:10,fontWeight:'700',color:'#b45309'}}>Generar</Text></TouchableOpacity><TouchableOpacity disabled={reiniciando===p.usuarioId || !passwordManual.trim()} onPress={()=>reiniciarPassword(p, true)} style={{borderWidth:1,borderColor:GREEN,borderRadius:8,paddingHorizontal:7,paddingVertical:5,opacity:passwordManual.trim()?1:.4}}><Text style={{fontSize:10,fontWeight:'700',color:GREEN}}>Aplicar escrita</Text></TouchableOpacity><TouchableOpacity disabled={guardandoCorreo} onPress={()=>{ setCredencial(null); setEditandoCorreo(p); setCorreoNuevo(p.correo ?? ''); setAvisoReenvio(null); }} style={{borderWidth:1,borderColor:'#d1d5db',borderRadius:8,paddingHorizontal:7,paddingVertical:5}}><Text style={{fontSize:10,fontWeight:'700',color:'#374151'}}>Editar correo</Text></TouchableOpacity><TouchableOpacity disabled={reenviando===p.usuarioId} onPress={()=>setConfirmandoReenvio(p)} style={{borderWidth:1,borderColor:'#86efac',borderRadius:8,paddingHorizontal:7,paddingVertical:5,opacity:reenviando===p.usuarioId?0.5:1}}><Text style={{fontSize:10,fontWeight:'700',color:GREEN}}>{reenviando===p.usuarioId?'Enviando…':'Reenviar'}</Text></TouchableOpacity></View>}</View>
+                  <View style={{alignItems:'flex-end',gap:5,maxWidth:130}}>{p.esResponsable && <View style={{ backgroundColor: '#dcfce7', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 }}><Text style={{ fontSize: 10, fontWeight: '700', color: '#166534' }}>Responsable</Text></View>}<Text style={{fontSize:10,fontWeight:'600',color:p.estaActivo?'#9ca3af':'#ef4444'}}>{p.estaActivo?'Activo':'Inactivo'}</Text>{permitirCambiarPassword && p.estaActivo && <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 4 }}><TouchableOpacity disabled={reiniciando===p.usuarioId} onPress={()=>setConfirmandoPassword({ p, manual: false })} style={{flexDirection:'row',alignItems:'center',gap:4,borderWidth:1,borderColor:'#fcd34d',borderRadius:8,paddingHorizontal:7,paddingVertical:5,opacity:reiniciando===p.usuarioId?0.5:1}}><KeyRound size={12} color="#b45309"/><Text style={{fontSize:10,fontWeight:'700',color:'#b45309'}}>Generar</Text></TouchableOpacity><TouchableOpacity disabled={reiniciando===p.usuarioId || !passwordManual.trim()} onPress={()=>setConfirmandoPassword({ p, manual: true })} style={{borderWidth:1,borderColor:GREEN,borderRadius:8,paddingHorizontal:7,paddingVertical:5,opacity:passwordManual.trim()?1:.4}}><Text style={{fontSize:10,fontWeight:'700',color:GREEN}}>Aplicar escrita</Text></TouchableOpacity><TouchableOpacity disabled={guardandoCorreo} onPress={()=>{ setCredencial(null); setEditandoCorreo(p); setCorreoNuevo(p.correo ?? ''); setAvisoReenvio(null); }} style={{borderWidth:1,borderColor:'#d1d5db',borderRadius:8,paddingHorizontal:7,paddingVertical:5}}><Text style={{fontSize:10,fontWeight:'700',color:'#374151'}}>Editar correo</Text></TouchableOpacity><TouchableOpacity disabled={reenviando===p.usuarioId} onPress={()=>setConfirmandoReenvio(p)} style={{borderWidth:1,borderColor:'#86efac',borderRadius:8,paddingHorizontal:7,paddingVertical:5,opacity:reenviando===p.usuarioId?0.5:1}}><Text style={{fontSize:10,fontWeight:'700',color:GREEN}}>{reenviando===p.usuarioId?'Enviando…':'Reenviar'}</Text></TouchableOpacity></View>}</View>
                 </View>
               ))
             )}

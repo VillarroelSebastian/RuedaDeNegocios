@@ -662,8 +662,14 @@ export class AppController implements OnModuleInit {
   @Post('auth/login')
   async login(@Body() body: { correo: string; contrasenia: string }) {
     const correoNorm = (body.correo ?? '').trim().toLowerCase();
+    // No se filtra por estaActivo aquí: una cuenta eliminada debe poder
+    // validar su contraseña para recibir un mensaje claro de por qué no
+    // puede ingresar, en vez del genérico "credenciales inválidas". Si por
+    // el mismo correo hay una cuenta activa y una vieja ya eliminada, se
+    // prioriza la activa.
     const user = await this.prisma.usuario.findFirst({
-      where: { correo: correoNorm, estaActivo: 1 },
+      where: { correo: correoNorm },
+      orderBy: { estaActivo: 'desc' },
     });
 
     if (!user) throw new UnauthorizedException('Credenciales inválidas');
@@ -673,6 +679,14 @@ export class AppController implements OnModuleInit {
       ? await bcrypt.compare(body.contrasenia, user.contrasenia)
       : body.contrasenia === user.contrasenia;
     if (!isValid) throw new UnauthorizedException('Credenciales inválidas');
+
+    if (user.estaActivo !== 1) {
+      throw new UnauthorizedException(
+        user.rolEvento === 'EMPRESA'
+          ? 'Tu empresa fue eliminada del evento. Si crees que es un error, contacta al equipo del evento.'
+          : 'Tu cuenta fue desactivada. Contacta al equipo del evento si crees que es un error.',
+      );
+    }
 
     // Migra de forma transparente cuentas antiguas guardadas en texto plano.
     if (!tieneHashBcrypt) {
@@ -712,6 +726,8 @@ export class AppController implements OnModuleInit {
         where: { id: eu.empresaevento_id },
         select: { estadoHabilitacionAcceso: true, estadoVerificacionPago: true },
       });
+      if (inscripcion?.estadoHabilitacionAcceso === 'INHABILITADO')
+        throw new UnauthorizedException('Tu empresa fue inhabilitada por el equipo del evento. Contáctalos si crees que es un error.');
       if (inscripcion?.estadoVerificacionPago === 'OBSERVADO')
         throw new UnauthorizedException('Tu inscripción para el evento actual tiene observaciones pendientes. Revísalas antes de ingresar.');
       if (inscripcion?.estadoVerificacionPago === 'RECHAZADO')

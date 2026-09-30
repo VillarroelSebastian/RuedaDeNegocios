@@ -54,6 +54,14 @@ function ParticipantesModal({ empresa, onClose, permitirCambiarPassword = true }
     );
   };
 
+  const confirmarGenerarPassword = (p: any) => {
+    showConfirm(
+      'Generar nueva contraseña',
+      `Esto cambiará la contraseña de acceso de ${p.nombres}. La contraseña actual dejará de funcionar. ¿Deseas continuar?`,
+      () => { setParticipanteCorreo(null); setParticipanteManual(null); reiniciarPassword(p); },
+    );
+  };
+
   const reenviarCredenciales = async (p: any) => {
     setReenviando(p.usuarioId);
     setAvisoReenvio(null);
@@ -172,7 +180,7 @@ function ParticipantesModal({ empresa, onClose, permitirCambiarPassword = true }
                       {p.estaActivo ? 'Activo' : 'Inactivo'}
                     </span>
                     {permitirCambiarPassword && p.estaActivo && <div className="mt-1 flex flex-wrap justify-end gap-1">
-                      <button disabled={reiniciando === p.usuarioId} onClick={() => { setParticipanteCorreo(null); setParticipanteManual(null); reiniciarPassword(p); }} className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-white px-2 py-1 text-[10px] font-bold text-amber-700 disabled:opacity-50"><KeyRound className="h-3 w-3" />Generar</button>
+                      <button disabled={reiniciando === p.usuarioId} onClick={() => confirmarGenerarPassword(p)} className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-white px-2 py-1 text-[10px] font-bold text-amber-700 disabled:opacity-50"><KeyRound className="h-3 w-3" />Generar</button>
                       <button disabled={reiniciando === p.usuarioId} onClick={() => { setParticipanteCorreo(null); setCredencial(null); setParticipanteManual(p); setPasswordManual(''); }} className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-white px-2 py-1 text-[10px] font-bold text-blue-700 disabled:opacity-50">Escribir</button>
                       <button disabled={guardandoCorreo} onClick={() => { setCredencial(null); setParticipanteManual(null); setParticipanteCorreo(p); setCorreoNuevo(p.correo ?? ''); setAvisoReenvio(null); }} className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2 py-1 text-[10px] font-bold text-gray-700 disabled:opacity-50">Editar correo</button>
                       <button disabled={reenviando === p.usuarioId} onClick={() => confirmarReenvioCredenciales(p)} className="inline-flex items-center gap-1 rounded-lg border border-green-200 bg-white px-2 py-1 text-[10px] font-bold text-green-700 disabled:opacity-50">{reenviando === p.usuarioId ? 'Enviando…' : 'Reenviar credenciales'}</button>

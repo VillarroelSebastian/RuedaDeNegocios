@@ -1,16 +1,28 @@
 "use client";
-import React, { useState, useEffect, useCallback, useRef, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Clock, Users, Armchair, Building2, Video, MapPin, ChevronDown, ChevronUp,
   Search, X, Timer, Star, History, Mail, Link2, Send,
-  Play, Square, XCircle, UserCheck, Lock, Unlock, Calendar, ClipboardList,
+  Play, Square, XCircle, UserCheck, Lock, Unlock, Calendar, Pencil, Trash2,
 } from 'lucide-react';
 import { useModal } from '@/components/ui/Modal';
-import { useSearchParams } from 'next/navigation';
-import AgendaMesas from '@/components/admin/AgendaMesas';
-import TecnicoReunionesPage from '../../tecnico/reuniones/page';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
+
+// Bolivia es UTC-4 todo el año (sin horario de verano), así que se puede
+// convertir a mano sin depender del huso horario del navegador.
+function toDatetimeLocalBolivia(iso: string) {
+  return new Date(new Date(iso).getTime() - 4 * 3600_000).toISOString().slice(0, 16);
+}
+function fromDatetimeLocalBolivia(value: string) {
+  return new Date(`${value}:00-04:00`).toISOString();
+}
+function dayKey(iso: string) {
+  return new Date(iso).toISOString().substring(0, 10);
+}
+function fmtDay(dateKey: string) {
+  return new Date(`${dateKey}T12:00:00`).toLocaleDateString('es-BO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
 
 const ESTADO_MESA: Record<string, { badge: string; dot: string; label: string }> = {
   LIBRE:         { badge: 'bg-green-100 text-green-700',   dot: 'bg-green-400',  label: 'Libre' },
@@ -136,12 +148,15 @@ function HistorialRow({ r }: { r: any }) {
 }
 
 function ReunionSlot({
-  r, mesaNumero, acting, onMessage, onChangeLink, onCambiarEstado,
+  r, mesaNumero, acting, onMessage, onChangeLink, onCambiarEstado, onEditarHorario, onEliminar, mostrarMesa,
 }: {
   r: any; mesaNumero: number; acting: boolean;
   onMessage: (reunionId: number, empresa: 'A' | 'B', empresaNombre: string, encargadoNombre: string) => void;
   onChangeLink: (reunion: any) => void;
   onCambiarEstado: (reunion: any, estado: string, asistentes?: number) => void;
+  onEditarHorario: (reunion: any) => void;
+  onEliminar: (reunion: any) => void;
+  mostrarMesa?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [asistentes, setAsistentes] = useState(String(r.cantidadAsistentesRegistrados ?? ''));
@@ -170,6 +185,7 @@ function ReunionSlot({
           <p className="text-xs font-bold text-gray-800">
             {fmtTime(r.fechaHoraInicioReunion)} – {fmtTime(r.fechaHoraFinReunion)}
           </p>
+          {mostrarMesa && <p className="text-[10px] text-gray-400 font-semibold">Mesa {mesaNumero}</p>}
         </div>
         <div className="flex items-center gap-2 flex-1 min-w-0">
           {ea?.urlFotoPerfil
@@ -211,6 +227,16 @@ function ReunionSlot({
                 <Link2 className="w-3 h-3" /> {link ? 'Cambiar link' : 'Agregar link'}
               </button>
             )}
+            {(esProgramada || esEnCurso) && (
+              <button onClick={() => onEditarHorario(r)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-gray-700 text-xs font-semibold hover:bg-gray-100">
+                <Pencil className="w-3 h-3" /> Editar horario
+              </button>
+            )}
+            <button onClick={() => onEliminar(r)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-100 text-red-600 text-xs font-semibold hover:bg-red-50">
+              <Trash2 className="w-3 h-3" /> Eliminar
+            </button>
           </div>
 
           {/* Acciones de estado (solo admin) */}
@@ -282,15 +308,15 @@ function SolicitudPendienteRow({ s }: { s: any }) {
   );
 }
 
-type FiltroEstado = 'EN_USO' | 'PROGRAMADA' | 'LIBRE' | 'TODAS' | 'INHABILITADA' | 'HISTORIAL';
+type FiltroEstado = 'AGENDA' | 'EN_USO' | 'PROGRAMADA' | 'LIBRE' | 'TODAS' | 'INHABILITADA' | 'HISTORIAL';
 
-function MesasGrid({ embedded = false }: { embedded?: boolean } = {}) {
+export default function MesasGrid() {
   const { showSuccess, showError, showConfirm, ModalComponent } = useModal();
 
   const [mesas,        setMesas]        = useState<any[]>([]);
   const [eventoConfig, setEventoConfig] = useState<any>(null);
   const [loading,      setLoading]      = useState(true);
-  const [filtro,       setFiltro]       = useState<FiltroEstado>('EN_USO');
+  const [filtro,       setFiltro]       = useState<FiltroEstado>('AGENDA');
   const [search,       setSearch]       = useState('');
   const [sinReunion,   setSinReunion]   = useState<any[]>([]);
   const [acting,       setActing]       = useState(false);
@@ -308,6 +334,10 @@ function MesasGrid({ embedded = false }: { embedded?: boolean } = {}) {
   const [linkModal, setLinkModal]  = useState<{ reunion: any } | null>(null);
   const [linkText,  setLinkText]   = useState('');
   const [savingLink, setSavingLink] = useState(false);
+
+  const [editando, setEditando] = useState<any>(null);
+  const [nuevoHorario, setNuevoHorario] = useState('');
+  const [guardandoEdicion, setGuardandoEdicion] = useState(false);
 
   const fetchMesas = useCallback(async () => {
     try {
@@ -366,6 +396,7 @@ function MesasGrid({ embedded = false }: { embedded?: boolean } = {}) {
   };
 
   const FILTROS: { key: FiltroEstado; label: string; icon?: React.ReactNode }[] = [
+    { key: 'AGENDA',       label: 'Agenda', icon: <Calendar className="w-3 h-3" /> },
     { key: 'EN_USO',       label: `En uso (${counts.enUso})` },
     { key: 'PROGRAMADA',   label: `Programadas (${counts.programada})` },
     { key: 'LIBRE',        label: `Libres (${counts.libre})` },
@@ -460,8 +491,68 @@ function MesasGrid({ embedded = false }: { embedded?: boolean } = {}) {
     finally { setSavingLink(false); }
   };
 
+  const abrirEditar = (reunion: any) => {
+    setEditando(reunion);
+    setNuevoHorario(toDatetimeLocalBolivia(reunion.fechaHoraInicioReunion));
+  };
+
+  const guardarEdicion = async () => {
+    if (!editando || !nuevoHorario) return;
+    setGuardandoEdicion(true);
+    try {
+      const res = await fetch(`${API}/tecnico/reuniones/${editando.id}/reprogramar`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inicio: fromDatetimeLocalBolivia(nuevoHorario) }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || 'No se pudo reprogramar la reunión.');
+      showSuccess('Reunión reprogramada', 'El nuevo horario ya está confirmado y se avisó a ambas empresas.');
+      setEditando(null);
+      fetchMesas();
+    } catch (e: any) { showError('Error', e?.message || 'No se pudo reprogramar la reunión.'); }
+    finally { setGuardandoEdicion(false); }
+  };
+
+  const confirmarEliminar = (reunion: any) => {
+    showConfirm(
+      'Eliminar reunión',
+      'La mesa quedará disponible y se avisará a ambas empresas. Esta acción no se puede deshacer.',
+      async () => {
+        try {
+          const res = await fetch(`${API}/tecnico/reuniones/${reunion.id}`, { method: 'DELETE' });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data?.message || 'No se pudo eliminar la reunión.');
+          showSuccess('Reunión eliminada', 'La mesa quedó disponible y las empresas fueron notificadas.');
+          fetchMesas();
+        } catch (e: any) { showError('Error', e?.message || 'No se pudo eliminar la reunión.'); }
+      },
+    );
+  };
+
+  // Vista Agenda: todas las reuniones activas, agrupadas por día (sin
+  // importar la mesa), con el mismo control que da la vista Mesas.
+  const reunionesAgenda = mesas
+    .flatMap((mesa) => (mesa.reunion ?? []).map((r: any) => ({ ...r, mesa_id: mesa.numeroMesa, _mesa: mesa })))
+    .filter((r: any) => r.estadoReunion === 'PROGRAMADA' || r.estadoReunion === 'EN_CURSO' || r.estadoReunion === 'REPROGRAMADA')
+    .filter((r: any) => {
+      if (!search.trim()) return true;
+      const q = search.toLowerCase();
+      const sol = r.solicitudreunion;
+      const ea = sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa;
+      const eb = sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento?.empresa;
+      return String(r.mesa_id).includes(q) || ea?.nombre?.toLowerCase().includes(q) || eb?.nombre?.toLowerCase().includes(q);
+    })
+    .sort((a: any, b: any) => new Date(a.fechaHoraInicioReunion).getTime() - new Date(b.fechaHoraInicioReunion).getTime());
+
+  const diasAgenda: Record<string, any[]> = {};
+  for (const r of reunionesAgenda) {
+    const k = dayKey(r.fechaHoraInicioReunion);
+    (diasAgenda[k] ??= []).push(r);
+  }
+  const clavesDias = Object.keys(diasAgenda).sort();
+
   return (
-    <div className={embedded ? "" : "p-4 sm:p-6 max-w-6xl mx-auto"}>
+    <div className="p-4 sm:p-6 max-w-6xl mx-auto">
       <ModalComponent />
 
       {/* Modal de mensaje */}
@@ -518,12 +609,37 @@ function MesasGrid({ embedded = false }: { embedded?: boolean } = {}) {
         </div>
       )}
 
-      {!embedded && (
-        <div className="mb-5">
-          <h1 className="text-2xl font-extrabold text-gray-900">Mesas del evento</h1>
-          <p className="text-sm text-gray-500 mt-1">Estado en tiempo real y registro histórico de reuniones.</p>
+      {/* Modal de editar horario */}
+      {editando && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <div>
+                <p className="text-sm font-bold text-gray-900">Editar horario</p>
+                <p className="text-xs text-gray-400">Se avisará a ambas empresas del cambio.</p>
+              </div>
+              <button onClick={() => setEditando(null)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Nueva fecha y hora</label>
+              <input type="datetime-local" value={nuevoHorario} onChange={(e) => setNuevoHorario(e.target.value)}
+                className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
+            </div>
+            <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100">
+              <button onClick={() => setEditando(null)} className="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50 rounded-xl">Cancelar</button>
+              <button onClick={guardarEdicion} disabled={guardandoEdicion || !nuevoHorario}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-[#449D3A] rounded-xl hover:bg-[#388030] disabled:opacity-50">
+                <Pencil className="w-3.5 h-3.5" />{guardandoEdicion ? 'Guardando…' : 'Guardar nuevo horario'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
+
+      <div className="mb-5">
+        <h1 className="text-2xl font-extrabold text-gray-900">Mesas y reuniones</h1>
+        <p className="text-sm text-gray-500 mt-1">Agenda, estado de las mesas y control completo de las reuniones del evento.</p>
+      </div>
 
       {eventoConfig && (
         <div className="flex flex-wrap items-center gap-4 mb-4 text-xs text-gray-500">
@@ -606,6 +722,35 @@ function MesasGrid({ embedded = false }: { embedded?: boolean } = {}) {
         </div>
       ) : loading ? (
         <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#449D3A]" /></div>
+      ) : filtro === 'AGENDA' ? (
+        clavesDias.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-dashed border-gray-200 p-16 text-center">
+            <Calendar className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+            <p className="text-gray-500 font-semibold">No hay reuniones activas</p>
+            <p className="text-sm text-gray-400 mt-1">Todas están finalizadas, canceladas, o todavía no hay mesas programadas.</p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {clavesDias.map((dia) => (
+              <div key={dia}>
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="bg-[#449D3A] text-white rounded-xl px-4 py-2 flex items-center gap-2 shadow-sm">
+                    <Calendar className="w-4 h-4" />
+                    <span className="text-sm font-bold capitalize">{fmtDay(dia)}</span>
+                  </div>
+                  <span className="text-xs text-gray-400 font-semibold">{diasAgenda[dia].length} reunión(es)</span>
+                </div>
+                <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                  {diasAgenda[dia].map((r) => (
+                    <ReunionSlot key={r.id} r={r} mesaNumero={r.mesa_id} acting={acting} mostrarMesa
+                      onMessage={openMessageModal} onChangeLink={openLinkModal} onCambiarEstado={cambiarEstadoReunion}
+                      onEditarHorario={abrirEditar} onEliminar={confirmarEliminar} />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )
       ) : (
         <div className="space-y-4">
           {mesasFiltradas.map((mesa) => {
@@ -632,7 +777,8 @@ function MesasGrid({ embedded = false }: { embedded?: boolean } = {}) {
 
                 {mesa.reunion && mesa.reunion.length > 0 && mesa.reunion.map((r: any) => (
                   <ReunionSlot key={r.id} r={{ ...r, mesa_id: mesa.numeroMesa }} mesaNumero={mesa.numeroMesa} acting={acting}
-                    onMessage={openMessageModal} onChangeLink={openLinkModal} onCambiarEstado={cambiarEstadoReunion} />
+                    onMessage={openMessageModal} onChangeLink={openLinkModal} onCambiarEstado={cambiarEstadoReunion}
+                    onEditarHorario={abrirEditar} onEliminar={confirmarEliminar} />
                 ))}
 
                 {mesa.solicitudesEnEspera && mesa.solicitudesEnEspera.length > 0 && mesa.solicitudesEnEspera.map((s: any) => (
@@ -670,57 +816,3 @@ function MesasGrid({ embedded = false }: { embedded?: boolean } = {}) {
   );
 }
 
-// Unifica Agenda de Mesas, Mesas y Control de Reuniones: son 3 vistas del
-// mismo dato (mesas + reuniones), no tenía sentido que vivieran en secciones
-// separadas del menú. La agenda (la vista más visual) queda primero/por
-// defecto; Mesas conserva su propio control (habilitar, iniciar/cancelar/
-// finalizar); Control de reuniones aporta lo que a Mesas le faltaba
-// (reprogramar horario, cancelar/eliminar, evaluar con más filtros).
-function AdminMesasPageInner() {
-  const searchParams = useSearchParams();
-  const tabInicial = searchParams.get('tab');
-  const [tab, setTab] = useState<'agenda' | 'mesas' | 'reuniones'>(
-    tabInicial === 'mesas' || tabInicial === 'reuniones' ? tabInicial : 'agenda',
-  );
-
-  const TABS = [
-    { key: 'agenda' as const, label: 'Agenda', icon: Calendar },
-    { key: 'mesas' as const, label: 'Mesas', icon: Armchair },
-    { key: 'reuniones' as const, label: 'Control de reuniones', icon: ClipboardList },
-  ];
-
-  return (
-    <div className="p-4 sm:p-6 max-w-6xl mx-auto">
-      <div className="mb-5">
-        <h1 className="text-2xl font-extrabold text-gray-900">Mesas y reuniones</h1>
-        <p className="text-sm text-gray-500 mt-1">Agenda visual, estado de las mesas y control completo de las reuniones del evento.</p>
-      </div>
-
-      <div className="inline-flex flex-wrap gap-1 rounded-xl bg-gray-100 p-1 mb-6">
-        {TABS.map((t) => {
-          const Icon = t.icon;
-          return (
-            <button key={t.key} onClick={() => setTab(t.key)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-                tab === t.key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-              }`}>
-              <Icon className="w-4 h-4" /> {t.label}
-            </button>
-          );
-        })}
-      </div>
-
-      {tab === 'agenda' && <AgendaMesas embedded />}
-      {tab === 'mesas' && <MesasGrid embedded />}
-      {tab === 'reuniones' && <TecnicoReunionesPage embedded />}
-    </div>
-  );
-}
-
-export default function AdminMesasPage() {
-  return (
-    <Suspense fallback={<div className="p-8">Cargando…</div>}>
-      <AdminMesasPageInner />
-    </Suspense>
-  );
-}

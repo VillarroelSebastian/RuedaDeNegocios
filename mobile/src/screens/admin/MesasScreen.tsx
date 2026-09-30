@@ -6,11 +6,12 @@ import {
 import {
   Armchair, Building2, Clock, Video, MapPin, ChevronDown,
   ChevronUp, Timer, Star, History, Mail, Link2, Send, X,
-  Play, Square, XCircle, UserCheck, Lock, Unlock,
+  Play, Square, XCircle, UserCheck, Lock, Unlock, Pencil, Trash2, Calendar,
 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { API_URL } from '../../utils/userStore';
 import { useModal } from '../../components/AppModal';
+import FechaHoraInput from '../../components/FechaHoraInput';
 
 const GREEN = '#449D3A';
 
@@ -38,6 +39,13 @@ function fmtTime(iso: string) {
 }
 function fmtDT(iso: string) {
   return new Date(iso).toLocaleString('es-BO', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
+}
+const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+function fmtDay(dateKey: string) {
+  const [y, m, d] = dateKey.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  return `${DIAS[dt.getDay()]}, ${d} de ${MESES[m - 1]} de ${y}`;
 }
 
 function StarRow({ value }: { value: number }) {
@@ -154,12 +162,15 @@ function CompanyChip({ empresa }: { empresa: any }) {
 }
 
 function ReunionRow({
-  r, mesaNumero, acting, onMessage, onChangeLink, onCambiarEstado,
+  r, mesaNumero, acting, onMessage, onChangeLink, onCambiarEstado, onEditarHorario, onEliminar, mostrarMesa,
 }: {
   r: any; mesaNumero: number; acting: boolean;
   onMessage: (reunionId: number, empresa: 'A' | 'B', empresaNombre: string, encargadoNombre: string) => void;
   onChangeLink: (reunion: any) => void;
   onCambiarEstado: (reunion: any, estado: string, asistentes?: number) => void;
+  onEditarHorario: (reunion: any) => void;
+  onEliminar: (reunion: any) => void;
+  mostrarMesa?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [asistentes, setAsistentes] = useState(String(r.cantidadAsistentesRegistrados ?? ''));
@@ -205,6 +216,9 @@ function ReunionRow({
               {fmtTime(r.fechaHoraInicioReunion)} – {fmtTime(r.fechaHoraFinReunion)}
             </Text>
           </View>
+          {mostrarMesa && (
+            <Text style={{ fontSize: 10, color: '#6b7280', fontWeight: '600' }}>Mesa {mesaNumero}</Text>
+          )}
           <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999, backgroundColor: tip.bg }}>
             <Text style={{ fontSize: 8, fontWeight: '700', color: tip.color }}>{tip.label}</Text>
           </View>
@@ -240,6 +254,20 @@ function ReunionRow({
               <Text style={{ color: '#374151', fontWeight: '600', fontSize: 13 }}>{link ? 'Cambiar link virtual' : 'Agregar link virtual'}</Text>
             </TouchableOpacity>
           )}
+          {(esProgramada || esEnCurso) && (
+            <TouchableOpacity onPress={() => onEditarHorario(r)}
+              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+                paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', backgroundColor: '#fff' }}>
+              <Pencil color="#374151" size={14} />
+              <Text style={{ color: '#374151', fontWeight: '600', fontSize: 13 }}>Editar horario</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity onPress={() => onEliminar(r)}
+            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+              paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: '#fecaca', backgroundColor: '#fff' }}>
+            <Trash2 color="#dc2626" size={14} />
+            <Text style={{ color: '#dc2626', fontWeight: '600', fontSize: 13 }}>Eliminar reunión</Text>
+          </TouchableOpacity>
 
           {/* Acciones de estado (solo admin) */}
           {esProgramada && (
@@ -332,7 +360,7 @@ function SolicitudPendienteRow({ s }: { s: any }) {
   );
 }
 
-type FiltroEstado = 'EN_USO' | 'PROGRAMADA' | 'LIBRE' | 'TODAS' | 'INHABILITADA' | 'HISTORIAL';
+type FiltroEstado = 'AGENDA' | 'EN_USO' | 'PROGRAMADA' | 'LIBRE' | 'TODAS' | 'INHABILITADA' | 'HISTORIAL';
 
 export default function MesasScreen({ embedded = false }: { embedded?: boolean } = {}) {
   const { show: showModal, modal } = useModal();
@@ -342,7 +370,7 @@ export default function MesasScreen({ embedded = false }: { embedded?: boolean }
   const [eventoConfig, setEventoConfig] = useState<any>(null);
   const [loading,      setLoading]      = useState(true);
   const [refreshing,   setRefreshing]   = useState(false);
-  const [filtro,       setFiltro]       = useState<FiltroEstado>('EN_USO');
+  const [filtro,       setFiltro]       = useState<FiltroEstado>('AGENDA');
   const [search,       setSearch]       = useState('');
   const [sinReunion, setSinReunion] = useState<any[]>([]);
   const [acting, setActing] = useState(false);
@@ -360,6 +388,11 @@ export default function MesasScreen({ embedded = false }: { embedded?: boolean }
   const [linkModal,  setLinkModal]  = useState<{ reunion: any } | null>(null);
   const [linkText,   setLinkText]   = useState('');
   const [savingLink, setSavingLink] = useState(false);
+
+  const [editando, setEditando] = useState<any>(null);
+  const [nuevoHorario, setNuevoHorario] = useState('');
+  const [nuevaHora, setNuevaHora] = useState('');
+  const [guardandoEdicion, setGuardandoEdicion] = useState(false);
 
   const fetchMesas = useCallback(async () => {
     try {
@@ -418,6 +451,7 @@ export default function MesasScreen({ embedded = false }: { embedded?: boolean }
   };
 
   const FILTROS: { key: FiltroEstado; label: string }[] = [
+    { key: 'AGENDA',       label: 'Agenda' },
     { key: 'EN_USO',       label: `En uso (${counts.enUso})` },
     { key: 'PROGRAMADA',   label: `Programadas (${counts.programada})` },
     { key: 'LIBRE',        label: `Libres (${counts.libre})` },
@@ -512,6 +546,69 @@ export default function MesasScreen({ embedded = false }: { embedded?: boolean }
     finally { setSavingLink(false); }
   };
 
+  const abrirEditar = (reunion: any) => {
+    setEditando(reunion);
+    // Bolivia es UTC-4 todo el año (sin horario de verano).
+    const bolivia = new Date(new Date(reunion.fechaHoraInicioReunion).getTime() - 4 * 3600_000);
+    setNuevoHorario(`${bolivia.getUTCFullYear()}-${String(bolivia.getUTCMonth() + 1).padStart(2, '0')}-${String(bolivia.getUTCDate()).padStart(2, '0')}`);
+    setNuevaHora(`${String(bolivia.getUTCHours()).padStart(2, '0')}:${String(bolivia.getUTCMinutes()).padStart(2, '0')}`);
+  };
+
+  const guardarEdicion = async () => {
+    if (!editando || !nuevoHorario || !nuevaHora) return;
+    setGuardandoEdicion(true);
+    try {
+      const res = await fetch(`${API_URL}/tecnico/reuniones/${editando.id}/reprogramar`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inicio: `${nuevoHorario}T${nuevaHora}:00-04:00` }),
+      });
+      if (!res.ok) throw new Error();
+      setEditando(null);
+      showModal({ type: 'success', title: 'Reunión reprogramada', message: 'El nuevo horario ya está confirmado y se avisó a ambas empresas.' });
+      fetchMesas();
+    } catch { showModal({ type: 'error', title: 'Error', message: 'No se pudo reprogramar la reunión.' }); }
+    finally { setGuardandoEdicion(false); }
+  };
+
+  const confirmarEliminar = (reunion: any) => {
+    showModal({
+      type: 'confirm',
+      title: 'Eliminar reunión',
+      message: 'La mesa quedará disponible y se avisará a ambas empresas. Esta acción no se puede deshacer.',
+      confirmColor: '#dc2626',
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`${API_URL}/tecnico/reuniones/${reunion.id}`, { method: 'DELETE' });
+          if (!res.ok) throw new Error();
+          showModal({ type: 'success', title: 'Reunión eliminada', message: 'La mesa quedó disponible y las empresas fueron notificadas.' });
+          fetchMesas();
+        } catch { showModal({ type: 'error', title: 'Error', message: 'No se pudo eliminar la reunión.' }); }
+      },
+    });
+  };
+
+  // Vista Agenda: todas las reuniones activas, agrupadas por día (sin
+  // importar la mesa), con el mismo control que da la vista Mesas.
+  const reunionesAgenda = mesas
+    .flatMap((mesa) => (mesa.reunion ?? []).map((r: any) => ({ ...r, mesa_id: mesa.numeroMesa })))
+    .filter((r: any) => r.estadoReunion === 'PROGRAMADA' || r.estadoReunion === 'EN_CURSO' || r.estadoReunion === 'REPROGRAMADA')
+    .filter((r: any) => {
+      if (!search.trim()) return true;
+      const q = search.toLowerCase();
+      const sol = r.solicitudreunion;
+      const ea = sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa;
+      const eb = sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento?.empresa;
+      return String(r.mesa_id).includes(q) || ea?.nombre?.toLowerCase().includes(q) || eb?.nombre?.toLowerCase().includes(q);
+    })
+    .sort((a: any, b: any) => new Date(a.fechaHoraInicioReunion).getTime() - new Date(b.fechaHoraInicioReunion).getTime());
+
+  const diasAgenda: Record<string, any[]> = {};
+  for (const r of reunionesAgenda) {
+    const k = r.fechaHoraInicioReunion.substring(0, 10);
+    (diasAgenda[k] ??= []).push(r);
+  }
+  const clavesDias = Object.keys(diasAgenda).sort();
+
   if (loading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f8fafc' }}>
@@ -604,10 +701,43 @@ export default function MesasScreen({ embedded = false }: { embedded?: boolean }
         </KeyboardAvoidingView>
       </Modal>
 
+      {/* Modal editar horario */}
+      <Modal visible={!!editando} transparent animationType="slide" onRequestClose={() => setEditando(null)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+          <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
+            <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 32 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: '#111827' }}>Editar horario</Text>
+                <TouchableOpacity onPress={() => setEditando(null)}>
+                  <X color="#9ca3af" size={20} />
+                </TouchableOpacity>
+              </View>
+              <Text style={{ fontSize: 12, color: '#6b7280', marginBottom: 12 }}>Se avisará a ambas empresas del cambio.</Text>
+              <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
+                <View style={{ flex: 1 }}><FechaHoraInput modo="date" valor={nuevoHorario} onCambiar={setNuevoHorario} placeholder="Fecha" /></View>
+                <View style={{ flex: 1 }}><FechaHoraInput modo="time" valor={nuevaHora} onCambiar={setNuevaHora} placeholder="Hora" /></View>
+              </View>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity onPress={() => setEditando(null)}
+                  style={{ flex: 1, paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: '#e5e7eb', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: '#6b7280' }}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={guardarEdicion} disabled={guardandoEdicion || !nuevoHorario || !nuevaHora}
+                  style={{ flex: 2, paddingVertical: 12, borderRadius: 14, backgroundColor: guardandoEdicion ? '#d1d5db' : GREEN,
+                    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                  <Pencil color="#fff" size={14} />
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff' }}>{guardandoEdicion ? 'Guardando…' : 'Guardar nuevo horario'}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
       {/* Header */}
       <View style={{ backgroundColor: '#fff', paddingHorizontal: 16, paddingTop: embedded ? 12 : insets.top + 16, paddingBottom: 12,
         borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
-        {!embedded && <Text style={{ fontSize: 22, fontWeight: '800', color: '#0f172a' }}>Mesas del evento</Text>}
+        {!embedded && <Text style={{ fontSize: 22, fontWeight: '800', color: '#0f172a' }}>Mesas y reuniones</Text>}
 
         {eventoConfig && (
           <View style={{ flexDirection: 'row', gap: 14, marginTop: 6, marginBottom: 8 }}>
@@ -684,7 +814,37 @@ export default function MesasScreen({ embedded = false }: { embedded?: boolean }
         </View>
       </View>
 
-      {filtro === 'HISTORIAL' ? (
+      {filtro === 'AGENDA' ? (
+        <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets style={{ flex: 1 }} contentContainerStyle={{ padding: 14 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchMesas(); }} tintColor={GREEN} />}
+          showsVerticalScrollIndicator={false}>
+          {clavesDias.length === 0 ? (
+            <View style={{ alignItems: 'center', paddingVertical: 60 }}>
+              <Calendar color="#d1d5db" size={40} />
+              <Text style={{ fontSize: 14, color: '#9ca3af', marginTop: 10, fontWeight: '500', textAlign: 'center' }}>No hay reuniones activas</Text>
+              <Text style={{ fontSize: 12, color: '#cbd5e1', marginTop: 4, textAlign: 'center' }}>Todas están finalizadas, canceladas, o todavía no hay mesas programadas.</Text>
+            </View>
+          ) : clavesDias.map((dia) => (
+            <View key={dia} style={{ marginBottom: 18 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: GREEN, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7 }}>
+                  <Calendar color="#fff" size={14} />
+                  <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>{fmtDay(dia)}</Text>
+                </View>
+                <Text style={{ fontSize: 11, color: '#94a3b8', fontWeight: '600' }}>{diasAgenda[dia].length} reunión(es)</Text>
+              </View>
+              <View style={{ backgroundColor: '#fff', borderRadius: 18, borderWidth: 1, borderColor: '#f1f5f9', overflow: 'hidden' }}>
+                {diasAgenda[dia].map((r) => (
+                  <ReunionRow key={r.id} r={r} mesaNumero={r.mesa_id} acting={acting} mostrarMesa
+                    onMessage={openMessageModal} onChangeLink={openLinkModal} onCambiarEstado={cambiarEstadoReunion}
+                    onEditarHorario={abrirEditar} onEliminar={confirmarEliminar} />
+                ))}
+              </View>
+            </View>
+          ))}
+          <View style={{ height: 20 }} />
+        </ScrollView>
+      ) : filtro === 'HISTORIAL' ? (
         <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets style={{ flex: 1 }} contentContainerStyle={{ padding: 14 }}
           refreshControl={<RefreshControl refreshing={loadingHistorial} onRefresh={() => fetchHistorial(searchH)} tintColor={GREEN} />}
           showsVerticalScrollIndicator={false}>
@@ -734,7 +894,8 @@ export default function MesasScreen({ embedded = false }: { embedded?: boolean }
 
                 {mesa.reunion && mesa.reunion.length > 0 && mesa.reunion.map((r: any) => (
                   <ReunionRow key={r.id} r={{ ...r, mesa_id: mesa.numeroMesa }} mesaNumero={mesa.numeroMesa} acting={acting}
-                    onMessage={openMessageModal} onChangeLink={openLinkModal} onCambiarEstado={cambiarEstadoReunion} />
+                    onMessage={openMessageModal} onChangeLink={openLinkModal} onCambiarEstado={cambiarEstadoReunion}
+                    onEditarHorario={abrirEditar} onEliminar={confirmarEliminar} />
                 ))}
 
                 {mesa.solicitudesEnEspera && mesa.solicitudesEnEspera.length > 0 && mesa.solicitudesEnEspera.map((s: any) => (

@@ -17,7 +17,7 @@ import DashboardScreen    from '../screens/admin/DashboardScreen';
 import EmpresasScreen     from '../screens/admin/EmpresasScreen';
 import PagosUnificadoScreen from '../screens/admin/PagosUnificadoScreen';
 import PagoDetailScreen   from '../screens/admin/PagoDetailScreen';
-import MesasUnificadoScreen from '../screens/admin/MesasUnificadoScreen';
+import MesasScreen from '../screens/admin/MesasScreen';
 import ActividadesScreen  from '../screens/admin/ActividadesScreen';
 import NoticiasScreen     from '../screens/admin/NoticiasScreen';
 import TecnicosScreen     from '../screens/admin/TecnicosScreen';
@@ -207,7 +207,7 @@ function AdminTabs() {
           options={{ title: 'Empresas', tabBarIcon: IconEmpresas }} />
         <Tab.Screen name="Pagos"      component={PagosUnificadoScreen}
           options={{ title: 'Pagos',    tabBarIcon: IconPagos }} />
-        <Tab.Screen name="Mesas"      component={MesasUnificadoScreen}
+        <Tab.Screen name="Mesas"      component={MesasScreen}
           options={{ title: 'Mesas',    tabBarIcon: IconMesas }} />
         <Tab.Screen name="Menu"       component={MenuScreen}
           options={{ title: 'Más',      tabBarIcon: IconMenu }} />

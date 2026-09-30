@@ -341,10 +341,10 @@ export default function PaquetesPage() {
       )}
 
       {abierto && paso === "elegir" && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg my-4">
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg my-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h2 className="font-extrabold text-gray-900">Nuevo paquete</h2>
+              <h2 className="font-extrabold text-gray-900">{editandoId ? "Cambiar tipo de paquete" : "Nuevo paquete"}</h2>
               <button onClick={() => setAbierto(false)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500">
                 <X className="w-5 h-5" />
               </button>
@@ -375,18 +375,16 @@ export default function PaquetesPage() {
       )}
 
       {abierto && paso === "form" && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl my-4">
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl my-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
               <div>
                 <h2 className="font-extrabold text-gray-900">{editandoId ? "Editar paquete" : "Nuevo paquete"}</h2>
                 <p className="text-xs text-gray-400 mt-0.5">
                   {form.tipoPaquete === "FORO" ? "Foro · Personal" : "Empresa"}
-                  {!editandoId && (
-                    <button type="button" onClick={() => setPaso("elegir")} className="ml-2 font-semibold text-[#449D3A] hover:underline">
-                      Cambiar tipo
-                    </button>
-                  )}
+                  <button type="button" onClick={() => setPaso("elegir")} className="ml-2 font-semibold text-[#449D3A] hover:underline">
+                    Cambiar tipo
+                  </button>
                 </p>
               </div>
               <button onClick={() => setAbierto(false)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500">
