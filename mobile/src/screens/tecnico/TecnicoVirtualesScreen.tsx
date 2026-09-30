@@ -7,8 +7,11 @@ import {
   AlertTriangle, Building2, Clock, Video, Armchair, Search, Link2, X, CheckCircle2, Mail, Send,
 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '../../utils/userStore';
 import { useModal } from '../../components/AppModal';
+
+const CANCELADAS_VISTA_KEY = 'rueda_virtuales_canceladas_vista_at';
 
 const GREEN = '#449D3A';
 
@@ -24,6 +27,7 @@ const ESTADO_CFG: Record<string, { color: string; bg: string; dot: string; label
   EN_CURSO:   { color: '#c2410c', bg: '#ffedd5', dot: '#f97316', label: 'En curso'   },
   FINALIZADA: { color: '#15803d', bg: '#dcfce7', dot: '#22c55e', label: 'Finalizada' },
   CANCELADA:  { color: '#6b7280', bg: '#f3f4f6', dot: '#9ca3af', label: 'Cancelada'  },
+  SIN_ENLACE: { color: '#b45309', bg: '#fef3c7', dot: '#f59e0b', label: 'Sin enlace' },
 };
 
 const TIPO_CFG: Record<string, { color: string; bg: string; label: string }> = {
@@ -35,6 +39,7 @@ const FILTROS = [
   { key: 'TODOS',      label: 'Todas'       },
   { key: 'EN_CURSO',   label: 'En curso'    },
   { key: 'PROGRAMADA', label: 'Programadas' },
+  { key: 'SIN_ENLACE', label: 'Sin enlace'  },
   { key: 'FINALIZADA', label: 'Finalizadas' },
   { key: 'CANCELADA',  label: 'Canceladas'  },
 ];
@@ -266,6 +271,7 @@ export default function TecnicoVirtualesScreen() {
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filtroEst,  setFiltroEst]  = useState('TODOS');
+  const [canceladasVistaAt, setCanceladasVistaAt] = useState(0);
   const [search,     setSearch]     = useState('');
   const [linkModal,  setLinkModal]  = useState<any>(null);
   const [msgModal, setMsgModal] = useState<{ reunionId: number; empresa: 'A' | 'B'; empresaNombre: string; encargadoNombre: string } | null>(null);
@@ -315,8 +321,23 @@ export default function TecnicoVirtualesScreen() {
     return () => clearInterval(timer);
   }, [fetchReuniones]);
 
+  useEffect(() => {
+    AsyncStorage.getItem(CANCELADAS_VISTA_KEY).then((v) => setCanceladasVistaAt(Number(v) || 0)).catch(() => {});
+  }, []);
+
+  const seleccionarFiltro = (key: string) => {
+    setFiltroEst(key);
+    if (key === 'CANCELADA') {
+      const ahora = Date.now();
+      setCanceladasVistaAt(ahora);
+      AsyncStorage.setItem(CANCELADAS_VISTA_KEY, String(ahora)).catch(() => {});
+    }
+  };
+
   const filtered = reuniones.filter((r) => {
-    const matchEst = filtroEst === 'TODOS' || r.estadoReunion === filtroEst;
+    const matchEst = filtroEst === 'TODOS' ? true
+      : filtroEst === 'SIN_ENLACE' ? (['PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO'].includes(r.estadoReunion) && !r.solicitudreunion?.enlaceReunionVirtual)
+      : r.estadoReunion === filtroEst;
     const empresa  = r.solicitudreunion
       ?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento
       ?.empresa?.nombre ?? '';
@@ -330,6 +351,10 @@ export default function TecnicoVirtualesScreen() {
     ['PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO'].includes(r.estadoReunion) &&
     !r.solicitudreunion?.enlaceReunionVirtual,
   );
+  const canceladasNuevas = reuniones.filter((r) =>
+    r.estadoReunion === 'CANCELADA' &&
+    new Date(r.creadoModificadoFecha ?? r.fechaCreacion).getTime() > canceladasVistaAt,
+  ).length;
 
   return (
     <View style={{ flex: 1, backgroundColor: '#f8fafc' }}>
@@ -396,11 +421,13 @@ export default function TecnicoVirtualesScreen() {
             {FILTROS.map((f) => {
               const cfg    = f.key !== 'TODOS' ? ESTADO_CFG[f.key] : null;
               const activo = filtroEst === f.key;
+              const badge  = f.key === 'SIN_ENLACE' ? sinEnlace.length : f.key === 'CANCELADA' ? canceladasNuevas : 0;
               return (
                 <TouchableOpacity
                   key={f.key}
-                  onPress={() => setFiltroEst(f.key)}
+                  onPress={() => seleccionarFiltro(f.key)}
                   style={{
+                    flexDirection: 'row', alignItems: 'center', gap: 5,
                     paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1,
                     backgroundColor: activo ? (cfg?.bg ?? '#0f172a') : '#fff',
                     borderColor:     activo ? (cfg?.dot ?? '#0f172a') : '#e5e7eb',
@@ -412,6 +439,15 @@ export default function TecnicoVirtualesScreen() {
                   }}>
                     {f.label}
                   </Text>
+                  {badge > 0 && (
+                    <View style={{
+                      minWidth: 16, height: 16, borderRadius: 8, paddingHorizontal: 3,
+                      alignItems: 'center', justifyContent: 'center',
+                      backgroundColor: f.key === 'SIN_ENLACE' ? '#f59e0b' : '#ef4444',
+                    }}>
+                      <Text style={{ fontSize: 9, fontWeight: '800', color: '#fff' }}>{Math.min(badge, 99)}</Text>
+                    </View>
+                  )}
                 </TouchableOpacity>
               );
             })}

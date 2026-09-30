@@ -26,9 +26,12 @@ const FILTER_TABS = [
   { key: 'TODOS',      label: 'Todas' },
   { key: 'EN_CURSO',   label: 'En curso' },
   { key: 'PROGRAMADA', label: 'Programadas' },
+  { key: 'SIN_ENLACE', label: 'Sin enlace' },
   { key: 'FINALIZADA', label: 'Finalizadas' },
   { key: 'CANCELADA',  label: 'Canceladas' },
 ];
+
+const CANCELADAS_VISTA_KEY = 'rueda_virtuales_canceladas_vista_at';
 
 function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString('es-BO', { timeZone: 'America/La_Paz', hour: '2-digit', minute: '2-digit', hour12: false });
@@ -61,6 +64,7 @@ export default function TecnicoVirtualesPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filtro, setFiltro] = useState('TODOS');
+  const [canceladasVistaAt, setCanceladasVistaAt] = useState(0);
   const [msgModal, setMsgModal] = useState<{ reunionId: number; empresa: 'A' | 'B'; empresaNombre: string; encargadoNombre: string } | null>(null);
   const [msgText, setMsgText] = useState('');
   const [sending, setSending] = useState(false);
@@ -102,6 +106,19 @@ export default function TecnicoVirtualesPage() {
   };
 
   useEffect(() => {
+    try { setCanceladasVistaAt(Number(localStorage.getItem(CANCELADAS_VISTA_KEY)) || 0); } catch {}
+  }, []);
+
+  const seleccionarFiltro = (key: string) => {
+    setFiltro(key);
+    if (key === 'CANCELADA') {
+      const ahora = Date.now();
+      setCanceladasVistaAt(ahora);
+      try { localStorage.setItem(CANCELADAS_VISTA_KEY, String(ahora)); } catch {}
+    }
+  };
+
+  useEffect(() => {
     load(true);
     const timer = window.setInterval(() => load(), 15_000);
     const actualizar = () => load();
@@ -124,7 +141,9 @@ export default function TecnicoVirtualesPage() {
     const matchSearch = !search.trim() ||
       (ea?.nombre ?? '').toLowerCase().includes(search.toLowerCase()) ||
       (eb?.nombre ?? '').toLowerCase().includes(search.toLowerCase());
-    const matchFiltro = filtro === 'TODOS' || r.estadoReunion === filtro;
+    const matchFiltro = filtro === 'TODOS' ? true
+      : filtro === 'SIN_ENLACE' ? (['PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO'].includes(r.estadoReunion) && !sol?.enlaceReunionVirtual)
+      : r.estadoReunion === filtro;
     return matchSearch && matchFiltro;
   });
   const canceladasPorEmpresa = reuniones.filter((r) =>
@@ -134,6 +153,10 @@ export default function TecnicoVirtualesPage() {
     ['PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO'].includes(r.estadoReunion) &&
     !r.solicitudreunion?.enlaceReunionVirtual,
   );
+  const canceladasNuevas = reuniones.filter((r) =>
+    r.estadoReunion === 'CANCELADA' &&
+    new Date(r.creadoModificadoFecha ?? r.fechaCreacion).getTime() > canceladasVistaAt,
+  ).length;
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
@@ -225,19 +248,29 @@ export default function TecnicoVirtualesPage() {
           />
         </div>
         <div className="flex max-w-full gap-1.5 overflow-x-auto bg-gray-100 p-1 rounded-xl">
-          {FILTER_TABS.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setFiltro(tab.key)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
-                filtro === tab.key
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+          {FILTER_TABS.map((tab) => {
+            const badge = tab.key === 'SIN_ENLACE' ? sinEnlace.length : tab.key === 'CANCELADA' ? canceladasNuevas : 0;
+            return (
+              <button
+                key={tab.key}
+                onClick={() => seleccionarFiltro(tab.key)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                  filtro === tab.key
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                {tab.label}
+                {badge > 0 && (
+                  <span className={`flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold text-white ${
+                    tab.key === 'SIN_ENLACE' ? 'bg-amber-500' : 'bg-red-500'
+                  }`}>
+                    {Math.min(badge, 99)}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
 

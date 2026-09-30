@@ -332,7 +332,7 @@ function SolicitudPendienteRow({ s, onEliminar }: { s: any; onEliminar: (s: any)
   );
 }
 
-type FiltroEstado = 'AGENDA' | 'EN_USO' | 'PROGRAMADA' | 'LIBRE' | 'TODAS' | 'INHABILITADA' | 'HISTORIAL';
+type FiltroEstado = 'AGENDA' | 'EN_USO' | 'PROGRAMADA' | 'PENDIENTES' | 'LIBRE' | 'TODAS' | 'INHABILITADA' | 'HISTORIAL';
 
 export default function MesasGrid() {
   const { showSuccess, showError, showConfirm, ModalComponent } = useModal();
@@ -428,6 +428,7 @@ export default function MesasGrid() {
     if (filtro === 'INHABILITADA') { if (m.estaHabilitada !== 0) return false; }
     else if (filtro === 'EN_USO')     { if (m.estadoMesa !== 'EN_USO')    return false; }
     else if (filtro === 'PROGRAMADA') { if (m.estadoMesa !== 'RESERVADA' && m.estadoMesa !== 'PRE_RESERVADA') return false; }
+    else if (filtro === 'PENDIENTES') { if (!(m.solicitudesEnEspera?.length > 0)) return false; }
     else if (filtro === 'LIBRE')      { if (m.estadoMesa !== 'LIBRE')     return false; }
     if (!search.trim()) return true;
     const q = search.toLowerCase();
@@ -445,6 +446,7 @@ export default function MesasGrid() {
   const counts = {
     enUso:     mesas.filter((m) => m.estadoMesa === 'EN_USO').length,
     programada: mesas.filter((m) => m.estadoMesa === 'RESERVADA' || m.estadoMesa === 'PRE_RESERVADA').length,
+    pendientes: mesas.reduce((sum, m) => sum + (m.solicitudesEnEspera?.length ?? 0), 0),
     libre:     mesas.filter((m) => m.estadoMesa === 'LIBRE').length,
     inhabilitada: mesas.filter((m) => m.estaHabilitada === 0).length,
     total:     mesas.length,
@@ -454,6 +456,7 @@ export default function MesasGrid() {
     { key: 'AGENDA',       label: 'Agenda', icon: <Calendar className="w-3 h-3" /> },
     { key: 'EN_USO',       label: `En uso (${counts.enUso})` },
     { key: 'PROGRAMADA',   label: `Programadas (${counts.programada})` },
+    { key: 'PENDIENTES',   label: `Pendientes de respuesta (${counts.pendientes})` },
     { key: 'LIBRE',        label: `Libres (${counts.libre})` },
     { key: 'TODAS',        label: `Todas (${counts.total})` },
     { key: 'INHABILITADA', label: `Inhabilitadas (${counts.inhabilitada})` },
