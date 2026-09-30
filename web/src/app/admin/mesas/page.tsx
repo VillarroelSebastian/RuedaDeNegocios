@@ -207,47 +207,15 @@ function ReunionSlot({
       </div>
       {open && (
         <div className="px-4 pb-4 bg-gray-50/50 border-t border-gray-100 space-y-3 pt-3">
-          {/* Links */}
-          <div className="flex flex-wrap gap-2">
-            {esVirtual && link && (
-              <a href={link} target="_blank" rel="noreferrer"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-bold hover:bg-blue-700">
-                <Video className="w-3 h-3" /> Reunión virtual
-              </a>
-            )}
-            {esPresencial && mapsUrl && (
-              <a href={mapsUrl} target="_blank" rel="noreferrer"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700">
-                <MapPin className="w-3 h-3" /> Google Maps
-              </a>
-            )}
-            {esVirtual && (
-              <button onClick={() => onChangeLink(r)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-gray-700 text-xs font-semibold hover:bg-gray-100">
-                <Link2 className="w-3 h-3" /> {link ? 'Cambiar link' : 'Agregar link'}
-              </button>
-            )}
-            {(esProgramada || esEnCurso) && (
-              <button onClick={() => onEditarHorario(r)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-gray-700 text-xs font-semibold hover:bg-gray-100">
-                <Pencil className="w-3 h-3" /> Editar horario
-              </button>
-            )}
-            <button onClick={() => onEliminar(r)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-100 text-red-600 text-xs font-semibold hover:bg-red-50">
-              <Trash2 className="w-3 h-3" /> Eliminar
-            </button>
-          </div>
-
-          {/* Acciones de estado (solo admin) */}
+          {/* Acción principal según el estado */}
           {esProgramada && (
             <div className="flex gap-2">
               <button disabled={acting} onClick={() => onCambiarEstado(r, 'EN_CURSO')}
-                className="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl bg-[#449D3A] hover:bg-[#367d2e] text-white font-semibold text-sm disabled:opacity-50 transition-colors">
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#449D3A] hover:bg-[#367d2e] text-white font-semibold text-sm disabled:opacity-50 transition-colors">
                 <Play className="w-3.5 h-3.5" /> Iniciar
               </button>
               <button disabled={acting} onClick={() => onCambiarEstado(r, 'CANCELADA')}
-                className="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 font-semibold text-sm disabled:opacity-50 transition-colors">
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 font-semibold text-sm disabled:opacity-50 transition-colors">
                 <XCircle className="w-3.5 h-3.5" /> Cancelar
               </button>
             </div>
@@ -261,11 +229,43 @@ function ReunionSlot({
                   className="w-20 border border-gray-200 rounded-lg px-2 py-1 text-sm text-center focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
               </div>
               <button disabled={acting} onClick={() => onCambiarEstado(r, 'FINALIZADA', Number(asistentes) || 0)}
-                className="flex items-center justify-center gap-2 w-full py-2 rounded-xl bg-[#449D3A] hover:bg-[#367d2e] text-white font-semibold text-sm disabled:opacity-50 transition-colors">
+                className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-[#449D3A] hover:bg-[#367d2e] text-white font-semibold text-sm disabled:opacity-50 transition-colors">
                 <Square className="w-3.5 h-3.5" /> Finalizar reunión
               </button>
             </div>
           )}
+
+          {/* Barra de acciones secundarias: link, horario, eliminar — todas juntas y del mismo tamaño */}
+          <div className="flex flex-wrap gap-1.5">
+            {esVirtual && link && (
+              <a href={link} target="_blank" rel="noreferrer"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-bold hover:bg-blue-700">
+                <Video className="w-3 h-3" /> Entrar
+              </a>
+            )}
+            {esPresencial && mapsUrl && (
+              <a href={mapsUrl} target="_blank" rel="noreferrer"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700">
+                <MapPin className="w-3 h-3" /> Maps
+              </a>
+            )}
+            {esVirtual && (
+              <button onClick={() => onChangeLink(r)}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-700 text-xs font-semibold hover:bg-gray-100">
+                <Link2 className="w-3 h-3" /> {link ? 'Cambiar link' : 'Agregar link'}
+              </button>
+            )}
+            {esProgramada && (
+              <button onClick={() => onEditarHorario(r)}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-700 text-xs font-semibold hover:bg-gray-100">
+                <Pencil className="w-3 h-3" /> Editar horario
+              </button>
+            )}
+            <button onClick={() => onEliminar(r)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-red-100 bg-white text-red-600 text-xs font-semibold hover:bg-red-50">
+              <Trash2 className="w-3 h-3" /> Eliminar
+            </button>
+          </div>
 
           {/* Contactar encargados */}
           <div>

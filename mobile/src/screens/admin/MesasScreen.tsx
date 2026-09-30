@@ -230,57 +230,18 @@ function ReunionRow({
 
       {expanded && (
         <View style={{ paddingHorizontal: 12, paddingBottom: 12, gap: 8 }}>
-          {esVirtual && link && (
-            <TouchableOpacity onPress={() => Linking.openURL(link)}
-              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-                paddingVertical: 10, borderRadius: 12, backgroundColor: '#2563eb' }}>
-              <Video color="#fff" size={14} />
-              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>Entrar a reunión virtual</Text>
-            </TouchableOpacity>
-          )}
-          {esPresencial && mapsUrl && (
-            <TouchableOpacity onPress={() => Linking.openURL(mapsUrl)}
-              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-                paddingVertical: 10, borderRadius: 12, backgroundColor: '#059669' }}>
-              <MapPin color="#fff" size={14} />
-              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>Ver en Google Maps</Text>
-            </TouchableOpacity>
-          )}
-          {esVirtual && (
-            <TouchableOpacity onPress={() => onChangeLink(r)}
-              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-                paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', backgroundColor: '#fff' }}>
-              <Link2 color="#374151" size={14} />
-              <Text style={{ color: '#374151', fontWeight: '600', fontSize: 13 }}>{link ? 'Cambiar link virtual' : 'Agregar link virtual'}</Text>
-            </TouchableOpacity>
-          )}
-          {(esProgramada || esEnCurso) && (
-            <TouchableOpacity onPress={() => onEditarHorario(r)}
-              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-                paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', backgroundColor: '#fff' }}>
-              <Pencil color="#374151" size={14} />
-              <Text style={{ color: '#374151', fontWeight: '600', fontSize: 13 }}>Editar horario</Text>
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity onPress={() => onEliminar(r)}
-            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-              paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: '#fecaca', backgroundColor: '#fff' }}>
-            <Trash2 color="#dc2626" size={14} />
-            <Text style={{ color: '#dc2626', fontWeight: '600', fontSize: 13 }}>Eliminar reunión</Text>
-          </TouchableOpacity>
-
-          {/* Acciones de estado (solo admin) */}
+          {/* Acción principal según el estado */}
           {esProgramada && (
             <View style={{ flexDirection: 'row', gap: 8 }}>
               <TouchableOpacity disabled={acting} onPress={() => onCambiarEstado(r, 'EN_CURSO')}
                 style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-                  paddingVertical: 10, borderRadius: 12, backgroundColor: acting ? '#9ca3af' : GREEN }}>
+                  paddingVertical: 11, borderRadius: 12, backgroundColor: acting ? '#9ca3af' : GREEN }}>
                 <Play color="#fff" size={14} />
                 <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>Iniciar</Text>
               </TouchableOpacity>
               <TouchableOpacity disabled={acting} onPress={() => onCambiarEstado(r, 'CANCELADA')}
                 style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-                  paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: '#fecaca', backgroundColor: '#fff' }}>
+                  paddingVertical: 11, borderRadius: 12, borderWidth: 1, borderColor: '#fecaca', backgroundColor: '#fff' }}>
                 <XCircle color="#dc2626" size={14} />
                 <Text style={{ color: '#dc2626', fontWeight: '700', fontSize: 13 }}>Cancelar</Text>
               </TouchableOpacity>
@@ -297,12 +258,54 @@ function ReunionRow({
               </View>
               <TouchableOpacity disabled={acting} onPress={() => onCambiarEstado(r, 'FINALIZADA', Number(asistentes) || 0)}
                 style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-                  paddingVertical: 10, borderRadius: 12, backgroundColor: acting ? '#9ca3af' : GREEN }}>
+                  paddingVertical: 11, borderRadius: 12, backgroundColor: acting ? '#9ca3af' : GREEN }}>
                 <Square color="#fff" size={14} />
                 <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>Finalizar reunión</Text>
               </TouchableOpacity>
             </View>
           )}
+
+          {/* Acciones secundarias: link, horario, eliminar — todas juntas y del mismo tamaño */}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+            {esVirtual && link && (
+              <TouchableOpacity onPress={() => Linking.openURL(link)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6,
+                  paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, backgroundColor: '#2563eb' }}>
+                <Video color="#fff" size={12} />
+                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 11 }}>Entrar</Text>
+              </TouchableOpacity>
+            )}
+            {esPresencial && mapsUrl && (
+              <TouchableOpacity onPress={() => Linking.openURL(mapsUrl)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6,
+                  paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, backgroundColor: '#059669' }}>
+                <MapPin color="#fff" size={12} />
+                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 11 }}>Maps</Text>
+              </TouchableOpacity>
+            )}
+            {esVirtual && (
+              <TouchableOpacity onPress={() => onChangeLink(r)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6,
+                  paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, borderWidth: 1, borderColor: '#e5e7eb', backgroundColor: '#fff' }}>
+                <Link2 color="#374151" size={12} />
+                <Text style={{ color: '#374151', fontWeight: '600', fontSize: 11 }}>{link ? 'Cambiar link' : 'Agregar link'}</Text>
+              </TouchableOpacity>
+            )}
+            {esProgramada && (
+              <TouchableOpacity onPress={() => onEditarHorario(r)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6,
+                  paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, borderWidth: 1, borderColor: '#e5e7eb', backgroundColor: '#fff' }}>
+                <Pencil color="#374151" size={12} />
+                <Text style={{ color: '#374151', fontWeight: '600', fontSize: 11 }}>Editar horario</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity onPress={() => onEliminar(r)}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6,
+                paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, borderWidth: 1, borderColor: '#fecaca', backgroundColor: '#fff' }}>
+              <Trash2 color="#dc2626" size={12} />
+              <Text style={{ color: '#dc2626', fontWeight: '600', fontSize: 11 }}>Eliminar</Text>
+            </TouchableOpacity>
+          </View>
 
           {/* Contactar encargados */}
           <View>
