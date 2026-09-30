@@ -482,6 +482,25 @@ model notificacionstaff {
   @@index([tipoNotificacion, referenciaId])
 }
 
+// Notificaciones dirigidas a un miembro del staff en concreto (por ejemplo,
+// "se te asignó la Mesa X"), a diferencia de notificacionstaff que es un
+// tablón compartido por todo el equipo. El "no leído" se resuelve comparando
+// fechaCreacion contra usuario.ultimaVistaNotificaciones, no por fila.
+model notificacionpersonal {
+  id                    Int      @id @default(autoincrement())
+  usuario_id            Int
+  tituloNotificacion    String   @db.VarChar(300)
+  mensajeNotificacion   String   @db.VarChar(500)
+  tipoNotificacion      String   @db.VarChar(55)
+  referenciaId          Int
+  referenciaNombreTabla String   @db.VarChar(65)
+  estaActivo            Int      @default(1) @db.SmallInt
+  fechaCreacion         DateTime @default(now()) @db.Timestamp(6)
+  usuario               usuario  @relation(fields: [usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_notificacionpersonal_usuario1")
+
+  @@index([usuario_id, estaActivo, fechaCreacion])
+}
+
 // Mensajería directa entre empresas de un mismo evento.
 // emisorEe/receptorEe son empresaevento (la conversación es empresa↔empresa);
 // empresa_usuario_id registra qué usuario concreto escribió el mensaje.
@@ -666,8 +685,10 @@ model usuario {
   ultimoEnvioCredenciales       DateTime?               @db.Timestamp(6)
   estadoUltimoEnvioCredenciales String?                 @db.VarChar(20)
   errorUltimoEnvioCredenciales  String?                 @db.VarChar(505)
+  ultimaVistaNotificaciones     DateTime?               @db.Timestamp(6)
   empresa_usuario               empresa_usuario[]
   noticia                       noticia[]
+  notificacionpersonal          notificacionpersonal[]
   evento                        evento?                 @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_usuario_evento1")
   asistenciasRegistradas        asistenciaevento[]      @relation("TecnicoAsistencia")
   asistenciasAuspiciadores      asistenciaauspiciador[] @relation("TecnicoAsistenciaAuspiciador")

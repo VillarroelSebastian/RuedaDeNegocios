@@ -190,7 +190,7 @@ export default function TecnicoDashboardScreen() {
   }, []);
 
   useEffect(() => {
-    const cargar = () => fetch(`${API_URL}/tecnico/notificaciones-reuniones`).then((r) => r.json()).then((d) => setNotifNoLeidas(Array.isArray(d) ? d.length : 0)).catch(() => {});
+    const cargar = () => fetch(`${API_URL}/tecnico/notificaciones-reuniones`).then((r) => r.json()).then((d) => setNotifNoLeidas(d.noLeidas ?? 0)).catch(() => {});
     cargar();
     const iv = setInterval(cargar, 15000);
     return () => clearInterval(iv);

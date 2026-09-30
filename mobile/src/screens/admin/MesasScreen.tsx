@@ -231,7 +231,7 @@ function ReunionRow({
 
       {expanded && (
         <View style={{ paddingHorizontal: 12, paddingBottom: 12, gap: 8 }}>
-          {mesa && (
+          {mesa && (esProgramada || esEnCurso) && (
             <TouchableOpacity onPress={() => onAsignarTecnico(mesa)}
               style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, paddingVertical: 9,
                 borderRadius: 10, borderWidth: 1, borderColor: '#e5e7eb', backgroundColor: '#fff' }}>
@@ -350,16 +350,16 @@ function ReunionRow({
   );
 }
 
-function SolicitudPendienteRow({ s }: { s: any }) {
+function SolicitudPendienteRow({ s, onEliminar }: { s: any; onEliminar: (s: any) => void }) {
   return (
     <View style={{ borderTopWidth: 1, borderTopColor: '#f3f4f6', padding: 12, backgroundColor: '#fffbeb' }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
         <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: '#f59e0b' }} />
-        <Text style={{ fontSize: 12, fontWeight: '700', color: '#374151' }} numberOfLines={1}>
+        <Text style={{ fontSize: 12, fontWeight: '700', color: '#374151', flex: 1 }} numberOfLines={1}>
           {s.solicitante}
         </Text>
         <Text style={{ color: '#9ca3af', fontSize: 11 }}>↔</Text>
-        <Text style={{ fontSize: 12, fontWeight: '700', color: '#374151' }} numberOfLines={1}>
+        <Text style={{ fontSize: 12, fontWeight: '700', color: '#374151', flex: 1 }} numberOfLines={1}>
           {s.receptora}
         </Text>
       </View>
@@ -373,6 +373,12 @@ function SolicitudPendienteRow({ s }: { s: any }) {
         <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999, backgroundColor: '#fef3c7' }}>
           <Text style={{ fontSize: 8, fontWeight: '700', color: '#92400e' }}>Pendiente de respuesta</Text>
         </View>
+        <TouchableOpacity onPress={() => onEliminar(s)}
+          style={{ marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 4,
+            paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: '#fecaca', backgroundColor: '#fff' }}>
+          <Trash2 color="#dc2626" size={10} />
+          <Text style={{ fontSize: 9, fontWeight: '700', color: '#dc2626' }}>Eliminar</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -634,6 +640,23 @@ export default function MesasScreen({ embedded = false }: { embedded?: boolean }
           showModal({ type: 'success', title: 'Reunión eliminada', message: 'La mesa quedó disponible y las empresas fueron notificadas.' });
           fetchMesas();
         } catch { showModal({ type: 'error', title: 'Error', message: 'No se pudo eliminar la reunión.' }); }
+      },
+    });
+  };
+
+  const confirmarEliminarSolicitud = (s: any) => {
+    showModal({
+      type: 'confirm',
+      title: 'Eliminar solicitud',
+      message: 'Se avisará a ambas empresas de que la solicitud fue eliminada. Esta acción no se puede deshacer.',
+      confirmColor: '#dc2626',
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`${API_URL}/admin/solicitudes/${s.solicitudId}`, { method: 'DELETE' });
+          if (!res.ok) throw new Error();
+          showModal({ type: 'success', title: 'Solicitud eliminada', message: 'Las empresas fueron notificadas.' });
+          fetchMesas();
+        } catch { showModal({ type: 'error', title: 'Error', message: 'No se pudo eliminar la solicitud.' }); }
       },
     });
   };
@@ -997,18 +1020,20 @@ export default function MesasScreen({ embedded = false }: { embedded?: boolean }
                   </View>
                 </View>
 
-                <TouchableOpacity onPress={() => setAsignandoMesa(mesa)}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 9,
-                    borderBottomWidth: 1, borderBottomColor: '#f3f4f6' }}>
-                  <UserCheck color={mesa.tecnicoasignado ? GREEN : '#d1d5db'} size={14} />
-                  {mesa.tecnicoasignado ? (
-                    <Text style={{ fontSize: 12, color: '#4b5563' }}>
-                      Técnico: <Text style={{ fontWeight: '700', color: '#1f2937' }}>{mesa.tecnicoasignado.nombres} {mesa.tecnicoasignado.apellidoPaterno}</Text>
-                    </Text>
-                  ) : (
-                    <Text style={{ fontSize: 12, color: '#9ca3af' }}>Sin técnico asignado — toca para asignar</Text>
-                  )}
-                </TouchableOpacity>
+                {mesa.reunionActual && (
+                  <TouchableOpacity onPress={() => setAsignandoMesa(mesa)}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 9,
+                      borderBottomWidth: 1, borderBottomColor: '#f3f4f6' }}>
+                    <UserCheck color={mesa.tecnicoasignado ? GREEN : '#d1d5db'} size={14} />
+                    {mesa.tecnicoasignado ? (
+                      <Text style={{ fontSize: 12, color: '#4b5563' }}>
+                        Técnico: <Text style={{ fontWeight: '700', color: '#1f2937' }}>{mesa.tecnicoasignado.nombres} {mesa.tecnicoasignado.apellidoPaterno}</Text>
+                      </Text>
+                    ) : (
+                      <Text style={{ fontSize: 12, color: '#9ca3af' }}>Sin técnico asignado — toca para asignar</Text>
+                    )}
+                  </TouchableOpacity>
+                )}
 
                 {mesa.reunion && mesa.reunion.length > 0 && mesa.reunion.map((r: any) => (
                   <ReunionRow key={r.id} r={{ ...r, mesa_id: mesa.numeroMesa }} mesa={mesa} mesaNumero={mesa.numeroMesa} acting={acting}
@@ -1017,7 +1042,7 @@ export default function MesasScreen({ embedded = false }: { embedded?: boolean }
                 ))}
 
                 {mesa.solicitudesEnEspera && mesa.solicitudesEnEspera.length > 0 && mesa.solicitudesEnEspera.map((s: any) => (
-                  <SolicitudPendienteRow key={s.solicitudId} s={s} />
+                  <SolicitudPendienteRow key={s.solicitudId} s={s} onEliminar={confirmarEliminarSolicitud} />
                 ))}
 
                 {(!mesa.reunion || mesa.reunion.length === 0) && (

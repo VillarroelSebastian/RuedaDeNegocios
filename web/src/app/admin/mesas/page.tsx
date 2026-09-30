@@ -214,7 +214,7 @@ function ReunionSlot({
       </div>
       {open && (
         <div className="px-4 pb-4 bg-gray-50/50 border-t border-gray-100 space-y-3 pt-3">
-          {mesa && (
+          {mesa && (esProgramada || esEnCurso) && (
             <button onClick={() => onAsignarTecnico(mesa)}
               className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition-colors text-left">
               <UserCheck className={`w-4 h-4 shrink-0 ${mesa.tecnicoasignado ? 'text-[#449D3A]' : 'text-gray-300'}`} />
@@ -309,7 +309,7 @@ function ReunionSlot({
   );
 }
 
-function SolicitudPendienteRow({ s }: { s: any }) {
+function SolicitudPendienteRow({ s, onEliminar }: { s: any; onEliminar: (s: any) => void }) {
   return (
     <div className="px-4 py-3 border-t border-gray-50 bg-amber-50/60">
       <div className="flex items-center gap-2 mb-1.5">
@@ -323,6 +323,10 @@ function SolicitudPendienteRow({ s }: { s: any }) {
           <Clock className="w-3 h-3 text-gray-400" /> {fmtTime(s.inicio)} – {fmtTime(s.fin)}
         </span>
         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Pendiente de respuesta</span>
+        <button onClick={() => onEliminar(s)}
+          className="ml-auto flex items-center gap-1 px-2 py-1 rounded-lg border border-red-100 bg-white text-red-600 text-[10px] font-semibold hover:bg-red-50">
+          <Trash2 className="w-3 h-3" /> Eliminar
+        </button>
       </div>
     </div>
   );
@@ -576,6 +580,22 @@ export default function MesasGrid() {
           showSuccess('Reunión eliminada', 'La mesa quedó disponible y las empresas fueron notificadas.');
           fetchMesas();
         } catch (e: any) { showError('Error', e?.message || 'No se pudo eliminar la reunión.'); }
+      },
+    );
+  };
+
+  const confirmarEliminarSolicitud = (s: any) => {
+    showConfirm(
+      'Eliminar solicitud',
+      'Se avisará a ambas empresas de que la solicitud fue eliminada. Esta acción no se puede deshacer.',
+      async () => {
+        try {
+          const res = await fetch(`${API}/admin/solicitudes/${s.solicitudId}`, { method: 'DELETE' });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data?.message || 'No se pudo eliminar la solicitud.');
+          showSuccess('Solicitud eliminada', 'Las empresas fueron notificadas.');
+          fetchMesas();
+        } catch (e: any) { showError('Error', e?.message || 'No se pudo eliminar la solicitud.'); }
       },
     );
   };
@@ -871,17 +891,19 @@ export default function MesasGrid() {
                   <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0 ${badgeClass}`}>{label}</span>
                 </div>
 
-                <button onClick={() => setAsignandoMesa(mesa)}
-                  className="w-full flex items-center gap-2 px-4 py-2 border-b border-gray-50 hover:bg-gray-50/80 transition-colors text-left">
-                  <UserCheck className={`w-3.5 h-3.5 shrink-0 ${mesa.tecnicoasignado ? 'text-[#449D3A]' : 'text-gray-300'}`} />
-                  {mesa.tecnicoasignado ? (
-                    <span className="text-xs text-gray-600">
-                      Técnico: <span className="font-semibold text-gray-800">{mesa.tecnicoasignado.nombres} {mesa.tecnicoasignado.apellidoPaterno}</span>
-                    </span>
-                  ) : (
-                    <span className="text-xs text-gray-400">Sin técnico asignado — toca para asignar</span>
-                  )}
-                </button>
+                {mesa.reunionActual && (
+                  <button onClick={() => setAsignandoMesa(mesa)}
+                    className="w-full flex items-center gap-2 px-4 py-2 border-b border-gray-50 hover:bg-gray-50/80 transition-colors text-left">
+                    <UserCheck className={`w-3.5 h-3.5 shrink-0 ${mesa.tecnicoasignado ? 'text-[#449D3A]' : 'text-gray-300'}`} />
+                    {mesa.tecnicoasignado ? (
+                      <span className="text-xs text-gray-600">
+                        Técnico: <span className="font-semibold text-gray-800">{mesa.tecnicoasignado.nombres} {mesa.tecnicoasignado.apellidoPaterno}</span>
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-400">Sin técnico asignado — toca para asignar</span>
+                    )}
+                  </button>
+                )}
 
                 {mesa.reunion && mesa.reunion.length > 0 && mesa.reunion.map((r: any) => (
                   <ReunionSlot key={r.id} r={{ ...r, mesa_id: mesa.numeroMesa }} mesa={mesa} mesaNumero={mesa.numeroMesa} acting={acting}
@@ -890,7 +912,7 @@ export default function MesasGrid() {
                 ))}
 
                 {mesa.solicitudesEnEspera && mesa.solicitudesEnEspera.length > 0 && mesa.solicitudesEnEspera.map((s: any) => (
-                  <SolicitudPendienteRow key={s.solicitudId} s={s} />
+                  <SolicitudPendienteRow key={s.solicitudId} s={s} onEliminar={confirmarEliminarSolicitud} />
                 ))}
 
                 {(!mesa.reunion || mesa.reunion.length === 0) && (

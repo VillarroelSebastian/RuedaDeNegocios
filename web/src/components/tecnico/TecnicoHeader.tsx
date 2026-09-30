@@ -13,6 +13,7 @@ export default function TecnicoHeader() {
   const [showProfile, setShowProfile] = useState(false);
   const [showNotif, setShowNotif] = useState(false);
   const [notificaciones, setNotificaciones] = useState<any[]>([]);
+  const [noLeidas, setNoLeidas] = useState(0);
   const [mensajesNoLeidos, setMensajesNoLeidos] = useState(0);
   const [search, setSearch] = useState('');
   const [resultados, setResultados] = useState<any[]>([]);
@@ -32,8 +33,17 @@ export default function TecnicoHeader() {
   const cargarNotificaciones = async () => {
     try {
       const res = await fetch(`${API}/tecnico/notificaciones-reuniones`);
-      if (res.ok) setNotificaciones(await res.json());
+      if (res.ok) {
+        const data = await res.json();
+        setNotificaciones(data.notificaciones ?? []);
+        setNoLeidas(data.noLeidas ?? 0);
+      }
     } catch {}
+  };
+
+  const marcarVistas = async () => {
+    setNoLeidas(0);
+    try { await fetch(`${API}/tecnico/notificaciones-reuniones/marcar-vistas`, { method: 'PUT' }); } catch {}
   };
 
   const cargarMensajesNoLeidos = async () => {
@@ -98,13 +108,13 @@ export default function TecnicoHeader() {
       </Link>
 
       <div ref={notifRef} className="relative">
-        <button onClick={() => { setShowNotif(!showNotif); setShowProfile(false); if (!showNotif) void cargarNotificaciones(); }} aria-label="Abrir notificaciones" title="Notificaciones" className="relative rounded-xl p-2 text-gray-600 hover:bg-gray-50">
+        <button onClick={() => { const abrir = !showNotif; setShowNotif(abrir); setShowProfile(false); if (abrir) { void cargarNotificaciones(); void marcarVistas(); } }} aria-label="Abrir notificaciones" title="Notificaciones" className="relative rounded-xl p-2 text-gray-600 hover:bg-gray-50">
           <Bell className="h-5 w-5" />
-          {notificaciones.length > 0 && <span className="absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">{Math.min(notificaciones.length, 99)}</span>}
+          {noLeidas > 0 && <span className="absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">{Math.min(noLeidas, 99)}</span>}
         </button>
         {showNotif && <div className="absolute right-0 top-full mt-2 w-80 max-w-[90vw] overflow-hidden rounded-xl border border-gray-100 bg-white shadow-xl">
           <div className="border-b border-gray-100 px-4 py-3"><p className="text-sm font-bold">Notificaciones</p><p className="text-[10px] text-gray-400">Historial del evento actual</p></div>
-          <div className="max-h-80 overflow-y-auto">{notificaciones.length === 0 ? <p className="py-7 text-center text-xs text-gray-400">No hay notificaciones.</p> : notificaciones.map((n) => <button key={n.id} onClick={() => { setShowNotif(false); router.push(`/tecnico/reuniones/${n.referenciaId}`); }} className={`block w-full border-b border-gray-50 px-4 py-3 text-left hover:bg-gray-50 ${n.urgente ? 'bg-red-50' : ''}`}>
+          <div className="max-h-80 overflow-y-auto">{notificaciones.length === 0 ? <p className="py-7 text-center text-xs text-gray-400">No hay notificaciones.</p> : notificaciones.map((n) => <button key={n.id} onClick={() => { setShowNotif(false); router.push(n.referenciaNombreTabla === 'mesa' ? '/tecnico/mesas' : `/tecnico/reuniones/${n.referenciaId}`); }} className={`block w-full border-b border-gray-50 px-4 py-3 text-left hover:bg-gray-50 ${n.urgente ? 'bg-red-50' : ''}`}>
             <p className="text-xs font-bold text-gray-900">{n.tituloNotificacion}</p><p className="mt-1 text-xs text-gray-600">{n.mensajeNotificacion}</p><p className="mt-1 flex items-center gap-1 text-[10px] text-gray-400"><Clock className="h-3 w-3" />{new Date(n.fechaCreacion).toLocaleString('es-BO')}</p>
           </button>)}</div>
         </div>}

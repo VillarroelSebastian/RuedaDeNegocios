@@ -161,6 +161,33 @@ export class AppController implements OnModuleInit {
     this.notifGateway.emitirParaStaff(tipo, { titulo, mensaje, referenciaId, urgente });
   }
 
+  // A diferencia de notificarStaff (tablón compartido por todo el equipo),
+  // esta va dirigida a un único usuario del staff (p.ej. el técnico asignado
+  // a una mesa) y se guarda aparte para que nadie más la vea.
+  private async notificarUsuarioStaff(
+    usuarioId: number,
+    tipo: string,
+    titulo: string,
+    mensaje: string,
+    referenciaId: number,
+    referenciaTabla: string,
+  ) {
+    try {
+      await this.prisma.notificacionpersonal.create({
+        data: {
+          usuario_id: usuarioId,
+          tituloNotificacion: titulo,
+          mensajeNotificacion: mensaje,
+          tipoNotificacion: tipo,
+          referenciaId,
+          referenciaNombreTabla: referenciaTabla,
+          estaActivo: 1,
+        },
+      });
+    } catch {}
+    this.notifGateway.emitirParaUsuario(usuarioId, tipo, { titulo, mensaje, referenciaId });
+  }
+
   private normalizarEnlaceReunion(valor: unknown, permitirVacio = true): string | null {
     const enlace = String(valor ?? '').trim();
     if (!enlace && permitirVacio) return null;
@@ -3377,12 +3404,19 @@ export class AppController implements OnModuleInit {
     const usuarioId = body.usuarioId ? Number(body.usuarioId) : null;
     let tecnico: { id: number; nombres: string; apellidoPaterno: string } | null = null;
     if (usuarioId) {
+      const reunionActiva = await this.prisma.reunion.findFirst({
+        where: { mesa_id: mesa.id, estaActivo: 1, estadoReunion: { in: ['PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO'] } },
+        select: { id: true },
+      });
+      if (!reunionActiva) throw new BadRequestException('Solo se puede asignar un técnico a una mesa con una reunión programada o en curso.');
       tecnico = await this.prisma.usuario.findFirst({
         where: { id: usuarioId, rolEvento: { in: ['TECNICO', 'TECNICO_EVENTOS'] }, estaActivo: 1 },
         select: { id: true, nombres: true, apellidoPaterno: true },
       });
       if (!tecnico) throw new BadRequestException('Técnico no encontrado');
     }
+
+    const tecnicoAnteriorId = mesa.tecnicoAsignado_id;
 
     const actualizada = await this.prisma.mesa.update({
       where: { id: mesa.id },
@@ -3391,26 +3425,44 @@ export class AppController implements OnModuleInit {
     });
 
     if (tecnico) {
-      const titulo = 'Mesa asignada';
-      const mensaje = `Se te asignó el control de la Mesa ${mesa.numeroMesa}. Coordina las reuniones desde la app.`;
-      try {
-        await this.prisma.notificacionstaff.create({
-          data: {
-            evento_id: eventoId,
-            tituloNotificacion: titulo,
-            mensajeNotificacion: `Mesa ${mesa.numeroMesa} asignada a ${tecnico.nombres} ${tecnico.apellidoPaterno}.`,
-            tipoNotificacion: 'mesa:asignacion',
-            referenciaId: mesa.id,
-            referenciaNombreTabla: 'mesa',
-            urgente: 0,
-            estaActivo: 1,
-          },
-        });
-      } catch {}
-      try { this.notifGateway.emitirParaUsuario(tecnico.id, 'mesa:asignada', { titulo, mensaje, referenciaId: mesa.id }); } catch {}
+      await this.notificarUsuarioStaff(
+        tecnico.id, 'mesa:asignada', 'Mesa asignada',
+        `Se te asignó el control de la Mesa ${mesa.numeroMesa}. Coordina las reuniones desde la app.`,
+        mesa.id, 'mesa',
+      );
+    }
+    if (tecnicoAnteriorId && tecnicoAnteriorId !== usuarioId) {
+      await this.notificarUsuarioStaff(
+        tecnicoAnteriorId, 'mesa:reasignada', 'Cambio de técnico',
+        tecnico
+          ? `Ya no estás a cargo de la Mesa ${mesa.numeroMesa}: se reasignó a ${tecnico.nombres} ${tecnico.apellidoPaterno}.`
+          : `Ya no estás a cargo de la Mesa ${mesa.numeroMesa}.`,
+        mesa.id, 'mesa',
+      );
     }
 
     return actualizada;
+  }
+
+  @Delete('admin/solicitudes/:id')
+  async eliminarSolicitudAdmin(@Param('id') id: string) {
+    const sol = await this.prisma.solicitudreunion.findFirst({
+      where: { id: Number(id), estaActivo: 1, estadoSolicitud: 'PENDIENTE' },
+    });
+    if (!sol) throw new BadRequestException('Solicitud no encontrada o ya no está pendiente');
+
+    await this.prisma.solicitudreunion.update({
+      where: { id: sol.id },
+      data: { estadoSolicitud: 'CANCELADA', estaActivo: 0, creadoModificadoFecha: new Date() },
+    });
+
+    await Promise.all([
+      this.notificar(sol.empresaEvento_id, 'solicitud:cancelada', 'Solicitud eliminada',
+        'El equipo del evento eliminó esta solicitud de reunión.', sol.id, 'solicitudreunion'),
+      this.notificar(sol.empresaEventorReceptora_id, 'solicitud:cancelada', 'Solicitud eliminada',
+        'El equipo del evento eliminó esta solicitud de reunión.', sol.id, 'solicitudreunion'),
+    ]);
+    return { ok: true };
   }
 
   // ─── REUNIONES (admin) ───────────────────────────────────────────────────────
@@ -4851,14 +4903,45 @@ export class AppController implements OnModuleInit {
   }
 
   @Get('tecnico/notificaciones-reuniones')
-  async getNotificacionesReunionesStaff() {
+  async getNotificacionesReunionesStaff(@Req() req: any) {
     const eventoId = await this.getPrincipalEventoId();
-    if (!eventoId) return [];
-    return this.prisma.notificacionstaff.findMany({
-      where: { evento_id: eventoId, estaActivo: 1 },
-      orderBy: [{ urgente: 'desc' }, { fechaCreacion: 'desc' }],
-      take: 50,
-    });
+    if (!eventoId) return { notificaciones: [], noLeidas: 0 };
+    const usuarioId = Number(req.user?.sub) || 0;
+
+    const [staff, personales, usuario] = await Promise.all([
+      this.prisma.notificacionstaff.findMany({
+        where: { evento_id: eventoId, estaActivo: 1 },
+        orderBy: [{ urgente: 'desc' }, { fechaCreacion: 'desc' }],
+        take: 50,
+      }),
+      usuarioId
+        ? this.prisma.notificacionpersonal.findMany({
+            where: { usuario_id: usuarioId, estaActivo: 1 },
+            orderBy: { fechaCreacion: 'desc' },
+            take: 50,
+          })
+        : Promise.resolve([]),
+      usuarioId
+        ? this.prisma.usuario.findUnique({ where: { id: usuarioId }, select: { ultimaVistaNotificaciones: true } })
+        : Promise.resolve(null),
+    ]);
+
+    const combinadas = [...staff, ...personales.map((p) => ({ ...p, urgente: 0 }))]
+      .sort((a, b) => b.fechaCreacion.getTime() - a.fechaCreacion.getTime())
+      .slice(0, 50);
+    const ultimaVista = usuario?.ultimaVistaNotificaciones ?? null;
+    const noLeidas = ultimaVista
+      ? combinadas.filter((n) => n.fechaCreacion.getTime() > ultimaVista.getTime()).length
+      : combinadas.length;
+
+    return { notificaciones: combinadas, noLeidas };
+  }
+
+  @Put('tecnico/notificaciones-reuniones/marcar-vistas')
+  async marcarNotificacionesVistas(@Req() req: any) {
+    const usuarioId = Number(req.user?.sub) || 0;
+    if (usuarioId) await this.prisma.usuario.update({ where: { id: usuarioId }, data: { ultimaVistaNotificaciones: new Date() } });
+    return { ok: true };
   }
 
   @Post('tecnico/reuniones/:id/mensaje')

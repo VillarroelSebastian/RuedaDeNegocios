@@ -9,10 +9,19 @@ export default function StaffNotificacionesScreen({ navigation }: any) {
   const admin = userStore.get()?.rolEvento === 'ADMINISTRADOR';
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const cargar = useCallback(async (mostrarCarga = true) => { if (mostrarCarga) setLoading(true); try { const r = await fetch(`${API_URL}/${admin ? 'admin/notificaciones' : 'tecnico/notificaciones-reuniones'}`); const d = await r.json(); setItems(admin ? (d.notificaciones || []) : (Array.isArray(d) ? d : [])); } catch { setItems([]); } finally { if (mostrarCarga) setLoading(false); } }, [admin]);
-  useFocusEffect(useCallback(() => { cargar(); const timer = setInterval(() => cargar(false), 15000); return () => clearInterval(timer); }, [cargar]));
+  const cargar = useCallback(async (mostrarCarga = true) => { if (mostrarCarga) setLoading(true); try { const r = await fetch(`${API_URL}/${admin ? 'admin/notificaciones' : 'tecnico/notificaciones-reuniones'}`); const d = await r.json(); setItems(d.notificaciones || []); } catch { setItems([]); } finally { if (mostrarCarga) setLoading(false); } }, [admin]);
+  useFocusEffect(useCallback(() => {
+    cargar();
+    if (!admin) fetch(`${API_URL}/tecnico/notificaciones-reuniones/marcar-vistas`, { method: 'PUT' }).catch(() => {});
+    const timer = setInterval(() => cargar(false), 15000);
+    return () => clearInterval(timer);
+  }, [cargar, admin]));
   const abrir = (n: any) => {
-    if (!admin) { navigation.navigate('TecnicoTabs', { screen: 'TecnicoVirtuales' }); return; }
+    if (!admin) {
+      if (n.referenciaNombreTabla === 'mesa') navigation.navigate('TecnicoTabs', { screen: 'TecnicoMesas' });
+      else navigation.navigate('TecnicoTabs', { screen: 'TecnicoVirtuales' });
+      return;
+    }
     if (String(n.enlace).includes('pagos-adicionales')) navigation.navigate('AdminTabs', { screen: 'Pagos', params: { initialTab: 'adicionales' } });
     else if (String(n.enlace).match(/\/admin\/pagos\/(\d+)/)) navigation.navigate('PagoDetail', { id: Number(String(n.enlace).match(/\d+$/)?.[0]) });
     else navigation.navigate('AdminTabs', { screen: 'Empresas' });
