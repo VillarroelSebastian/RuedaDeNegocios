@@ -340,6 +340,27 @@ export class AppController implements OnModuleInit {
     await this.alertarReunionesVirtualesSinEnlace().catch(() => {});
     await this.sincronizarEstadosReuniones().catch(() => {});
     setInterval(() => { this.sincronizarEstadosReuniones().catch(() => {}); }, 15_000);
+    // Noticias programadas: publica solas al llegar su fechaHoraPublicacion
+    // (se corre una vez al iniciar por si el servidor estuvo caído cuando
+    // tocaba publicar alguna).
+    await this.publicarNoticiasProgramadas().catch(() => {});
+    setInterval(() => { this.publicarNoticiasProgramadas().catch(() => {}); }, 30_000);
+  }
+
+  private async publicarNoticiasProgramadas() {
+    const pendientes = await this.prisma.noticia.findMany({
+      where: { estaActivo: 1, estadoPublicacion: 'PROGRAMADA', fechaHoraPublicacion: { lte: new Date() } },
+    });
+    for (const n of pendientes) {
+      await this.prisma.noticia.update({
+        where: { id: n.id },
+        data: { estadoPublicacion: 'PUBLICADO', creadoModificadoFecha: new Date() },
+      });
+      this.notifGateway.emitirGlobal('comunicado:nuevo', {
+        mensaje: `Nuevo comunicado: ${n.tituloNoticia}`,
+        titulo: n.tituloNoticia,
+      });
+    }
   }
 
   private async alertarReunionesVirtualesSinEnlace() {
@@ -2827,11 +2848,30 @@ export class AppController implements OnModuleInit {
     });
   }
 
+  // BORRADOR: no se publica hasta que alguien lo edite y publique a mano.
+  // PROGRAMADA: se publica sola cuando pasa fechaHoraPublicacion (ver
+  // publicarNoticiasProgramadas, sondeada desde onModuleInit).
+  // PUBLICADO: visible de inmediato.
+  private datosPublicacionNoticia(body: any) {
+    const estado = body.estadoPublicacion || 'PUBLICADO';
+    if (!['BORRADOR', 'PROGRAMADA', 'PUBLICADO'].includes(estado))
+      throw new BadRequestException('Estado de publicación inválido.');
+    if (estado === 'PROGRAMADA') {
+      if (!body.fechaHoraPublicacion) throw new BadRequestException('Indica la fecha y hora de publicación programada.');
+      const fecha = new Date(body.fechaHoraPublicacion);
+      if (Number.isNaN(fecha.getTime())) throw new BadRequestException('La fecha de publicación programada no es válida.');
+      if (fecha.getTime() <= Date.now()) throw new BadRequestException('La fecha programada debe ser futura.');
+      return { estadoPublicacion: estado, fechaHoraPublicacion: fecha };
+    }
+    return { estadoPublicacion: estado, fechaHoraPublicacion: new Date() };
+  }
+
   @Post('admin/noticias')
   async createNoticia(@Body() body: any) {
     try {
       const eventoId = body.evento_id ? Number(body.evento_id) : await this.getPrincipalEventoId();
       if (!eventoId) throw new BadRequestException('No hay evento principal configurado');
+      const publicacion = this.datosPublicacionNoticia(body);
 
       const noticia = await this.prisma.noticia.create({
         data: {
@@ -2841,12 +2881,11 @@ export class AppController implements OnModuleInit {
           contenidoNoticia: body.contenidoNoticia,
           urlImagenNoticia: body.urlImagenNoticia || null,
           tipoNoticia: body.tipoNoticia || 'COMUNICADO',
-          estadoPublicacion: body.estadoPublicacion || 'PUBLICADO',
-          fechaHoraPublicacion: new Date(),
+          ...publicacion,
           estaActivo: 1,
         },
       });
-      if (body.estadoPublicacion === 'PUBLICADO' || !body.estadoPublicacion) {
+      if (publicacion.estadoPublicacion === 'PUBLICADO') {
         this.notifGateway.emitirGlobal('comunicado:nuevo', {
           mensaje: `Nuevo comunicado: ${body.tituloNoticia}`,
           titulo: body.tituloNoticia,
@@ -2861,17 +2900,26 @@ export class AppController implements OnModuleInit {
   @Put('admin/noticias/:id')
   async updateNoticia(@Param('id') id: string, @Body() body: any) {
     try {
-      return await this.prisma.noticia.update({
+      const antes = await this.prisma.noticia.findUnique({ where: { id: Number(id) }, select: { estadoPublicacion: true } });
+      const publicacion = this.datosPublicacionNoticia(body);
+      const noticia = await this.prisma.noticia.update({
         where: { id: Number(id) },
         data: {
           tituloNoticia: body.tituloNoticia,
           contenidoNoticia: body.contenidoNoticia,
           urlImagenNoticia: body.urlImagenNoticia || null,
           tipoNoticia: body.tipoNoticia,
-          estadoPublicacion: body.estadoPublicacion,
+          ...publicacion,
           creadoModificadoFecha: new Date(),
         },
       });
+      if (publicacion.estadoPublicacion === 'PUBLICADO' && antes?.estadoPublicacion !== 'PUBLICADO') {
+        this.notifGateway.emitirGlobal('comunicado:nuevo', {
+          mensaje: `Nuevo comunicado: ${body.tituloNoticia}`,
+          titulo: body.tituloNoticia,
+        });
+      }
+      return noticia;
     } catch (error) {
       throw new BadRequestException(error instanceof Error ? error.message : 'Error al actualizar noticia');
     }

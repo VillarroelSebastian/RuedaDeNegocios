@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  ActivityIndicator, RefreshControl, Modal, Image, KeyboardAvoidingView, Platform,
+  ActivityIndicator, RefreshControl, Modal, Image, KeyboardAvoidingView, Platform, Switch,
 } from 'react-native';
-import { Plus, X, Newspaper } from 'lucide-react-native';
+import { Plus, X, Newspaper, Clock } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { API_URL, userStore } from '../../utils/userStore';
 import { useModal } from '../../components/AppModal';
 import ImagenLightbox from '../../components/ImagenLightbox';
+import FechaHoraInput from '../../components/FechaHoraInput';
 
 const GREEN = '#449D3A';
 
@@ -17,9 +18,23 @@ const defaultForm = {
   tituloNoticia: '',
   contenidoNoticia: '',
   tipoNoticia: 'COMUNICADO',
-  estadoPublicacion: 'PUBLICADO',
   urlImagenNoticia: '',
+  programada: false,
+  fechaProgramada: '',
+  horaProgramada: '',
 };
+
+// Bolivia es UTC-4 todo el año (sin horario de verano).
+function fechaHoraBoliviaAISO(fecha: string, hora: string) {
+  return `${fecha}T${hora}:00-04:00`;
+}
+function isoAFechaBolivia(iso: string) {
+  const d = new Date(new Date(iso).getTime() - 4 * 3600_000);
+  return {
+    fecha: `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`,
+    hora: `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`,
+  };
+}
 
 export default function NoticiasScreen() {
   const { show, modal } = useModal();
@@ -60,21 +75,52 @@ export default function NoticiasScreen() {
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = async (estadoDeseado: 'BORRADOR' | 'PUBLICAR') => {
     if (!form.tituloNoticia || !form.contenidoNoticia) {
       show({ type: 'warning', title: 'Requerido', message: 'Ingresa título y contenido.' });
       return;
     }
+    let estadoPublicacion: 'BORRADOR' | 'PROGRAMADA' | 'PUBLICADO';
+    let fechaHoraPublicacion: string | undefined;
+    if (estadoDeseado === 'BORRADOR') {
+      estadoPublicacion = 'BORRADOR';
+    } else if (form.programada) {
+      if (!form.fechaProgramada || !form.horaProgramada) {
+        show({ type: 'warning', title: 'Falta la fecha', message: 'Indica la fecha y hora de publicación programada.' });
+        return;
+      }
+      fechaHoraPublicacion = fechaHoraBoliviaAISO(form.fechaProgramada, form.horaProgramada);
+      if (new Date(fechaHoraPublicacion).getTime() <= Date.now()) {
+        show({ type: 'warning', title: 'Fecha inválida', message: 'La fecha y hora programada debe ser futura.' });
+        return;
+      }
+      estadoPublicacion = 'PROGRAMADA';
+    } else {
+      estadoPublicacion = 'PUBLICADO';
+    }
     setSaving(true);
     try {
       const user = userStore.get();
-      const payload = { ...form, estadoPublicacion: 'PUBLICADO', usuario_id: user?.id || 1 };
+      const payload = {
+        tituloNoticia: form.tituloNoticia,
+        contenidoNoticia: form.contenidoNoticia,
+        tipoNoticia: form.tipoNoticia,
+        urlImagenNoticia: form.urlImagenNoticia,
+        estadoPublicacion,
+        ...(fechaHoraPublicacion ? { fechaHoraPublicacion } : {}),
+        usuario_id: user?.id || 1,
+      };
       const url = editId ? `${API_URL}/admin/noticias/${editId}` : `${API_URL}/admin/noticias`;
-      await fetch(url, { method: editId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      show({ type: 'success', title: '¡Listo!', message: editId ? 'Comunicado actualizado.' : 'Comunicado publicado.' });
+      const res = await fetch(url, { method: editId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || 'No se pudo guardar.');
+      show({
+        type: 'success', title: '¡Listo!',
+        message: estadoPublicacion === 'BORRADOR' ? 'Se guardó como borrador.' : estadoPublicacion === 'PROGRAMADA' ? 'Se publicará automáticamente en la fecha y hora indicadas.' : 'El comunicado ya está publicado.',
+      });
       setShowForm(false);
       fetchNoticias();
-    } catch { show({ type: 'error', title: 'Error', message: 'No se pudo guardar.' }); }
+    } catch (e: any) { show({ type: 'error', title: 'Error', message: e.message || 'No se pudo guardar.' }); }
     finally { setSaving(false); }
   };
 
@@ -127,17 +173,28 @@ export default function NoticiasScreen() {
                     <View style={{ backgroundColor: '#dbeafe', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 }}>
                       <Text style={{ color: '#1e40af', fontSize: 10, fontWeight: '700' }}>{n.tipoNoticia}</Text>
                     </View>
-                    <View style={{ backgroundColor: n.estadoPublicacion === 'PUBLICADO' ? '#dcfce7' : '#f3f4f6', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 }}>
-                      <Text style={{ color: n.estadoPublicacion === 'PUBLICADO' ? '#166534' : '#9ca3af', fontSize: 10, fontWeight: '700' }}>
-                        {n.estadoPublicacion === 'PUBLICADO' ? 'Publicado' : 'Borrador'}
+                    <View style={{ backgroundColor: n.estadoPublicacion === 'PUBLICADO' ? '#dcfce7' : n.estadoPublicacion === 'PROGRAMADA' ? '#fef3c7' : '#f3f4f6', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                      {n.estadoPublicacion === 'PROGRAMADA' && <Clock color="#92400e" size={10} />}
+                      <Text style={{ color: n.estadoPublicacion === 'PUBLICADO' ? '#166534' : n.estadoPublicacion === 'PROGRAMADA' ? '#92400e' : '#9ca3af', fontSize: 10, fontWeight: '700' }}>
+                        {n.estadoPublicacion === 'PUBLICADO' ? 'Publicado' : n.estadoPublicacion === 'PROGRAMADA' ? 'Programada' : 'Borrador'}
                       </Text>
                     </View>
                   </View>
                   <Text className="font-bold text-gray-900 text-sm mb-1" numberOfLines={2}>{n.tituloNoticia}</Text>
                   <Text className="text-xs text-gray-500" numberOfLines={2}>{n.contenidoNoticia}</Text>
+                  {n.estadoPublicacion === 'PROGRAMADA' && (
+                    <Text style={{ fontSize: 10, color: '#b45309', fontWeight: '600', marginTop: 4 }}>
+                      Se publica el {new Date(n.fechaHoraPublicacion).toLocaleString('es-BO', { timeZone: 'America/La_Paz', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    </Text>
+                  )}
                   <Text className="text-[10px] text-gray-400 mt-2">{new Date(n.fechaCreacion).toLocaleDateString('es-BO', { day: '2-digit', month: 'short', year: 'numeric' })}</Text>
                   <View className="flex-row gap-2 mt-3 pt-3 border-t border-gray-50">
-                    <TouchableOpacity onPress={() => { setForm({ tituloNoticia: n.tituloNoticia, contenidoNoticia: n.contenidoNoticia, tipoNoticia: n.tipoNoticia, estadoPublicacion: n.estadoPublicacion, urlImagenNoticia: n.urlImagenNoticia || '' }); setEditId(n.id); setShowForm(true); }}
+                    <TouchableOpacity onPress={() => {
+                      const programada = n.estadoPublicacion === 'PROGRAMADA';
+                      const { fecha, hora } = programada ? isoAFechaBolivia(n.fechaHoraPublicacion) : { fecha: '', hora: '' };
+                      setForm({ tituloNoticia: n.tituloNoticia, contenidoNoticia: n.contenidoNoticia, tipoNoticia: n.tipoNoticia, urlImagenNoticia: n.urlImagenNoticia || '', programada, fechaProgramada: fecha, horaProgramada: hora });
+                      setEditId(n.id); setShowForm(true);
+                    }}
                       className="flex-1 py-2 bg-green-50 rounded-xl items-center">
                       <Text style={{ color: GREEN }} className="text-xs font-semibold">Editar</Text>
                     </TouchableOpacity>
@@ -196,16 +253,43 @@ export default function NoticiasScreen() {
                   </TouchableOpacity>
                 )}
               </View>
+
+              {/* Programación */}
+              <View style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, padding: 12, marginBottom: 12 }}>
+                <View className="flex-row items-center justify-between">
+                  <Text className="text-sm font-semibold text-gray-700">Noticia programada</Text>
+                  <Switch value={form.programada} onValueChange={(v) => setForm((f) => ({ ...f, programada: v }))} trackColor={{ true: GREEN }} />
+                </View>
+                {form.programada && (
+                  <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text className="text-xs font-semibold text-gray-600 mb-1">Fecha (Bolivia)</Text>
+                      <FechaHoraInput modo="date" valor={form.fechaProgramada} onCambiar={(v) => set('fechaProgramada', v)} placeholder="Fecha" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text className="text-xs font-semibold text-gray-600 mb-1">Hora (Bolivia)</Text>
+                      <FechaHoraInput modo="time" valor={form.horaProgramada} onCambiar={(v) => set('horaProgramada', v)} placeholder="Hora" />
+                    </View>
+                  </View>
+                )}
+                {form.programada && (
+                  <Text style={{ fontSize: 11, color: '#9ca3af', marginTop: 8 }}>Se publicará sola en esa fecha y hora; hasta entonces queda como "Programada".</Text>
+                )}
+              </View>
             </ScrollView>
-            <View className="flex-row gap-3 mt-4">
+            <View className="flex-row gap-2 mt-4">
               <TouchableOpacity onPress={() => setShowForm(false)}
                 className="flex-1 py-3.5 border border-gray-200 rounded-2xl items-center">
                 <Text className="font-semibold text-gray-600">Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={handleSave} disabled={saving}
+              <TouchableOpacity onPress={() => handleSave('BORRADOR')} disabled={saving}
+                className="flex-1 py-3.5 border border-gray-300 rounded-2xl items-center">
+                <Text className="font-semibold text-gray-700" style={{ fontSize: 12 }}>Guardar borrador</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => handleSave('PUBLICAR')} disabled={saving}
                 style={{ backgroundColor: saving ? '#9ca3af' : GREEN }}
                 className="flex-1 py-3.5 rounded-2xl items-center">
-                <Text className="text-white font-semibold">{saving ? 'Publicando...' : 'Publicar'}</Text>
+                <Text className="text-white font-semibold" style={{ fontSize: 12 }}>{saving ? 'Guardando...' : form.programada ? 'Programar' : 'Publicar'}</Text>
               </TouchableOpacity>
             </View>
           </View>

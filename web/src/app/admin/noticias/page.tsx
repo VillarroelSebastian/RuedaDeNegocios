@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, Pencil, Trash2, X, Upload, Image as ImageIcon } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, Upload, Image as ImageIcon, Clock } from 'lucide-react';
 import ImagenLightbox from '@/components/ui/ImagenLightbox';
 import { useModal } from '@/components/ui/Modal';
 
@@ -12,9 +12,24 @@ const defaultForm = {
   tituloNoticia: '',
   contenidoNoticia: '',
   tipoNoticia: 'COMUNICADO',
-  estadoPublicacion: 'PUBLICADO',
   urlImagenNoticia: '',
+  programada: false,
+  fechaProgramada: '',
+  horaProgramada: '',
 };
+
+// Bolivia es UTC-4 todo el año (sin horario de verano), así que se puede
+// convertir a mano sin depender del huso horario del navegador.
+function fechaHoraBoliviaAISO(fecha: string, hora: string) {
+  return `${fecha}T${hora}:00-04:00`;
+}
+function isoAFechaBolivia(iso: string) {
+  const d = new Date(new Date(iso).getTime() - 4 * 3600_000);
+  return {
+    fecha: `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`,
+    hora: `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`,
+  };
+}
 
 export default function NoticiasPage() {
   const { showSuccess, showError, showConfirm, ModalComponent } = useModal();
@@ -45,12 +60,16 @@ export default function NoticiasPage() {
   };
 
   const openEdit = (n: any) => {
+    const programada = n.estadoPublicacion === 'PROGRAMADA';
+    const { fecha, hora } = programada ? isoAFechaBolivia(n.fechaHoraPublicacion) : { fecha: '', hora: '' };
     setForm({
       tituloNoticia: n.tituloNoticia,
       contenidoNoticia: n.contenidoNoticia,
       tipoNoticia: n.tipoNoticia,
-      estadoPublicacion: n.estadoPublicacion,
       urlImagenNoticia: n.urlImagenNoticia || '',
+      programada,
+      fechaProgramada: fecha,
+      horaProgramada: hora,
     });
     setEditId(n.id);
     setShowForm(true);
@@ -70,21 +89,52 @@ export default function NoticiasPage() {
     finally { setUploading(false); }
   };
 
-  const handleSave = async () => {
+  const handleSave = async (estadoDeseado: 'BORRADOR' | 'PUBLICAR') => {
     if (!form.tituloNoticia || !form.contenidoNoticia) {
       showError('Campos requeridos', 'Completa el título y el contenido.');
       return;
     }
+    let estadoPublicacion: 'BORRADOR' | 'PROGRAMADA' | 'PUBLICADO';
+    let fechaHoraPublicacion: string | undefined;
+    if (estadoDeseado === 'BORRADOR') {
+      estadoPublicacion = 'BORRADOR';
+    } else if (form.programada) {
+      if (!form.fechaProgramada || !form.horaProgramada) {
+        showError('Falta la fecha', 'Indica la fecha y hora de publicación programada.');
+        return;
+      }
+      fechaHoraPublicacion = fechaHoraBoliviaAISO(form.fechaProgramada, form.horaProgramada);
+      if (new Date(fechaHoraPublicacion).getTime() <= Date.now()) {
+        showError('Fecha inválida', 'La fecha y hora programada debe ser futura.');
+        return;
+      }
+      estadoPublicacion = 'PROGRAMADA';
+    } else {
+      estadoPublicacion = 'PUBLICADO';
+    }
     setSaving(true);
     try {
-    const user = JSON.parse(localStorage.getItem('adminUser') || localStorage.getItem('tecnicoUser') || '{}');
-      const payload = { ...form, estadoPublicacion: 'PUBLICADO', usuario_id: user.id || 1 };
+      const user = JSON.parse(localStorage.getItem('adminUser') || localStorage.getItem('tecnicoUser') || '{}');
+      const payload = {
+        tituloNoticia: form.tituloNoticia,
+        contenidoNoticia: form.contenidoNoticia,
+        tipoNoticia: form.tipoNoticia,
+        urlImagenNoticia: form.urlImagenNoticia,
+        estadoPublicacion,
+        ...(fechaHoraPublicacion ? { fechaHoraPublicacion } : {}),
+        usuario_id: user.id || 1,
+      };
       const url = editId ? `${API}/admin/noticias/${editId}` : `${API}/admin/noticias`;
-      await fetch(url, { method: editId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      showSuccess(editId ? 'Comunicado actualizado' : 'Comunicado publicado', '');
+      const res = await fetch(url, { method: editId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || 'No se pudo guardar.');
+      showSuccess(
+        editId ? 'Comunicado actualizado' : 'Comunicado guardado',
+        estadoPublicacion === 'BORRADOR' ? 'Se guardó como borrador.' : estadoPublicacion === 'PROGRAMADA' ? 'Se publicará automáticamente en la fecha y hora indicadas.' : 'El comunicado ya está publicado.',
+      );
       setShowForm(false);
       fetch_();
-    } catch { showError('Error', 'No se pudo guardar.'); }
+    } catch (e: any) { showError('Error', e.message || 'No se pudo guardar.'); }
     finally { setSaving(false); }
   };
 
@@ -152,12 +202,21 @@ export default function NoticiasPage() {
               <div className="p-5">
                 <div className="flex items-start justify-between gap-2 mb-2">
                   {badgeTipo(n.tipoNoticia)}
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${n.estadoPublicacion === 'PUBLICADO' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                    {n.estadoPublicacion === 'PUBLICADO' ? 'Publicado' : 'Borrador'}
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                    n.estadoPublicacion === 'PUBLICADO' ? 'bg-green-100 text-green-700' :
+                    n.estadoPublicacion === 'PROGRAMADA' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500'
+                  }`}>
+                    {n.estadoPublicacion === 'PROGRAMADA' && <Clock className="w-2.5 h-2.5" />}
+                    {n.estadoPublicacion === 'PUBLICADO' ? 'Publicado' : n.estadoPublicacion === 'PROGRAMADA' ? 'Programada' : 'Borrador'}
                   </span>
                 </div>
                 <h3 className="font-bold text-gray-900 text-sm mb-1 line-clamp-2">{n.tituloNoticia}</h3>
                 <p className="text-xs text-gray-500 line-clamp-2 mb-3">{n.contenidoNoticia}</p>
+                {n.estadoPublicacion === 'PROGRAMADA' && (
+                  <p className="text-[10px] text-amber-600 font-semibold mb-2">
+                    Se publica el {new Date(n.fechaHoraPublicacion).toLocaleString('es-BO', { timeZone: 'America/La_Paz', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                )}
                 <div className="flex items-center justify-between">
                   <p className="text-[10px] text-gray-400">
                     {new Date(n.fechaCreacion).toLocaleDateString('es-BO', { day: '2-digit', month: 'short', year: 'numeric' })}
@@ -239,6 +298,30 @@ export default function NoticiasPage() {
                   {TIPOS.map((t) => <option key={t}>{t}</option>)}
                 </select>
               </div>
+
+              <div className="rounded-lg border border-gray-200 p-3">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={form.programada}
+                    onChange={(e) => setForm((f) => ({ ...f, programada: e.target.checked }))}
+                    className="rounded text-[#449D3A] focus:ring-[#449D3A]" />
+                  <span className="text-sm font-semibold text-gray-700">Noticia programada</span>
+                </label>
+                {form.programada && (
+                  <div className="grid grid-cols-2 gap-3 mt-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Fecha (Bolivia)</label>
+                      <input type="date" value={form.fechaProgramada} onChange={(e) => set('fechaProgramada', e.target.value)}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Hora (Bolivia)</label>
+                      <input type="time" value={form.horaProgramada} onChange={(e) => set('horaProgramada', e.target.value)}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
+                    </div>
+                    <p className="col-span-2 text-xs text-gray-400">Se publicará sola en esa fecha y hora; hasta entonces queda como "Programada".</p>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="flex justify-end gap-3 p-6 border-t border-gray-100">
@@ -246,9 +329,13 @@ export default function NoticiasPage() {
                 className="px-5 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50">
                 Cancelar
               </button>
-              <button onClick={handleSave} disabled={saving}
+              <button onClick={() => handleSave('BORRADOR')} disabled={saving}
+                className="px-5 py-2.5 border border-gray-300 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+                Guardar como borrador
+              </button>
+              <button onClick={() => handleSave('PUBLICAR')} disabled={saving}
                 className="px-6 py-2.5 bg-[#449D3A] text-white font-semibold rounded-xl hover:bg-[#367d2e] disabled:opacity-50 transition-colors">
-                {saving ? 'Publicando...' : 'Publicar'}
+                {saving ? 'Guardando...' : form.programada ? 'Programar publicación' : 'Publicar'}
               </button>
             </div>
           </div>
