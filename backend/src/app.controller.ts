@@ -4539,7 +4539,7 @@ export class AppController implements OnModuleInit {
   }
 
   @Put('tecnico/reuniones/:id/estado')
-  async updateTecnicoReunionEstado(@Param('id') id: string, @Body() body: { estadoReunion: string; observaciones?: string }) {
+  async updateTecnicoReunionEstado(@Param('id') id: string, @Body() body: { estadoReunion: string; asistentes?: number; observaciones?: string }) {
     const reunionId = Number(id);
     const evento = await this.getPrincipalEvento();
     if (!evento) throw new BadRequestException('No hay un evento activo');
@@ -4556,13 +4556,12 @@ export class AppController implements OnModuleInit {
     };
     if (!(transiciones[actual.estadoReunion] ?? []).includes(body.estadoReunion))
       throw new BadRequestException(`No se puede cambiar de ${actual.estadoReunion} a ${body.estadoReunion}`);
+    const data: any = { estadoReunion: body.estadoReunion, creadoModificadoFecha: new Date() };
+    if (body.asistentes !== undefined) data.cantidadAsistentesRegistrados = Number(body.asistentes);
+    if (body.observaciones !== undefined) data.observacionesReunion = body.observaciones;
     const actualizada = await this.prisma.reunion.update({
       where: { id: reunionId },
-      data: {
-        estadoReunion: body.estadoReunion,
-        observacionesReunion: body.observaciones ?? undefined,
-        creadoModificadoFecha: new Date(),
-      },
+      data,
       include: this.reunionInclude(),
     });
     // El técnico/admin puede terminar la reunión en cualquier momento: al hacerlo
@@ -5097,9 +5096,9 @@ export class AppController implements OnModuleInit {
       // real y activa de este evento antes de asignarla (una mesa desactivada
       // por reconfigurar el total de mesas no debe volver a recibir reuniones).
       const mesaValida = await this.prisma.mesa.findFirst({
-        where: { id: mesaAsignada, evento_id: eventoId!, estaActivo: 1 },
+        where: { id: mesaAsignada, evento_id: eventoId!, estaActivo: 1, estaHabilitada: 1 },
       });
-      if (!mesaValida) throw new BadRequestException('La mesa seleccionada no existe o ya no está activa.');
+      if (!mesaValida) throw new BadRequestException('La mesa seleccionada no existe, no está activa o no está habilitada.');
       const ocupada = await this.prisma.reunion.findFirst({
         where: {
           mesa_id: mesaAsignada,

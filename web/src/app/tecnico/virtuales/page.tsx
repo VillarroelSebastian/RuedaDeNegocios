@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   Building2, Clock, Video, Search, ExternalLink,
-  Wifi, AlertCircle, RefreshCw, Mail, Send, X,
+  Wifi, AlertCircle, RefreshCw, Mail, Send, X, UserCheck, Square,
 } from 'lucide-react';
 import { useModal } from '@/components/ui/Modal';
 
@@ -56,6 +56,126 @@ function CompanyChip({ empresa, colorClass }: { empresa: any; colorClass: string
   );
 }
 
+function VirtualCard({
+  r, base, acting, onMessage, onFinalizar,
+}: {
+  r: any; base: string; acting: boolean;
+  onMessage: (reunionId: number, empresa: 'A' | 'B', empresaNombre: string, encargadoNombre: string) => void;
+  onFinalizar: (reunion: any, asistentes: number) => void;
+}) {
+  const [finalizando, setFinalizando] = useState(false);
+  const [asistentes, setAsistentes] = useState(String(r.cantidadAsistentesRegistrados ?? ''));
+
+  const sol = r.solicitudreunion;
+  const eeA = sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento;
+  const eeB = sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento;
+  const ea  = eeA?.empresa;
+  const eb  = eeB?.empresa;
+  const encA = eeA?.empresa_usuario?.[0]?.usuario;
+  const encB = eeB?.empresa_usuario?.[0]?.usuario;
+  const nombreEncA = encA ? `${encA.nombres} ${encA.apellidoPaterno}` : 'Encargado';
+  const nombreEncB = encB ? `${encB.nombres} ${encB.apellidoPaterno}` : 'Encargado';
+  const est = ESTADO_CFG[r.estadoReunion] ?? ESTADO_CFG.PROGRAMADA;
+  const tip = TIPO_CFG[r.tipoReunion] ?? TIPO_CFG.VIRTUAL;
+  const link = sol?.enlaceReunionVirtual;
+  const cancelada = r.estadoReunion === 'CANCELADA';
+  const enlaceOperativo = ['PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO'].includes(r.estadoReunion);
+  const canceladaPorEmpresa = cancelada && /^Cancelada por /i.test(r.observacionesReunion ?? '');
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-4 hover:shadow-sm transition-shadow">
+      {/* Info: estado, empresas, horario, tipo */}
+      <div className="flex flex-wrap items-center gap-2.5">
+        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold shrink-0 ${est.badge}`}>
+          {est.animated
+            ? <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
+            : <span className={`w-1.5 h-1.5 rounded-full ${est.dot}`} />
+          }
+          {est.label}
+        </span>
+
+        <div className="flex items-center gap-2 min-w-0 max-w-full">
+          <CompanyChip empresa={ea} colorClass="bg-green-100 text-green-700" />
+          <span className="text-gray-300 text-sm font-bold shrink-0">↔</span>
+          <CompanyChip empresa={eb} colorClass="bg-blue-100 text-blue-700" />
+        </div>
+
+        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${tip.badge}`}>
+          {tip.label}
+        </span>
+
+        <div className="flex items-center gap-1.5 text-xs text-gray-500 shrink-0 sm:ml-auto">
+          <Clock className="w-3.5 h-3.5" />
+          <span>
+            {fmtDate(r.fechaHoraInicioReunion)} · {fmtTime(r.fechaHoraInicioReunion)} – {fmtTime(r.fechaHoraFinReunion)}
+          </span>
+        </div>
+      </div>
+
+      {finalizando ? (
+        <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-gray-50">
+          <UserCheck className="w-4 h-4 text-gray-400 shrink-0" />
+          <label className="text-xs text-gray-600 font-semibold shrink-0">Asistentes:</label>
+          <input type="number" min="0" value={asistentes} onChange={(e) => setAsistentes(e.target.value)}
+            className="w-20 border border-gray-200 rounded-lg px-2 py-1 text-sm text-center focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
+          <button disabled={acting} onClick={() => onFinalizar(r, Number(asistentes) || 0)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#449D3A] hover:bg-[#367d2e] text-white text-xs font-bold disabled:opacity-50 transition-colors">
+            <Square className="w-3 h-3" /> Confirmar
+          </button>
+          <button onClick={() => setFinalizando(false)}
+            className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
+            Cancelar
+          </button>
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-gray-50">
+          {r.estadoReunion === 'EN_CURSO' && (
+            <button onClick={() => setFinalizando(true)} className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-orange-600">
+              Finalizar y evaluar
+            </button>
+          )}
+          {link && enlaceOperativo && (
+            <a
+              href={link}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition-colors"
+            >
+              <ExternalLink className="w-3 h-3" />
+              Abrir enlace
+            </a>
+          )}
+          <Link
+            href={`${base}/virtuales/${r.id}`}
+            className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            Ver detalles
+          </Link>
+          <button
+            onClick={() => onMessage(r.id, 'A', ea?.nombre ?? 'Empresa A', nombreEncA)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-green-200 text-green-700 text-xs font-semibold hover:bg-green-50 transition-colors max-w-[180px]"
+          >
+            <Mail className="w-3 h-3 shrink-0" /> <span className="truncate">Mensaje a {ea?.nombre ?? 'Empresa A'}</span>
+          </button>
+          <button
+            onClick={() => onMessage(r.id, 'B', eb?.nombre ?? 'Empresa B', nombreEncB)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-blue-200 text-blue-700 text-xs font-semibold hover:bg-blue-50 transition-colors max-w-[180px]"
+          >
+            <Mail className="w-3 h-3 shrink-0" /> <span className="truncate">Mensaje a {eb?.nombre ?? 'Empresa B'}</span>
+          </button>
+        </div>
+      )}
+
+      {canceladaPorEmpresa && (
+        <div className="mt-3 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{r.observacionesReunion}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function TecnicoVirtualesPage() {
   const pathname = usePathname();
   const base = pathname?.startsWith('/admin') ? '/admin' : '/tecnico';
@@ -68,6 +188,7 @@ export default function TecnicoVirtualesPage() {
   const [msgModal, setMsgModal] = useState<{ reunionId: number; empresa: 'A' | 'B'; empresaNombre: string; encargadoNombre: string } | null>(null);
   const [msgText, setMsgText] = useState('');
   const [sending, setSending] = useState(false);
+  const [acting, setActing] = useState(false);
 
   const load = useCallback(async (mostrarCarga = false) => {
       if (mostrarCarga) setLoading(true);
@@ -103,6 +224,21 @@ export default function TecnicoVirtualesPage() {
       setMsgModal(null);
     } catch { showError('Error', 'No se pudo enviar el mensaje. Intenta de nuevo.'); }
     finally { setSending(false); }
+  };
+
+  const finalizarReunion = async (reunion: any, asistentes: number) => {
+    setActing(true);
+    try {
+      const res = await fetch(`${API}/tecnico/reuniones/${reunion.id}/estado`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estadoReunion: 'FINALIZADA', asistentes }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || 'No se pudo finalizar la reunión.');
+      showSuccess('Reunión finalizada', 'La reunión quedó registrada y las empresas fueron notificadas para evaluar.');
+      load();
+    } catch (e: any) { showError('Error', e?.message || 'No se pudo finalizar la reunión.'); }
+    finally { setActing(false); }
   };
 
   useEffect(() => {
@@ -146,9 +282,6 @@ export default function TecnicoVirtualesPage() {
       : r.estadoReunion === filtro;
     return matchSearch && matchFiltro;
   });
-  const canceladasPorEmpresa = reuniones.filter((r) =>
-    r.estadoReunion === 'CANCELADA' && /^Cancelada por /i.test(r.observacionesReunion ?? ''),
-  );
   const sinEnlace = reuniones.filter((r) =>
     ['PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO'].includes(r.estadoReunion) &&
     !r.solicitudreunion?.enlaceReunionVirtual,
@@ -216,26 +349,6 @@ export default function TecnicoVirtualesPage() {
         </button>
       </div>
 
-      {sinEnlace.length > 0 && (
-        <div className="mb-5 flex items-start gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-950">
-          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
-          <div>
-            <p className="text-sm font-bold">{sinEnlace.length} reunión(es) pendiente(s) de enlace virtual</p>
-            <p className="mt-1 text-xs text-amber-800">Abre sus detalles y agrega un enlace HTTPS antes de la hora programada.</p>
-          </div>
-        </div>
-      )}
-
-      {canceladasPorEmpresa.length > 0 && (
-        <div className="mb-5 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-900">
-          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
-          <div>
-            <p className="text-sm font-bold">{canceladasPorEmpresa.length} reunión(es) virtual(es) cancelada(s) por empresas</p>
-            <p className="mt-1 text-xs text-red-700">El motivo aparece directamente en la reunión cancelada.</p>
-          </div>
-        </div>
-      )}
-
       {/* Search + Tabs */}
       <div className="flex flex-col sm:flex-row gap-3 mb-5">
         <div className="relative flex-1">
@@ -287,100 +400,11 @@ export default function TecnicoVirtualesPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {filtered.map((r) => {
-            const sol = r.solicitudreunion;
-            const eeA = sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento;
-            const eeB = sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento;
-            const ea  = eeA?.empresa;
-            const eb  = eeB?.empresa;
-            const encA = eeA?.empresa_usuario?.[0]?.usuario;
-            const encB = eeB?.empresa_usuario?.[0]?.usuario;
-            const nombreEncA = encA ? `${encA.nombres} ${encA.apellidoPaterno}` : 'Encargado';
-            const nombreEncB = encB ? `${encB.nombres} ${encB.apellidoPaterno}` : 'Encargado';
-            const est = ESTADO_CFG[r.estadoReunion] ?? ESTADO_CFG.PROGRAMADA;
-            const tip = TIPO_CFG[r.tipoReunion] ?? TIPO_CFG.VIRTUAL;
-            const link = sol?.enlaceReunionVirtual;
-            const cancelada = r.estadoReunion === 'CANCELADA';
-            const enlaceOperativo = ['PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO'].includes(r.estadoReunion);
-            const canceladaPorEmpresa = cancelada && /^Cancelada por /i.test(r.observacionesReunion ?? '');
-
-            return (
-              <div key={r.id} className="bg-white rounded-2xl border border-gray-100 p-4 hover:shadow-sm transition-shadow">
-                {/* Info: estado, empresas, horario, tipo */}
-                <div className="flex flex-wrap items-center gap-2.5">
-                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold shrink-0 ${est.badge}`}>
-                    {est.animated
-                      ? <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
-                      : <span className={`w-1.5 h-1.5 rounded-full ${est.dot}`} />
-                    }
-                    {est.label}
-                  </span>
-
-                  <div className="flex items-center gap-2 min-w-0 max-w-full">
-                    <CompanyChip empresa={ea} colorClass="bg-green-100 text-green-700" />
-                    <span className="text-gray-300 text-sm font-bold shrink-0">↔</span>
-                    <CompanyChip empresa={eb} colorClass="bg-blue-100 text-blue-700" />
-                  </div>
-
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${tip.badge}`}>
-                    {tip.label}
-                  </span>
-
-                  <div className="flex items-center gap-1.5 text-xs text-gray-500 shrink-0 sm:ml-auto">
-                    <Clock className="w-3.5 h-3.5" />
-                    <span>
-                      {fmtDate(r.fechaHoraInicioReunion)} · {fmtTime(r.fechaHoraInicioReunion)} – {fmtTime(r.fechaHoraFinReunion)}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Acciones: todas en su propia fila, mismo tamaño, envuelven si no caben */}
-                <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-gray-50">
-                  {r.estadoReunion === 'EN_CURSO' && (
-                    <Link href={`${base}/reuniones`} className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-orange-600">
-                      Finalizar y evaluar
-                    </Link>
-                  )}
-                  {link && enlaceOperativo && (
-                    <a
-                      href={link}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition-colors"
-                    >
-                      <ExternalLink className="w-3 h-3" />
-                      Abrir enlace
-                    </a>
-                  )}
-                  <Link
-                    href={`${base}/virtuales/${r.id}`}
-                    className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
-                  >
-                    Ver detalles
-                  </Link>
-                  <button
-                    onClick={() => { setMsgModal({ reunionId: r.id, empresa: 'A', empresaNombre: ea?.nombre ?? 'Empresa A', encargadoNombre: nombreEncA }); setMsgText(''); }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-green-200 text-green-700 text-xs font-semibold hover:bg-green-50 transition-colors max-w-[180px]"
-                  >
-                    <Mail className="w-3 h-3 shrink-0" /> <span className="truncate">Mensaje a {ea?.nombre ?? 'Empresa A'}</span>
-                  </button>
-                  <button
-                    onClick={() => { setMsgModal({ reunionId: r.id, empresa: 'B', empresaNombre: eb?.nombre ?? 'Empresa B', encargadoNombre: nombreEncB }); setMsgText(''); }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-blue-200 text-blue-700 text-xs font-semibold hover:bg-blue-50 transition-colors max-w-[180px]"
-                  >
-                    <Mail className="w-3 h-3 shrink-0" /> <span className="truncate">Mensaje a {eb?.nombre ?? 'Empresa B'}</span>
-                  </button>
-                </div>
-
-                {canceladaPorEmpresa && (
-                  <div className="mt-3 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
-                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                    <span>{r.observacionesReunion}</span>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+          {filtered.map((r) => (
+            <VirtualCard key={r.id} r={r} base={base} acting={acting}
+              onMessage={(reunionId, empresa, empresaNombre, encargadoNombre) => { setMsgModal({ reunionId, empresa, empresaNombre, encargadoNombre }); setMsgText(''); }}
+              onFinalizar={finalizarReunion} />
+          ))}
         </div>
       )}
     </div>

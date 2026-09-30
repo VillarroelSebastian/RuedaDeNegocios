@@ -342,14 +342,14 @@ export default function EventConfigScreen({ navigation }: any) {
     setReglasQR((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const rangosDia = (fecha: string) => horariosReunion.find((d) => d.fecha === fecha)?.rangos || [{ desde: formData.horaInicioInscripciones, hasta: formData.horaFinInscripciones }];
+  const rangosDia = (fecha: string) => horariosReunion.find((d) => d.fecha === fecha)?.rangos || [{ desde: formData.horaInicioEvento, hasta: formData.horaFinEvento }];
   const actualizarRangosDia = (fecha: string, rangos: Array<{ desde: string; hasta: string }>) =>
     setHorariosReunion((actuales) => {
       const existe = actuales.some((d) => d.fecha === fecha);
       return existe ? actuales.map((d) => d.fecha === fecha ? { ...d, rangos } : d) : [...actuales, { fecha, rangos }];
     });
   const copiarPrimerHorario = () => {
-    const fechas = fechasEntre(formData.fechaInicioInscripciones, formData.fechaFinInscripciones);
+    const fechas = fechasEntre(formData.fechaInicioEvento, formData.fechaFinEvento);
     if (!fechas.length) return;
     const primero = rangosDia(fechas[0]).map((r) => ({ ...r }));
     setHorariosReunion(fechas.map((fecha) => ({ fecha, rangos: primero.map((r) => ({ ...r })) })));
@@ -374,9 +374,9 @@ export default function EventConfigScreen({ navigation }: any) {
       show({ type: 'warning', title: 'Datos inválidos', message: 'La duración y número de mesas deben ser mayores a 0.' });
       return;
     }
-    const fechas = fechasEntre(formData.fechaInicioInscripciones, formData.fechaFinInscripciones);
+    const fechas = fechasEntre(formData.fechaInicioEvento, formData.fechaFinEvento);
     const horariosNormalizados = fechas.map((fecha) => horariosReunion.find((d) => d.fecha === fecha) || {
-      fecha, rangos: [{ desde: formData.horaInicioInscripciones, hasta: formData.horaFinInscripciones }],
+      fecha, rangos: [{ desde: formData.horaInicioEvento, hasta: formData.horaFinEvento }],
     });
     if (horariosNormalizados.some((d) => d.rangos.length === 0 || d.rangos.some((r) => !r.desde || !r.hasta || r.desde >= r.hasta))) {
       show({ type: 'warning', title: 'Horarios de reuniones', message: 'Todos los días deben tener al menos un rango válido para reuniones.' });
@@ -838,12 +838,12 @@ export default function EventConfigScreen({ navigation }: any) {
             <Text className="text-base font-bold text-gray-900 ml-1">Logística de Reuniones</Text>
           </View>
           <View className="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-4">
-            <Text className="text-xs text-blue-800">Los días se toman del período de inscripciones. Escribe los rangos en formato de 24 horas, por ejemplo 13:00 a 20:00.</Text>
+            <Text className="text-xs text-blue-800">Los días se toman del inicio y fin del evento. Escribe los rangos en formato de 24 horas, por ejemplo 13:00 a 20:00.</Text>
           </View>
           <TouchableOpacity onPress={copiarPrimerHorario} className="self-end border border-green-200 rounded-lg px-3 py-2 mb-3 flex-row items-center">
             <Text style={{ color: GREEN, fontSize: 12, fontWeight: '700' }}>Copiar primer día a todos</Text>
           </TouchableOpacity>
-          {fechasEntre(formData.fechaInicioInscripciones, formData.fechaFinInscripciones).map((fecha) => {
+          {fechasEntre(formData.fechaInicioEvento, formData.fechaFinEvento).map((fecha) => {
             const rangos = rangosDia(fecha);
             return <View key={fecha} className="border border-gray-100 rounded-xl p-3 mb-3">
               <Text className="text-sm font-bold text-gray-800 mb-2">{new Date(`${fecha}T12:00:00`).toLocaleDateString('es-BO', { weekday: 'long', day: '2-digit', month: 'long' })}</Text>

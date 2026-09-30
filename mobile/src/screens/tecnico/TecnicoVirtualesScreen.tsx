@@ -4,7 +4,7 @@ import {
   RefreshControl, Image, TextInput, Linking, Modal, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import {
-  AlertTriangle, Building2, Clock, Video, Armchair, Search, Link2, X, CheckCircle2, Mail, Send,
+  AlertTriangle, Building2, Clock, Video, Armchair, Search, Link2, X, CheckCircle2, Mail, Send, UserCheck,
 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -44,7 +44,13 @@ const FILTROS = [
   { key: 'CANCELADA',  label: 'Canceladas'  },
 ];
 
-function VirtualCard({ r, onEditLink, onMessage }: { r: any; onEditLink: (r: any) => void; onMessage: (reunionId: number, empresa: 'A' | 'B', empresaNombre: string, encargadoNombre: string) => void }) {
+function VirtualCard({ r, acting, onEditLink, onMessage, onFinalizar }: {
+  r: any; acting: boolean; onEditLink: (r: any) => void;
+  onMessage: (reunionId: number, empresa: 'A' | 'B', empresaNombre: string, encargadoNombre: string) => void;
+  onFinalizar: (reunion: any, asistentes: number) => void;
+}) {
+  const [finalizando, setFinalizando] = useState(false);
+  const [asistentes, setAsistentes] = useState(String(r.cantidadAsistentesRegistrados ?? ''));
   const sol = r.solicitudreunion;
   const eeA = sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento;
   const eeB = sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento;
@@ -113,6 +119,38 @@ function VirtualCard({ r, onEditLink, onMessage }: { r: any; onEditLink: (r: any
             <Text style={{ fontSize: 9, fontWeight: '700', color: est.color }}>{est.label}</Text>
           </View>
         </View>
+
+        {/* Finalizar reunión en curso */}
+        {r.estadoReunion === 'EN_CURSO' && (finalizando ? (
+          <View style={{ marginTop: 12, gap: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <UserCheck color="#6b7280" size={16} />
+              <Text style={{ fontSize: 12, color: '#374151', fontWeight: '600' }}>Asistentes:</Text>
+              <TextInput value={asistentes} onChangeText={setAsistentes} keyboardType="numeric"
+                style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4,
+                  fontSize: 13, color: '#111827', textAlign: 'center', width: 60 }} />
+            </View>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity onPress={() => setFinalizando(false)}
+                style={{ flex: 1, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', alignItems: 'center' }}>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: '#6b7280' }}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity disabled={acting} onPress={() => onFinalizar(r, Number(asistentes) || 0)}
+                style={{ flex: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  paddingVertical: 10, borderRadius: 12, backgroundColor: acting ? '#9ca3af' : GREEN }}>
+                <CheckCircle2 color="#fff" size={14} />
+                <Text style={{ fontSize: 12, fontWeight: '700', color: '#fff' }}>Confirmar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <TouchableOpacity onPress={() => setFinalizando(true)}
+            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+              marginTop: 12, paddingVertical: 10, borderRadius: 12, backgroundColor: '#f97316' }}>
+            <CheckCircle2 color="#fff" size={14} />
+            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>Finalizar y evaluar</Text>
+          </TouchableOpacity>
+        ))}
 
         {/* Enlace virtual */}
         {canceladaPorEmpresa && (
@@ -277,6 +315,7 @@ export default function TecnicoVirtualesScreen() {
   const [msgModal, setMsgModal] = useState<{ reunionId: number; empresa: 'A' | 'B'; empresaNombre: string; encargadoNombre: string } | null>(null);
   const [msgText,  setMsgText]  = useState('');
   const [sending,  setSending]  = useState(false);
+  const [acting,   setActing]   = useState(false);
 
   const fetchReuniones = useCallback(async () => {
     try {
@@ -314,6 +353,20 @@ export default function TecnicoVirtualesScreen() {
     finally { setSending(false); }
   };
 
+  const finalizarReunion = async (reunion: any, asistentes: number) => {
+    setActing(true);
+    try {
+      const res = await fetch(`${API_URL}/tecnico/reuniones/${reunion.id}/estado`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estadoReunion: 'FINALIZADA', asistentes }),
+      });
+      if (!res.ok) throw new Error();
+      showModal({ type: 'success', title: 'Reunión finalizada', message: 'La reunión quedó registrada y las empresas fueron notificadas para evaluar.' });
+      fetchReuniones();
+    } catch { showModal({ type: 'error', title: 'Error', message: 'No se pudo finalizar la reunión.' }); }
+    finally { setActing(false); }
+  };
+
   useEffect(() => {
     setLoading(true);
     fetchReuniones();
@@ -344,9 +397,6 @@ export default function TecnicoVirtualesScreen() {
     const matchSearch = search.trim() === '' || empresa.toLowerCase().includes(search.trim().toLowerCase());
     return matchEst && matchSearch;
   });
-  const canceladasPorEmpresa = reuniones.filter((r) =>
-    r.estadoReunion === 'CANCELADA' && /^Cancelada por /i.test(r.observacionesReunion ?? ''),
-  );
   const sinEnlace = reuniones.filter((r) =>
     ['PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO'].includes(r.estadoReunion) &&
     !r.solicitudreunion?.enlaceReunionVirtual,
@@ -489,34 +539,6 @@ export default function TecnicoVirtualesScreen() {
           }
           showsVerticalScrollIndicator={false}
         >
-          {sinEnlace.length > 0 && (
-            <View style={{ flexDirection:'row', alignItems:'flex-start', gap:10, marginBottom:12,
-              borderWidth:1, borderColor:'#fcd34d', backgroundColor:'#fffbeb', borderRadius:16, padding:14 }}>
-              <AlertTriangle color="#d97706" size={19}/>
-              <View style={{ flex:1 }}>
-                <Text style={{ color:'#92400e', fontSize:13, fontWeight:'800' }}>
-                  {sinEnlace.length} reunión(es) pendiente(s) de enlace
-                </Text>
-                <Text style={{ color:'#a16207', fontSize:11, lineHeight:16, marginTop:3 }}>
-                  Abre la reunión y agrega un enlace HTTPS antes de su hora programada.
-                </Text>
-              </View>
-            </View>
-          )}
-          {canceladasPorEmpresa.length > 0 && (
-            <View style={{ flexDirection:'row', alignItems:'flex-start', gap:10, marginBottom:12,
-              borderWidth:1, borderColor:'#fecaca', backgroundColor:'#fef2f2', borderRadius:16, padding:14 }}>
-              <AlertTriangle color="#dc2626" size={19}/>
-              <View style={{ flex:1 }}>
-                <Text style={{ color:'#991b1b', fontSize:13, fontWeight:'800' }}>
-                  {canceladasPorEmpresa.length} reunión(es) virtual(es) cancelada(s) por empresas
-                </Text>
-                <Text style={{ color:'#b91c1c', fontSize:11, lineHeight:16, marginTop:3 }}>
-                  El motivo aparece directamente en la reunión cancelada.
-                </Text>
-              </View>
-            </View>
-          )}
           {filtered.length === 0 ? (
             <View style={{
               backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#f1f5f9',
@@ -528,7 +550,9 @@ export default function TecnicoVirtualesScreen() {
               </Text>
             </View>
           ) : (
-            filtered.map((r) => <VirtualCard key={r.id} r={r} onEditLink={setLinkModal} onMessage={(reunionId, empresa, empresaNombre, encargadoNombre) => { setMsgModal({ reunionId, empresa, empresaNombre, encargadoNombre }); setMsgText(''); }} />)
+            filtered.map((r) => <VirtualCard key={r.id} r={r} acting={acting} onEditLink={setLinkModal}
+              onMessage={(reunionId, empresa, empresaNombre, encargadoNombre) => { setMsgModal({ reunionId, empresa, empresaNombre, encargadoNombre }); setMsgText(''); }}
+              onFinalizar={finalizarReunion} />)
           )}
           <View style={{ height: 20 }} />
         </ScrollView>

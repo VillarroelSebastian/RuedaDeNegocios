@@ -242,12 +242,11 @@ export default function ConfiguracionDeEventoPage() {
       return;
     }
 
-    const usaPeriodoInscripciones = Boolean(formData.fechaInicioSolicitudes && formData.fechaFinSolicitudes);
-    const inicioLogistica = usaPeriodoInscripciones ? formData.fechaInicioSolicitudes : formData.fechaInicioEvento;
-    const finLogistica = usaPeriodoInscripciones ? formData.fechaFinSolicitudes : formData.fechaFinEvento;
+    const inicioLogistica = formData.fechaInicioEvento;
+    const finLogistica = formData.fechaFinEvento;
     const fechasEvento = fechasEntre(inicioLogistica, finLogistica);
-    const desdeDefault = usaPeriodoInscripciones ? '08:00' : (inicioLogistica.slice(11, 16) || '08:00');
-    const hastaDefault = usaPeriodoInscripciones ? '18:00' : (finLogistica.slice(11, 16) || '18:00');
+    const desdeDefault = inicioLogistica.slice(11, 16) || '08:00';
+    const hastaDefault = finLogistica.slice(11, 16) || '18:00';
     const porFecha = new Map(horariosReunion.map((dia) => [dia.fecha, dia]));
     const horariosNormalizados = fechasEvento.map((fecha) => porFecha.get(fecha) ?? {
       fecha, habilitado: true, rangos: [{ desde: desdeDefault, hasta: hastaDefault }],
@@ -344,17 +343,16 @@ export default function ConfiguracionDeEventoPage() {
     }
   };
 
-  const usaPeriodoInscripciones = Boolean(formData.fechaInicioSolicitudes && formData.fechaFinSolicitudes);
-  const inicioLogistica = usaPeriodoInscripciones ? formData.fechaInicioSolicitudes : formData.fechaInicioEvento;
-  const finLogistica = usaPeriodoInscripciones ? formData.fechaFinSolicitudes : formData.fechaFinEvento;
+  const inicioLogistica = formData.fechaInicioEvento;
+  const finLogistica = formData.fechaFinEvento;
   const diasReunion: DiaReunion[] = fechasEntre(inicioLogistica, finLogistica).map((fecha) => {
     const existente = horariosReunion.find((dia) => dia.fecha === fecha);
     return existente ?? {
       fecha,
       habilitado: true,
       rangos: [{
-        desde: usaPeriodoInscripciones ? '08:00' : (inicioLogistica.slice(11, 16) || '08:00'),
-        hasta: usaPeriodoInscripciones ? '18:00' : (finLogistica.slice(11, 16) || '18:00'),
+        desde: inicioLogistica.slice(11, 16) || '08:00',
+        hasta: finLogistica.slice(11, 16) || '18:00',
       }],
     };
   });
@@ -585,7 +583,7 @@ export default function ConfiguracionDeEventoPage() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
               <div>
                 <p style={{ fontWeight: 700, color: '#166534', fontSize: '0.875rem' }}>Horarios disponibles para reuniones *</p>
-                <p style={{ color: '#4b5563', fontSize: '0.75rem', marginTop: '0.2rem' }}>Los días se toman del período de inscripciones; las horas se definen aquí de forma independiente. Usa formato de 24 horas: 13:00 equivale a 1:00 p. m.</p>
+                <p style={{ color: '#4b5563', fontSize: '0.75rem', marginTop: '0.2rem' }}>Los días se toman del inicio y fin del evento; las horas se definen aquí de forma independiente. Usa formato de 24 horas: 13:00 equivale a 1:00 p. m.</p>
               </div>
               <button type="button" onClick={copiarPrimerDia} className={styles.uploadButton} style={{ marginTop: 0 }}>Copiar primer día a todos</button>
             </div>

@@ -238,7 +238,7 @@ function TecnicoAgendarPageInner() {
     setMesas([]); setMesa(null);
     fetch(`${API}/tecnico/mesas`)
       .then((r) => r.json())
-      .then((d) => setMesas(Array.isArray(d?.mesas) ? d.mesas : []))
+      .then((d) => setMesas(Array.isArray(d?.mesas) ? d.mesas.filter((m: any) => m.estaHabilitada !== 0) : []))
       .catch(() => {})
       .finally(() => setCargandoM(false));
   };
