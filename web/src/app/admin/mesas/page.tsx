@@ -180,7 +180,13 @@ function ReunionSlot({
 
   return (
     <div className="border-t border-gray-50">
-      <div className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50/80 transition-colors">
+      <div
+        onClick={() => setOpen(!open)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(!open); } }}
+        className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50/80 transition-colors cursor-pointer select-none"
+      >
         <div className="w-24 shrink-0">
           <p className="text-xs font-bold text-gray-800">
             {fmtTime(r.fechaHoraInicioReunion)} – {fmtTime(r.fechaHoraFinReunion)}
@@ -201,9 +207,9 @@ function ReunionSlot({
         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 hidden sm:inline ${est.badge}`}>
           {est.label}
         </span>
-        <button onClick={() => setOpen(!open)} className="shrink-0 text-gray-400 hover:text-gray-600">
+        <span className="shrink-0 text-gray-400">
           {open ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-        </button>
+        </span>
       </div>
       {open && (
         <div className="px-4 pb-4 bg-gray-50/50 border-t border-gray-100 space-y-3 pt-3">

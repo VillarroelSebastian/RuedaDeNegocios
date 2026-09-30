@@ -270,9 +270,9 @@ export default function TecnicoVirtualesPage() {
 
             return (
               <div key={r.id} className="bg-white rounded-2xl border border-gray-100 p-4 hover:shadow-sm transition-shadow">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                  {/* Status badge */}
-                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold self-start ${est.badge}`}>
+                {/* Info: estado, empresas, horario, tipo */}
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold shrink-0 ${est.badge}`}>
                     {est.animated
                       ? <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
                       : <span className={`w-1.5 h-1.5 rounded-full ${est.dot}`} />
@@ -280,64 +280,62 @@ export default function TecnicoVirtualesPage() {
                     {est.label}
                   </span>
 
-                  {/* Companies */}
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <div className="flex items-center gap-2 min-w-0 max-w-full">
                     <CompanyChip empresa={ea} colorClass="bg-green-100 text-green-700" />
                     <span className="text-gray-300 text-sm font-bold shrink-0">↔</span>
                     <CompanyChip empresa={eb} colorClass="bg-blue-100 text-blue-700" />
                   </div>
 
-                  {/* Time */}
-                  <div className="flex items-center gap-1.5 text-xs text-gray-500 shrink-0">
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${tip.badge}`}>
+                    {tip.label}
+                  </span>
+
+                  <div className="flex items-center gap-1.5 text-xs text-gray-500 shrink-0 sm:ml-auto">
                     <Clock className="w-3.5 h-3.5" />
                     <span>
                       {fmtDate(r.fechaHoraInicioReunion)} · {fmtTime(r.fechaHoraInicioReunion)} – {fmtTime(r.fechaHoraFinReunion)}
                     </span>
                   </div>
-
-                  {/* Type badge */}
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${tip.badge}`}>
-                    {tip.label}
-                  </span>
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-2 shrink-0">
-                    {r.estadoReunion === 'EN_CURSO' && (
-                      <Link href="/tecnico/reuniones" className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-orange-600">
-                        Finalizar y evaluar
-                      </Link>
-                    )}
-                    <Link
-                      href={`/tecnico/virtuales/${r.id}`}
-                      className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
-                    >
-                      Ver detalles
-                    </Link>
-                    {link && enlaceOperativo && (
-                      <a
-                        href={link}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition-colors"
-                      >
-                        <ExternalLink className="w-3 h-3" />
-                        Abrir enlace
-                      </a>
-                    )}
-                    <button
-                      onClick={() => { setMsgModal({ reunionId: r.id, empresa: 'A', empresaNombre: ea?.nombre ?? 'Empresa A', encargadoNombre: nombreEncA }); setMsgText(''); }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-green-200 text-green-700 text-xs font-semibold hover:bg-green-50 transition-colors"
-                    >
-                      <Mail className="w-3 h-3" /> Mensaje a {ea?.nombre ?? 'Empresa A'}
-                    </button>
-                    <button
-                      onClick={() => { setMsgModal({ reunionId: r.id, empresa: 'B', empresaNombre: eb?.nombre ?? 'Empresa B', encargadoNombre: nombreEncB }); setMsgText(''); }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-blue-200 text-blue-700 text-xs font-semibold hover:bg-blue-50 transition-colors"
-                    >
-                      <Mail className="w-3 h-3" /> Mensaje a {eb?.nombre ?? 'Empresa B'}
-                    </button>
-                  </div>
                 </div>
+
+                {/* Acciones: todas en su propia fila, mismo tamaño, envuelven si no caben */}
+                <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-gray-50">
+                  {r.estadoReunion === 'EN_CURSO' && (
+                    <Link href="/tecnico/reuniones" className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-orange-600">
+                      Finalizar y evaluar
+                    </Link>
+                  )}
+                  {link && enlaceOperativo && (
+                    <a
+                      href={link}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition-colors"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      Abrir enlace
+                    </a>
+                  )}
+                  <Link
+                    href={`/tecnico/virtuales/${r.id}`}
+                    className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    Ver detalles
+                  </Link>
+                  <button
+                    onClick={() => { setMsgModal({ reunionId: r.id, empresa: 'A', empresaNombre: ea?.nombre ?? 'Empresa A', encargadoNombre: nombreEncA }); setMsgText(''); }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-green-200 text-green-700 text-xs font-semibold hover:bg-green-50 transition-colors max-w-[180px]"
+                  >
+                    <Mail className="w-3 h-3 shrink-0" /> <span className="truncate">Mensaje a {ea?.nombre ?? 'Empresa A'}</span>
+                  </button>
+                  <button
+                    onClick={() => { setMsgModal({ reunionId: r.id, empresa: 'B', empresaNombre: eb?.nombre ?? 'Empresa B', encargadoNombre: nombreEncB }); setMsgText(''); }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-blue-200 text-blue-700 text-xs font-semibold hover:bg-blue-50 transition-colors max-w-[180px]"
+                  >
+                    <Mail className="w-3 h-3 shrink-0" /> <span className="truncate">Mensaje a {eb?.nombre ?? 'Empresa B'}</span>
+                  </button>
+                </div>
+
                 {canceladaPorEmpresa && (
                   <div className="mt-3 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
                     <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
