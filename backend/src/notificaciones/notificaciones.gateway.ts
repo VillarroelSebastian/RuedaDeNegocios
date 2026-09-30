@@ -25,6 +25,7 @@ export class NotificacionesGateway {
         socket.data.user = user;
         for (const m of user.empresa_usuario) socket.join(`ee-${m.empresaevento_id}`);
         if (['ADMINISTRADOR', 'TECNICO', 'TECNICO_EVENTOS'].includes(user.rolEvento)) socket.join('staff');
+        socket.join(`user-${user.id}`);
         next();
       } catch { next(new Error('unauthorized')); }
     });
@@ -49,6 +50,11 @@ export class NotificacionesGateway {
   emitirParaStaff(evento: string, payload: object) {
     this.server?.to('staff').emit(evento, payload);
     void this.push.enviar('staff', evento, payload);
+  }
+
+  emitirParaUsuario(usuarioId: number, evento: string, payload: object) {
+    this.server?.to(`user-${usuarioId}`).emit(evento, payload);
+    void this.push.enviar({ usuarioId }, evento, payload);
   }
 
   emitirGlobal(evento: string, payload: object) {

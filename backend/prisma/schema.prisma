@@ -396,14 +396,17 @@ model mesa {
   capacidadPersonas     Int                @db.SmallInt
   estaActivo            Int                @default(1) @db.SmallInt
   estaHabilitada        Int                @default(1) @db.SmallInt
+  tecnicoAsignado_id    Int?
   fechaCreacion         DateTime           @default(now()) @db.Timestamp(6)
   creadoModificadoFecha DateTime?          @db.Timestamp(6)
   evento                evento             @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_mesa_evento1")
+  tecnicoasignado       usuario?           @relation("MesaTecnicoAsignado", fields: [tecnicoAsignado_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_mesa_tecnico1")
   mesabloque            mesabloque[]
   reunion               reunion[]
   solicitudreunion      solicitudreunion[]
 
   @@index([evento_id], map: "fk_mesa_evento1_idx")
+  @@index([tecnicoAsignado_id], map: "fk_mesa_tecnico1_idx")
 }
 
 model mesabloque {
@@ -669,6 +672,7 @@ model usuario {
   asistenciasRegistradas        asistenciaevento[]      @relation("TecnicoAsistencia")
   asistenciasAuspiciadores      asistenciaauspiciador[] @relation("TecnicoAsistenciaAuspiciador")
   anunciosActividad             anuncioactividad[]
+  mesasAsignadas                mesa[]                  @relation("MesaTecnicoAsignado")
 
   @@index([evento_id], map: "fk_usuario_evento1_idx")
 }

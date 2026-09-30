@@ -213,36 +213,35 @@ function ReunionSlot({
       </div>
       {open && (
         <div className="px-4 pb-4 bg-gray-50/50 border-t border-gray-100 space-y-3 pt-3">
-          {/* Acción principal según el estado */}
-          {esProgramada && (
-            <div className="flex gap-2">
-              <button disabled={acting} onClick={() => onCambiarEstado(r, 'EN_CURSO')}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#449D3A] hover:bg-[#367d2e] text-white font-semibold text-sm disabled:opacity-50 transition-colors">
-                <Play className="w-3.5 h-3.5" /> Iniciar
-              </button>
-              <button disabled={acting} onClick={() => onCambiarEstado(r, 'CANCELADA')}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 font-semibold text-sm disabled:opacity-50 transition-colors">
-                <XCircle className="w-3.5 h-3.5" /> Cancelar
-              </button>
-            </div>
-          )}
           {esEnCurso && (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <UserCheck className="w-4 h-4 text-gray-400 shrink-0" />
-                <label className="text-xs text-gray-600 font-semibold shrink-0">Asistentes:</label>
-                <input type="number" min="0" value={asistentes} onChange={(e) => setAsistentes(e.target.value)}
-                  className="w-20 border border-gray-200 rounded-lg px-2 py-1 text-sm text-center focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
-              </div>
-              <button disabled={acting} onClick={() => onCambiarEstado(r, 'FINALIZADA', Number(asistentes) || 0)}
-                className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-[#449D3A] hover:bg-[#367d2e] text-white font-semibold text-sm disabled:opacity-50 transition-colors">
-                <Square className="w-3.5 h-3.5" /> Finalizar reunión
-              </button>
+            <div className="flex items-center gap-2">
+              <UserCheck className="w-4 h-4 text-gray-400 shrink-0" />
+              <label className="text-xs text-gray-600 font-semibold shrink-0">Asistentes:</label>
+              <input type="number" min="0" value={asistentes} onChange={(e) => setAsistentes(e.target.value)}
+                className="w-20 border border-gray-200 rounded-lg px-2 py-1 text-sm text-center focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
             </div>
           )}
 
-          {/* Barra de acciones secundarias: link, horario, eliminar — todas juntas y del mismo tamaño */}
+          {/* Todas las acciones de la reunión en una sola barra que envuelve */}
           <div className="flex flex-wrap gap-1.5">
+            {esProgramada && (
+              <button disabled={acting} onClick={() => onCambiarEstado(r, 'EN_CURSO')}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#449D3A] hover:bg-[#367d2e] text-white text-xs font-bold disabled:opacity-50 transition-colors">
+                <Play className="w-3 h-3" /> Iniciar
+              </button>
+            )}
+            {esProgramada && (
+              <button disabled={acting} onClick={() => onCambiarEstado(r, 'CANCELADA')}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 text-xs font-bold disabled:opacity-50 transition-colors">
+                <XCircle className="w-3 h-3" /> Cancelar
+              </button>
+            )}
+            {esEnCurso && (
+              <button disabled={acting} onClick={() => onCambiarEstado(r, 'FINALIZADA', Number(asistentes) || 0)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#449D3A] hover:bg-[#367d2e] text-white text-xs font-bold disabled:opacity-50 transition-colors">
+                <Square className="w-3 h-3" /> Finalizar reunión
+              </button>
+            )}
             {esVirtual && link && (
               <a href={link} target="_blank" rel="noreferrer"
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-bold hover:bg-blue-700">
@@ -345,6 +344,10 @@ export default function MesasGrid() {
   const [nuevoHorario, setNuevoHorario] = useState('');
   const [guardandoEdicion, setGuardandoEdicion] = useState(false);
 
+  const [tecnicos, setTecnicos] = useState<any[]>([]);
+  const [asignandoMesa, setAsignandoMesa] = useState<any>(null);
+  const [guardandoTecnico, setGuardandoTecnico] = useState(false);
+
   const fetchMesas = useCallback(async () => {
     try {
       const [res, libresRes] = await Promise.all([fetch(`${API}/admin/mesas`), fetch(`${API}/staff/empresas-sin-reunion`)]);
@@ -356,6 +359,33 @@ export default function MesasGrid() {
     finally { setLoading(false); }
   }, []);
 
+  const fetchTecnicos = useCallback(async () => {
+    try {
+      const data = await (await fetch(`${API}/admin/tecnicos`)).json();
+      setTecnicos(Array.isArray(data) ? data.filter((t: any) => t.estaActivo === 1) : []);
+    } catch { setTecnicos([]); }
+  }, []);
+
+  const asignarTecnico = async (usuarioId: number | null) => {
+    if (!asignandoMesa) return;
+    setGuardandoTecnico(true);
+    try {
+      const res = await fetch(`${API}/admin/mesas/${asignandoMesa.id}/tecnico`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ usuarioId }),
+      });
+      if (!res.ok) throw new Error();
+      const actualizada = await res.json();
+      setMesas((prev) => prev.map((m) => (m.id === asignandoMesa.id ? { ...m, tecnicoasignado: actualizada.tecnicoasignado } : m)));
+      showSuccess(
+        usuarioId ? 'Técnico asignado' : 'Asignación quitada',
+        usuarioId ? `Se notificó a ${actualizada.tecnicoasignado?.nombres} ${actualizada.tecnicoasignado?.apellidoPaterno} que controla la Mesa ${asignandoMesa.numeroMesa}.` : `La Mesa ${asignandoMesa.numeroMesa} ya no tiene técnico asignado.`,
+      );
+      setAsignandoMesa(null);
+    } catch { showError('Error', 'No se pudo actualizar el técnico asignado. Intenta de nuevo.'); }
+    finally { setGuardandoTecnico(false); }
+  };
+
   const fetchHistorial = useCallback(async (q?: string) => {
     setLoadingHistorial(true);
     try {
@@ -366,7 +396,7 @@ export default function MesasGrid() {
     finally { setLoadingHistorial(false); }
   }, []);
 
-  useEffect(() => { fetchMesas(); }, [fetchMesas]);
+  useEffect(() => { fetchMesas(); fetchTecnicos(); }, [fetchMesas, fetchTecnicos]);
   useEffect(() => { if (filtro === 'HISTORIAL') fetchHistorial(); }, [filtro, fetchHistorial]);
 
   const handleSearchH = (val: string) => {
@@ -642,6 +672,51 @@ export default function MesasGrid() {
         </div>
       )}
 
+      {asignandoMesa && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
+              <div>
+                <p className="text-sm font-bold text-gray-900">Asignar técnico — Mesa {asignandoMesa.numeroMesa}</p>
+                <p className="text-xs text-gray-400">Se le notificará que debe controlar esta mesa.</p>
+              </div>
+              <button onClick={() => setAsignandoMesa(null)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="px-3 py-3 overflow-y-auto space-y-1.5">
+              {tecnicos.length === 0 && (
+                <p className="text-sm text-gray-400 text-center py-6">No hay técnicos registrados.</p>
+              )}
+              {tecnicos.map((t) => {
+                const asignado = asignandoMesa.tecnicoasignado?.id === t.id;
+                return (
+                  <button key={t.id} disabled={guardandoTecnico} onClick={() => asignarTecnico(t.id)}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-colors disabled:opacity-50 ${
+                      asignado ? 'border-[#449D3A] bg-green-50' : 'border-gray-100 hover:bg-gray-50'
+                    }`}>
+                    {t.urlFotoPerfil
+                      ? <img src={t.urlFotoPerfil} className="w-8 h-8 rounded-full object-contain border border-gray-100 shrink-0" alt="" />
+                      : <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center shrink-0"><UserCheck className="w-3.5 h-3.5 text-gray-400" /></div>}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-800 truncate">{t.nombres} {t.apellidoPaterno}</p>
+                      <p className="text-[11px] text-gray-400 truncate">{t.rolEvento === 'TECNICO_EVENTOS' ? 'Técnico de eventos' : 'Técnico'}</p>
+                    </div>
+                    {asignado && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#449D3A] text-white shrink-0">Asignado</span>}
+                  </button>
+                );
+              })}
+            </div>
+            {asignandoMesa.tecnicoasignado && (
+              <div className="px-5 py-3 border-t border-gray-100 shrink-0">
+                <button disabled={guardandoTecnico} onClick={() => asignarTecnico(null)}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 rounded-xl disabled:opacity-50">
+                  <X className="w-3.5 h-3.5" /> Quitar asignación
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="mb-5">
         <h1 className="text-2xl font-extrabold text-gray-900">Mesas y reuniones</h1>
         <p className="text-sm text-gray-500 mt-1">Agenda, estado de las mesas y control completo de las reuniones del evento.</p>
@@ -780,6 +855,18 @@ export default function MesasGrid() {
                   </div>
                   <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0 ${badgeClass}`}>{label}</span>
                 </div>
+
+                <button onClick={() => setAsignandoMesa(mesa)}
+                  className="w-full flex items-center gap-2 px-4 py-2 border-b border-gray-50 hover:bg-gray-50/80 transition-colors text-left">
+                  <UserCheck className={`w-3.5 h-3.5 shrink-0 ${mesa.tecnicoasignado ? 'text-[#449D3A]' : 'text-gray-300'}`} />
+                  {mesa.tecnicoasignado ? (
+                    <span className="text-xs text-gray-600">
+                      Técnico: <span className="font-semibold text-gray-800">{mesa.tecnicoasignado.nombres} {mesa.tecnicoasignado.apellidoPaterno}</span>
+                    </span>
+                  ) : (
+                    <span className="text-xs text-gray-400">Sin técnico asignado — toca para asignar</span>
+                  )}
+                </button>
 
                 {mesa.reunion && mesa.reunion.length > 0 && mesa.reunion.map((r: any) => (
                   <ReunionSlot key={r.id} r={{ ...r, mesa_id: mesa.numeroMesa }} mesaNumero={mesa.numeroMesa} acting={acting}

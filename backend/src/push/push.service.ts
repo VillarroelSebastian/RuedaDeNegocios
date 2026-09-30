@@ -14,7 +14,7 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
   }
   onModuleInit() { this.timer=setInterval(()=>void this.procesar(),10000);this.timer.unref();void this.procesar(); }
   onModuleDestroy() { if(this.timer)clearInterval(this.timer); }
-  async enviar(audiencia: number | 'staff' | 'foro' | 'global', tipo: string, payload: any) {
+  async enviar(audiencia: number | 'staff' | 'foro' | 'global' | { usuarioId: number }, tipo: string, payload: any) {
     if (!payload.titulo || !payload.mensaje) return;
     try {
       const evento = await this.prisma.evento.findFirst({ where: { esPrincipal: 1, estaActivo: { not: 0 } }, select: { id: true } });
@@ -25,9 +25,11 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
         estaActivo: 1, ...(typeof audiencia === 'number' ? { empresaevento_id: audiencia } : {}),
         empresaevento: { evento_id: evento.id, estaActivo: 1, estadoHabilitacionAcceso: 'HABILITADO', estadoVerificacionPago: 'COMPLETADO' },
       } } };
+      const usuarioEspecifico = typeof audiencia === 'object' && audiencia !== null ? audiencia.usuarioId : null;
       const usuarios = await this.prisma.usuario.findMany({
         where: { estaActivo: 1, id: { not: Number(payload.excludeUserId) || 0 },
-          ...(audiencia === 'staff' ? staff : audiencia === 'foro' ? foro : typeof audiencia === 'number' ? empresa : { OR: [staff, empresa, foro] }) },
+          ...(usuarioEspecifico ? { id: usuarioEspecifico }
+            : audiencia === 'staff' ? staff : audiencia === 'foro' ? foro : typeof audiencia === 'number' ? empresa : { OR: [staff, empresa, foro] }) },
         select: { id: true, rolEvento: true },
       });
       const roles = new Map(usuarios.map((u) => [u.id, u.rolEvento]));
@@ -37,7 +39,7 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
       await this.prisma.pushdelivery.createMany({data:destinos.map(destino=>{
         const role=roles.get(destino.usuarioId);
         const base=role==='FORO'?'/foro':role==='EMPRESA'?'/empresa':role==='ADMINISTRADOR'?'/admin':'/tecnico';
-        const url=base==='/foro'?'/foro':base+(tipo.startsWith('chat-interno')?'/equipo':tipo.startsWith('mensaje')?'/mensajes':'/dashboard');
+        const url=base==='/foro'?'/foro':base+(tipo.startsWith('chat-interno')?'/equipo':tipo.startsWith('mensaje')?'/mensajes':tipo.startsWith('mesa')&&base==='/tecnico'?'/mesas':'/dashboard');
         return {subscriptionId:destino.id,contenido:{title:String(payload.titulo).slice(0,150),body:String(payload.mensaje).slice(0,500),
           data:{url,tipo,usuarioId:destino.usuarioId,referenciaId:payload.referenciaId||0},tag:tipo}};
       })});

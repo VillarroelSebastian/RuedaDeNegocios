@@ -3114,6 +3114,7 @@ export class AppController implements OnModuleInit {
       where: { evento_id: eventoId, estaActivo: 1 },
       orderBy: { numeroMesa: 'asc' },
       include: {
+        tecnicoasignado: { select: { id: true, nombres: true, apellidoPaterno: true, apellidoMaterno: true, urlFotoPerfil: true } },
         // Solo reuniones vigentes/futuras en la tarjeta de cada mesa; las
         // finalizadas o canceladas no deben aparecer aquí (van al historial).
         reunion: {
@@ -3364,6 +3365,52 @@ export class AppController implements OnModuleInit {
       where: { id: Number(id) },
       data: { estaActivo: 0 },
     });
+  }
+
+  @Put('admin/mesas/:id/tecnico')
+  async asignarTecnicoMesa(@Param('id') id: string, @Body() body: { usuarioId?: number | null }) {
+    const eventoId = await this.getPrincipalEventoId();
+    if (!eventoId) throw new BadRequestException('No hay un evento activo');
+    const mesa = await this.prisma.mesa.findFirst({ where: { id: Number(id), evento_id: eventoId, estaActivo: 1 } });
+    if (!mesa) throw new BadRequestException('Mesa no encontrada');
+
+    const usuarioId = body.usuarioId ? Number(body.usuarioId) : null;
+    let tecnico: { id: number; nombres: string; apellidoPaterno: string } | null = null;
+    if (usuarioId) {
+      tecnico = await this.prisma.usuario.findFirst({
+        where: { id: usuarioId, rolEvento: { in: ['TECNICO', 'TECNICO_EVENTOS'] }, estaActivo: 1 },
+        select: { id: true, nombres: true, apellidoPaterno: true },
+      });
+      if (!tecnico) throw new BadRequestException('Técnico no encontrado');
+    }
+
+    const actualizada = await this.prisma.mesa.update({
+      where: { id: mesa.id },
+      data: { tecnicoAsignado_id: usuarioId, creadoModificadoFecha: new Date() },
+      include: { tecnicoasignado: { select: { id: true, nombres: true, apellidoPaterno: true, apellidoMaterno: true, urlFotoPerfil: true } } },
+    });
+
+    if (tecnico) {
+      const titulo = 'Mesa asignada';
+      const mensaje = `Se te asignó el control de la Mesa ${mesa.numeroMesa}. Coordina las reuniones desde la app.`;
+      try {
+        await this.prisma.notificacionstaff.create({
+          data: {
+            evento_id: eventoId,
+            tituloNotificacion: titulo,
+            mensajeNotificacion: `Mesa ${mesa.numeroMesa} asignada a ${tecnico.nombres} ${tecnico.apellidoPaterno}.`,
+            tipoNotificacion: 'mesa:asignacion',
+            referenciaId: mesa.id,
+            referenciaNombreTabla: 'mesa',
+            urgente: 0,
+            estaActivo: 1,
+          },
+        });
+      } catch {}
+      try { this.notifGateway.emitirParaUsuario(tecnico.id, 'mesa:asignada', { titulo, mensaje, referenciaId: mesa.id }); } catch {}
+    }
+
+    return actualizada;
   }
 
   // ─── REUNIONES (admin) ───────────────────────────────────────────────────────

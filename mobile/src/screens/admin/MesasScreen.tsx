@@ -230,43 +230,42 @@ function ReunionRow({
 
       {expanded && (
         <View style={{ paddingHorizontal: 12, paddingBottom: 12, gap: 8 }}>
-          {/* Acción principal según el estado */}
-          {esProgramada && (
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <TouchableOpacity disabled={acting} onPress={() => onCambiarEstado(r, 'EN_CURSO')}
-                style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-                  paddingVertical: 11, borderRadius: 12, backgroundColor: acting ? '#9ca3af' : GREEN }}>
-                <Play color="#fff" size={14} />
-                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>Iniciar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity disabled={acting} onPress={() => onCambiarEstado(r, 'CANCELADA')}
-                style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-                  paddingVertical: 11, borderRadius: 12, borderWidth: 1, borderColor: '#fecaca', backgroundColor: '#fff' }}>
-                <XCircle color="#dc2626" size={14} />
-                <Text style={{ color: '#dc2626', fontWeight: '700', fontSize: 13 }}>Cancelar</Text>
-              </TouchableOpacity>
-            </View>
-          )}
           {esEnCurso && (
-            <View style={{ gap: 8 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <UserCheck color="#6b7280" size={16} />
-                <Text style={{ fontSize: 12, color: '#374151', fontWeight: '600' }}>Asistentes:</Text>
-                <TextInput value={asistentes} onChangeText={setAsistentes} keyboardType="numeric"
-                  style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4,
-                    fontSize: 13, color: '#111827', textAlign: 'center', width: 60 }} />
-              </View>
-              <TouchableOpacity disabled={acting} onPress={() => onCambiarEstado(r, 'FINALIZADA', Number(asistentes) || 0)}
-                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-                  paddingVertical: 11, borderRadius: 12, backgroundColor: acting ? '#9ca3af' : GREEN }}>
-                <Square color="#fff" size={14} />
-                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>Finalizar reunión</Text>
-              </TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <UserCheck color="#6b7280" size={16} />
+              <Text style={{ fontSize: 12, color: '#374151', fontWeight: '600' }}>Asistentes:</Text>
+              <TextInput value={asistentes} onChangeText={setAsistentes} keyboardType="numeric"
+                style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4,
+                  fontSize: 13, color: '#111827', textAlign: 'center', width: 60 }} />
             </View>
           )}
 
-          {/* Acciones secundarias: link, horario, eliminar — todas juntas y del mismo tamaño */}
+          {/* Todas las acciones de la reunión en una sola barra que envuelve */}
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+            {esProgramada && (
+              <TouchableOpacity disabled={acting} onPress={() => onCambiarEstado(r, 'EN_CURSO')}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6,
+                  paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, backgroundColor: acting ? '#9ca3af' : GREEN }}>
+                <Play color="#fff" size={12} />
+                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 11 }}>Iniciar</Text>
+              </TouchableOpacity>
+            )}
+            {esProgramada && (
+              <TouchableOpacity disabled={acting} onPress={() => onCambiarEstado(r, 'CANCELADA')}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6,
+                  paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, borderWidth: 1, borderColor: '#fecaca', backgroundColor: '#fff' }}>
+                <XCircle color="#dc2626" size={12} />
+                <Text style={{ color: '#dc2626', fontWeight: '700', fontSize: 11 }}>Cancelar</Text>
+              </TouchableOpacity>
+            )}
+            {esEnCurso && (
+              <TouchableOpacity disabled={acting} onPress={() => onCambiarEstado(r, 'FINALIZADA', Number(asistentes) || 0)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6,
+                  paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, backgroundColor: acting ? '#9ca3af' : GREEN }}>
+                <Square color="#fff" size={12} />
+                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 11 }}>Finalizar reunión</Text>
+              </TouchableOpacity>
+            )}
             {esVirtual && link && (
               <TouchableOpacity onPress={() => Linking.openURL(link)}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 6,
@@ -397,6 +396,10 @@ export default function MesasScreen({ embedded = false }: { embedded?: boolean }
   const [nuevaHora, setNuevaHora] = useState('');
   const [guardandoEdicion, setGuardandoEdicion] = useState(false);
 
+  const [tecnicos, setTecnicos] = useState<any[]>([]);
+  const [asignandoMesa, setAsignandoMesa] = useState<any>(null);
+  const [guardandoTecnico, setGuardandoTecnico] = useState(false);
+
   const fetchMesas = useCallback(async () => {
     try {
       const [res, libresRes] = await Promise.all([fetch(`${API_URL}/admin/mesas`), fetch(`${API_URL}/staff/empresas-sin-reunion`)]);
@@ -408,6 +411,35 @@ export default function MesasScreen({ embedded = false }: { embedded?: boolean }
     finally { setLoading(false); setRefreshing(false); }
   }, []);
 
+  const fetchTecnicos = useCallback(async () => {
+    try {
+      const data = await (await fetch(`${API_URL}/admin/tecnicos`)).json();
+      setTecnicos(Array.isArray(data) ? data.filter((t: any) => t.estaActivo === 1) : []);
+    } catch { setTecnicos([]); }
+  }, []);
+
+  const asignarTecnico = async (usuarioId: number | null) => {
+    if (!asignandoMesa) return;
+    setGuardandoTecnico(true);
+    try {
+      const res = await fetch(`${API_URL}/admin/mesas/${asignandoMesa.id}/tecnico`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ usuarioId }),
+      });
+      if (!res.ok) throw new Error();
+      const actualizada = await res.json();
+      setMesas((prev) => prev.map((m) => (m.id === asignandoMesa.id ? { ...m, tecnicoasignado: actualizada.tecnicoasignado } : m)));
+      showModal({
+        type: 'success', title: usuarioId ? 'Técnico asignado' : 'Asignación quitada',
+        message: usuarioId
+          ? `Se notificó a ${actualizada.tecnicoasignado?.nombres} ${actualizada.tecnicoasignado?.apellidoPaterno} que controla la Mesa ${asignandoMesa.numeroMesa}.`
+          : `La Mesa ${asignandoMesa.numeroMesa} ya no tiene técnico asignado.`,
+      });
+      setAsignandoMesa(null);
+    } catch { showModal({ type: 'error', title: 'Error', message: 'No se pudo actualizar el técnico asignado. Intenta de nuevo.' }); }
+    finally { setGuardandoTecnico(false); }
+  };
+
   const fetchHistorial = useCallback(async (q?: string) => {
     setLoadingHistorial(true);
     try {
@@ -418,7 +450,7 @@ export default function MesasScreen({ embedded = false }: { embedded?: boolean }
     finally { setLoadingHistorial(false); }
   }, []);
 
-  useEffect(() => { fetchMesas(); }, []);
+  useEffect(() => { fetchMesas(); fetchTecnicos(); }, []);
   useEffect(() => { if (filtro === 'HISTORIAL') fetchHistorial(); }, [filtro]);
 
   const handleSearchH = (val: string) => {
@@ -737,6 +769,60 @@ export default function MesasScreen({ embedded = false }: { embedded?: boolean }
         </KeyboardAvoidingView>
       </Modal>
 
+      <Modal visible={!!asignandoMesa} transparent animationType="slide" onRequestClose={() => setAsignandoMesa(null)}>
+        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
+          <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 20, maxHeight: '80%' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 4 }}>
+              <View>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: '#111827' }}>Asignar técnico — Mesa {asignandoMesa?.numeroMesa}</Text>
+                <Text style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>Se le notificará que debe controlar esta mesa.</Text>
+              </View>
+              <TouchableOpacity onPress={() => setAsignandoMesa(null)}>
+                <X color="#9ca3af" size={20} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ paddingHorizontal: 14, marginTop: 12 }} contentContainerStyle={{ gap: 6, paddingBottom: 8 }}>
+              {tecnicos.length === 0 && (
+                <Text style={{ fontSize: 13, color: '#9ca3af', textAlign: 'center', paddingVertical: 20 }}>No hay técnicos registrados.</Text>
+              )}
+              {tecnicos.map((t) => {
+                const asignado = asignandoMesa?.tecnicoasignado?.id === t.id;
+                return (
+                  <TouchableOpacity key={t.id} disabled={guardandoTecnico} onPress={() => asignarTecnico(t.id)}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 10,
+                      borderRadius: 14, borderWidth: 1, borderColor: asignado ? GREEN : '#f1f5f9',
+                      backgroundColor: asignado ? '#f0fdf4' : '#fff', opacity: guardandoTecnico ? 0.6 : 1 }}>
+                    {t.urlFotoPerfil
+                      ? <Image source={{ uri: t.urlFotoPerfil }} style={{ width: 32, height: 32, borderRadius: 16 }} resizeMode="contain" />
+                      : <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center' }}>
+                          <UserCheck color="#9ca3af" size={14} />
+                        </View>}
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: '#1f2937' }} numberOfLines={1}>{t.nombres} {t.apellidoPaterno}</Text>
+                      <Text style={{ fontSize: 10, color: '#9ca3af' }} numberOfLines={1}>{t.rolEvento === 'TECNICO_EVENTOS' ? 'Técnico de eventos' : 'Técnico'}</Text>
+                    </View>
+                    {asignado && (
+                      <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: GREEN }}>
+                        <Text style={{ fontSize: 9, fontWeight: '700', color: '#fff' }}>Asignado</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+            {asignandoMesa?.tecnicoasignado && (
+              <View style={{ paddingHorizontal: 20, paddingVertical: 14, borderTopWidth: 1, borderTopColor: '#f3f4f6' }}>
+                <TouchableOpacity disabled={guardandoTecnico} onPress={() => asignarTecnico(null)}
+                  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 11, borderRadius: 14, opacity: guardandoTecnico ? 0.6 : 1 }}>
+                  <X color="#dc2626" size={14} />
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: '#dc2626' }}>Quitar asignación</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
+
       {/* Header */}
       <View style={{ backgroundColor: '#fff', paddingHorizontal: 16, paddingTop: embedded ? 12 : insets.top + 16, paddingBottom: 12,
         borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
@@ -894,6 +980,19 @@ export default function MesasScreen({ embedded = false }: { embedded?: boolean }
                     <Text style={{ fontSize: 10, fontWeight: '700', color: inhabilitada && mesa.estadoMesa === 'LIBRE' ? '#6b7280' : cfg.color }}>{label}</Text>
                   </View>
                 </View>
+
+                <TouchableOpacity onPress={() => setAsignandoMesa(mesa)}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 9,
+                    borderBottomWidth: 1, borderBottomColor: '#f3f4f6' }}>
+                  <UserCheck color={mesa.tecnicoasignado ? GREEN : '#d1d5db'} size={14} />
+                  {mesa.tecnicoasignado ? (
+                    <Text style={{ fontSize: 12, color: '#4b5563' }}>
+                      Técnico: <Text style={{ fontWeight: '700', color: '#1f2937' }}>{mesa.tecnicoasignado.nombres} {mesa.tecnicoasignado.apellidoPaterno}</Text>
+                    </Text>
+                  ) : (
+                    <Text style={{ fontSize: 12, color: '#9ca3af' }}>Sin técnico asignado — toca para asignar</Text>
+                  )}
+                </TouchableOpacity>
 
                 {mesa.reunion && mesa.reunion.length > 0 && mesa.reunion.map((r: any) => (
                   <ReunionRow key={r.id} r={{ ...r, mesa_id: mesa.numeroMesa }} mesaNumero={mesa.numeroMesa} acting={acting}
