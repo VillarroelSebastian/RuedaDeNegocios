@@ -40,6 +40,7 @@ export class ExtrasController {
   }
 
   private adjuntoLogoCorreo() {
+    if (!existsSync(join(process.cwd(), '..', 'web', 'public', 'assets', 'iconos', 'logo.png'))) return [];
     return [{
       filename: 'rueda-de-negocios.png',
       path: join(process.cwd(), '..', 'web', 'public', 'assets', 'iconos', 'logo.png'),
@@ -149,16 +150,38 @@ export class ExtrasController {
 
   private async crearAccesoEmpresaAuspiciador(ausp: any) {
     const responsable = ausp.personas?.[0];
-    if (!responsable?.correo) return { creado: false };
+    if (!responsable?.correo) throw new BadRequestException('El responsable necesita un correo valido.');
     const correo = String(responsable.correo).trim().toLowerCase();
     const existente = await this.prisma.usuario.findFirst({ where: { correo: { equals: correo, mode: 'insensitive' }, estaActivo: 1 } });
-    if (existente) return { creado: false, motivo: 'El correo ya tenía una cuenta.' };
+    const marcador = `AUSP-${ausp.id}-${responsable.id}`;
+    const cuentaPropia = existente || await this.prisma.usuario.findFirst({ where: { telefono: marcador, estaActivo: 1 } });
+    if (cuentaPropia) {
+      if (cuentaPropia.telefono !== marcador || cuentaPropia.rolEvento !== 'EMPRESA')
+        throw new BadRequestException('El correo pertenece a otra cuenta. No se modifico su acceso.');
+      const pwd = `Rn!${randomBytes(9).toString('base64url')}9aA`;
+      const hash = await bcrypt.hash(pwd, 10);
+      const cambio = await this.prisma.usuario.updateMany({
+        where: { id: cuentaPropia.id, contrasenia: cuentaPropia.contrasenia },
+        data: { correo, contrasenia: hash },
+      });
+      if (cambio.count !== 1) throw new BadRequestException('El acceso cambio durante el envio. Intenta nuevamente.');
+      try {
+        await this.enviarAccesoAuspiciador(ausp, correo, pwd);
+      } catch (error) {
+        await this.prisma.usuario.updateMany({
+          where: { id: cuentaPropia.id, contrasenia: hash },
+          data: { correo: cuentaPropia.correo, contrasenia: cuentaPropia.contrasenia },
+        });
+        throw error;
+      }
+      return { creado: true, correoEnviado: true, reutilizado: true };
+    }
     const ciudad = await this.prisma.ciudad.findFirst({ orderBy: { id: 'asc' } });
     if (!ciudad) throw new BadRequestException('No existe una ciudad configurada para crear el acceso del auspiciador.');
     const partes = String(responsable.nombreCompleto).trim().split(/\s+/);
     const nombres = partes.shift() || 'Responsable';
     const apellidoPaterno = partes.shift() || 'Auspiciador';
-    const pwd = randomBytes(6).toString('base64url');
+    const pwd = `Rn!${randomBytes(9).toString('base64url')}9aA`;
     const hash = await bcrypt.hash(pwd, 10);
     const telefono = `AUSP-${ausp.id}-${responsable.id}`;
     // El pago se marca COMPLETADO (no APROBADO): es el estado que exige el
@@ -172,9 +195,28 @@ export class ExtrasController {
       await tx.empresa_usuario.create({ data: { empresa_id: empresa.id, empresaevento_id: ee.id, usuario_id: usuario.id, cargo: responsable.cargo || 'Responsable', esResponsable: 1, estaActivo: 1 } });
       return { empresa, ee, usuario };
     });
-    const transporter = nodemailer.createTransport({ service: 'gmail', auth: { user: process.env.MAIL_USER, pass: process.env.MAIL_PASS } });
-    await transporter.sendMail({ from: process.env.MAIL_FROM || process.env.MAIL_USER, to: correo, subject: `Acceso a la plataforma — ${ausp.nombreEmpresa}`, attachments: this.adjuntoLogoCorreo(), html: `${this.cabeceraCorreo()}<div style="font-family:Arial;max-width:560px;margin:auto"><h2 style="color:#449D3A">Acceso de empresa auspiciadora</h2><p>Ya puedes ingresar como empresa y acceder a las funcionalidades del evento.</p><div style="padding:18px;background:#f0fdf4;border-radius:12px"><b>Correo:</b> ${correo}<br/><b>Contraseña temporal:</b> ${pwd}</div><p><a href="${(process.env.WEB_URL || 'http://localhost:3000').replace(/\/$/,'')}/auth/login">Ingresar a la plataforma</a></p></div>` });
-    return { creado: true, empresaEventoId: creado.ee.id };
+    await this.enviarAccesoAuspiciador(ausp, correo, pwd);
+    return { creado: true, correoEnviado: true, empresaEventoId: creado.ee.id };
+  }
+
+  private async enviarCorreoAuspiciador(options: nodemailer.SendMailOptions) {
+    const transporter = nodemailer.createTransport({
+      service: 'gmail', auth: { user: process.env.MAIL_USER, pass: process.env.MAIL_PASS },
+      connectionTimeout: 10000, greetingTimeout: 10000, socketTimeout: 20000,
+    });
+    const result = await transporter.sendMail({ from: process.env.MAIL_FROM || process.env.MAIL_USER, ...options });
+    if (!result.accepted?.length || result.rejected?.length)
+      throw new BadRequestException('El servidor de correo no acepto al destinatario. Revisa su direccion y reintenta el envio.');
+  }
+
+  private async enviarAccesoAuspiciador(ausp: any, correo: string, pwd: string) {
+    const login = `${(process.env.WEB_URL || 'http://localhost:3000').replace(/\/$/, '')}/auth/login`;
+    await this.enviarCorreoAuspiciador({
+      to: correo, subject: 'Tus credenciales de acceso - Rueda de Negocios',
+      attachments: this.adjuntoLogoCorreo(),
+      text: `Acceso de empresa auspiciadora\nCorreo: ${correo}\nContrasena temporal: ${pwd}\nIngresar: ${login}\nCambia tu contrasena despues de ingresar.`,
+      html: `${this.cabeceraCorreo()}<div style="font-family:Arial;max-width:560px;margin:auto"><h2>Acceso de empresa auspiciadora</h2><p>Correo: <b>${correo}</b></p><p>Contrasena temporal: <b>${pwd}</b></p><p><a href="${login}">Ingresar a la plataforma</a></p><p>Cambia tu contrasena despues de ingresar.</p></div>`,
+    });
   }
 
   private async enviarCredencialAuspiciador(personaId: number): Promise<void> {
@@ -182,23 +224,21 @@ export class ExtrasController {
       where: { id: personaId },
       include: { auspiciador: { include: { evento: true } } },
     });
-    if (!persona?.correo || !persona.urlCredencialQR) return;
+    if (!persona?.correo || !persona.urlCredencialQR) throw new BadRequestException('Falta el correo o el QR de la persona.');
 
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: { user: process.env.MAIL_USER, pass: process.env.MAIL_PASS },
-    });
-    await transporter.sendMail({
-      from: process.env.MAIL_FROM,
+    const enlace = `${(process.env.WEB_URL || 'http://localhost:3000').replace(/\/$/, '')}/credencial/auspiciador/${persona.id}?t=${this.tokenAuspiciador(persona.id)}`;
+    const qr = await QRCode.toBuffer(enlace, { width: 500, margin: 2 });
+    await this.enviarCorreoAuspiciador({
       to: persona.correo,
-      attachments: this.adjuntoLogoCorreo(),
+      attachments: [...this.adjuntoLogoCorreo(), { filename: 'credencial-qr.png', content: qr, cid: 'credencial-qr' }],
+      text: `Tu credencial de ingreso al evento: ${enlace}. El QR tambien esta adjunto a este correo.`,
       subject: `Tu credencial para ${persona.auspiciador.evento.nombre}`,
       html: `${this.cabeceraCorreo()}<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;color:#1f2937">
         <h2 style="color:#449D3A">Hola, ${persona.nombreCompleto}</h2>
         <p>Fuiste registrado como representante de <strong>${persona.auspiciador.nombreEmpresa}</strong>
         para <strong>${persona.auspiciador.evento.nombre}</strong>.</p>
         <p>Presenta esta credencial QR para ingresar al evento:</p>
-        <p style="text-align:center"><img src="${persona.urlCredencialQR}" alt="Credencial QR" width="280" style="max-width:100%;height:auto" /></p>
+        <p style="text-align:center"><img src="cid:credencial-qr" alt="Credencial QR" width="280" style="max-width:100%;height:auto" /></p>
         <p style="text-align:center"><a href="${persona.urlCredencialQR}" style="color:#449D3A;font-weight:bold">Abrir o descargar credencial</a></p>
         <p style="font-size:12px;color:#6b7280">Esta credencial es personal y corresponde únicamente a este evento.</p>
       </div>`,
@@ -397,8 +437,8 @@ export class ExtrasController {
     let montoAporte: number | null = null;
     if (tipoAporte !== 'INSUMOS') {
       const m = Number(body.montoAporte);
-      if (!Number.isFinite(m) || m <= 0)
-        throw new BadRequestException('Indica el monto aportado (mayor a 0).');
+      if (!Number.isFinite(m) || m <= 0 || m > 99999999.99 || Math.abs(m * 100 - Math.round(m * 100)) > 0.000001)
+        throw new BadRequestException('Indica un monto entre 0.01 y 99999999.99, con hasta dos decimales.');
       montoAporte = m;
     }
     // El detalle solo tiene sentido si aporta insumos.
@@ -408,8 +448,8 @@ export class ExtrasController {
     }
 
     const cantidadIngresos = Number(body.cantidadIngresos);
-    if (!Number.isInteger(cantidadIngresos) || cantidadIngresos < 1)
-      throw new BadRequestException('La cantidad de ingresos debe ser al menos 1.');
+    if (!Number.isInteger(cantidadIngresos) || cantidadIngresos < 1 || cantidadIngresos > 50)
+      throw new BadRequestException('La cantidad de ingresos debe estar entre 1 y 50.');
 
     return {
       nombreEmpresa: this.texto(body.nombreEmpresa, 155, 'Nombre de la empresa')!,
@@ -442,11 +482,20 @@ export class ExtrasController {
         `Declaraste ${cantidadIngresos} ingreso(s) pero cargaste ${limpias.length} persona(s). Deben coincidir.`,
       );
     for (const p of limpias) {
+      if (!/^[\p{L}\p{M} .'-]+$/u.test(p.nombreCompleto) || p.nombreCompleto.split(' ').length < 2)
+        throw new BadRequestException('Registra nombres y apellidos validos, sin numeros.');
+      if (!p.cargo || p.cargo.length > 105)
+        throw new BadRequestException('El cargo es obligatorio y debe tener hasta 105 caracteres.');
+      if (p.correo.length > 105)
+        throw new BadRequestException('El correo debe tener hasta 105 caracteres.');
+      if (!p.telefono || !/^\+?[0-9 ()-]+$/.test(p.telefono) || p.telefono.replace(/\D/g, '').length < 7 || p.telefono.replace(/\D/g, '').length > 15)
+        throw new BadRequestException('El telefono debe contener entre 7 y 15 digitos.');
+
       if (p.nombreCompleto.length > 155)
         throw new BadRequestException('El nombre de una persona supera los 155 caracteres.');
       if (!p.correo)
         throw new BadRequestException(`El correo de ${p.nombreCompleto} es obligatorio para enviar su credencial.`);
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.correo))
+      if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(p.correo))
         throw new BadRequestException(`El correo "${p.correo}" no es válido.`);
       if (!p.telefono)
         throw new BadRequestException(`El teléfono de ${p.nombreCompleto} es obligatorio.`);
@@ -505,10 +554,11 @@ export class ExtrasController {
     // Cada persona entra al evento, así que se le emite su credencial.
     const correosFallidos: string[] = [];
     for (const p of ausp.personas) {
-      await this.generarQRAuspiciador(p.id);
       try {
+        await this.generarQRAuspiciador(p.id);
         await this.enviarCredencialAuspiciador(p.id);
-      } catch {
+      } catch (error) {
+        console.warn(`[Auspiciador ${ausp.id}] No se envio QR de persona ${p.id}:`, error instanceof Error ? error.message : 'Error de envio');
         correosFallidos.push(p.correo || 'sin correo');
       }
     }
@@ -519,6 +569,32 @@ export class ExtrasController {
       accesoPlataforma = { creado: false, motivo: error instanceof Error ? error.message : 'No se pudo enviar el acceso' };
     }
     return { ...(await this.obtenerAuspiciador(String(ausp.id))), accesoPlataforma, correosFallidos };
+  }
+
+  private readonly reenviosAuspiciador = new Set<number>();
+
+  @Post('admin/auspiciadores/:id/reenviar-credenciales')
+  async reenviarCredencialesAuspiciador(@Param('id') id: string) {
+    const ausp = await this.obtenerAuspiciador(id);
+    if (ausp.evento_id !== await this.eventoPrincipalId())
+      throw new BadRequestException('El auspiciador no pertenece al evento principal.');
+    if (this.reenviosAuspiciador.has(ausp.id)) throw new BadRequestException('Ya hay un envio en curso.');
+    this.reenviosAuspiciador.add(ausp.id);
+    try {
+      const correosFallidos: string[] = [];
+      for (const p of ausp.personas) {
+        try {
+          if (!p.urlCredencialQR) await this.generarQRAuspiciador(p.id);
+          await this.enviarCredencialAuspiciador(p.id);
+        } catch {
+          correosFallidos.push(p.correo || 'sin correo');
+        }
+      }
+      let accesoPlataforma: any;
+      try { accesoPlataforma = await this.crearAccesoEmpresaAuspiciador(ausp); }
+      catch (error) { accesoPlataforma = { creado: false, motivo: error instanceof Error ? error.message : 'No se pudo enviar el acceso.' }; }
+      return { ok: correosFallidos.length === 0 && accesoPlataforma.correoEnviado === true, correosFallidos, accesoPlataforma };
+    } finally { this.reenviosAuspiciador.delete(ausp.id); }
   }
 
   @Put('admin/auspiciadores/:id')
@@ -536,8 +612,9 @@ export class ExtrasController {
     // Las personas que ya existen conservan su credencial; solo se emite QR a
     // las nuevas, para no invalidar QRs ya entregados o impresos.
     const actuales = await this.prisma.auspiciadorpersona.findMany({
-      where: { auspiciador_id: auspId, estaActivo: 1 },
+      where: { auspiciador_id: auspId, estaActivo: 1 }, orderBy: { id: 'asc' },
     });
+    const correosFallidos: string[] = [];
     const enviadas = personas as Array<{ nombreCompleto: string; cargo: string | null; correo: string | null }>;
 
     const sobrantes = actuales.slice(enviadas.length);
@@ -552,11 +629,13 @@ export class ExtrasController {
         const creada = await this.prisma.auspiciadorpersona.create({
           data: { ...enviadas[i], auspiciador_id: auspId },
         });
-        await this.generarQRAuspiciador(creada.id);
-        await this.enviarCredencialAuspiciador(creada.id);
+        try {
+          await this.generarQRAuspiciador(creada.id);
+          await this.enviarCredencialAuspiciador(creada.id);
+        } catch { correosFallidos.push(creada.correo || 'sin correo'); }
       }
     }
-    return this.obtenerAuspiciador(String(auspId));
+    return { ...(await this.obtenerAuspiciador(String(auspId))), correosFallidos };
   }
 
   @Delete('admin/auspiciadores/:id')
@@ -612,7 +691,7 @@ export class ExtrasController {
     const cargo = this.texto(body.cargo, 100, 'Cargo', false);
     const correo = String(body.correo ?? '').trim().toLowerCase();
     const telefono = String(body.telefono ?? '').trim();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) throw new BadRequestException('El correo no es válido.');
+    if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(correo)) throw new BadRequestException('El correo no es válido.');
     if (!telefono || telefono.length > 45) throw new BadRequestException('El teléfono no es válido.');
 
     let paquete: { id: number; tipoParticipacion: string } | null = null;
@@ -664,7 +743,7 @@ export class ExtrasController {
     // queda pendiente de pago usa la misma contraseña por defecto que el
     // registro de empresa: la contraseña real se genera y se envía recién
     // al aprobar el pago (admin/pagos/:id/aprobar), igual que una empresa.
-    const pwd = randomBytes(6).toString('base64url');
+    const pwd = `Rn!${randomBytes(9).toString('base64url')}9aA`;
     const hash = await bcrypt.hash(pendiente ? 'Beni2026!' : pwd, 10);
     const nombreEmpresa = (datos.institucionNombre?.trim() || `${nombres} ${apellidoPaterno}`).slice(0, 55);
 
@@ -784,7 +863,7 @@ export class ExtrasController {
     const institucion = this.texto(body.institucion, 105, 'Institución')!;
     const correo = String(body.correo ?? '').trim().toLowerCase();
     const telefono = String(body.telefono ?? '').trim();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) throw new BadRequestException('El correo no es válido.');
+    if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(correo)) throw new BadRequestException('El correo no es válido.');
     if (!telefono || telefono.length > 45) throw new BadRequestException('El teléfono no es válido.');
     const urlComprobante = this.texto(body?.comprobante?.urlComprobante, 505, 'Comprobante de pago', false);
     if (!urlComprobante) throw new BadRequestException('Debes subir tu comprobante de pago para completar el registro.');
