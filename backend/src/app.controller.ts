@@ -1735,6 +1735,9 @@ export class AppController implements OnModuleInit {
     return {
       evento_id: evento.id,
       estaActivo: 1,
+      // 'Inactivo' retira la actividad del programa sin borrarla: no se
+      // publica. El panel de admin sí sigue viéndola para poder reactivarla.
+      estadoActividad: { not: 'Inactivo' },
       fechaActividad: {
         gte: new Date(`${fechas[0]}T00:00:00.000Z`),
         lte: new Date(`${fechas[fechas.length - 1]}T23:59:59.999Z`),
@@ -2863,10 +2866,14 @@ export class AppController implements OnModuleInit {
         throw new BadRequestException('Nombre, descripción, sala, capacidad, fecha y horario son obligatorios');
       this.validarFechaActividad(evento, body.fechaActividad);
 
+      // La hora de una actividad es "de reloj de pared", no un instante: las
+      // 14:00 son las 14:00 del programa. Construirla con el constructor local
+      // la interpretaba en la zona del servidor (UTC en el VPS, UTC-4 en un
+      // equipo local), así que la hora guardada cambiaba según dónde corriera
+      // el backend. Con Date.UTC se almacena exactamente lo que se escribió.
       const parseTime = (t: string) => {
         const [h, m] = t.split(':');
-        const d = new Date(1970, 0, 1, Number(h), Number(m), 0);
-        return d;
+        return new Date(Date.UTC(1970, 0, 1, Number(h), Number(m), 0));
       };
 
       return await this.prisma.actividadprograma.create({
@@ -2906,9 +2913,10 @@ export class AppController implements OnModuleInit {
           !body.fechaActividad || !body.horaInicioActividad || !body.horaFinActividad)
         throw new BadRequestException('Nombre, descripción, sala, capacidad, fecha y horario son obligatorios');
       this.validarFechaActividad(evento, body.fechaActividad);
+      // Misma razón que al crear: hora de pared, independiente del servidor.
       const parseTime = (t: string) => {
         const [h, m] = t.split(':');
-        return new Date(1970, 0, 1, Number(h), Number(m), 0);
+        return new Date(Date.UTC(1970, 0, 1, Number(h), Number(m), 0));
       };
 
       return await this.prisma.actividadprograma.update({
@@ -5637,7 +5645,7 @@ export class AppController implements OnModuleInit {
     const eventoId = await this.getPrincipalEventoId();
     if (!eventoId) return [];
     const acts = await this.prisma.actividadprograma.findMany({
-      where: { evento_id: eventoId, estaActivo: 1 },
+      where: { evento_id: eventoId, estaActivo: 1, estadoActividad: { not: 'Inactivo' } },
       orderBy: [{ fechaActividad: 'asc' }, { horaInicioActividad: 'asc' }],
     });
     return acts.map((a) => ({

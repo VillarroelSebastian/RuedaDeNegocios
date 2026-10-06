@@ -85,7 +85,7 @@ function fmtDate(iso: string) {
   return new Date(y, m - 1, d).toLocaleDateString('es-BO', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 function fmtTime(iso: string) {
-  return new Date(iso).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return new Date(iso).toLocaleTimeString('es-BO', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
 // ─── Componente principal ──────────────────────────────────────────────────

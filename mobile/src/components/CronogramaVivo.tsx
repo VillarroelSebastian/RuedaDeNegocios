@@ -15,7 +15,8 @@ export function hora(iso: string) {
   if (!iso) return '';
   const fecha = new Date(iso);
   if (Number.isNaN(fecha.getTime())) return '';
-  return fecha.toLocaleTimeString('es-BO', { timeZone: 'America/La_Paz', hour: '2-digit', minute: '2-digit', hour12: false });
+  // Hora de pared: se muestra tal como se guardó (ver nota en actividades).
+  return fecha.toLocaleTimeString('es-BO', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
 export function fechaLarga(iso: string) {

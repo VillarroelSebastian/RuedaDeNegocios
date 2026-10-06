@@ -309,7 +309,7 @@ export default function EmpresaDashboardPage() {
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-gray-900 line-clamp-1">{a.nombre}</p>
                     <p className="text-xs text-gray-400">
-                      {formatFecha(a.fecha)}{a.hora ? ` · ${a.hora}` : ""}
+                      {formatFecha(a.fecha)}{a.hora ? ` · ${a.hora.slice(11, 16)}` : ""}
                     </p>
                   </div>
                 </div>

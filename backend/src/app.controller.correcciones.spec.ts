@@ -73,6 +73,7 @@ describe('AppController - alcance operativo de actividades', () => {
     expect(controller.filtroActividadOperativa(evento)).toEqual({
       evento_id: 9,
       estaActivo: 1,
+      estadoActividad: { not: 'Inactivo' },
       fechaActividad: {
         gte: new Date('2026-08-29T00:00:00.000Z'),
         lte: new Date('2026-08-30T23:59:59.999Z'),

@@ -1151,7 +1151,9 @@ export class ExtrasController {
     // fechaFinEvento: admin/técnico deben poder llevar al cronograma en vivo
     // cualquier actividad que hayan registrado, tenga la fecha que tenga.
     const actividades = await this.prisma.actividadprograma.findMany({
-      where: { evento_id: eventoId, estaActivo: 1 },
+      // estadoActividad 'Inactivo' es la forma de retirar una actividad del
+      // programa sin borrarla: no debe salir en el cronograma en vivo.
+      where: { evento_id: eventoId, estaActivo: 1, estadoActividad: { not: 'Inactivo' } },
       orderBy: [{ fechaActividad: 'asc' }, { horaInicioActividad: 'asc' }],
       select: {
         id: true, nombreActividad: true, descripcionActividad: true, tipoActividad: true,
@@ -1231,7 +1233,7 @@ export class ExtrasController {
 
     const actividadId = Number(id);
     const actividad = await this.prisma.actividadprograma.findUnique({ where: { id: actividadId } });
-    if (!actividad || actividad.estaActivo === 0)
+    if (!actividad || actividad.estaActivo === 0 || actividad.estadoActividad === 'Inactivo')
       throw new BadRequestException('Actividad no encontrada.');
 
     const ahora = new Date();

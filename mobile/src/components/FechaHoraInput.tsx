@@ -11,7 +11,7 @@ function aFecha(modo: Modo, valor: string): Date {
     if (y && m && d) return new Date(y, m - 1, d);
     return new Date();
   }
-  const [h, min] = valor.split(':').map(Number);
+  const [h, min] = (valor || '08:00').split(':').map(Number);
   const fecha = new Date();
   fecha.setHours(Number.isFinite(h) ? h : 8, Number.isFinite(min) ? min : 0, 0, 0);
   return fecha;
