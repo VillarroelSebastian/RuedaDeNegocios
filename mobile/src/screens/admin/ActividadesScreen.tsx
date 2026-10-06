@@ -79,7 +79,15 @@ export default function ActividadesScreen({ mostrarCronograma = true }: { mostra
     setSaving(true);
     try {
       const url = editId ? `${API_URL}/admin/actividades/${editId}` : `${API_URL}/admin/actividades`;
-      await fetch(url, { method: editId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      // fetch solo falla por red: sin revisar res.ok se anunciaba "guardado"
+      // aunque el backend hubiera rechazado la actividad (p. ej. por fecha
+      // fuera del evento) y luego no aparecía en la lista.
+      const res = await fetch(url, { method: editId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      if (!res.ok) {
+        const detalle = await res.json().catch(() => null);
+        show({ type: 'error', title: 'No se pudo guardar', message: detalle?.message || 'Revisa los datos e intenta nuevamente.' });
+        return;
+      }
       show({ type: 'success', title: '¡Listo!', message: editId ? 'Actividad actualizada correctamente.' : 'Actividad creada correctamente.' });
       setShowForm(false);
       fetchActividades();

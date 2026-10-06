@@ -92,7 +92,15 @@ function ActividadesCRUD({ embedded = false }: { embedded?: boolean }) {
     try {
       const url = editId ? `${API}/admin/actividades/${editId}` : `${API}/admin/actividades`;
       const method = editId ? 'PUT' : 'POST';
-      await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      // fetch solo falla por red: sin revisar res.ok se anunciaba "guardado"
+      // aunque el backend hubiera rechazado la actividad (p. ej. por fecha
+      // fuera del evento) y luego no aparecía en la lista.
+      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      if (!res.ok) {
+        const detalle = await res.json().catch(() => null);
+        showError('No se pudo guardar', detalle?.message || 'Revisa los datos e intenta nuevamente.');
+        return;
+      }
       showSuccess(editId ? 'Actividad actualizada' : 'Actividad creada', 'Los cambios se guardaron correctamente.');
       setShowForm(false);
       fetch_();

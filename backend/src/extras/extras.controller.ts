@@ -161,9 +161,13 @@ export class ExtrasController {
     const pwd = randomBytes(6).toString('base64url');
     const hash = await bcrypt.hash(pwd, 10);
     const telefono = `AUSP-${ausp.id}-${responsable.id}`;
+    // El pago se marca COMPLETADO (no APROBADO): es el estado que exige el
+    // guard de sesión para dar acceso, y además onModuleInit desactiva al
+    // arrancar toda inscripción que quedara en APROBADO, con lo que el
+    // auspiciador perdía el acceso en el siguiente reinicio del backend.
     const creado = await this.prisma.$transaction(async (tx) => {
       const empresa = await tx.empresa.create({ data: { ciudad_id: ciudad.id, nombre: ausp.nombreEmpresa.substring(0,55), rubro: 'Auspiciador', descripcion: ausp.descripcion, telefonoWhatsapp: telefono, correoCorporativo: correo, estaActivo: 1 } });
-      const ee = await tx.empresaevento.create({ data: { empresa_id: empresa.id, evento_id: ausp.evento_id, paquete_id: ausp.paquete_id, tipoParticipacion: ausp.paquete?.tipoParticipacion || 'PRESENCIAL', estadoHabilitacionAcceso: 'HABILITADO', estadoVerificacionPago: 'APROBADO', numeroParticipantes: ausp.cantidadIngresos, estaActivo: 1 } });
+      const ee = await tx.empresaevento.create({ data: { empresa_id: empresa.id, evento_id: ausp.evento_id, paquete_id: ausp.paquete_id, tipoParticipacion: ausp.paquete?.tipoParticipacion || 'PRESENCIAL', estadoHabilitacionAcceso: 'HABILITADO', estadoVerificacionPago: 'COMPLETADO', numeroParticipantes: ausp.cantidadIngresos, estaActivo: 1 } });
       const usuario = await tx.usuario.create({ data: { evento_id: ausp.evento_id, nombres, apellidoPaterno, apellidoMaterno: partes.join(' ') || null, correo, contrasenia: hash, telefono, urlFotoPerfil: '', rolEvento: 'EMPRESA', estaActivo: 1 } });
       await tx.empresa_usuario.create({ data: { empresa_id: empresa.id, empresaevento_id: ee.id, usuario_id: usuario.id, cargo: responsable.cargo || 'Responsable', esResponsable: 1, estaActivo: 1 } });
       return { empresa, ee, usuario };

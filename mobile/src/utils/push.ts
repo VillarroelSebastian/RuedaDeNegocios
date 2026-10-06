@@ -53,8 +53,11 @@ export async function activarPush(api: string, token: string, pedirPermiso = tru
   return pushToken;
 }
 export async function restaurarPush(api: string, token: string) {
+  // Ya no existe el botón de desactivar en la app, así que tampoco se consulta
+  // la preferencia que guardaba: quien la hubiera apagado se quedaría sin
+  // notificaciones para siempre. El único control es el permiso del sistema.
   const permitted = await pedirPermisoInicial();
-  if (!permitted || await AsyncStorage.getItem(ENABLED) === '0') return false;
+  if (!permitted) return false;
   await activarPush(api, token, false);
   return true;
 }

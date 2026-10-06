@@ -1744,8 +1744,12 @@ export class AppController implements OnModuleInit {
 
   private validarFechaActividad(evento: any, fechaActividad: string) {
     const fecha = String(fechaActividad ?? '').slice(0, 10);
-    if (!this.fechasEvento(evento).includes(fecha))
-      throw new BadRequestException('La fecha de la actividad debe estar dentro de las fechas del evento.');
+    const validas = this.fechasEvento(evento);
+    // Decir cuáles son las fechas válidas evita el ensayo y error: el evento
+    // suele durar uno o dos días y no siempre coincide con la fecha actual.
+    if (!validas.includes(fecha))
+      throw new BadRequestException(
+        `La fecha debe estar dentro del evento. Fechas válidas: ${validas.join(', ')}.`);
   }
 
   private contextoAsistenciaEvento(evento: { fechaInicioEvento: Date; fechaFinEvento: Date }) {
