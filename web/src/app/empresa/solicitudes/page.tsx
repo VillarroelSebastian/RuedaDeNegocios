@@ -10,6 +10,7 @@ import {
 import { paisConBandera } from "@/lib/pais";
 import { NuevaSolicitudModal } from "@/components/empresa/NuevaSolicitudModal";
 import { ModalExito } from "@/components/empresa/ModalExito";
+import { ReunionesSection } from "@/components/empresa/ReunionesSection";
 import { fechaEvento } from "@/lib/fechaEvento";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
@@ -281,7 +282,7 @@ function DetalleSolicitudModal({ sol, tab, eeId, onClose, onAceptar, onRechazar,
           {/* Actions */}
           <div className="space-y-2 pt-1">
             {sol.estado === "ACEPTADA" && sol.reunion?.id && (
-              <button onClick={() => window.location.assign(`/empresa/reuniones?reunionId=${sol.reunion.id}`)}
+              <button onClick={() => window.location.assign(`/empresa/solicitudes?tab=reuniones&reunionId=${sol.reunion.id}`)}
                 className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#449D3A] hover:bg-[#3a8531] text-white text-sm font-bold transition-colors">
                 <Calendar className="w-4 h-4" />Ver y gestionar la reunión
               </button>
@@ -327,7 +328,7 @@ function SolicitudesContent() {
   const [busquedaEmpresa, setBusquedaEmpresa] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"empresas" | "enviadas" | "recibidas">("empresas");
+  const [tab, setTab] = useState<"empresas" | "enviadas" | "recibidas" | "reuniones">("empresas");
   const [modalNueva, setModalNueva] = useState<{ id: number; nombre: string; solicitud?: any } | null>(null);
   const [modalDetalle, setModalDetalle] = useState<any | null>(null);
   const [modalRechazar, setModalRechazar] = useState<any | null>(null);
@@ -392,7 +393,7 @@ function SolicitudesContent() {
 
   useEffect(() => {
     const tabSolicitada = searchParams.get("tab");
-    if (tabSolicitada === "recibidas" || tabSolicitada === "enviadas") {
+    if (tabSolicitada === "recibidas" || tabSolicitada === "enviadas" || tabSolicitada === "reuniones") {
       setTab(tabSolicitada);
     }
     const nueva = searchParams.get("nueva");
@@ -491,7 +492,7 @@ function SolicitudesContent() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-extrabold text-gray-900">Solicitudes de reunión</h1>
+            <h1 className="text-2xl font-extrabold text-gray-900">Solicitudes y reuniones</h1>
             <p className="text-sm text-gray-400 mt-0.5">{solicitudes.length} solicitudes en total</p>
           </div>
           <button onClick={recargar}
@@ -511,23 +512,27 @@ function SolicitudesContent() {
         )}
 
         {/* Tabs */}
-        <div className="flex bg-gray-100 rounded-xl p-1 w-fit">
-          {(["empresas", "enviadas", "recibidas"] as const).map((t) => (
+        <div className="flex flex-wrap bg-gray-100 rounded-xl p-1 w-fit max-w-full overflow-x-auto">
+          {(["empresas", "enviadas", "recibidas", "reuniones"] as const).map((t) => (
             <button key={t} onClick={() => setTab(t)}
-              className={`px-5 py-2 rounded-lg text-sm font-bold transition-all ${
+              className={`px-5 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${
                 tab === t ? "bg-white shadow text-gray-900" : "text-gray-500 hover:text-gray-700"
               }`}>
               {t === "empresas"
                 ? `Empresas (${empresas.length})`
                 : t === "enviadas"
                   ? `Enviadas (${enviadas.length})`
-                  : `Recibidas (${recibidas.length})`}
+                  : t === "recibidas"
+                    ? `Recibidas (${recibidas.length})`
+                    : "Reuniones"}
             </button>
           ))}
         </div>
 
-        {/* Empresas desde las que se inicia una nueva solicitud */}
-        {tab === "empresas" ? (
+        {/* Reuniones confirmadas */}
+        {tab === "reuniones" ? (
+          <ReunionesSection embedded />
+        ) : tab === "empresas" ? (
           <div className="space-y-4">
             <div className="relative max-w-md">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />

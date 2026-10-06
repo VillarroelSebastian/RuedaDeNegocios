@@ -6,8 +6,8 @@ import Link from "next/link";
 import {
   Building2, User, CreditCard, Calendar,
   CheckCircle2, Clock, AlertCircle, MapPin,
-  Send, Users, Star, ArrowRight, AlertTriangle,
-  Megaphone, Activity, VideoIcon,
+  Send, Star, ArrowRight, AlertTriangle,
+  Megaphone, Activity, VideoIcon, Package, Radio,
 } from "lucide-react";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
@@ -43,6 +43,7 @@ export default function EmpresaDashboardPage() {
   const router = useRouter();
   const [info, setInfo]   = useState<any>(null);
   const [stats, setStats] = useState<any>(null);
+  const [paquete, setPaquete] = useState<any>(null);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState<string | null>(null);
 
@@ -59,6 +60,8 @@ export default function EmpresaDashboardPage() {
         // Cargar estadísticas reales
         const sRes = await fetch(`${API}/empresa/dashboard-stats?eeId=${data.empresaeventoId}`);
         if (sRes.ok) setStats(await sRes.json());
+        const pRes = await fetch(`${API}/empresa/mi-paquete?eeId=${data.empresaeventoId}`);
+        if (pRes.ok) setPaquete(await pRes.json());
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
@@ -77,7 +80,7 @@ export default function EmpresaDashboardPage() {
     </div>
   );
 
-  const { usuario, empresa, esResponsable, evento, estadoPago, tipoParticipacion, numeroParticipantes } = info;
+  const { usuario, empresa, esResponsable, evento, estadoPago, tipoParticipacion } = info;
   const habilitada = estadoPago === "COMPLETADO";
 
   return (
@@ -121,7 +124,7 @@ export default function EmpresaDashboardPage() {
 
       {/* Alerta solicitudes pendientes recibidas — solo encargado */}
       {esResponsable && stats?.pendientesRecibidas > 0 && (
-        <Link href="/empresa/solicitudes" className="block">
+        <Link href="/empresa/solicitudes?tab=recibidas" className="block">
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-3 hover:border-amber-300 transition-colors cursor-pointer">
             <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
             <div className="flex-1">
@@ -151,28 +154,35 @@ export default function EmpresaDashboardPage() {
 
       {/* Stats counters */}
       {stats && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
           {[
             esResponsable && {
               label: "Sol. recibidas pendientes",
               value: stats.pendientesRecibidas,
               Icon: AlertTriangle,
               color: stats.pendientesRecibidas > 0 ? "bg-amber-50 text-amber-600" : "bg-gray-50 text-gray-400",
-              href: "/empresa/solicitudes",
+              href: "/empresa/solicitudes?tab=recibidas",
             },
             esResponsable && {
               label: "Sol. enviadas pendientes",
               value: stats.pendientesEnviadas,
               Icon: Send,
               color: stats.pendientesEnviadas > 0 ? "bg-blue-50 text-blue-600" : "bg-gray-50 text-gray-400",
-              href: "/empresa/solicitudes",
+              href: "/empresa/solicitudes?tab=enviadas",
             },
             {
-              label: "Reuniones confirmadas",
-              value: stats.reunionesTotal,
+              label: "Próximas reuniones",
+              value: stats.reunionesProximas ?? stats.reunionesTotal,
+              Icon: Clock,
+              color: (stats.reunionesProximas ?? stats.reunionesTotal) > 0 ? "bg-blue-50 text-blue-600" : "bg-gray-50 text-gray-400",
+              href: "/empresa/solicitudes?tab=reuniones",
+            },
+            {
+              label: "Reuniones finalizadas",
+              value: stats.reunionesFinalizadas ?? 0,
               Icon: CheckCircle2,
-              color: stats.reunionesTotal > 0 ? "bg-green-50 text-[#449D3A]" : "bg-gray-50 text-gray-400",
-              href: "/empresa/reuniones",
+              color: (stats.reunionesFinalizadas ?? 0) > 0 ? "bg-green-50 text-[#449D3A]" : "bg-gray-50 text-gray-400",
+              href: "/empresa/solicitudes?tab=reuniones",
             },
             estadoPago !== "COMPLETADO" && {
               label: "Estado de participación",
@@ -236,7 +246,7 @@ export default function EmpresaDashboardPage() {
                 )}
               </div>
             </div>
-            <Link href="/empresa/reuniones"
+            <Link href="/empresa/solicitudes?tab=reuniones"
               className="flex items-center gap-1.5 text-xs font-bold text-[#449D3A] hover:underline shrink-0">
               Ver todas <ArrowRight className="w-3 h-3" />
             </Link>
@@ -283,7 +293,7 @@ export default function EmpresaDashboardPage() {
               <Activity className="w-5 h-5 text-[#449D3A]" />
               <h2 className="font-bold text-gray-900">Próximas actividades</h2>
             </div>
-            <Link href="/empresa/eventos" className="text-xs text-[#449D3A] font-bold hover:underline">
+            <Link href="/empresa/cronograma-vivo" className="text-xs text-[#449D3A] font-bold hover:underline">
               Ver programa
             </Link>
           </div>
@@ -309,27 +319,35 @@ export default function EmpresaDashboardPage() {
         </div>
       </div>
 
-      {/* Empresa y evento */}
+      {/* Evento y mi paquete */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Building2 className="w-5 h-5 text-[#449D3A]" />
-            <h2 className="font-bold text-gray-900">Empresa</h2>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Package className="w-5 h-5 text-[#449D3A]" />
+              <h2 className="font-bold text-gray-900">Mi paquete</h2>
+            </div>
+            <Link href="/empresa/mi-paquete" className="text-xs text-[#449D3A] font-bold hover:underline">
+              Ver detalles
+            </Link>
           </div>
-          <dl className="space-y-2.5 text-sm">
-            {[
-              { k: "Nombre",             v: empresa.nombre },
-              { k: "Rubro",              v: empresa.rubro },
-              { k: "Email corporativo",  v: empresa.correoCorporativo || "—" },
-              { k: "Tipo participación", v: tipoParticipacion ?? "—" },
-              { k: "Participantes",      v: numeroParticipantes ? String(numeroParticipantes) : "—" },
-            ].map(({ k, v }) => (
-              <div key={k} className="flex gap-2">
-                <dt className="w-40 shrink-0 text-gray-400">{k}</dt>
-                <dd className="font-semibold text-gray-800 truncate">{v}</dd>
+          {paquete ? (
+            <div>
+              <p className="text-lg font-extrabold text-gray-900">{paquete.paqueteNombre ?? "—"}</p>
+              <div className="mt-4 grid grid-cols-2 gap-4">
+                <div className="bg-green-50 rounded-xl p-3">
+                  <p className="text-2xl font-extrabold text-[#449D3A]">{paquete.participantesUsados}<span className="text-sm text-gray-400">/{paquete.maxParticipantes}</span></p>
+                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mt-0.5">Participantes</p>
+                </div>
+                <div className="bg-blue-50 rounded-xl p-3">
+                  <p className="text-2xl font-extrabold text-blue-600">{tipoParticipacion ?? "—"}</p>
+                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mt-0.5">Participación</p>
+                </div>
               </div>
-            ))}
-          </dl>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-400">Sin información de paquete.</p>
+          )}
         </div>
 
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
@@ -370,10 +388,9 @@ export default function EmpresaDashboardPage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {[
               { href: "/empresa/empresas",   Icon: Building2,   label: "Ver empresas",  desc: "Perfiles de participantes",   soloEncargado: false },
-              { href: "/empresa/solicitudes",Icon: Send,        label: "Solicitudes",   desc: "Gestión de reuniones",        soloEncargado: false },
-              { href: "/empresa/reuniones",  Icon: Users,       label: "Mis reuniones", desc: "Citas confirmadas",           soloEncargado: false },
+              { href: "/empresa/solicitudes",Icon: Send,        label: "Solicitudes y reuniones", desc: "Gestión de reuniones",soloEncargado: false },
               { href: "/empresa/resultados", Icon: Star,        label: "Resultados",    desc: "Registra acuerdos",           soloEncargado: false },
-              { href: "/empresa/eventos",    Icon: Calendar,    label: "Programa",      desc: "Actividades del evento",      soloEncargado: false },
+              { href: "/empresa/cronograma-vivo", Icon: Radio,  label: "Programa",      desc: "Actividades del evento",      soloEncargado: false },
               { href: "/empresa/comunicados",Icon: Megaphone,   label: "Comunicados",   desc: "Noticias y anuncios",         soloEncargado: false },
             ].filter((item) => esResponsable || !item.soloEncargado).map(({ href, Icon, label, desc }) => (
               <Link key={href} href={href}

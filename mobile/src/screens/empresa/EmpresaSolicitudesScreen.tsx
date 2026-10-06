@@ -8,11 +8,12 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import {
   Send, Inbox, X, Check, Ban, AlertTriangle, AlertCircle,
   Calendar, Users, Monitor, Table2, ChevronRight, CheckCircle2, XCircle, Clock, Building2,
-  Edit2,
+  Edit2, CalendarDays,
 } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
 import { fechaEvento, horaEvento } from '../../utils/fechaEvento';
 import EmpresaEmpresasScreen from './EmpresaEmpresasScreen';
+import EmpresaReunionesScreen from './EmpresaReunionesScreen';
 
 const GREEN = '#449D3A';
 
@@ -375,7 +376,7 @@ export default function EmpresaSolicitudesScreen({ route }: any) {
   const navigation = useNavigation<any>();
   const [enviadas,   setEnviadas]   = useState<any[]>([]);
   const [recibidas,  setRecibidas]  = useState<any[]>([]);
-  const [tab,        setTab]        = useState<'empresas' | 'enviadas' | 'recibidas'>('empresas');
+  const [tab,        setTab]        = useState<'empresas' | 'enviadas' | 'recibidas' | 'reuniones'>('empresas');
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error,      setError]      = useState('');
@@ -387,7 +388,7 @@ export default function EmpresaSolicitudesScreen({ route }: any) {
 
   useEffect(() => {
     const solicitada = route?.params?.tab;
-    if (solicitada === 'recibidas' || solicitada === 'enviadas') setTab(solicitada);
+    if (solicitada === 'recibidas' || solicitada === 'enviadas' || solicitada === 'reuniones') setTab(solicitada);
   }, [route?.params?.tab]);
 
   const fetchData = useCallback(async () => {
@@ -445,9 +446,13 @@ export default function EmpresaSolicitudesScreen({ route }: any) {
             Enviadas{enviadas.length > 0 ? ` (${enviadas.length})` : ''}
           </Text>
         </TouchableOpacity>
+        <TouchableOpacity style={[s.tab, tab === 'reuniones' && s.tabActive]} onPress={() => setTab('reuniones')}>
+          <CalendarDays size={15} color={tab === 'reuniones' ? GREEN : '#9ca3af'} />
+          <Text style={[s.tabText, tab === 'reuniones' && s.tabTextActive]}>Reuniones</Text>
+        </TouchableOpacity>
       </View>
 
-      {tab !== 'empresas' && !!error && (
+      {(tab === 'enviadas' || tab === 'recibidas') && !!error && (
         <View style={s.errorBox}>
           <AlertCircle size={14} color="#dc2626" />
           <Text style={s.errorText}>{error}</Text>
@@ -457,6 +462,10 @@ export default function EmpresaSolicitudesScreen({ route }: any) {
       {tab === 'empresas' ? (
         <View style={s.companySection}>
           <EmpresaEmpresasScreen embedded />
+        </View>
+      ) : tab === 'reuniones' ? (
+        <View style={s.companySection}>
+          <EmpresaReunionesScreen navigation={navigation} embedded reunionIdProp={route?.params?.reunionId} />
         </View>
       ) : <FlatList
         data={currentList}

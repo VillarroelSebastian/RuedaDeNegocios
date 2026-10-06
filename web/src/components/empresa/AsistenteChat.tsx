@@ -18,14 +18,12 @@ const SUGERENCIAS = [
   "Mi próxima reunión",
   "Todas mis reuniones aceptadas",
   "Mi próxima mesa",
-  "Eventos y actividades",
-  "Comunicados",
   "Fecha y horario del evento",
   "Solicitudes pendientes",
   "Cupos disponibles",
 ];
 
-const BIENVENIDA = "¡Hola! Soy tu asistente virtual del evento. Elige una opción del 1 al 9 o escribe tu pregunta. Después de cada consulta volveré a mostrarte el menú principal.";
+const BIENVENIDA = "¡Hola! Soy tu asistente virtual del evento. Elige una opción del 1 al 7 o escribe tu pregunta. Después de cada consulta volveré a mostrarte el menú principal.";
 
 export default function AsistenteChat({ eeId, euId }: { eeId: number | null; euId?: number | null }) {
   const [open, setOpen] = useState(false);

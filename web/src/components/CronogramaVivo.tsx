@@ -253,7 +253,11 @@ export default function CronogramaVivo({
                         <ExternalLink className="w-3.5 h-3.5" /> Ver transmisión
                       </a>
                     )}
-                    {!!eeId && <button onClick={() => suscribir(a)} className={`ml-2 mt-3 inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold ${a.suscrito ? 'bg-amber-100 text-amber-800' : 'border border-gray-300 text-gray-700'}`}><Bell className="w-3.5 h-3.5" />{a.suscrito ? 'Suscrito' : 'Suscribirme'}</button>}
+                    {!!eeId && (a.suscrito || a.estadoEnVivo === 'PENDIENTE') && (
+                      <button onClick={() => suscribir(a)} className={`ml-2 mt-3 inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold ${a.suscrito ? 'bg-amber-100 text-amber-800' : 'border border-gray-300 text-gray-700'}`}>
+                        <Bell className="w-3.5 h-3.5" />{a.suscrito ? 'Suscrito' : 'Suscribirme'}
+                      </button>
+                    )}
                     {!!a.anuncios?.length && <div className="mt-3 space-y-1">{a.anuncios.map((an) => <div key={an.id} className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900"><Megaphone className="inline w-3.5 h-3.5 mr-1" />{an.mensaje}</div>)}</div>}
                     {staff && <div className="mt-3 flex flex-col sm:flex-row gap-2"><input value={anuncios[a.id] || ''} onChange={(e) => setAnuncios((n) => ({ ...n, [a.id]: e.target.value }))} maxLength={500} placeholder="Anuncio o cambio para los suscritos" className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-xs" /><button onClick={() => publicarAnuncio(a)} className="rounded-lg bg-amber-500 px-3 py-2 text-xs font-bold text-white">Publicar anuncio</button></div>}
                   </div>

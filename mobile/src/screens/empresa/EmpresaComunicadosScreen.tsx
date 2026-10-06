@@ -11,7 +11,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL, userStore } from '../../utils/userStore';
 import { rutaDeNotifMobile } from '../../hooks/useNotificaciones';
 
-const TABS_PRINCIPALES = ['Inicio', 'Empresas', 'Solicitudes', 'Reuniones', 'Mas'];
+const TABS_PRINCIPALES = ['Inicio', 'Empresas', 'Solicitudes', 'Mas'];
 
 const GREEN = '#449D3A';
 
@@ -79,7 +79,10 @@ export default function EmpresaComunicadosScreen({ navigation }: any) {
     if (!ruta || ruta === 'Comunicados') return;
     const params = aviso.tipo === 'solicitud:nueva' || aviso.tipo === 'solicitud:editada' || aviso.tipo === 'solicitud:cancelada'
       ? { tab: 'recibidas' }
-      : aviso.tipo.startsWith('solicitud') ? { tab: 'enviadas' } : undefined;
+      : aviso.tipo.startsWith('solicitud') ? { tab: 'enviadas' }
+      : aviso.tipo.startsWith('reunion') || aviso.tipo === 'mensaje:tecnico'
+        ? (aviso.referenciaId ? { tab: 'reuniones', reunionId: aviso.referenciaId } : { tab: 'reuniones' })
+        : undefined;
     if (TABS_PRINCIPALES.includes(ruta)) navigation.navigate('EmpresaTabs', { screen: ruta, params });
     else navigation.navigate(ruta, params);
   };

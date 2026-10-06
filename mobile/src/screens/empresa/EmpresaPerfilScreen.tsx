@@ -15,6 +15,7 @@ import {
 } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
 import { LIMITES } from '../../utils/validaciones';
+import { RUBROS } from '../../constants/rubros';
 import { useModal } from '../../components/AppModal';
 
 const GREEN = '#449D3A';
@@ -251,8 +252,16 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
   };
 
   const handleAddParticipant = async () => {
-    if (!addNombre.trim() || !addApellido.trim() || !addCorreo.trim()) {
-      setAddError('Nombre, apellido y correo son obligatorios.');
+    if (!addNombre.trim() || !addApellido.trim() || !addCorreo.trim() || !addTel.trim()) {
+      setAddError('Nombres, apellido paterno, correo y teléfono son obligatorios.');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(addCorreo.trim())) {
+      setAddError('El correo electrónico no es válido.');
+      return;
+    }
+    if (addTel.replace(/\D/g, '').length < 7) {
+      setAddError('El teléfono no es válido.');
       return;
     }
     setAddError(''); setAdding(true);
@@ -264,11 +273,11 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
         body: JSON.stringify({
           eeId,
           euEncargadoId: perfil?.empresaUsuarioId,
-          nombre:    addNombre.trim(),
-          apellido:  addApellido.trim(),
-          correo:    addCorreo.trim(),
-          telefono:  addTel.trim(),
-          cargo:     addCargo.trim(),
+          nombres:         addNombre.trim(),
+          apellidoPaterno: addApellido.trim(),
+          correo:          addCorreo.trim(),
+          telefono:        addTel.trim(),
+          cargo:           addCargo.trim(),
         }),
       });
       const data = await res.json();
@@ -296,6 +305,39 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
               } else {
                 fetchAll();
               }
+            } catch {
+              show({ type: 'error', title: 'Error', message: 'Error de red' });
+            }
+          } });
+  };
+
+  const handleActivate = async (eu: any) => {
+    try {
+      const res = await fetch(`${API_URL}/empresa/participantes/${eu.id}/activar`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eeId: empresa?.empresaeventoId, euEncargadoId: perfil?.empresaUsuarioId }),
+      });
+      const d = await res.json();
+      if (!res.ok) { show({ type: 'error', title: 'Error', message: d?.message || 'No se pudo reactivar' }); return; }
+      show({ type: 'success', title: 'Participante reactivado', message: 'Ya puede volver a iniciar sesión.' });
+      fetchAll();
+    } catch {
+      show({ type: 'error', title: 'Error', message: 'Error de red' });
+    }
+  };
+
+  const handleResendCredentials = (eu: any) => {
+    show({ type: 'confirm', title: 'Reenviar credenciales', message: `Se generará una nueva contraseña y se enviará a ${eu.usuario?.correo ?? 'su correo'}.`, cancelText: 'Cancelar', confirmText: 'Reenviar', onConfirm: async () => {
+            try {
+              const res = await fetch(`${API_URL}/empresa/participantes/${eu.id}/reenviar-credenciales`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ eeId: empresa?.empresaeventoId, euEncargadoId: perfil?.empresaUsuarioId }),
+              });
+              const d = await res.json();
+              if (!res.ok) { show({ type: 'error', title: 'Error', message: d?.message || 'No se pudo reenviar' }); return; }
+              show({ type: 'success', title: 'Credenciales reenviadas', message: `Se enviaron a ${d.correo}.` });
             } catch {
               show({ type: 'error', title: 'Error', message: 'Error de red' });
             }
@@ -479,22 +521,20 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
           <View style={s.credCard}>
             <View style={s.credAccent} />
             <View style={s.credBody}>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                {!!perfil?.evento?.urlLogoEvento && (
-                  <Image source={{ uri: perfil.evento.urlLogoEvento }} style={s.credLogo} resizeMode="contain" />
-                )}
-                <Text style={s.credNombre}>{perfil?.usuario?.nombres} {perfil?.usuario?.apellidoPaterno}</Text>
-                <Text style={s.credEmpresa}>{empresa?.empresa?.nombre}</Text>
-                {!!empresa?.cargo && <Text style={s.credCargo}>{empresa.cargo}</Text>}
-                {!!perfil?.evento && (
-                  <Text style={s.credEvento}>{perfil.evento.nombre} {perfil.evento.edicion}</Text>
-                )}
-                <TouchableOpacity onPress={() => Linking.openURL(perfil.urlCredencialQR)} activeOpacity={0.75} style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10 }}>
-                  <ExternalLink size={13} color={GREEN} style={{ marginRight: 5 }} />
-                  <Text style={s.credLink}>Descargar credencial</Text>
-                </TouchableOpacity>
-              </View>
+              {!!perfil?.evento?.urlLogoEvento && (
+                <Image source={{ uri: perfil.evento.urlLogoEvento }} style={s.credLogo} resizeMode="contain" />
+              )}
               <ImagenLightbox uri={perfil.urlCredencialQR} style={s.credQr} />
+              <Text style={s.credNombre}>{perfil?.usuario?.nombres} {perfil?.usuario?.apellidoPaterno}</Text>
+              <Text style={s.credEmpresa}>{empresa?.empresa?.nombre}</Text>
+              {!!empresa?.cargo && <Text style={s.credCargo}>{empresa.cargo}</Text>}
+              {!!perfil?.evento && (
+                <Text style={s.credEvento}>{perfil.evento.nombre} {perfil.evento.edicion}</Text>
+              )}
+              <TouchableOpacity onPress={() => Linking.openURL(perfil.urlCredencialQR)} activeOpacity={0.75} style={s.credDownloadBtn}>
+                <ExternalLink size={13} color={GREEN} style={{ marginRight: 5 }} />
+                <Text style={s.credLink}>Descargar credencial</Text>
+              </TouchableOpacity>
             </View>
           </View>
         )}
@@ -622,8 +662,9 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
               {(slots.participantes ?? []).map((p: any, i: number) => {
                 const isMe = p.usuario?.id === user?.id;
                 const isEnc = !!p.esResponsable;
+                const activo = p.estaActivo !== false;
                 return (
-                  <View key={p.id ?? i} style={s.participantRow}>
+                  <View key={p.id ?? i} style={[s.participantRow, !activo && { opacity: 0.55 }]}>
                     <View style={s.participantAvatar}>
                       <Text style={s.participantAvatarText}>
                         {(p.usuario?.nombres ?? 'P')[0].toUpperCase()}
@@ -637,12 +678,27 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
                       {p.cargo && <Text style={s.participantCargo}>{p.cargo}</Text>}
                     </View>
                     <View style={{ alignItems: 'flex-end', gap: 6 }}>
-                      <View style={[s.roleBadge, isEnc ? s.roleBadgeEnc : s.roleBadgePart]}>
-                        <Text style={[s.roleText, isEnc ? s.roleTextEnc : s.roleTextPart]}>
-                          {isEnc ? 'Encargado' : 'Participante'}
-                        </Text>
-                      </View>
-                      {!isMe && !isEnc && (
+                      {!activo ? (
+                        <View style={[s.roleBadge, { backgroundColor: '#f1f5f9' }]}>
+                          <Text style={[s.roleText, { color: '#64748b' }]}>Desactivado</Text>
+                        </View>
+                      ) : (
+                        <View style={[s.roleBadge, isEnc ? s.roleBadgeEnc : s.roleBadgePart]}>
+                          <Text style={[s.roleText, isEnc ? s.roleTextEnc : s.roleTextPart]}>
+                            {isEnc ? 'Encargado' : 'Participante'}
+                          </Text>
+                        </View>
+                      )}
+                      {activo && (
+                        <TouchableOpacity style={s.resendBtn} onPress={() => handleResendCredentials(p)} activeOpacity={0.8}>
+                          <Text style={s.resendBtnText}>Reenviar credenciales</Text>
+                        </TouchableOpacity>
+                      )}
+                      {!activo ? (
+                        <TouchableOpacity style={s.activateBtn} onPress={() => handleActivate(p)} activeOpacity={0.8}>
+                          <Text style={s.activateBtnText}>Activar</Text>
+                        </TouchableOpacity>
+                      ) : !isMe && !isEnc && (
                         <TouchableOpacity style={s.deactivateBtn} onPress={() => handleDeactivate(p)} activeOpacity={0.8}>
                           <Text style={s.deactivateBtnText}>Desactivar</Text>
                         </TouchableOpacity>
@@ -664,9 +720,9 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
                   <View key={String(p.id ?? p.fechaCreacion ?? Math.random())} style={s.pagoRow}>
                     <View style={{ flex: 1 }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                        <View style={[s.pagoTipoBadge, p.tipoPago === 'ADICIONAL' ? s.pagoTipoAdd : s.pagoTipoIni]}>
-                          <Text style={[s.pagoTipoText, p.tipoPago === 'ADICIONAL' ? s.pagoTipoTextAdd : s.pagoTipoTextIni]}>
-                            {p.tipoPago === 'ADICIONAL' ? 'Adicional' : 'Inicial'}
+                        <View style={[s.pagoTipoBadge, p.tipoPago === 'ADICIONAL' ? s.pagoTipoAdd : p.tipoPago === 'MEJORA' ? s.pagoTipoMejora : s.pagoTipoIni]}>
+                          <Text style={[s.pagoTipoText, p.tipoPago === 'ADICIONAL' ? s.pagoTipoTextAdd : p.tipoPago === 'MEJORA' ? s.pagoTipoTextMejora : s.pagoTipoTextIni]}>
+                            {p.tipoPago === 'ADICIONAL' ? 'Adicional' : p.tipoPago === 'MEJORA' ? 'Mejora de paquete' : 'Inicial'}
                           </Text>
                         </View>
                         <View style={[s.pagoEstado, pagoEstadoStyle(p.estadoPago)]}>
@@ -685,6 +741,14 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
                       {!p.urlComprobante && <Text style={s.pagoSinComp}>Sin comprobante</Text>}
                       {!!p.observacion && <Text style={s.pagoObs}>Obs: {p.observacion}</Text>}
                     </View>
+                    {!!p.urlComprobante && !String(p.urlComprobante).toLowerCase().endsWith('.pdf') && (
+                      <ImagenLightbox uri={p.urlComprobante} style={s.pagoThumb} />
+                    )}
+                    {!!p.urlComprobante && String(p.urlComprobante).toLowerCase().endsWith('.pdf') && (
+                      <TouchableOpacity onPress={() => Linking.openURL(p.urlComprobante)} style={s.pagoVerPdf}>
+                        <Text style={s.pagoVerPdfText}>Ver PDF</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 ))}
               </View>
@@ -784,9 +848,26 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
                 <TextInput style={[s.input, s.textArea]} value={comDemanda} onChangeText={(t) => setComDemanda(t.slice(0, LIMITES.demanda))} maxLength={LIMITES.demanda}
                   placeholder="Ej: proveedores de insumos..." placeholderTextColor="#9ca3af" multiline numberOfLines={3} />
                 <Text style={{ fontSize: 11, color: '#9ca3af', textAlign: 'right', marginTop: -6, marginBottom: 4 }}>{comDemanda.length}/{LIMITES.demanda}</Text>
-                <Text style={s.label}>Sectores de interés (separados por coma)</Text>
-                <TextInput style={s.input} value={comIntereses} onChangeText={setComIntereses}
-                  placeholder="Ej: Agroindustria, Logística, Transporte y Comercio Exterior" placeholderTextColor="#9ca3af" />
+                <Text style={s.label}>¿Con qué sectores te interesa reunirte?</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                  {RUBROS.map((r) => {
+                    const lista = comIntereses ? comIntereses.split(',').map((x) => x.trim()).filter(Boolean) : [];
+                    const activo = lista.includes(r);
+                    return (
+                      <TouchableOpacity
+                        key={r}
+                        onPress={() => {
+                          const actuales = comIntereses ? comIntereses.split(',').map((x) => x.trim()).filter(Boolean) : [];
+                          const nuevos = actuales.includes(r) ? actuales.filter((x) => x !== r) : [...actuales, r];
+                          setComIntereses(nuevos.join(', '));
+                        }}
+                        style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: activo ? GREEN : '#e5e7eb', backgroundColor: activo ? GREEN : '#fff' }}
+                      >
+                        <Text style={{ fontSize: 12, fontWeight: '600', color: activo ? '#fff' : '#4b5563' }}>{r}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
                 <TouchableOpacity style={[s.btnPrimary, comercialSaving && { opacity: 0.7 }]} onPress={handleSaveComercial} disabled={comercialSaving}>
                   {comercialSaving ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Guardar</Text>}
                 </TouchableOpacity>
@@ -830,7 +911,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
                 <TextInput style={s.input} value={addApellido} onChangeText={setAddApellido} placeholder="Apellido" placeholderTextColor="#9ca3af" />
                 <Text style={s.label}>Correo electrónico *</Text>
                 <TextInput style={s.input} value={addCorreo} onChangeText={setAddCorreo} placeholder="correo@ejemplo.com" placeholderTextColor="#9ca3af" keyboardType="email-address" autoCapitalize="none" />
-                <Text style={s.label}>Teléfono</Text>
+                <Text style={s.label}>Teléfono *</Text>
                 <TextInput style={s.input} value={addTel} onChangeText={setAddTel} placeholder="Teléfono" placeholderTextColor="#9ca3af" keyboardType="phone-pad" />
                 <Text style={s.label}>Cargo</Text>
                 <TextInput style={s.input} value={addCargo} onChangeText={setAddCargo} placeholder="Cargo en la empresa" placeholderTextColor="#9ca3af" />
@@ -1070,14 +1151,18 @@ const s = StyleSheet.create({
     overflow: 'hidden', marginBottom: 14,
   },
   credAccent: { height: 6, backgroundColor: GREEN },
-  credBody: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 18 },
-  credLogo: { height: 32, width: 110, marginBottom: 8 },
-  credNombre: { fontSize: 17, fontWeight: '800', color: '#0f172a' },
-  credEmpresa: { fontSize: 13, fontWeight: '700', color: GREEN, marginTop: 2 },
-  credCargo: { fontSize: 12, color: '#6b7280', marginTop: 2 },
-  credEvento: { fontSize: 10, color: '#9ca3af', marginTop: 8 },
+  credBody: { alignItems: 'center', padding: 20 },
+  credLogo: { height: 32, width: 110, marginBottom: 12 },
+  credNombre: { fontSize: 17, fontWeight: '800', color: '#0f172a', marginTop: 16, textAlign: 'center' },
+  credEmpresa: { fontSize: 13, fontWeight: '700', color: GREEN, marginTop: 2, textAlign: 'center' },
+  credCargo: { fontSize: 12, color: '#6b7280', marginTop: 2, textAlign: 'center' },
+  credEvento: { fontSize: 10, color: '#9ca3af', marginTop: 8, textAlign: 'center' },
   credLink: { fontSize: 12, fontWeight: '700', color: GREEN },
-  credQr: { width: 96, height: 96, borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0' },
+  credDownloadBtn: {
+    flexDirection: 'row', alignItems: 'center', marginTop: 14,
+    backgroundColor: '#f0fdf4', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10,
+  },
+  credQr: { width: 220, height: 220, borderRadius: 16, borderWidth: 1, borderColor: '#e2e8f0' },
   errorBox: {
     padding: 12, borderRadius: 12, marginBottom: 12,
     backgroundColor: '#fef2f2', borderWidth: 1, borderColor: '#fca5a5',
@@ -1143,16 +1228,32 @@ const s = StyleSheet.create({
     backgroundColor: '#fef2f2', borderWidth: 1, borderColor: '#fca5a5',
   },
   deactivateBtnText: { fontSize: 12, fontWeight: '700', color: '#dc2626' },
+  activateBtn: {
+    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5,
+    backgroundColor: '#f0fdf4', borderWidth: 1, borderColor: '#bbf7d0',
+  },
+  activateBtnText: { fontSize: 12, fontWeight: '700', color: GREEN },
+  resendBtn: {
+    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5,
+    backgroundColor: '#eff6ff', borderWidth: 1, borderColor: '#bfdbfe',
+  },
+  resendBtnText: { fontSize: 11, fontWeight: '700', color: '#2563eb' },
 
   pagoRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f8fafc',
   },
-  pagoTipoBadge:   { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
-  pagoTipoIni:     { backgroundColor: '#dbeafe' },
-  pagoTipoAdd:     { backgroundColor: '#f3e8ff' },
-  pagoTipoText:    { fontSize: 10, fontWeight: '700' },
-  pagoTipoTextIni: { color: '#1e40af' },
-  pagoTipoTextAdd: { color: '#6b21a8' },
+  pagoThumb: { width: 48, height: 48, borderRadius: 10, backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0' },
+  pagoVerPdf: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: '#f0fdf4' },
+  pagoVerPdfText: { fontSize: 11, fontWeight: '700', color: GREEN },
+  pagoTipoBadge:      { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+  pagoTipoIni:        { backgroundColor: '#dbeafe' },
+  pagoTipoAdd:        { backgroundColor: '#f3e8ff' },
+  pagoTipoMejora:     { backgroundColor: '#d1fae5' },
+  pagoTipoText:       { fontSize: 10, fontWeight: '700' },
+  pagoTipoTextIni:    { color: '#1e40af' },
+  pagoTipoTextAdd:    { color: '#6b21a8' },
+  pagoTipoTextMejora: { color: '#047857' },
   pagoFecha:       { fontSize: 11, color: '#94a3b8', marginBottom: 2 },
   pagoInfo:        { fontSize: 12, color: '#374151', fontWeight: '600' },
   pagoMonto:       { fontSize: 11, color: '#64748b', marginTop: 1 },

@@ -20,8 +20,8 @@ function rutaDeNotif(notificacion: any): string {
   if (t.startsWith('reunion')) {
     const id = Number(notificacion?.referenciaId);
     return notificacion?.referenciaTipo === 'reunion' && Number.isFinite(id) && id > 0
-      ? `/empresa/reuniones?reunionId=${id}`
-      : '/empresa/reuniones';
+      ? `/empresa/solicitudes?tab=reuniones&reunionId=${id}`
+      : '/empresa/solicitudes?tab=reuniones';
   }
   if (t.startsWith('mensaje')) return '/empresa/mensajes';
   if (t.startsWith('pago')) return '/empresa/perfil';
@@ -44,10 +44,15 @@ export default function EmpresaHeader({ onMenuClick, eeId }: { onMenuClick?: () 
   const searchRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const raw = localStorage.getItem('empresaUser');
-    if (raw) {
-      try { setUser(JSON.parse(raw)); } catch {}
-    }
+    const leer = () => {
+      const raw = localStorage.getItem('empresaUser');
+      if (raw) {
+        try { setUser(JSON.parse(raw)); } catch {}
+      }
+    };
+    leer();
+    window.addEventListener('profileUpdated', leer);
+    return () => window.removeEventListener('profileUpdated', leer);
   }, []);
 
   useEffect(() => {
@@ -209,8 +214,10 @@ export default function EmpresaHeader({ onMenuClick, eeId }: { onMenuClick?: () 
           onClick={() => setShowProfile(!showProfile)}
           className="flex items-center gap-2 rounded-xl hover:bg-gray-50 px-2 py-1.5 transition-colors"
         >
-          <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center text-xs font-bold text-[#449D3A] border border-green-200">
-            {initials}
+          <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center text-xs font-bold text-[#449D3A] border border-green-200 overflow-hidden shrink-0">
+            {user?.urlFotoPerfil
+              ? <img src={user.urlFotoPerfil} alt="Tu foto de perfil" className="h-full w-full object-contain" />
+              : initials}
           </div>
           {user && (
             <span className="text-sm font-semibold text-gray-700 hidden sm:block">

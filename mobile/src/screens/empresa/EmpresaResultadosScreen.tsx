@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { Star, CheckCircle, AlertCircle, X } from 'lucide-react-native';
+import { Star, CheckCircle, AlertCircle, X, Clock, Award } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
 
 const GREEN = '#449D3A';
@@ -128,6 +128,10 @@ export default function EmpresaResultadosScreen({ route }: any) {
 
   const reunionesConResultado = new Set(resultados.map((r: any) => r.reunion_id));
   const pendientes = reuniones.filter((r: any) => !reunionesConResultado.has(r.id));
+  const promedioCalificacion = resultados.length > 0
+    ? resultados.reduce((sum: number, r: any) => sum + (r.calificacionReunion ?? 0), 0) / resultados.length
+    : 0;
+  const acuerdosCerrados = resultados.filter((r: any) => r.rangoAcuerdoComercial && r.rangoAcuerdoComercial !== 'No hubo acuerdo').length;
 
   if (loading) return (
     <View style={s.center}><ActivityIndicator size="large" color={GREEN} /></View>
@@ -149,6 +153,32 @@ export default function EmpresaResultadosScreen({ route }: any) {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(); }} tintColor={GREEN} />}
         ListHeaderComponent={
           <>
+            {/* Stats */}
+            {(reuniones.length > 0 || resultados.length > 0) && (
+              <View style={s.statsGrid}>
+                <View style={s.statCard}>
+                  <View style={[s.statIcon, { backgroundColor: '#fef3c7' }]}><Star size={16} color="#d97706" /></View>
+                  <Text style={s.statValue}>{promedioCalificacion > 0 ? promedioCalificacion.toFixed(1) : '—'}</Text>
+                  <Text style={s.statLabel}>Promedio</Text>
+                </View>
+                <View style={s.statCard}>
+                  <View style={[s.statIcon, { backgroundColor: '#dcfce7' }]}><CheckCircle size={16} color={GREEN} /></View>
+                  <Text style={s.statValue}>{resultados.length}</Text>
+                  <Text style={s.statLabel}>Evaluadas</Text>
+                </View>
+                <View style={s.statCard}>
+                  <View style={[s.statIcon, { backgroundColor: pendientes.length > 0 ? '#fef3c7' : '#f1f5f9' }]}><Clock size={16} color={pendientes.length > 0 ? '#d97706' : '#94a3b8'} /></View>
+                  <Text style={s.statValue}>{pendientes.length}</Text>
+                  <Text style={s.statLabel}>Pendientes</Text>
+                </View>
+                <View style={s.statCard}>
+                  <View style={[s.statIcon, { backgroundColor: '#dbeafe' }]}><Award size={16} color="#2563eb" /></View>
+                  <Text style={s.statValue}>{acuerdosCerrados}</Text>
+                  <Text style={s.statLabel}>Acuerdos</Text>
+                </View>
+              </View>
+            )}
+
             {/* Por evaluar */}
             <Text style={s.sectionTitle}>Por evaluar ({pendientes.length})</Text>
             {pendientes.length === 0 && (
@@ -314,6 +344,14 @@ const s = StyleSheet.create({
     backgroundColor: '#fef2f2', borderWidth: 1, borderColor: '#fca5a5',
   },
   errorText:  { color: '#dc2626', fontSize: 13 },
+  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 20 },
+  statCard: {
+    width: '47%', borderRadius: 16, padding: 14, backgroundColor: '#fff',
+    borderWidth: 1, borderColor: '#e2e8f0',
+  },
+  statIcon: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  statValue: { fontSize: 20, fontWeight: '800', color: '#0f172a', marginBottom: 2 },
+  statLabel: { fontSize: 11, color: '#64748b', fontWeight: '600' },
   sectionTitle: { fontSize: 15, fontWeight: '800', color: '#0f172a', marginBottom: 10 },
   emptySmall: { padding: 16, alignItems: 'center' },
   emptyText:  { fontSize: 13, color: '#9ca3af' },

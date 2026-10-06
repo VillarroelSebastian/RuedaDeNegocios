@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   Briefcase, CalendarDays, Send, Inbox,
-  Newspaper, ChevronRight, AlertCircle, Star,
+  Newspaper, ChevronRight, AlertCircle, Star, Clock, Package,
 } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
 
@@ -27,6 +27,7 @@ function fmtTime(iso: string) {
 export default function EmpresaDashboardScreen({ navigation }: any) {
   const [ctx,       setCtx]       = useState<any>(null);
   const [stats,     setStats]     = useState<any>(null);
+  const [paquete,   setPaquete]   = useState<any>(null);
   const [loading,   setLoading]   = useState(true);
   const [refreshing,setRefreshing] = useState(false);
   const [error,     setError]     = useState('');
@@ -48,6 +49,8 @@ export default function EmpresaDashboardScreen({ navigation }: any) {
       if (ctxData.empresaeventoId) {
         const statsRes = await fetch(`${API_URL}/empresa/dashboard-stats?eeId=${ctxData.empresaeventoId}`);
         if (statsRes.ok) setStats(await statsRes.json());
+        const pRes = await fetch(`${API_URL}/empresa/mi-paquete?eeId=${ctxData.empresaeventoId}`);
+        if (pRes.ok) setPaquete(await pRes.json());
       }
     } catch (e: any) {
       setError(e.message || 'Error cargando datos');
@@ -94,12 +97,18 @@ export default function EmpresaDashboardScreen({ navigation }: any) {
           </View>
         </View>
 
-        {/* Empresa */}
-        {ctx && (
-          <View style={s.empresaCard}>
-            <Briefcase size={16} color={GREEN} style={{ marginRight: 8 }} />
-            <Text style={s.empresaName} numberOfLines={1}>{ctx.empresa?.nombre ?? '—'}</Text>
-          </View>
+        {/* Mi paquete */}
+        {paquete && (
+          <TouchableOpacity style={s.paqueteCard} onPress={() => navigation.navigate('MiPaquete')} activeOpacity={0.8}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+              <Package size={16} color={GREEN} style={{ marginRight: 8 }} />
+              <Text style={s.paqueteName} numberOfLines={1}>{paquete.paqueteNombre ?? '—'}</Text>
+              <ChevronRight size={16} color="#9ca3af" style={{ marginLeft: 'auto' }} />
+            </View>
+            <Text style={s.paqueteMeta}>
+              {paquete.participantesUsados}/{paquete.maxParticipantes} participantes usados
+            </Text>
+          </TouchableOpacity>
         )}
 
         {/* Error */}
@@ -145,7 +154,8 @@ export default function EmpresaDashboardScreen({ navigation }: any) {
                 <StatCard icon={<Send size={20} color="#2563eb" />} label="Enviadas" value={stats.pendientesEnviadas ?? 0} color="#eff6ff" />
               </>
             )}
-            <StatCard icon={<CalendarDays size={20} color="#7c3aed" />} label="Reuniones" value={stats.reunionesTotal ?? 0} color="#f5f3ff" />
+            <StatCard icon={<Clock size={20} color="#2563eb" />} label="Próximas" value={stats.reunionesProximas ?? stats.reunionesTotal ?? 0} color="#eff6ff" />
+            <StatCard icon={<CalendarDays size={20} color="#7c3aed" />} label="Finalizadas" value={stats.reunionesFinalizadas ?? 0} color="#f5f3ff" />
             {estadoPago !== 'COMPLETADO' && (
               <StatCard icon={<Briefcase size={20} color="#059669" />} label="Estado" value={null} status={estadoPago} color="#ecfdf5" />
             )}
@@ -156,7 +166,7 @@ export default function EmpresaDashboardScreen({ navigation }: any) {
         {proximaReunion && (
           <View style={s.section}>
             <Text style={s.sectionTitle}>Próxima reunión</Text>
-            <TouchableOpacity style={s.meetingCard} onPress={() => navigation.navigate('Reuniones')} activeOpacity={0.8}>
+            <TouchableOpacity style={s.meetingCard} onPress={() => navigation.navigate('Solicitudes', { tab: 'reuniones' })} activeOpacity={0.8}>
               <Text style={s.meetingCounterpart}>{proximaReunion.contraparte?.nombre ?? '—'}</Text>
               <Text style={s.meetingTime}>
                 {fmtDate(proximaReunion.inicio)} · {fmtTime(proximaReunion.inicio)}
@@ -216,7 +226,8 @@ export default function EmpresaDashboardScreen({ navigation }: any) {
           <View style={s.quickGrid}>
             {[
               { label: 'Comunicados',    screen: 'Comunicados',    color: '#f0fdf4', soloEncargado: false },
-              { label: 'Actividades',    screen: 'Eventos',        color: '#eff6ff', soloEncargado: false },
+              { label: 'Cronograma',     screen: 'Eventos',        color: '#eff6ff', soloEncargado: false },
+              { label: 'Mi paquete',     screen: 'MiPaquete',      color: '#ecfdf5', soloEncargado: false },
               { label: 'Empresas',       screen: 'Empresas',       color: '#fdf4ff', soloEncargado: false },
               { label: 'Mensajes',       screen: 'Mensajes',       color: '#f0f9ff', soloEncargado: false },
               { label: 'Oportunidades',  screen: 'Oportunidades',  color: '#fefce8', soloEncargado: false },
@@ -279,12 +290,12 @@ const s = StyleSheet.create({
   badgeTextEnc:    { color: '#166534' },
   badgeTextPart:   { color: '#1e40af' },
 
-  empresaCard: {
-    flexDirection: 'row', alignItems: 'center',
+  paqueteCard: {
     backgroundColor: '#fff', borderRadius: 12, padding: 12,
     marginBottom: 16, borderWidth: 1, borderColor: '#e2e8f0',
   },
-  empresaName: { fontSize: 14, fontWeight: '700', color: '#0f172a', flex: 1 },
+  paqueteName: { fontSize: 14, fontWeight: '700', color: '#0f172a', flex: 1 },
+  paqueteMeta: { fontSize: 12, color: '#64748b', fontWeight: '600' },
 
   errorBox: {
     flexDirection: 'row', alignItems: 'center',

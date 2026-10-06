@@ -8,8 +8,8 @@ export function rutaDeNotifMobile(evento: string): string | null {
   const t = evento || '';
   if (t.startsWith('solicitud')) return 'Solicitudes';
   if (t === 'reunion:calificar') return 'Resultados';
-  if (t === 'mensaje:tecnico') return 'Reuniones';
-  if (t.startsWith('reunion')) return 'Reuniones';
+  if (t === 'mensaje:tecnico') return 'Solicitudes';
+  if (t.startsWith('reunion')) return 'Solicitudes';
   if (t.startsWith('mensaje')) return 'Mensajes';
   if (t.startsWith('comunicado')) return 'Comunicados';
   if (t.startsWith('pago')) return 'Perfil';

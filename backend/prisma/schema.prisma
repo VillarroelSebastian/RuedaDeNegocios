@@ -62,6 +62,11 @@ model paquete {
   credencialesIncluidas Int     @db.SmallInt
   urlQR                 String? @db.VarChar(505)
   orden                 Int     @default(0) @db.SmallInt
+  // "Mejorar paquete": costo y QR para que una empresa con un paquete más
+  // barato pague solo la diferencia y suba a este. Si falta cualquiera de
+  // los dos, este paquete no se ofrece como mejora.
+  costoMejora           Decimal? @db.Decimal(10, 2)
+  urlQRMejora           String?  @db.VarChar(505)
   // Solo aplica a paquetes FORO: cuál se usa para mostrar precio/QR únicos en
   // Admin > Foro · Personal cuando hay más de un paquete FORO en el evento.
   esPrincipal           Int     @default(0) @db.SmallInt
@@ -94,6 +99,7 @@ model paquete {
   evento                evento          @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   empresaevento         empresaevento[]
   auspiciador           auspiciador[]
+  comprobantesMejora    empresaeventocomprobantes[]
 
   @@index([evento_id])
 }
@@ -270,6 +276,7 @@ model empresaevento {
   empresa_bloqueo                                                               empresa_bloqueo[]
   empresa_horario                                                               empresa_horario[]
   suscripcionesactividad                                                        suscripcionactividad[]
+  ticketsoporte                                                                 ticketsoporte[]
 
   @@index([empresa_id], map: "fk_empresaevento_empresa1_idx")
   @@index([evento_id], map: "fk_empresaevento_evento1_idx")
@@ -309,9 +316,14 @@ model empresaeventocomprobantes {
   montoPago                     Decimal?      @db.Decimal(10, 2)
   estadoPago                    String        @default("PENDIENTE") @db.VarChar(45)
   observacion                   String?       @db.VarChar(505)
+  // Solo se usa cuando tipoPago = 'MEJORA': a qué paquete sube la empresa si
+  // se aprueba este comprobante.
+  paqueteDestino_id             Int?
   empresaevento                 empresaevento @relation(fields: [empresaEvento_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_empresaeventocomprobantes_empresaevento1")
+  paqueteDestino                paquete?      @relation(fields: [paqueteDestino_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_empresaeventocomprobantes_paquete1")
 
   @@index([empresaEvento_id], map: "fk_empresaeventocomprobantes_empresaevento1_idx")
+  @@index([paqueteDestino_id], map: "fk_empresaeventocomprobantes_paquete1_idx")
 }
 
 model evento {
@@ -369,6 +381,7 @@ model evento {
   asistenciaevento               asistenciaevento[]
   asistenciaauspiciador          asistenciaauspiciador[]
   mensajeinterno                 mensajeinterno[]
+  ticketsoporte                  ticketsoporte[]
 }
 
 // Un QR por cantidad exacta de cupos adicionales (rangoDesde === rangoHasta
@@ -553,6 +566,26 @@ model mensajeempresa {
   @@index([evento_id])
 }
 
+// Ticket de soporte: una empresa solo puede tener un ticket ABIERTO a la vez.
+// El chat del ticket reutiliza mensajeempresa (emisorEe_id=0 = equipo del
+// evento), este modelo solo controla el estado de "¿puede abrir uno nuevo?".
+model ticketsoporte {
+  id                    Int       @id @default(autoincrement())
+  evento_id             Int
+  empresaevento_id      Int
+  estado                String    @default("ABIERTO") @db.VarChar(20)
+  fechaApertura         DateTime  @default(now()) @db.Timestamp(6)
+  fechaCierre           DateTime? @db.Timestamp(6)
+  cerradoPorUsuario_id  Int?
+  estaActivo            Int       @default(1) @db.SmallInt
+  evento                evento    @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  empresaevento         empresaevento @relation(fields: [empresaevento_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  cerradoPor            usuario?  @relation(fields: [cerradoPorUsuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([empresaevento_id, estado])
+  @@index([evento_id, estado])
+}
+
 model pais {
   id     Int      @id @default(autoincrement())
   nombre String   @db.VarChar(45)
@@ -694,6 +727,7 @@ model usuario {
   asistenciasAuspiciadores      asistenciaauspiciador[] @relation("TecnicoAsistenciaAuspiciador")
   anunciosActividad             anuncioactividad[]
   mesasAsignadas                mesa[]                  @relation("MesaTecnicoAsignado")
+  ticketsCerrados                ticketsoporte[]
 
   @@index([evento_id], map: "fk_usuario_evento1_idx")
 }

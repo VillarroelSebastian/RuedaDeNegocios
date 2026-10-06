@@ -639,7 +639,7 @@ const dm = StyleSheet.create({
 
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
-export default function EmpresaReunionesScreen({ navigation, route }: any) {
+export default function EmpresaReunionesScreen({ navigation, route, embedded = false, reunionIdProp }: any) {
   const [items,       setItems]       = useState<any[]>([]);
   const [loading,     setLoading]     = useState(true);
   const [refreshing,  setRefreshing]  = useState(false);
@@ -679,7 +679,7 @@ export default function EmpresaReunionesScreen({ navigation, route }: any) {
   // debe abrir directamente el detalle de esa reunión, no solo la lista.
   const reunionIdAbierta = useRef<number | null>(null);
   useEffect(() => {
-    const pedidoId = route?.params?.reunionId;
+    const pedidoId = reunionIdProp ?? route?.params?.reunionId;
     if (!pedidoId || reunionIdAbierta.current === pedidoId || items.length === 0) return;
     const match = items.find((it) => it.id === pedidoId);
     if (match) {
@@ -687,7 +687,7 @@ export default function EmpresaReunionesScreen({ navigation, route }: any) {
       setDetalleModal(match);
       navigation.setParams?.({ reunionId: undefined });
     }
-  }, [items, route?.params?.reunionId, navigation]);
+  }, [items, reunionIdProp, route?.params?.reunionId, navigation]);
 
   const responderCambio = async (cambioId: number, aceptar: boolean) => {
     if (!eeId) return;
@@ -712,8 +712,11 @@ export default function EmpresaReunionesScreen({ navigation, route }: any) {
 
   const ahora = new Date();
 
+  const Root = embedded ? View : SafeAreaView;
+  const rootProps = embedded ? { style: s.root } : { style: s.root, edges: ['top'] as const };
+
   return (
-    <SafeAreaView style={s.root} edges={['top']}>
+    <Root {...rootProps}>
       {/* App modal */}
       <Modal visible={!!appModal} transparent animationType="fade">
         <View style={s.modalOverlay}>
@@ -753,10 +756,12 @@ export default function EmpresaReunionesScreen({ navigation, route }: any) {
         />
       )}
 
-      <View style={s.header}>
-        <Text style={s.headerTitle}>Mis reuniones</Text>
-        <Text style={s.headerSub}>{items.length} reunión{items.length !== 1 ? 'es' : ''}</Text>
-      </View>
+      {!embedded && (
+        <View style={s.header}>
+          <Text style={s.headerTitle}>Mis reuniones</Text>
+          <Text style={s.headerSub}>{items.length} reunión{items.length !== 1 ? 'es' : ''}</Text>
+        </View>
+      )}
 
       {!!error && (
         <View style={s.errorBox}>
@@ -855,7 +860,7 @@ export default function EmpresaReunionesScreen({ navigation, route }: any) {
           );
         }}
       />
-    </SafeAreaView>
+    </Root>
   );
 }
 

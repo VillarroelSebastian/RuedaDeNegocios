@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { TouchableOpacity, View, Text, StyleSheet, ScrollView } from 'react-native';
+import { TouchableOpacity, View, Text, StyleSheet, ScrollView, Image } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator }   from '@react-navigation/bottom-tabs';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { LayoutDashboard, Building2, Send, CalendarDays, User, Bell, MoreHorizontal, Star, Clock, Newspaper, Lightbulb, MessageCircle, Images, LogOut, Mail } from 'lucide-react-native';
+import { LayoutDashboard, Building2, Send, CalendarDays, User, Bell, MoreHorizontal, Star, Clock, Newspaper, Lightbulb, MessageCircle, Images, LogOut, Mail, Package } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useModal } from '../components/AppModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -15,7 +15,6 @@ import { navigationRef } from '../../App';
 import EmpresaDashboardScreen   from '../screens/empresa/EmpresaDashboardScreen';
 import EmpresaEmpresasScreen    from '../screens/empresa/EmpresaEmpresasScreen';
 import EmpresaSolicitudesScreen from '../screens/empresa/EmpresaSolicitudesScreen';
-import EmpresaReunionesScreen   from '../screens/empresa/EmpresaReunionesScreen';
 import EmpresaPerfilScreen      from '../screens/empresa/EmpresaPerfilScreen';
 import EmpresaComunicadosScreen from '../screens/empresa/EmpresaComunicadosScreen';
 import EmpresaEventosScreen     from '../screens/empresa/EmpresaEventosScreen';
@@ -24,6 +23,7 @@ import EmpresaHorariosScreen    from '../screens/empresa/EmpresaHorariosScreen';
 import EmpresaOportunidadesScreen from '../screens/empresa/EmpresaOportunidadesScreen';
 import EmpresaMensajesScreen    from '../screens/empresa/EmpresaMensajesScreen';
 import EmpresaPerfilEmpresaScreen from '../screens/empresa/EmpresaPerfilEmpresaScreen';
+import EmpresaMiPaqueteScreen from '../screens/empresa/EmpresaMiPaqueteScreen';
 import TecnicoGaleriaScreen from '../screens/tecnico/TecnicoGaleriaScreen';
 import { userStore, API_URL }   from '../utils/userStore';
 
@@ -38,12 +38,13 @@ function EmpresaMenuScreen({ navigation }: any) {
   const esEncargado = !!userStore.get()?.esResponsable;
   const opciones = [
     { nombre: 'Perfil', pantalla: 'Perfil', icono: User },
-    { nombre: 'Actividades', pantalla: 'Eventos', icono: CalendarDays },
+    { nombre: 'Cronograma en vivo', pantalla: 'Eventos', icono: CalendarDays },
     { nombre: 'Comunicados', pantalla: 'Comunicados', icono: Newspaper },
     { nombre: 'Oportunidades', pantalla: 'Oportunidades', icono: Lightbulb },
     { nombre: 'Mensajes', pantalla: 'Mensajes', icono: MessageCircle },
     { nombre: 'Galería', pantalla: 'Galeria', icono: Images },
     { nombre: 'Resultados', pantalla: 'Resultados', icono: Star },
+    { nombre: 'Mi paquete', pantalla: 'MiPaquete', icono: Package },
     ...(esEncargado ? [
       { nombre: 'Mis horarios', pantalla: 'Horarios', icono: Clock },
     ] : []),
@@ -151,6 +152,42 @@ function MessagesButton({ eeId }: { eeId: number | null }) {
   );
 }
 
+// ── Avatar button (next to the bell, in the header) ─────────────────────────
+
+function AvatarButton() {
+  const navigation = useNavigation<any>();
+  const [user, setUser] = useState<any>(userStore.get());
+
+  useEffect(() => userStore.subscribe(() => setUser(userStore.get())), []);
+
+  const inicial = (user?.nombres ?? user?.correo ?? '?')[0]?.toUpperCase() ?? '?';
+
+  return (
+    <TouchableOpacity
+      onPress={() => navigation.navigate('Perfil')}
+      style={avatar.btn}
+      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      activeOpacity={0.7}
+    >
+      {user?.urlFotoPerfil ? (
+        <Image source={{ uri: user.urlFotoPerfil }} style={avatar.img} resizeMode="contain" />
+      ) : (
+        <Text style={avatar.initial}>{inicial}</Text>
+      )}
+    </TouchableOpacity>
+  );
+}
+
+const avatar = StyleSheet.create({
+  btn: {
+    width: 30, height: 30, borderRadius: 15, marginRight: 8,
+    backgroundColor: '#f0fdf4', borderWidth: 1, borderColor: '#bbf7d0',
+    alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+  },
+  img: { width: '100%', height: '100%' },
+  initial: { fontSize: 13, fontWeight: '800', color: GREEN },
+});
+
 const bell = StyleSheet.create({
   btn:      { marginRight: 6, padding: 6 },
   badge:    {
@@ -227,12 +264,7 @@ function EncargadoTabs() {
         <Tab.Screen
           name="Solicitudes"
           component={EmpresaSolicitudesScreen}
-          options={{ title: 'Solicitudes', tabBarIcon: ({ color }) => <Send color={color} size={22} /> }}
-        />
-        <Tab.Screen
-          name="Reuniones"
-          component={EmpresaReunionesScreen}
-          options={{ title: 'Reuniones', tabBarIcon: ({ color }) => <CalendarDays color={color} size={22} /> }}
+          options={{ title: 'Agenda', tabBarIcon: ({ color }) => <Send color={color} size={22} /> }}
         />
         <Tab.Screen
           name="Mas"
@@ -273,12 +305,7 @@ function ParticipanteTabs() {
         <Tab.Screen
           name="Solicitudes"
           component={EmpresaSolicitudesScreen}
-          options={{ title: 'Solicitudes', tabBarIcon: ({ color }) => <Send color={color} size={22} /> }}
-        />
-        <Tab.Screen
-          name="Reuniones"
-          component={EmpresaReunionesScreen}
-          options={{ title: 'Reuniones', tabBarIcon: ({ color }) => <CalendarDays color={color} size={22} /> }}
+          options={{ title: 'Agenda', tabBarIcon: ({ color }) => <Send color={color} size={22} /> }}
         />
         <Tab.Screen
           name="Mas"
@@ -314,7 +341,7 @@ function ForoTabs() {
         <Tab.Screen
           name="Actividades"
           component={EmpresaEventosScreen}
-          options={{ title: 'Actividades', tabBarIcon: ({ color }) => <CalendarDays color={color} size={22} /> }}
+          options={{ title: 'Cronograma', tabBarIcon: ({ color }) => <CalendarDays color={color} size={22} /> }}
         />
         <Tab.Screen
           name="GaleriaTab"
@@ -391,6 +418,7 @@ export default function EmpresaNavigator() {
             headerTitle: 'Rueda de Negocios',
             headerRight: () => (
               <View style={{ flexDirection: 'row', alignItems: 'center', paddingRight: 4 }}>
+                <AvatarButton />
                 <BellButton />
                 {!esForo && <MessagesButton eeId={eeId} />}
                 {esEncargado && !esForo && <AsistenteChatButton onOpen={() => setChatOpen(true)} />}
@@ -399,13 +427,14 @@ export default function EmpresaNavigator() {
           }}
         />
       <Stack.Screen name="Comunicados"   component={EmpresaComunicadosScreen}   options={{ title: 'Comunicados' }} />
-      <Stack.Screen name="Eventos"       component={EmpresaEventosScreen}       options={{ title: 'Actividades' }} />
+      <Stack.Screen name="Eventos"       component={EmpresaEventosScreen}       options={{ title: 'Cronograma en vivo' }} />
       <Stack.Screen name="Oportunidades" component={EmpresaOportunidadesScreen} options={{ title: 'Oportunidades' }} />
       <Stack.Screen name="Mensajes"      component={EmpresaMensajesScreen}      options={{ title: 'Mensajes' }} />
       <Stack.Screen name="Galeria"       component={TecnicoGaleriaScreen}       options={{ title: 'Galería del evento' }} />
       <Stack.Screen name="Perfil"        component={EmpresaPerfilScreen}        options={{ title: 'Perfil' }} />
       <Stack.Screen name="PerfilEmpresa" component={EmpresaPerfilEmpresaScreen} options={{ title: 'Perfil de empresa', headerShown: false }} />
       <Stack.Screen name="Resultados"  component={EmpresaResultadosScreen}  options={{ title: 'Resultados' }} />
+      <Stack.Screen name="MiPaquete"   component={EmpresaMiPaqueteScreen}   options={{ title: 'Mi paquete' }} />
       {esEncargado && (
         <Stack.Screen name="Horarios"    component={EmpresaHorariosScreen}    options={{ title: 'Mis horarios disponibles' }} />
       )}
@@ -423,12 +452,13 @@ export default function EmpresaNavigator() {
                 const ruta = rutaDeNotifMobile(notifActual.evento);
                 dismiss(notifActual.id);
                 if (ruta && navigationRef.isReady()) {
-                  const esTabPrincipal = ['Inicio', 'Empresas', 'Solicitudes', 'Reuniones', 'Mas'].includes(ruta);
+                  const esTabPrincipal = ['Inicio', 'Empresas', 'Solicitudes', 'Mas'].includes(ruta);
                   const params = notifActual.evento === 'solicitud:nueva' || notifActual.evento === 'solicitud:editada' || notifActual.evento === 'solicitud:cancelada'
                     ? { tab: 'recibidas' }
                     : notifActual.evento.startsWith('solicitud') ? { tab: 'enviadas' }
-                    : ruta === 'Reuniones' && notifActual.referenciaId ? { reunionId: notifActual.referenciaId }
-                    : undefined;
+                    : notifActual.evento.startsWith('reunion') || notifActual.evento === 'mensaje:tecnico'
+                      ? (notifActual.referenciaId ? { tab: 'reuniones', reunionId: notifActual.referenciaId } : { tab: 'reuniones' })
+                      : undefined;
                   if (esTabPrincipal) {
                     (navigationRef.navigate as any)('EmpresaRoot', { screen: 'EmpresaTabs', params: { screen: ruta, params } });
                   } else {

@@ -299,6 +299,14 @@ export class ExtrasController {
       credencialesIncluidas: credenciales,
       urlQR: this.texto(body.urlQR, 505, 'QR de pago', false),
       orden: Number(body.orden) || 0,
+      costoMejora: body.costoMejora !== undefined && body.costoMejora !== null && body.costoMejora !== ''
+        ? (() => {
+            const v = Number(body.costoMejora);
+            if (!Number.isFinite(v) || v < 0) throw new BadRequestException('El costo de mejora debe ser un número mayor o igual a 0.');
+            return v;
+          })()
+        : null,
+      urlQRMejora: this.texto(body.urlQRMejora, 505, 'QR de mejora', false),
     };
   }
 
@@ -1170,6 +1178,10 @@ export class ExtrasController {
     const ee = await this.prisma.empresaevento.findFirst({ where: { id: eeId, estaActivo: 1 } });
     if (!actividad || !ee || actividad.evento_id !== ee.evento_id) throw new BadRequestException('Actividad o empresa no válidas para este evento.');
     const estaActivo = body.suscrito === false ? 0 : 1;
+    // Solo se puede suscribir a una actividad que todavía no empezó; darse de
+    // baja siempre está permitido, sin importar el estado.
+    if (estaActivo === 1 && actividad.estadoEnVivo !== 'PENDIENTE')
+      throw new BadRequestException('Solo puedes suscribirte a actividades programadas que todavía no comenzaron.');
     return this.prisma.suscripcionactividad.upsert({
       where: { actividad_id_empresaevento_id: { actividad_id: actividadId, empresaevento_id: eeId } },
       create: { actividad_id: actividadId, empresaevento_id: eeId, estaActivo },

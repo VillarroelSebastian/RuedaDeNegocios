@@ -30,6 +30,12 @@ const TIPO_COLORS: Record<string, { bg: string; text: string }> = {
   CLAUSURA:      { bg: '#fce7f3', text: '#9d174d' },
 };
 
+const ESTADO_VIVO_COLORS: Record<string, { bg: string; text: string }> = {
+  PENDIENTE:  { bg: '#f1f5f9', text: '#475569' },
+  EN_VIVO:    { bg: '#fee2e2', text: '#b91c1c' },
+  FINALIZADA: { bg: '#f1f5f9', text: '#64748b' },
+};
+
 export default function EmpresaEventosScreen() {
   const [items,     setItems]     = useState<any[]>([]);
   const [loading,   setLoading]   = useState(true);
@@ -92,16 +98,19 @@ export default function EmpresaEventosScreen() {
         }
         renderItem={({ item }) => {
           const colors = TIPO_COLORS[item.tipoActividad] ?? { bg: '#f1f5f9', text: '#475569' };
+          const estadoStyle = ESTADO_VIVO_COLORS[item.estadoEnVivo] ?? ESTADO_VIVO_COLORS.PENDIENTE;
+          const puedeSuscribirse = item.suscrito || item.estadoEnVivo === 'PENDIENTE';
           return (
-            <View style={s.card}>
+            <View style={[s.card, item.estadoEnVivo === 'EN_VIVO' && s.cardEnVivo, item.estadoEnVivo === 'FINALIZADA' && s.cardFinalizada]}>
               {!!item.urlImagenBannerActividad && <Image source={{ uri: item.urlImagenBannerActividad }} style={{ width: '100%', height: 150, resizeMode: 'contain', marginBottom: 12 }} />}
               <View style={s.cardHeader}>
                 <View style={[s.tipoBadge, { backgroundColor: colors.bg }]}>
                   <Text style={[s.tipoText, { color: colors.text }]}>{item.tipoActividad ?? 'ACTIVIDAD'}</Text>
                 </View>
-                <View style={[s.estadoBadge, { backgroundColor: item.estadoActividad === 'ACTIVA' ? '#dcfce7' : '#f1f5f9' }]}>
-                  <Text style={[s.estadoText, { color: item.estadoActividad === 'ACTIVA' ? '#166534' : '#475569' }]}>
-                    {item.estadoActividad ?? '—'}
+                <View style={[s.estadoBadge, { backgroundColor: estadoStyle.bg }]}>
+                  {item.estadoEnVivo === 'EN_VIVO' && <View style={s.pulseDot} />}
+                  <Text style={[s.estadoText, { color: estadoStyle.text }]}>
+                    {item.estadoEnVivo === 'EN_VIVO' ? 'EN VIVO' : item.estadoEnVivo === 'FINALIZADA' ? 'FINALIZADA' : 'PROGRAMADA'}
                   </Text>
                 </View>
               </View>
@@ -132,7 +141,9 @@ export default function EmpresaEventosScreen() {
               )}
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
                 {!!item.linkReunionVirtual && <TouchableOpacity onPress={() => Linking.openURL(item.linkReunionVirtual)} style={{ backgroundColor: GREEN, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, flexDirection: 'row', gap: 6 }}><ExternalLink size={14} color="#fff"/><Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>Ver transmisión</Text></TouchableOpacity>}
-                <TouchableOpacity onPress={() => suscribir(item)} style={{ backgroundColor: item.suscrito ? '#fef3c7' : '#f1f5f9', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, flexDirection: 'row', gap: 6 }}><Bell size={14} color={item.suscrito ? '#92400e' : '#475569'}/><Text style={{ color: item.suscrito ? '#92400e' : '#475569', fontSize: 12, fontWeight: '700' }}>{item.suscrito ? 'Suscrito' : 'Suscribirme'}</Text></TouchableOpacity>
+                {puedeSuscribirse && (
+                  <TouchableOpacity onPress={() => suscribir(item)} style={{ backgroundColor: item.suscrito ? '#fef3c7' : '#f1f5f9', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, flexDirection: 'row', gap: 6 }}><Bell size={14} color={item.suscrito ? '#92400e' : '#475569'}/><Text style={{ color: item.suscrito ? '#92400e' : '#475569', fontSize: 12, fontWeight: '700' }}>{item.suscrito ? 'Suscrito' : 'Suscribirme'}</Text></TouchableOpacity>
+                )}
               </View>
               {!!item.anuncios?.length && <View style={{ marginTop: 10, gap: 6 }}>{item.anuncios.map((a: any) => <View key={a.id} style={{ backgroundColor: '#fffbeb', borderRadius: 10, padding: 10, flexDirection: 'row', gap: 6 }}><Megaphone size={14} color="#92400e"/><Text style={{ color: '#92400e', fontSize: 12, flex: 1 }}>{a.mensaje}</Text></View>)}</View>}
             </View>
@@ -161,11 +172,14 @@ const s = StyleSheet.create({
     shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 }, elevation: 1,
   },
+  cardEnVivo:     { borderColor: '#fca5a5', borderWidth: 2, backgroundColor: '#fff5f5' },
+  cardFinalizada: { opacity: 0.7 },
   cardHeader:  { flexDirection: 'row', gap: 8, marginBottom: 10 },
   tipoBadge:   { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
   tipoText:    { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
-  estadoBadge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
+  estadoBadge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, flexDirection: 'row', alignItems: 'center', gap: 4 },
   estadoText:  { fontSize: 10, fontWeight: '700' },
+  pulseDot:    { width: 6, height: 6, borderRadius: 3, backgroundColor: '#dc2626' },
   cardTitle:   { fontSize: 15, fontWeight: '800', color: '#0f172a', marginBottom: 6, lineHeight: 22 },
   cardDesc:    { fontSize: 13, color: '#64748b', lineHeight: 20, marginBottom: 10 },
   metaRow:     { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },

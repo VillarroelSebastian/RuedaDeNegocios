@@ -4,22 +4,20 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  LayoutDashboard, CalendarDays, Newspaper, Building2,
-  Send, Users, Star, User, Briefcase, Clock, X, Sparkles, MessageSquare,
+  LayoutDashboard, Newspaper, Building2,
+  Send, Star, User, Briefcase, Clock, X, Sparkles, MessageSquare,
   Radio, Images, Package, LogOut,
 } from 'lucide-react';
 
 const allMenuItems = [
   { name: 'Dashboard',      icon: LayoutDashboard, href: '/empresa/dashboard',     soloEncargado: false, ocultoParaForo: true  },
-  { name: 'Eventos',        icon: CalendarDays,    href: '/empresa/eventos',       soloEncargado: false, ocultoParaForo: false },
   { name: 'Comunicados',    icon: Newspaper,       href: '/empresa/comunicados',   soloEncargado: false, ocultoParaForo: false },
-  { name: 'Mis Reuniones',  icon: Users,           href: '/empresa/reuniones',     soloEncargado: false, ocultoParaForo: true  },
   { name: 'Empresas',       icon: Building2,       href: '/empresa/empresas',      soloEncargado: false, ocultoParaForo: true  },
   { name: 'Mensajes',       icon: MessageSquare,   href: '/empresa/mensajes',      soloEncargado: false, ocultoParaForo: true  },
   { name: 'Oportunidades',  icon: Sparkles,        href: '/empresa/oportunidades', soloEncargado: false, ocultoParaForo: true  },
   { name: 'Cronograma en Vivo', icon: Radio,       href: '/empresa/cronograma-vivo', soloEncargado: false, ocultoParaForo: false },
   { name: 'Galería',        icon: Images,          href: '/empresa/galeria',       soloEncargado: false, ocultoParaForo: false },
-  { name: 'Solicitudes',    icon: Send,            href: '/empresa/solicitudes',   soloEncargado: false, ocultoParaForo: true  },
+  { name: 'Solicitudes y Reuniones', icon: Send,   href: '/empresa/solicitudes',   soloEncargado: false, ocultoParaForo: true  },
   { name: 'Mis Horarios',   icon: Clock,           href: '/empresa/horarios',      soloEncargado: true,  ocultoParaForo: true  },
   { name: 'Resultados',     icon: Star,            href: '/empresa/resultados',    soloEncargado: false, ocultoParaForo: true  },
   { name: 'Mi Paquete',     icon: Package,         href: '/empresa/mi-paquete',    soloEncargado: false, ocultoParaForo: false },

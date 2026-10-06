@@ -16,6 +16,8 @@ type Paquete = {
   costo: number;
   credencialesIncluidas: number;
   urlQR: string | null;
+  costoMejora: number | null;
+  urlQRMejora: string | null;
   orden: number;
   maxParticipantes: number;
   nivelMesa: "NORMAL" | "PREFERENCIAL" | "VIP";
@@ -30,7 +32,7 @@ type Paquete = {
 
 const formVacio = {
   nombre: "", objetivo: "", descripcion: "", contenido: "",
-  costo: "", credencialesIncluidas: "2", urlQR: "", orden: "0",
+  costo: "", credencialesIncluidas: "2", urlQR: "", costoMejora: "", urlQRMejora: "", orden: "0",
   maxParticipantes: "2", nivelMesa: "NORMAL", tipoParticipacion: "PRESENCIAL",
   tipoPaquete: "EMPRESA" as "EMPRESA" | "FORO",
   apareceEnCatalogo: true, logoEnWeb: false, destacadoEnListados: false,
@@ -53,6 +55,7 @@ const CAPACIDADES = [
 export default function PaquetesPage() {
   const { showSuccess, showError, showConfirm, ModalComponent } = useModal();
   const fileRef = useRef<HTMLInputElement>(null);
+  const fileRefMejora = useRef<HTMLInputElement>(null);
 
   const [lista, setLista] = useState<Paquete[]>([]);
   const [loading, setLoading] = useState(true);
@@ -126,6 +129,8 @@ export default function PaquetesPage() {
       costo: String(Number(p.costo)),
       credencialesIncluidas: String(p.credencialesIncluidas),
       urlQR: p.urlQR ?? "",
+      costoMejora: p.costoMejora != null ? String(Number(p.costoMejora)) : "",
+      urlQRMejora: p.urlQRMejora ?? "",
       orden: String(p.orden),
       maxParticipantes: String(p.maxParticipantes ?? p.credencialesIncluidas),
       nivelMesa: p.nivelMesa ?? "NORMAL",
@@ -139,7 +144,7 @@ export default function PaquetesPage() {
   };
 
   // El QR de pago se sube como archivo; nunca se pide una URL escrita a mano.
-  const subirQR = async (file: File) => {
+  const subirQR = async (file: File, campo: "urlQR" | "urlQRMejora" = "urlQR") => {
     setSubiendo(true);
     try {
       const fd = new FormData();
@@ -147,7 +152,7 @@ export default function PaquetesPage() {
       const res = await fetch(`${API}/admin/imagenes/upload`, { method: "POST", body: fd });
       const data = await res.json();
       if (!res.ok || !data.url) throw new Error(data?.message || "No se pudo subir la imagen.");
-      setForm((f) => ({ ...f, urlQR: data.url }));
+      setForm((f) => ({ ...f, [campo]: data.url }));
     } catch (e: any) {
       showError("Error al subir", e.message);
     } finally {
@@ -163,6 +168,9 @@ export default function PaquetesPage() {
     if (Number(form.maxParticipantes) < Number(form.credencialesIncluidas))
       return showError("Dato incoherente",
         `El máximo de participantes no puede ser menor que las ${form.credencialesIncluidas} credenciales incluidas.`);
+    if ((form.costoMejora.trim() !== "") !== (form.urlQRMejora.trim() !== ""))
+      return showError("Mejora de paquete incompleta",
+        "Para habilitar la mejora de paquete debes indicar tanto el costo de mejora como subir su QR de pago.");
 
     setGuardando(true);
     try {
@@ -177,6 +185,8 @@ export default function PaquetesPage() {
           credencialesIncluidas: Number(form.credencialesIncluidas),
           maxParticipantes: Number(form.maxParticipantes),
           orden: Number(form.orden) || 0,
+          costoMejora: form.costoMejora.trim() !== "" ? Number(form.costoMejora) : null,
+          urlQRMejora: form.urlQRMejora.trim() !== "" ? form.urlQRMejora : null,
         }),
       });
       const data = await res.json();
@@ -533,6 +543,42 @@ export default function PaquetesPage() {
                   </button>
                 </div>
               </div>
+
+              {form.tipoPaquete === "EMPRESA" && (
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-3">
+                  <p className="text-xs font-extrabold text-gray-700 uppercase tracking-wide">
+                    Mejora de paquete (opcional)
+                  </p>
+                  <p className="text-[11px] text-gray-400">
+                    Si se completa, las empresas con un paquete más barato podrán pedir mejorar a este pagando la diferencia.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1.5">Costo de mejora (Bs.)</label>
+                      <input type="number" min={0} value={form.costoMejora}
+                        onChange={(e) => setForm({ ...form, costoMejora: e.target.value })}
+                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:border-[#449D3A]"
+                        placeholder="100" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1.5">QR de pago de la mejora</label>
+                      <div className="flex items-center gap-3">
+                        {form.urlQRMejora && (
+                          <ImagenLightbox src={form.urlQRMejora} alt="QR de mejora"
+                            className="w-14 h-14 border border-gray-200 rounded-xl bg-white p-1" />
+                        )}
+                        <input ref={fileRefMejora} type="file" accept="image/*" className="hidden"
+                          onChange={(e) => { const f = e.target.files?.[0]; if (f) subirQR(f, "urlQRMejora"); }} />
+                        <button type="button" onClick={() => fileRefMejora.current?.click()} disabled={subiendo}
+                          className="inline-flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-xl text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50">
+                          <Upload className="w-3.5 h-3.5" />
+                          {subiendo ? "Subiendo…" : form.urlQRMejora ? "Cambiar" : "Subir QR"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex gap-3 px-6 py-4 border-t border-gray-100">

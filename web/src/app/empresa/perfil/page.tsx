@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import ImagenLightbox from "@/components/ui/ImagenLightbox";
 import { LIMITES } from "@/lib/validaciones";
+import { RUBROS } from "@/lib/rubros";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
@@ -34,8 +35,16 @@ function AgregarParticipanteModal({ eeId, euEncargadoId, slotsDisponibles, maxPe
 
   const submit = async () => {
     setErr(null);
-    if (!form.nombres || !form.apellidoPaterno || !form.correo) {
-      setErr("Nombre, apellido y correo son requeridos");
+    if (!form.nombres.trim() || !form.apellidoPaterno.trim() || !form.correo.trim() || !form.telefono.trim()) {
+      setErr("Nombres, apellido paterno, correo y teléfono son requeridos");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.correo.trim())) {
+      setErr("El correo electrónico no es válido");
+      return;
+    }
+    if (form.telefono.replace(/\D/g, "").length < 7) {
+      setErr("El teléfono no es válido");
       return;
     }
     setEnviando(true);
@@ -63,16 +72,17 @@ function AgregarParticipanteModal({ eeId, euEncargadoId, slotsDisponibles, maxPe
           Cupos disponibles: <span className="font-bold text-[#449D3A]">{slotsDisponibles}</span> de {slotsUsados} usados / {maxPermitidos} máximo
         </p>
         {[
-          { label: "Nombres *",             key: "nombres",         type: "text" },
-          { label: "Apellido paterno *",     key: "apellidoPaterno", type: "text" },
-          { label: "Correo electrónico *",   key: "correo",          type: "email" },
-          { label: "Teléfono",               key: "telefono",        type: "tel" },
-          { label: "Cargo",                  key: "cargo",           type: "text" },
-        ].map(({ label, key, type }) => (
+          { label: "Nombres *",             key: "nombres",         type: "text", required: true },
+          { label: "Apellido paterno *",     key: "apellidoPaterno", type: "text", required: true },
+          { label: "Correo electrónico *",   key: "correo",          type: "email", required: true },
+          { label: "Teléfono *",             key: "telefono",        type: "tel", required: true },
+          { label: "Cargo",                  key: "cargo",           type: "text", required: false },
+        ].map(({ label, key, type, required }) => (
           <div key={key}>
             <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">{label}</label>
             <input
               type={type}
+              required={required}
               value={(form as any)[key]}
               onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
               className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A]"
@@ -320,6 +330,8 @@ export default function EmpresaPerfilPage() {
   const [modalAgregar, setModalAgregar] = useState(false);
   const [modalPago, setModalPago] = useState(false);
   const [desactivando, setDesactivando] = useState<number | null>(null);
+  const [activando, setActivando] = useState<number | null>(null);
+  const [reenviando, setReenviando] = useState<number | null>(null);
   const [modalDesactivarEu, setModalDesactivarEu] = useState<number | null>(null);
   const [mensajeP, setMensajeP] = useState<string | null>(null);
   const [mensajeErrP, setMensajeErrP] = useState<string | null>(null);
@@ -509,6 +521,49 @@ export default function EmpresaPerfilPage() {
     setModalDesactivarEu(euId);
   };
 
+  const handleActivar = async (euId: number) => {
+    if (!ctx) return;
+    setActivando(euId);
+    try {
+      const res = await fetch(`${API}/empresa/participantes/${euId}/activar`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eeId: ctx.empresaeventoId, euEncargadoId: ctx.empresaUsuarioId }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.message);
+      setMensajeP("Participante reactivado correctamente.");
+      setTimeout(() => setMensajeP(null), 4000);
+      cargarParticipantes(ctx.empresaeventoId);
+    } catch (e: any) {
+      setMensajeErrP(e.message);
+      setTimeout(() => setMensajeErrP(null), 4000);
+    } finally {
+      setActivando(null);
+    }
+  };
+
+  const handleReenviarCredenciales = async (euId: number) => {
+    if (!ctx) return;
+    setReenviando(euId);
+    try {
+      const res = await fetch(`${API}/empresa/participantes/${euId}/reenviar-credenciales`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eeId: ctx.empresaeventoId, euEncargadoId: ctx.empresaUsuarioId }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.message);
+      setMensajeP(`Credenciales reenviadas a ${d.correo}.`);
+      setTimeout(() => setMensajeP(null), 5000);
+    } catch (e: any) {
+      setMensajeErrP(e.message);
+      setTimeout(() => setMensajeErrP(null), 5000);
+    } finally {
+      setReenviando(null);
+    }
+  };
+
   // ─── Loading / error states ───────────────────────────────────────────────
 
   if (loading) return (
@@ -606,26 +661,24 @@ export default function EmpresaPerfilPage() {
         {ctx.urlCredencialQR && (
           <div className="relative bg-white border-2 border-[#449D3A] rounded-2xl overflow-hidden shadow-sm">
             <div className="h-2 bg-gradient-to-r from-[#449D3A] to-emerald-500" />
-            <div className="p-6 flex flex-col sm:flex-row items-center gap-6">
-              <div className="flex-1 min-w-0 text-center sm:text-left">
-                {evento?.urlLogoEvento && (
-                  <img src={evento.urlLogoEvento} alt="Logo del evento" className="h-10 object-contain mb-3 mx-auto sm:mx-0" />
-                )}
-                <h2 className="text-xl font-extrabold text-gray-900">{usuario.nombres} {usuario.apellidoPaterno}</h2>
-                <p className="text-sm font-bold text-[#449D3A] mt-0.5">{empresa?.nombre}</p>
-                {cargo && <p className="text-xs text-gray-500 mt-0.5">{cargo}</p>}
-                {evento && <p className="text-[11px] text-gray-400 mt-3">{evento.nombre} {evento.edicion}</p>}
-                <a
-                  href={ctx.urlCredencialQR}
-                  download={`credencial-${empresa?.codigo ?? "rueda"}.png`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 mt-4 text-xs font-bold text-[#449D3A] hover:underline"
-                >
-                  <Download className="w-3.5 h-3.5" />Descargar credencial
-                </a>
-              </div>
-              <ImagenLightbox src={ctx.urlCredencialQR} className="w-36 h-36 rounded-xl border border-gray-100 overflow-hidden shrink-0" />
+            <div className="p-6 flex flex-col items-center text-center">
+              {evento?.urlLogoEvento && (
+                <img src={evento.urlLogoEvento} alt="Logo del evento" className="h-10 object-contain mb-4" />
+              )}
+              <ImagenLightbox src={ctx.urlCredencialQR} className="w-56 h-56 rounded-xl border border-gray-100 overflow-hidden shrink-0" />
+              <h2 className="text-xl font-extrabold text-gray-900 mt-5">{usuario.nombres} {usuario.apellidoPaterno}</h2>
+              <p className="text-sm font-bold text-[#449D3A] mt-0.5">{empresa?.nombre}</p>
+              {cargo && <p className="text-xs text-gray-500 mt-0.5">{cargo}</p>}
+              {evento && <p className="text-[11px] text-gray-400 mt-3">{evento.nombre} {evento.edicion}</p>}
+              <a
+                href={ctx.urlCredencialQR}
+                download={`credencial-${empresa?.codigo ?? "rueda"}.png`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 rounded-xl bg-green-50 hover:bg-green-100 text-xs font-bold text-[#449D3A]"
+              >
+                <Download className="w-3.5 h-3.5" />Descargar credencial
+              </a>
             </div>
           </div>
         )}
@@ -845,10 +898,28 @@ export default function EmpresaPerfilPage() {
                 <p className="text-[11px] text-gray-400 mt-1 text-right">{formComercial.demanda.length}/{LIMITES.demanda}</p>
               </div>
               <div>
-                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">Sectores de interés (separados por coma)</label>
-                <input value={formComercial.interesesBusqueda} onChange={(e) => setFormComercial((f) => ({ ...f, interesesBusqueda: e.target.value }))}
-                  placeholder="Ej: Agroindustria, Logística, Transporte y Comercio Exterior"
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A]" />
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">¿Con qué sectores te interesa reunirte?</label>
+                <div className="flex flex-wrap gap-2">
+                  {RUBROS.map((r) => {
+                    const lista = formComercial.interesesBusqueda ? formComercial.interesesBusqueda.split(",").map((s) => s.trim()).filter(Boolean) : [];
+                    const activo = lista.includes(r);
+                    return (
+                      <button
+                        key={r} type="button"
+                        onClick={() => setFormComercial((f) => {
+                          const actuales = f.interesesBusqueda ? f.interesesBusqueda.split(",").map((s) => s.trim()).filter(Boolean) : [];
+                          const nuevos = actuales.includes(r) ? actuales.filter((x) => x !== r) : [...actuales, r];
+                          return { ...f, interesesBusqueda: nuevos.join(", ") };
+                        })}
+                        className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-all ${
+                          activo ? "bg-[#449D3A] text-white border-[#449D3A]" : "bg-white text-gray-600 border-gray-200 hover:border-[#449D3A]"
+                        }`}
+                      >
+                        {r}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
               {errComercial && (
                 <div className="flex items-center gap-2 bg-red-50 text-red-700 rounded-xl p-3 text-sm">
@@ -985,7 +1056,7 @@ export default function EmpresaPerfilPage() {
                   ) : (
                     <div className="divide-y divide-gray-50">
                       {participantes.map((p: any) => (
-                        <div key={p.id} className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
+                        <div key={p.id} className={`flex flex-wrap items-center justify-between gap-3 px-6 py-4 ${!p.estaActivo ? "opacity-60" : ""}`}>
                           <div className="flex items-center gap-3">
                             <div className="w-9 h-9 rounded-full bg-green-50 flex items-center justify-center text-sm font-extrabold text-[#449D3A] shrink-0">
                               {(p.usuario.nombres?.[0] ?? "?") + (p.usuario.apellidoPaterno?.[0] ?? "")}
@@ -996,13 +1067,34 @@ export default function EmpresaPerfilPage() {
                               {p.cargo && <p className="text-xs text-gray-400">{p.cargo}</p>}
                             </div>
                           </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            {p.esResponsable ? (
+                          <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                            {!p.estaActivo ? (
+                              <span className="text-xs font-bold bg-gray-100 text-gray-500 px-2.5 py-1 rounded-full">Desactivado</span>
+                            ) : p.esResponsable ? (
                               <span className="text-xs font-bold bg-green-100 text-[#449D3A] px-2.5 py-1 rounded-full">Encargado</span>
                             ) : (
                               <span className="text-xs font-bold bg-blue-50 text-blue-600 px-2.5 py-1 rounded-full">Participante</span>
                             )}
-                            {!p.esResponsable && (
+                            {p.estaActivo && (
+                              <button
+                                onClick={() => handleReenviarCredenciales(p.id)}
+                                disabled={reenviando === p.id}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-bold disabled:opacity-50"
+                              >
+                                <KeyRound className="w-3.5 h-3.5" />
+                                {reenviando === p.id ? "..." : "Reenviar credenciales"}
+                              </button>
+                            )}
+                            {!p.estaActivo ? (
+                              <button
+                                onClick={() => handleActivar(p.id)}
+                                disabled={activando === p.id}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-green-50 hover:bg-green-100 text-[#449D3A] text-xs font-bold disabled:opacity-50"
+                              >
+                                <UserPlus className="w-3.5 h-3.5" />
+                                {activando === p.id ? "..." : "Activar"}
+                              </button>
+                            ) : !p.esResponsable && (
                               <button
                                 onClick={() => handleDesactivar(p.id)}
                                 disabled={desactivando === p.id}
@@ -1029,10 +1121,16 @@ export default function EmpresaPerfilPage() {
                     <div className="divide-y divide-gray-50">
                       {pagos.map((p: any) => (
                         <div key={p.id} className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
-                          <div>
+                          <div className="min-w-0">
                             <div className="flex items-center flex-wrap gap-2 mb-1">
-                              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${p.tipoPago === "INICIAL" ? "bg-purple-50 text-purple-600" : "bg-blue-50 text-blue-600"}`}>
-                                {p.tipoPago === "INICIAL" ? "Registro inicial" : `+${p.cantidadParticipantes} cupos adicionales`}
+                              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                                p.tipoPago === "INICIAL" ? "bg-purple-50 text-purple-600"
+                                : p.tipoPago === "MEJORA" ? "bg-emerald-50 text-emerald-600"
+                                : "bg-blue-50 text-blue-600"
+                              }`}>
+                                {p.tipoPago === "INICIAL" ? "Registro inicial"
+                                  : p.tipoPago === "MEJORA" ? "Mejora de paquete"
+                                  : `+${p.cantidadParticipantes} cupos adicionales`}
                               </span>
                               {estadoPagoBadge(p.estadoPago)}
                             </div>
@@ -1045,10 +1143,15 @@ export default function EmpresaPerfilPage() {
                             <p className="text-xs text-gray-400">{new Date(p.fechaCreacion).toLocaleDateString("es-BO")}</p>
                           </div>
                           {p.urlComprobante && (
-                            <a href={p.urlComprobante} target="_blank" rel="noreferrer"
-                              className="text-xs text-[#449D3A] font-bold hover:underline shrink-0">
-                              Ver comprobante
-                            </a>
+                            p.urlComprobante.toLowerCase().endsWith(".pdf") ? (
+                              <a href={p.urlComprobante} target="_blank" rel="noreferrer"
+                                className="flex items-center gap-1.5 text-xs text-[#449D3A] font-bold hover:underline shrink-0">
+                                <FileText className="w-4 h-4" />Ver PDF
+                              </a>
+                            ) : (
+                              <ImagenLightbox src={p.urlComprobante} alt="Comprobante de pago"
+                                className="w-14 h-14 rounded-lg border border-gray-200 bg-gray-50 shrink-0" />
+                            )
                           )}
                         </div>
                       ))}

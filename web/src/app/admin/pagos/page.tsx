@@ -1,9 +1,10 @@
 "use client";
 import React, { useState, useEffect, useCallback, Suspense } from 'react';
-import { CreditCard, Eye, ChevronLeft, ChevronRight, AlertCircle, CheckCircle, XCircle, Clock, PlusCircle } from 'lucide-react';
+import { CreditCard, Eye, ChevronLeft, ChevronRight, AlertCircle, CheckCircle, XCircle, Clock, PlusCircle, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import PagosAdicionales from '@/components/admin/PagosAdicionales';
+import PagosMejora from '@/components/admin/PagosMejora';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
@@ -180,8 +181,9 @@ function PagosIniciales({ embedded = false }: { embedded?: boolean } = {}) {
 // tenía sentido que vivieran en secciones separadas del menú.
 function AdminPagosPageInner() {
   const searchParams = useSearchParams();
-  const [tab, setTab] = useState<'iniciales' | 'adicionales'>(
-    searchParams.get('tab') === 'adicionales' ? 'adicionales' : 'iniciales',
+  const tabInicial = searchParams.get('tab');
+  const [tab, setTab] = useState<'iniciales' | 'adicionales' | 'mejoras'>(
+    tabInicial === 'adicionales' ? 'adicionales' : tabInicial === 'mejoras' ? 'mejoras' : 'iniciales',
   );
 
   return (
@@ -190,7 +192,7 @@ function AdminPagosPageInner() {
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
           <CreditCard className="w-6 h-6 text-[#449D3A]" /> Pagos
         </h1>
-        <p className="text-sm text-gray-500 mt-1">Verifica pagos de inscripción y solicitudes de cupos adicionales.</p>
+        <p className="text-sm text-gray-500 mt-1">Verifica pagos de inscripción, cupos adicionales y mejoras de paquete.</p>
       </div>
 
       <div className="inline-flex gap-1 rounded-xl bg-gray-100 p-1 mb-6">
@@ -206,9 +208,15 @@ function AdminPagosPageInner() {
           }`}>
           <PlusCircle className="w-4 h-4" /> Adicionales
         </button>
+        <button onClick={() => setTab('mejoras')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+            tab === 'mejoras' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+          }`}>
+          <TrendingUp className="w-4 h-4" /> Mejoras
+        </button>
       </div>
 
-      {tab === 'iniciales' ? <PagosIniciales embedded /> : <PagosAdicionales embedded />}
+      {tab === 'iniciales' ? <PagosIniciales embedded /> : tab === 'adicionales' ? <PagosAdicionales embedded /> : <PagosMejora embedded />}
     </div>
   );
 }

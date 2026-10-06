@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Star, CheckCircle2, AlertCircle, Calendar, Building2 } from "lucide-react";
+import { Star, CheckCircle2, AlertCircle, Calendar, Building2, Clock, Award } from "lucide-react";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
@@ -152,10 +152,48 @@ function ResultadosContent() {
   );
 
   const reunionSeleccionada = reuniones.find((r) => r.id === formulario.reunionId);
+  const promedioCalificacion = yaEvaluadas.length > 0
+    ? yaEvaluadas.reduce((sum, r) => sum + (r.miResultado?.calificacionReunion ?? 0), 0) / yaEvaluadas.length
+    : 0;
+  const acuerdosCerrados = yaEvaluadas.filter((r) => r.miResultado?.rangoAcuerdoComercial && r.miResultado.rangoAcuerdoComercial !== "No hubo acuerdo").length;
 
   return (
     <div className="p-6 space-y-6">
       <h1 className="text-2xl font-extrabold text-gray-900">Resultados de reuniones</h1>
+
+      {/* Stats */}
+      {reuniones.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+            <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center mb-3">
+              <Star className="w-4 h-4 text-amber-500" />
+            </div>
+            <p className="text-2xl font-extrabold text-gray-900 mb-0.5">{promedioCalificacion > 0 ? promedioCalificacion.toFixed(1) : "—"}</p>
+            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Calificación promedio</p>
+          </div>
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+            <div className="w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center mb-3">
+              <CheckCircle2 className="w-4 h-4 text-[#449D3A]" />
+            </div>
+            <p className="text-2xl font-extrabold text-gray-900 mb-0.5">{yaEvaluadas.length}</p>
+            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Reuniones evaluadas</p>
+          </div>
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3 ${pendientesEvaluar.length > 0 ? "bg-amber-50" : "bg-gray-50"}`}>
+              <Clock className={`w-4 h-4 ${pendientesEvaluar.length > 0 ? "text-amber-600" : "text-gray-400"}`} />
+            </div>
+            <p className="text-2xl font-extrabold text-gray-900 mb-0.5">{pendientesEvaluar.length}</p>
+            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Pendientes de evaluar</p>
+          </div>
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+            <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center mb-3">
+              <Award className="w-4 h-4 text-blue-600" />
+            </div>
+            <p className="text-2xl font-extrabold text-gray-900 mb-0.5">{acuerdosCerrados}</p>
+            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Acuerdos comerciales</p>
+          </div>
+        </div>
+      )}
 
       {/* Formulario */}
       {pendientesEvaluar.length > 0 ? (
@@ -312,24 +350,34 @@ function ResultadosContent() {
             <span className="ml-auto text-xs text-gray-400">{yaEvaluadas.length}</span>
           </div>
           <div className="divide-y divide-gray-50">
-            {yaEvaluadas.map((r: any) => (
-              <div key={r.id} className="px-6 py-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="font-bold text-gray-900 text-sm">{r.contraparte?.nombre ?? "Empresa"}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{formatDT(r.inicio)}</p>
-                  </div>
-                  <div className="text-right">
-                    <div className="flex items-center gap-0.5">
-                      {[1, 2, 3, 4, 5].map((n) => (
-                        <Star key={n} className={`w-4 h-4 ${n <= r.miResultado.calificacionReunion ? "fill-amber-400 text-amber-400" : "text-gray-200"}`} />
-                      ))}
+            {yaEvaluadas.map((r: any) => {
+              const huboAcuerdo = r.miResultado.rangoAcuerdoComercial && r.miResultado.rangoAcuerdoComercial !== "No hubo acuerdo";
+              return (
+                <div key={r.id} className="px-6 py-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-bold text-gray-900 text-sm">{r.contraparte?.nombre ?? "Empresa"}</p>
+                      <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
+                        <Calendar className="w-3 h-3" />{formatDT(r.inicio)}
+                      </p>
+                      {r.miResultado.observaciones && (
+                        <p className="text-xs text-gray-500 mt-1 italic">"{r.miResultado.observaciones}"</p>
+                      )}
                     </div>
-                    <p className="text-xs text-gray-500 mt-0.5">{r.miResultado.rangoAcuerdoComercial}</p>
+                    <div className="text-right shrink-0">
+                      <div className="flex items-center gap-0.5 justify-end">
+                        {[1, 2, 3, 4, 5].map((n) => (
+                          <Star key={n} className={`w-4 h-4 ${n <= r.miResultado.calificacionReunion ? "fill-amber-400 text-amber-400" : "text-gray-200"}`} />
+                        ))}
+                      </div>
+                      <span className={`inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${huboAcuerdo ? "bg-blue-50 text-blue-600" : "bg-gray-100 text-gray-500"}`}>
+                        {r.miResultado.rangoAcuerdoComercial}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
