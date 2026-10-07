@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { API_URL, userStore } from '../utils/userStore';
+import { refreshNotifications } from '../utils/notificationEvents';
 
 // Pantalla destino según el tipo de notificación, para llevar directo a su
 // sección al tocar "Ver". Devuelve null si no hay una pantalla asociada.
@@ -12,6 +13,8 @@ export function rutaDeNotifMobile(evento: string): string | null {
   if (t.startsWith('reunion')) return 'Solicitudes';
   if (t.startsWith('mensaje')) return 'Mensajes';
   if (t.startsWith('comunicado')) return 'Comunicados';
+  if (t.startsWith('noticia')) return 'Comunicados';
+  if (t.startsWith('evento')) return 'Eventos';
   if (t.startsWith('pago')) return 'Perfil';
   return null;
 }
@@ -62,6 +65,8 @@ export function useNotificacionesMobile(eeId: number | null) {
   const [notifs, setNotifs] = useState<NotifMobile[]>([]);
 
   const addNotif = useCallback((evento: string, payload: any) => {
+    refreshNotifications();
+    if (evento.startsWith('mensaje')) return;
     const notif: NotifMobile = {
       id: `${Date.now()}-${Math.random()}`,
       evento,
@@ -94,7 +99,7 @@ export function useNotificacionesMobile(eeId: number | null) {
       'reunion:enlace-actualizado', 'reunion:reprogramada', 'reunion:recordatorio',
       'reunion:cambio-solicitado', 'reunion:cambio-aceptado', 'reunion:cambio-rechazado',
       'reunion:calificar', 'mensaje:staff', 'mensaje:empresa', 'mensaje:tecnico',
-      'comunicado:nuevo',
+      'comunicado:nuevo', 'noticia:nueva', 'mensaje:nuevo', 'mensajes:actualizados', 'notificaciones:actualizadas',
     ];
 
     EVENTOS.forEach((ev) => {

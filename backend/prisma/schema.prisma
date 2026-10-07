@@ -171,6 +171,7 @@ model fotoevento {
 // Canal único por evento, visible para todo el staff: no es una conversación
 // 1 a 1, es un tablón compartido para coordinarse entre sí.
 model mensajeinterno {
+  fechaEdicion DateTime? @db.Timestamp(6)
   id            Int      @id @default(autoincrement())
   evento_id     Int
   usuario_id    Int
@@ -327,6 +328,8 @@ model empresaeventocomprobantes {
 }
 
 model evento {
+  conversacionesVistas conversacionvista[]
+  notificacionesLeidas notificacionlectura[]
   id                             Int                     @id @default(autoincrement())
   nombre                         String                  @db.VarChar(205)
   edicion                        String                  @db.VarChar(45)
@@ -548,6 +551,8 @@ model anuncioactividad {
 }
 
 model mensajeempresa {
+  remitenteUsuario_id Int?
+  fechaEdicion DateTime? @db.Timestamp(6)
   id                    Int       @id @default(autoincrement())
   evento_id             Int
   emisorEe_id           Int // 0 = equipo del evento (admin/técnico)
@@ -699,6 +704,8 @@ model solicitudreunion {
 }
 
 model usuario {
+  conversacionesVistas conversacionvista[]
+  notificacionesLeidas notificacionlectura[]
   pushsubscriptions pushsubscription[]
   id                            Int                     @id @default(autoincrement())
   evento_id                     Int?
@@ -730,6 +737,33 @@ model usuario {
   ticketsCerrados                ticketsoporte[]
 
   @@index([evento_id], map: "fk_usuario_evento1_idx")
+}
+
+// Borrar una conversación afecta únicamente la vista de este usuario.
+model conversacionvista {
+  id Int @id @default(autoincrement())
+  usuario_id Int
+  evento_id Int
+  canal String @db.VarChar(20)
+  propioEe_id Int
+  otroEe_id Int
+  hastaMensajeId Int @default(0)
+  estaActivo Int @default(1) @db.SmallInt
+  creadoModificadoFecha DateTime @default(now()) @db.Timestamp(6)
+  usuario usuario @relation(fields: [usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  evento evento @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  @@unique([usuario_id, evento_id, canal, propioEe_id, otroEe_id], map: "conversacionvista_usuario_evento_canal_key")
+}
+
+model notificacionlectura {
+  id Int @id @default(autoincrement())
+  usuario_id Int
+  evento_id Int
+  clave String @db.VarChar(100)
+  fechaLectura DateTime @default(now()) @db.Timestamp(6)
+  usuario usuario @relation(fields: [usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  evento evento @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  @@unique([usuario_id, evento_id, clave])
 }
 
 model asistenciaevento {
@@ -771,6 +805,7 @@ model asistenciaauspiciador {
 }
 
 model pushsubscription {
+  estaActivo Int @default(1) @db.SmallInt
   entregas pushdelivery[]
   id        Int      @id @default(autoincrement())
   usuarioId Int

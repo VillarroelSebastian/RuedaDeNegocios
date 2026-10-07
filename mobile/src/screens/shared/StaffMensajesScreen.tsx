@@ -7,7 +7,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { MessageSquare, Send, Search, X, ChevronLeft, Plus, Building2 } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
-import { useAlturaTeclado } from '../../hooks/useAlturaTeclado';
+import { MessageActions, DeleteConversation } from '../../components/MessageActions';
+import { useFeedback } from '../../components/FeedbackProvider';
+import KeyboardSafeView from '../../components/KeyboardSafeView';
 
 const GREEN = '#449D3A';
 const POLL_MS = 8000;
@@ -22,8 +24,6 @@ function fmtFechaCorta(iso: string) {
 }
 
 export default function StaffMensajesScreen({ embedded = false }: { embedded?: boolean } = {}) {
-  // Espacio del teclado: mantiene la fila de escritura siempre visible.
-  const alturaTeclado = useAlturaTeclado();
   const user = userStore.get();
 
   const [convs, setConvs] = useState<any[]>([]);
@@ -34,6 +34,7 @@ export default function StaffMensajesScreen({ embedded = false }: { embedded?: b
   const [mensajes, setMensajes] = useState<any[]>([]);
   const [texto, setTexto] = useState('');
   const [enviando, setEnviando] = useState(false);
+  const showFeedback = useFeedback();
   const [error, setError] = useState('');
 
   const [modalNueva, setModalNueva] = useState(false);
@@ -41,6 +42,7 @@ export default function StaffMensajesScreen({ embedded = false }: { embedded?: b
   const [busqueda, setBusqueda] = useState('');
   const [cargandoEmp, setCargandoEmp] = useState(false);
 
+  React.useEffect(() => { if (error) showFeedback({ type: 'error', title: 'Mensajer\u00eda', message: error }); }, [error]);
   const listRef = useRef<FlatList>(null);
   const enviandoRef = useRef(false);
   const activaRef = useRef(activa);
@@ -121,14 +123,15 @@ export default function StaffMensajesScreen({ embedded = false }: { embedded?: b
 
   if (activa) {
     return (
-      <SafeAreaView style={s.root} edges={['top']}>
-        <View style={{ flex: 1, paddingBottom: alturaTeclado }}>
+      <SafeAreaView style={s.root} edges={['top', 'bottom', 'left', 'right']}>
+        <KeyboardSafeView>
           <View style={s.chatHeader}>
             <TouchableOpacity onPress={() => { setActiva(null); setMensajes([]); cargarConvs(); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <ChevronLeft size={22} color="#374151" />
             </TouchableOpacity>
             <View style={s.chatAvatar}><Building2 size={16} color={GREEN} /></View>
             <Text style={s.chatTitle} numberOfLines={1}>{activa.nombre}</Text>
+            <DeleteConversation canal="staff" otroEeId={activa.eeId} onDeleted={() => { setActiva(null); setMensajes([]); cargarConvs(); }} />
           </View>
 
           <FlatList
@@ -136,7 +139,8 @@ export default function StaffMensajesScreen({ embedded = false }: { embedded?: b
             data={mensajes}
             keyExtractor={(m: any) => String(m.id)}
             contentContainerStyle={{ padding: 14, gap: 8 }}
-            onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
+            onLayout={() => listRef.current?.scrollToEnd({ animated: false })}
+          onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
             ListEmptyComponent={
@@ -149,13 +153,14 @@ export default function StaffMensajesScreen({ embedded = false }: { embedded?: b
                     <Text style={item.esMio ? s.burbujaAutor : s.burbujaAutorOtra}>{item.autor}</Text>
                   )}
                   <Text style={[s.burbujaTexto, item.esMio && { color: '#fff' }]}>{item.contenido}</Text>
-                  <Text style={[s.burbujaHora, item.esMio && { color: 'rgba(255,255,255,0.6)' }]}>{fmtHora(item.fecha)}</Text>
+                  <Text style={[s.burbujaHora, item.esMio && { color: 'rgba(255,255,255,0.6)' }]}>{item.editado && !item.eliminado ? 'Editado - ' : ''}{fmtHora(item.fecha)}</Text>
+                  <MessageActions mensaje={item} onChanged={() => { cargarMensajes(activa.eeId); cargarConvs(); }} />
                 </View>
               </View>
             )}
           />
 
-          {!!error && <Text style={s.chatError}>{error}</Text>}
+
 
           <View style={s.inputRow}>
             <TextInput
@@ -179,13 +184,13 @@ export default function StaffMensajesScreen({ embedded = false }: { embedded?: b
               {enviando ? <ActivityIndicator color="#fff" size="small" /> : <Send size={17} color="#fff" />}
             </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardSafeView>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={s.root} edges={['top']}>
+    <SafeAreaView style={s.root} edges={['top', 'bottom', 'left', 'right']}>
       <View style={[s.header, embedded && { justifyContent: 'flex-end' }]}>
         {!embedded && <Text style={s.headerTitle}>Mensajes</Text>}
         <TouchableOpacity style={s.nuevaBtn} onPress={abrirNueva} activeOpacity={0.8}>

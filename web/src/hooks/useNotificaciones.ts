@@ -13,6 +13,7 @@ export interface Notif {
   mensaje: string;
   titulo?: string;
   timestamp: number;
+  referenciaId?: number;
 }
 
 export function useNotificaciones(eeId: number | null) {
@@ -20,15 +21,17 @@ export function useNotificaciones(eeId: number | null) {
   const [notifs, setNotifs] = useState<Notif[]>([]);
 
   const addNotif = useCallback((evento: string, payload: any) => {
+    window.dispatchEvent(new CustomEvent("rueda:notificacion", { detail: { evento, payload } }));
+    if (evento.startsWith('mensaje')) { window.dispatchEvent(new Event('mensajesActualizados')); return; }
     const notif: Notif = {
       id: `${Date.now()}-${Math.random()}`,
       evento,
       mensaje: payload.mensaje ?? evento,
       titulo: payload.titulo,
       timestamp: Date.now(),
+      referenciaId: Number(payload.referenciaId) || undefined,
     };
     setNotifs((prev) => [notif, ...prev].slice(0, 20));
-    window.dispatchEvent(new CustomEvent("rueda:notificacion", { detail: { evento, payload } }));
     // Auto-dismiss after 6 seconds
     setTimeout(() => {
       setNotifs((prev) => prev.filter((n) => n.id !== notif.id));
@@ -56,7 +59,7 @@ export function useNotificaciones(eeId: number | null) {
       "reunion:enlace-actualizado", "reunion:reprogramada", "reunion:recordatorio",
       "reunion:cambio-solicitado", "reunion:cambio-aceptado", "reunion:cambio-rechazado",
       "reunion:calificar", "mensaje:staff", "mensaje:empresa",
-      "comunicado:nuevo",
+      "comunicado:nuevo", "noticia:nueva", "mensaje:nuevo", "mensajes:actualizados",
     ];
 
     EVENTOS.forEach((ev) => {

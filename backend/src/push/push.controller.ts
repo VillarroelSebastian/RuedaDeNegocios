@@ -30,9 +30,9 @@ export class PushController {
         throw new BadRequestException('Suscripción web inválida.');
     } else throw new BadRequestException('Tipo de suscripción inválido.');
     const clave = createHash('sha256').update(destino).digest('hex');
-    const data = { usuarioId: req.user.sub, tipo, destino, p256dh, auth, actualizado: new Date() };
+    const data = { usuarioId: req.user.sub, tipo, destino, p256dh, auth, estaActivo: 1, actualizado: new Date() };
     const actual = await this.prisma.pushsubscription.findUnique({ where: { clave } });
-    if (!actual && await this.prisma.pushsubscription.count({ where: { usuarioId: req.user.sub } }) >= 20)
+    if (!actual && await this.prisma.pushsubscription.count({ where: { usuarioId: req.user.sub, estaActivo: 1 } }) >= 20)
       throw new BadRequestException('Se alcanzó el límite de dispositivos. Desactiva uno antes de agregar otro.');
     await this.prisma.pushsubscription.upsert({ where: { clave }, create: { ...data, clave }, update: data });
     return { ok: true };
@@ -40,7 +40,7 @@ export class PushController {
   @Delete('suscripcion')
   async eliminar(@Req() req: any, @Body() body: any) {
     const clave = createHash('sha256').update(String(body.token || body.endpoint || '')).digest('hex');
-    await this.prisma.pushsubscription.deleteMany({ where: { clave, usuarioId: req.user.sub } });
+    await this.prisma.pushsubscription.updateMany({ where: { clave, usuarioId: req.user.sub }, data: { estaActivo: 0 } });
     return { ok: true };
   }
 }

@@ -80,6 +80,15 @@ export class AuthGuard implements CanActivate {
         throw new ForbiddenException('Se requiere una cuenta de empresa.');
       if (dbUser.rolEvento === 'FORO' && EMPRESA_BLOQUEADO_PARA_FORO.some((p) => path.startsWith(p)))
         throw new ForbiddenException('La inscripción al foro no incluye funciones de negocios.');
+      if (path.startsWith('/empresa/mi-paquete')) {
+        if (dbUser.rolEvento === 'FORO') throw new ForbiddenException('Los paquetes no están disponibles para esta inscripción.');
+        const member = await this.prisma.empresa_usuario.findFirst({
+          where: { usuario_id: dbUser.id, empresaevento_id: Number(req.query?.eeId ?? req.body?.eeId), estaActivo: 1 },
+          include: { empresa: { select: { rubro: true } } },
+        });
+        if (!member || member.empresa.rubro.toLowerCase() === 'auspiciador')
+          throw new ForbiddenException('Los paquetes no están disponibles para esta inscripción.');
+      }
     }
 
     if (['EMPRESA', 'FORO'].includes(dbUser.rolEvento)) {

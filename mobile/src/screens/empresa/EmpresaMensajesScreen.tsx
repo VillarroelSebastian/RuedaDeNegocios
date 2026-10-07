@@ -7,7 +7,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRoute } from '@react-navigation/native';
 import { MessageSquare, Send, Search, X, ChevronLeft, Plus, Building2 } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
-import { useAlturaTeclado } from '../../hooks/useAlturaTeclado';
+import { MessageActions, DeleteConversation } from '../../components/MessageActions';
+import { useFeedback } from '../../components/FeedbackProvider';
+import KeyboardSafeView from '../../components/KeyboardSafeView';
 
 const GREEN = '#449D3A';
 const POLL_MS = 5000;
@@ -22,8 +24,6 @@ function fmtFechaCorta(iso: string) {
 }
 
 export default function EmpresaMensajesScreen() {
-  // Espacio del teclado: mantiene la fila de escritura siempre visible.
-  const alturaTeclado = useAlturaTeclado();
   const route = useRoute<any>();
   const user = userStore.get();
   const eeId = user?.empresaeventoId;
@@ -39,6 +39,7 @@ export default function EmpresaMensajesScreen() {
   const [mensajes, setMensajes] = useState<any[]>([]);
   const [texto, setTexto] = useState('');
   const [enviando, setEnviando] = useState(false);
+  const showFeedback = useFeedback();
   const [error, setError] = useState('');
 
   // Modal nueva conversación
@@ -48,6 +49,7 @@ export default function EmpresaMensajesScreen() {
   const [busqueda, setBusqueda] = useState('');
   const [cargandoEmp, setCargandoEmp] = useState(false);
 
+  React.useEffect(() => { if (error) showFeedback({ type: 'error', title: 'Mensajer\u00eda', message: error }); }, [error]);
   const listRef = useRef<FlatList>(null);
   const enviandoRef = useRef(false);
   const activaRef = useRef(activa);
@@ -141,14 +143,15 @@ export default function EmpresaMensajesScreen() {
   // ── Vista de chat abierto ──
   if (activa) {
     return (
-      <SafeAreaView style={s.root} edges={['top']}>
-        <View style={{ flex: 1, paddingBottom: alturaTeclado }}>
+      <SafeAreaView style={s.root} edges={['top', 'bottom', 'left', 'right']}>
+        <KeyboardSafeView>
           <View style={s.chatHeader}>
             <TouchableOpacity onPress={() => { setActiva(null); setMensajes([]); cargarConvs(); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <ChevronLeft size={22} color="#374151" />
             </TouchableOpacity>
             <View style={s.chatAvatar}><Building2 size={16} color={GREEN} /></View>
             <Text style={s.chatTitle} numberOfLines={1}>{activa.nombre}</Text>
+            <DeleteConversation canal="empresa" eeId={eeId} otroEeId={activa.eeId} onDeleted={() => { setActiva(null); setMensajes([]); cargarConvs(); }} />
           </View>
 
           <FlatList
@@ -156,7 +159,8 @@ export default function EmpresaMensajesScreen() {
             data={mensajes}
             keyExtractor={(m: any) => String(m.id)}
             contentContainerStyle={{ padding: 14, gap: 8 }}
-            onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
+            onLayout={() => listRef.current?.scrollToEnd({ animated: false })}
+          onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
             ListEmptyComponent={
@@ -169,13 +173,14 @@ export default function EmpresaMensajesScreen() {
                     <Text style={s.burbujaAutor}>{item.autor}</Text>
                   )}
                   <Text style={[s.burbujaTexto, item.esMio && { color: '#fff' }]}>{item.contenido}</Text>
-                  <Text style={[s.burbujaHora, item.esMio && { color: 'rgba(255,255,255,0.6)' }]}>{fmtHora(item.fecha)}</Text>
+                  <Text style={[s.burbujaHora, item.esMio && { color: 'rgba(255,255,255,0.6)' }]}>{item.editado && !item.eliminado ? 'Editado - ' : ''}{fmtHora(item.fecha)}</Text>
+                  <MessageActions mensaje={item} onChanged={() => { cargarMensajes(activa.eeId); cargarConvs(); }} />
                 </View>
               </View>
             )}
           />
 
-          {!!error && <Text style={s.chatError}>{error}</Text>}
+
 
           {/* Input — solo el encargado puede escribir */}
           {!esEncargado ? (
@@ -206,14 +211,14 @@ export default function EmpresaMensajesScreen() {
               </TouchableOpacity>
             </View>
           )}
-        </View>
+        </KeyboardSafeView>
       </SafeAreaView>
     );
   }
 
   // ── Lista de conversaciones ──
   return (
-    <SafeAreaView style={s.root} edges={['top']}>
+    <SafeAreaView style={s.root} edges={['top', 'bottom', 'left', 'right']}>
       <View style={s.header}>
         <Text style={s.headerTitle}>Mensajes</Text>
         {esEncargado && (

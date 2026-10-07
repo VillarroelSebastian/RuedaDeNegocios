@@ -30,6 +30,7 @@ const allMenuItems = [
 export const RUTAS_OCULTAS_PARA_FORO = allMenuItems.filter((i) => i.ocultoParaForo).map((i) => i.href);
 
 interface EmpresaSidebarProps {
+  canPackage?: boolean;
   esEncargado?: boolean;
   esForo?: boolean;
   eeId?: number | null;
@@ -37,7 +38,7 @@ interface EmpresaSidebarProps {
   onClose?: () => void;
 }
 
-export default function EmpresaSidebar({ esEncargado = false, esForo = false, eeId = null, mobileOpen = false, onClose }: EmpresaSidebarProps) {
+export default function EmpresaSidebar({ canPackage = false, esEncargado = false, esForo = false, eeId = null, mobileOpen = false, onClose }: EmpresaSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [foto, setFoto] = useState<string>('');
@@ -120,7 +121,7 @@ export default function EmpresaSidebar({ esEncargado = false, esForo = false, ee
         </div>
       )}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {allMenuItems.filter(item => (esEncargado || !item.soloEncargado) && !(esForo && item.ocultoParaForo) && !(!esForo && item.soloForo)).map((item) => {
+        {allMenuItems.filter(item => (item.href !== '/empresa/mi-paquete' || canPackage) && (esEncargado || !item.soloEncargado) && !(esForo && item.ocultoParaForo) && !(!esForo && item.soloForo)).map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
           return (
             <Link

@@ -4,6 +4,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { LogOut, ChevronDown, Bell, Menu, Clock, Newspaper, UserCircle, Search } from 'lucide-react';
 
+import NotificationBell from '@/components/NotificationBell';
+
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
 function fmtNotifFecha(f: string) {
@@ -167,52 +169,7 @@ export default function EmpresaHeader({ onMenuClick, eeId }: { onMenuClick?: () 
       </div>
 
       {/* Bell con historial de notificaciones */}
-      <div ref={notifsRef} className="relative mr-2">
-        <button
-          onClick={abrirNotifs}
-          className="relative p-2 rounded-xl hover:bg-gray-50 transition-colors"
-          title="Notificaciones"
-        >
-          <Bell className="w-5 h-5 text-gray-600" />
-          {unread > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 leading-none">
-              {unread > 99 ? '99+' : unread}
-            </span>
-          )}
-        </button>
-
-        {showNotifs && (
-          <div className="absolute right-0 top-full mt-2 w-80 max-w-[90vw] bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-              <p className="text-sm font-bold text-gray-900">Notificaciones</p>
-              <span className="text-[10px] text-gray-400">{notifs.length} recientes</span>
-            </div>
-            <div className="max-h-72 overflow-y-auto">
-              {notifs.length === 0 ? (
-                <p className="text-xs text-gray-400 text-center py-6">No tienes notificaciones aún.</p>
-              ) : (
-                notifs.map((n) => (
-                  <button key={n.id} onClick={() => abrirNotificacion(n)}
-                    className={`w-full text-left px-4 py-3 border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors ${n.leida ? '' : 'bg-green-50/50'}`}>
-                    <p className="text-xs font-bold text-gray-800">{n.titulo}</p>
-                    <p className="text-xs text-gray-600 mt-0.5 leading-relaxed">{n.mensaje}</p>
-                    <p className="text-[10px] text-gray-400 mt-1 flex items-center gap-1">
-                      <Clock className="w-3 h-3" />{fmtNotifFecha(n.fecha)}
-                    </p>
-                  </button>
-                ))
-              )}
-            </div>
-            <button
-              onClick={() => { setShowNotifs(false); router.push('/empresa/comunicados'); }}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-bold text-[#449D3A] hover:bg-green-50 transition-colors border-t border-gray-100"
-            >
-              <Newspaper className="w-3.5 h-3.5" />
-              Ver comunicados del evento
-            </button>
-          </div>
-        )}
-      </div>
+      <NotificationBell storageKey="empresaUser" />
 
       <div ref={profileRef} className="relative">
         <button

@@ -228,7 +228,8 @@ export default function GaleriaEvento({
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
                 {fotosLanding.map((f) => (
                   <FotoCard key={f.id} f={f} onClick={() => setAmpliada(f)}
-                    onToggleLanding={() => toggleLanding(f)} actualizando={actualizandoLanding === f.id} />
+                    onToggleLanding={() => toggleLanding(f)} actualizando={actualizandoLanding === f.id}
+                    onEliminar={puedeBorrar(f) ? () => eliminar(f) : undefined} eliminando={eliminando} />
                 ))}
               </div>
             )}
@@ -250,7 +251,8 @@ export default function GaleriaEvento({
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
                 {g.fotos.map((f) => (
                   <FotoCard key={f.id} f={f} onClick={() => setAmpliada(f)}
-                    onToggleLanding={() => toggleLanding(f)} actualizando={actualizandoLanding === f.id} />
+                    onToggleLanding={() => toggleLanding(f)} actualizando={actualizandoLanding === f.id}
+                    onEliminar={puedeBorrar(f) ? () => eliminar(f) : undefined} eliminando={eliminando} />
                 ))}
               </div>
             </div>
@@ -259,7 +261,8 @@ export default function GaleriaEvento({
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
           {fotos.map((f) => (
-            <FotoCard key={f.id} f={f} onClick={() => setAmpliada(f)} />
+            <FotoCard key={f.id} f={f} onClick={() => setAmpliada(f)}
+              onEliminar={puedeBorrar(f) ? () => eliminar(f) : undefined} eliminando={eliminando} />
           ))}
         </div>
       )}
@@ -289,8 +292,8 @@ export default function GaleriaEvento({
                 )}
                 {puedeBorrar(ampliada) && (
                   <button onClick={() => eliminar(ampliada)} disabled={eliminando}
-                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-red-300 hover:text-red-200 disabled:opacity-50">
-                    <Trash2 className="w-4 h-4" /> Eliminar
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-red-600/90 hover:bg-red-600 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50">
+                    <Trash2 className="w-4 h-4" /> {eliminando ? "Eliminando…" : "Eliminar"}
                   </button>
                 )}
               </span>
@@ -308,12 +311,14 @@ export default function GaleriaEvento({
 }
 
 function FotoCard({
-  f, onClick, onToggleLanding, actualizando,
+  f, onClick, onToggleLanding, actualizando, onEliminar, eliminando,
 }: {
   f: Foto;
   onClick: () => void;
   onToggleLanding?: () => void;
   actualizando?: boolean;
+  onEliminar?: () => void;
+  eliminando?: boolean;
 }) {
   return (
     <div className="group relative aspect-square rounded-2xl overflow-hidden bg-gray-100 border border-gray-200 hover:border-[#449D3A] transition-colors">
@@ -340,6 +345,17 @@ function FotoCard({
           }`}
         >
           <Star className={`w-3.5 h-3.5 ${f.visibleLanding ? "fill-amber-950" : ""}`} />
+        </button>
+      )}
+      {onEliminar && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onEliminar(); }}
+          disabled={eliminando}
+          title="Eliminar foto"
+          aria-label="Eliminar foto"
+          className="absolute bottom-1.5 right-1.5 w-7 h-7 rounded-full flex items-center justify-center shadow bg-white/90 text-red-600 hover:bg-red-600 hover:text-white transition-colors disabled:opacity-50"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
         </button>
       )}
     </div>

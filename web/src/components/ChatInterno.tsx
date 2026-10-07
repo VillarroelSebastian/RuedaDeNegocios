@@ -3,6 +3,11 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Send, Users } from "lucide-react";
 
+import { MessageActions, DeleteConversation } from '@/components/MessageActions';
+import { useModal } from '@/components/ui/Modal';
+
+import ChatViewport from '@/components/ChatViewport';
+
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 const POLL_MS = 6000;
 
@@ -19,7 +24,9 @@ export default function ChatInterno({ storageKey, embedded = false }: { storageK
   const [texto, setTexto] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [cargando, setCargando] = useState(true);
+  const { showError, ModalComponent } = useModal();
   const [error, setError] = useState<string | null>(null);
+  useEffect(() => { if (error) showError('Error de mensajer\u00eda', error); }, [error]);
   const bottomRef = useRef<HTMLDivElement>(null);
   // Guard sincrónico: `enviando` todavía no se había re-renderizado cuando
   // llegaba un segundo clic rápido, duplicando el mensaje.
@@ -65,7 +72,7 @@ export default function ChatInterno({ storageKey, embedded = false }: { storageK
   let fechaAnterior = "";
 
   return (
-    <div className={embedded ? "p-4 sm:p-6 h-full flex flex-col" : "p-4 sm:p-6 h-[calc(100vh-4rem)] flex flex-col"}>
+    <ChatViewport embedded={embedded} className={embedded ? "p-4 sm:p-6 h-full flex flex-col" : "p-4 sm:p-6 h-[calc(100dvh-4rem)] flex flex-col"}>
       {!embedded && (
         <div className="mb-4">
           <h1 className="text-2xl font-extrabold text-gray-900 flex items-center gap-2">
@@ -75,10 +82,10 @@ export default function ChatInterno({ storageKey, embedded = false }: { storageK
         </div>
       )}
 
-      {error && (
-        <div className="bg-red-50 text-red-700 rounded-xl p-3 text-sm mb-3">{error}</div>
-      )}
+      {ModalComponent}
 
+
+      <div className="flex justify-end"><DeleteConversation canal="interno" otroEeId={0} onDeleted={cargar} /></div>
       <div className="flex-1 min-h-0 bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col overflow-hidden">
         <div className="flex-1 overflow-y-auto p-4 space-y-1 bg-gray-50/50">
           {cargando ? (
@@ -111,7 +118,8 @@ export default function ChatInterno({ storageKey, embedded = false }: { storageK
                         </p>
                       )}
                       <p className="whitespace-pre-line break-words">{m.contenido}</p>
-                      <p className={`text-[9px] mt-1 text-right ${esMio ? "text-white/60" : "text-gray-400"}`}>{fmtHora(m.fechaCreacion)}</p>
+                      <MessageActions mensaje={m} interno onChanged={cargar} />
+                      <p className={`text-[9px] mt-1 text-right ${esMio ? "text-white/60" : "text-gray-400"}`}>{m.editado && !m.eliminado ? 'Editado \u00b7 ' : ''}{fmtHora(m.fechaCreacion)}</p>
                     </div>
                   </div>
                 </React.Fragment>
@@ -140,6 +148,6 @@ export default function ChatInterno({ storageKey, embedded = false }: { storageK
           </button>
         </div>
       </div>
-    </div>
+    </ChatViewport>
   );
 }

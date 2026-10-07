@@ -7,7 +7,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Send, Users } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
-import { useAlturaTeclado } from '../../hooks/useAlturaTeclado';
+import { MessageActions, DeleteConversation } from '../../components/MessageActions';
+import { useFeedback } from '../../components/FeedbackProvider';
+import KeyboardSafeView from '../../components/KeyboardSafeView';
 
 const GREEN = '#449D3A';
 const POLL_MS = 7000;
@@ -17,16 +19,16 @@ function fmtHora(iso: string) {
 }
 
 export default function ChatInternoScreen({ embedded = false }: { embedded?: boolean } = {}) {
-  // Espacio del teclado: mantiene la fila de escritura siempre visible.
-  const alturaTeclado = useAlturaTeclado();
   const user = userStore.get();
 
   const [mensajes, setMensajes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [texto, setTexto] = useState('');
   const [enviando, setEnviando] = useState(false);
+  const showFeedback = useFeedback();
   const [error, setError] = useState('');
 
+  React.useEffect(() => { if (error) showFeedback({ type: 'error', title: 'Mensajer\u00eda', message: error }); }, [error]);
   const listRef = useRef<FlatList>(null);
   const enviandoRef = useRef(false);
 
@@ -70,8 +72,8 @@ export default function ChatInternoScreen({ embedded = false }: { embedded?: boo
   );
 
   return (
-    <SafeAreaView style={s.root} edges={['top']}>
-      <View style={{ flex: 1, paddingBottom: alturaTeclado }}>
+    <SafeAreaView style={s.root} edges={['top', 'bottom', 'left', 'right']}>
+      <KeyboardSafeView>
         {!embedded && (
           <View style={s.header}>
             <View style={s.headerIcon}><Users size={16} color={GREEN} /></View>
@@ -82,11 +84,13 @@ export default function ChatInternoScreen({ embedded = false }: { embedded?: boo
           </View>
         )}
 
+        <View style={{ alignItems: 'flex-end' }}><DeleteConversation canal="interno" otroEeId={0} onDeleted={cargar} /></View>
         <FlatList
           ref={listRef}
           data={mensajes}
           keyExtractor={(m: any) => String(m.id)}
           contentContainerStyle={{ padding: 14, gap: 8, flexGrow: 1 }}
+          onLayout={() => listRef.current?.scrollToEnd({ animated: false })}
           onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
@@ -107,14 +111,15 @@ export default function ChatInternoScreen({ embedded = false }: { embedded?: boo
                     </Text>
                   )}
                   <Text style={[s.burbujaTexto, esMio && { color: '#fff' }]}>{item.contenido}</Text>
-                  <Text style={[s.burbujaHora, esMio && { color: 'rgba(255,255,255,0.6)' }]}>{fmtHora(item.fechaCreacion)}</Text>
+                  <Text style={[s.burbujaHora, esMio && { color: 'rgba(255,255,255,0.6)' }]}>{item.editado && !item.eliminado ? 'Editado - ' : ''}{fmtHora(item.fechaCreacion)}</Text>
+                  <MessageActions mensaje={item} interno onChanged={cargar} />
                 </View>
               </View>
             );
           }}
         />
 
-        {!!error && <Text style={s.chatError}>{error}</Text>}
+
 
         <View style={s.inputRow}>
           <TextInput
@@ -138,7 +143,7 @@ export default function ChatInternoScreen({ embedded = false }: { embedded?: boo
             {enviando ? <ActivityIndicator color="#fff" size="small" /> : <Send size={17} color="#fff" />}
           </TouchableOpacity>
         </View>
-      </View>
+      </KeyboardSafeView>
     </SafeAreaView>
   );
 }

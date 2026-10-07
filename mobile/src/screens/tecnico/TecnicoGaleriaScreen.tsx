@@ -62,6 +62,10 @@ export default function TecnicoGaleriaScreen() {
 
   const fotosLanding = useMemo(() => fotos.filter((f) => !!f.visibleLanding), [fotos]);
 
+  // Staff puede borrar cualquier foto; empresa/foro solo las suyas.
+  const puedeBorrarFoto = (f: any) =>
+    esStaff || (esEmpresa && f.empresa_usuario_id != null && f.empresa_usuario_id === actual?.empresaUsuarioId);
+
   // Lista plana: encabezado de grupo + filas de a 2 fotos, para poder usar un
   // solo FlatList sin depender de un grid rígido de columnas fijas.
   const staffItems = useMemo(() => {
@@ -203,7 +207,9 @@ export default function TecnicoGaleriaScreen() {
     if (eliminandoRef.current) return;
     eliminandoRef.current = true;
     try {
-      const r = await fetch(`${API_URL}/galeria/${id}`, { method: "DELETE" });
+      const params = new URLSearchParams();
+      if (!esStaff && actual?.empresaUsuarioId) params.set("empresa_usuario_id", String(actual.empresaUsuarioId));
+      const r = await fetch(`${API_URL}/galeria/${id}?${params}`, { method: "DELETE" });
       if (!r.ok)
         throw new Error((await r.json()).message || "No se pudo eliminar.");
       setFotos((v) => v.filter((f) => f.id !== id));
@@ -272,6 +278,7 @@ export default function TecnicoGaleriaScreen() {
               <FotoCard f={item} esStaff={false}
                 onPress={() => setAmpliada(item)}
                 onEliminar={() => eliminar(item.id)}
+                puedeEliminar={puedeBorrarFoto(item)}
               />
             );
           }
@@ -326,6 +333,7 @@ export default function TecnicoGaleriaScreen() {
                 <FotoCard key={f.id} f={f} esStaff
                   onPress={() => setAmpliada(f)}
                   onEliminar={() => eliminar(f.id)}
+                  puedeEliminar={puedeBorrarFoto(f)}
                   onToggleLanding={() => toggleLanding(f)}
                   actualizando={actualizandoLanding === f.id}
                 />
@@ -429,9 +437,13 @@ export default function TecnicoGaleriaScreen() {
                       </Text>
                     </TouchableOpacity>
                   )}
-                  {esStaff && (
-                    <TouchableOpacity onPress={() => { eliminar(ampliada.id); setAmpliada(null); }}>
-                      <Trash2 color="#f87171" size={17} />
+                  {puedeBorrarFoto(ampliada) && (
+                    <TouchableOpacity
+                      onPress={() => { eliminar(ampliada.id); setAmpliada(null); }}
+                      style={{ flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "rgba(220,38,38,0.85)", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 }}
+                    >
+                      <Trash2 color="#fff" size={15} />
+                      <Text style={{ color: "#fff", fontWeight: "700", fontSize: 12 }}>Eliminar</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -445,7 +457,7 @@ export default function TecnicoGaleriaScreen() {
 }
 
 function FotoCard({
-  f, esStaff, onPress, onEliminar, onToggleLanding, actualizando,
+  f, esStaff, onPress, onEliminar, onToggleLanding, actualizando, puedeEliminar,
 }: {
   f: any;
   esStaff: boolean;
@@ -453,6 +465,7 @@ function FotoCard({
   onEliminar: () => void;
   onToggleLanding?: () => void;
   actualizando?: boolean;
+  puedeEliminar?: boolean;
 }) {
   return (
     <TouchableOpacity
@@ -494,11 +507,22 @@ function FotoCard({
             <Star color={f.visibleLanding ? "#78350f" : "#94a3b8"} fill={f.visibleLanding ? "#78350f" : "none"} size={13} />
           </TouchableOpacity>
         )}
+        {puedeEliminar && (
+          <TouchableOpacity
+            onPress={onEliminar}
+            accessibilityLabel="Eliminar foto"
+            style={{
+              position: "absolute", bottom: 4, right: 4, width: 24, height: 24, borderRadius: 12,
+              alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.9)",
+            }}
+          >
+            <Trash2 color="#dc2626" size={13} />
+          </TouchableOpacity>
+        )}
       </View>
       <Text numberOfLines={2} style={{ fontSize: 10, color: "#64748b", padding: 5 }}>
         {f.autorNombre}{f.descripcion ? ` · ${f.descripcion}` : ''}
       </Text>
-      {esStaff && <TouchableOpacity onPress={onEliminar} style={{ alignSelf: "flex-end", padding: 7 }} accessibilityLabel="Eliminar foto"><Trash2 color="#dc2626" size={17} /></TouchableOpacity>}
     </TouchableOpacity>
   );
 }

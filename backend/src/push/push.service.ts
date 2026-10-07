@@ -17,10 +17,10 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
   async enviar(audiencia: number | 'staff' | 'foro' | 'global' | { usuarioId: number }, tipo: string, payload: any) {
     if (!payload.titulo || !payload.mensaje) return;
     try {
-      const evento = await this.prisma.evento.findFirst({ where: { esPrincipal: 1, estaActivo: { not: 0 } }, select: { id: true } });
-      if (!evento) return;
-      const staff = { rolEvento: { in: ['ADMINISTRADOR', 'TECNICO', 'TECNICO_EVENTOS'] } };
-      const foro = { rolEvento: 'FORO', evento_id: evento.id };
+      const evento = await this.prisma.evento.findFirst({ where: { ...(payload.eventoId ? { id: Number(payload.eventoId) } : { esPrincipal: 1 }), estaActivo: { not: 0 } }, select: { id: true, esPrincipal: true } });
+      if (!evento || evento.esPrincipal === 0) return;
+      const staff = { rolEvento: { in: ['ADMINISTRADOR', 'TECNICO', 'TECNICO_EVENTOS'] }, OR: [{ evento_id: evento.id }, ...(evento.esPrincipal === 1 ? [{ rolEvento: { in: ['TECNICO', 'TECNICO_EVENTOS'] } }, { rolEvento: 'ADMINISTRADOR', evento_id: null }] : [])] };
+      const foro = { rolEvento: 'FORO', empresa_usuario: { some: { estaActivo: 1, empresaevento: { evento_id: evento.id, estaActivo: 1, estadoHabilitacionAcceso: 'HABILITADO', estadoVerificacionPago: 'COMPLETADO' } } } };
       const empresa = { rolEvento: 'EMPRESA', empresa_usuario: { some: {
         estaActivo: 1, ...(typeof audiencia === 'number' ? { empresaevento_id: audiencia } : {}),
         empresaevento: { evento_id: evento.id, estaActivo: 1, estadoHabilitacionAcceso: 'HABILITADO', estadoVerificacionPago: 'COMPLETADO' },
@@ -33,15 +33,24 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
         select: { id: true, rolEvento: true },
       });
       const roles = new Map(usuarios.map((u) => [u.id, u.rolEvento]));
-      const destinos = await this.prisma.pushsubscription.findMany({ where: { usuarioId: { in: usuarios.map((u) => u.id) },
+      const destinos = await this.prisma.pushsubscription.findMany({ where: { estaActivo: 1, usuarioId: { in: usuarios.map((u) => u.id) },
         actualizado: { gte: new Date(Date.now() - 90 * 86400000) } } });
       if(!destinos.length)return;
       await this.prisma.pushdelivery.createMany({data:destinos.map(destino=>{
         const role=roles.get(destino.usuarioId);
-        const base=role==='FORO'?'/foro':role==='EMPRESA'?'/empresa':role==='ADMINISTRADOR'?'/admin':'/tecnico';
-        const url=base==='/foro'?'/foro':base+(tipo.startsWith('chat-interno')?'/equipo':tipo.startsWith('mensaje')?'/mensajes':tipo.startsWith('mesa')&&base==='/tecnico'?'/mesas':'/dashboard');
+        const base=role==='FORO'||role==='EMPRESA'?'/empresa':role==='ADMINISTRADOR'?'/admin':'/tecnico';
+        const article = tipo.startsWith('comunicado') || tipo.startsWith('noticia');
+        const url=article ? `/contenido/noticias/${Number(payload.referenciaId)}`
+          : tipo.startsWith('chat-interno') ? base+'/equipo'
+          : tipo.startsWith('mensaje') || tipo.startsWith('ticket') ? base+'/mensajes'
+          : tipo.startsWith('mesa') ? base+'/mesas'
+          : tipo.startsWith('evento') ? base+'/cronograma-vivo'
+          : tipo.startsWith('reunion') || tipo.startsWith('staff:reunion') ? base === '/empresa' ? `${base}/solicitudes?tab=reuniones&reunionId=${Number(payload.referenciaId)}` : base+'/virtuales'
+          : tipo.startsWith('solicitud') ? base+'/solicitudes'
+          : tipo.startsWith('pago') ? base+'/perfil'
+          : role === 'FORO' ? '/empresa/comunicados' : base+'/dashboard';
         return {subscriptionId:destino.id,contenido:{title:String(payload.titulo).slice(0,150),body:String(payload.mensaje).slice(0,500),
-          data:{url,tipo,usuarioId:destino.usuarioId,referenciaId:payload.referenciaId||0},tag:tipo}};
+          data:{url,tipo,eventoId:evento.id,usuarioId:destino.usuarioId,referenciaId:payload.referenciaId||0},tag:tipo+':'+(payload.referenciaId||Date.now())}};
       })});
       void this.procesar();
     }catch{this.logger.error('No se pudo guardar la cola push.');}
@@ -62,7 +71,7 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
         if(!claim.count)return;
         const sub=job.subscription,contenido=job.contenido as any;
         try{
-          if(!sub.usuario.estaActivo||Number(contenido.data?.usuarioId)!==sub.usuarioId){
+          if(sub.estaActivo===0||!sub.usuario.estaActivo||Number(contenido.data?.usuarioId)!==sub.usuarioId){
             await this.prisma.pushdelivery.update({where:{id:job.id},data:{estado:'CANCELADA'}});return;
           }
           if(Date.now()-job.fechaCreacion.getTime()>24*3600000){
@@ -78,15 +87,15 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
             const receipt=receipts?.[job.ticketId];
             if(!receipt){await this.prisma.pushdelivery.update({where:{id:job.id},data:{estado:'RECIBO',proximoIntento:new Date(Date.now()+15*60000)}});return;}
             if(receipt.status==='ok'){await this.prisma.pushdelivery.update({where:{id:job.id},data:{estado:'ENTREGADA',error:null}});return;}
-            if(receipt.details?.error==='DeviceNotRegistered'){await this.prisma.pushsubscription.deleteMany({where:{id:sub.id}});return;}
+            if(receipt.details?.error==='DeviceNotRegistered'){await this.prisma.pushsubscription.updateMany({where:{id:sub.id},data:{estaActivo:0}});return;}
             throw new Error(receipt.details?.error||'Error de entrega Expo');
           }
           const ticket=await this.expo('send',{to:sub.destino,sound:'default',channelId:'eventos',priority:'high',ttl:3600,title:contenido.title,body:contenido.body,data:contenido.data});
-          if(ticket?.details?.error==='DeviceNotRegistered'){await this.prisma.pushsubscription.deleteMany({where:{id:sub.id}});return;}
+          if(ticket?.details?.error==='DeviceNotRegistered'){await this.prisma.pushsubscription.updateMany({where:{id:sub.id},data:{estaActivo:0}});return;}
           if(ticket?.status!=='ok'||!ticket.id)throw new Error(ticket?.details?.error||'Expo no aceptó el envío');
           await this.prisma.pushdelivery.update({where:{id:job.id},data:{estado:'RECIBO',ticketId:ticket.id,proximoIntento:new Date(Date.now()+15*60000),error:null}});
         }catch(error:any){
-          if([404,410].includes(error?.statusCode)){await this.prisma.pushsubscription.deleteMany({where:{id:sub.id}});return;}
+          if([404,410].includes(error?.statusCode)){await this.prisma.pushsubscription.updateMany({where:{id:sub.id},data:{estaActivo:0}});return;}
           const terminal=job.intentos>=5||['InvalidCredentials','MismatchSenderId','MessageTooBig'].includes(error?.message);
           await this.prisma.pushdelivery.updateMany({where:{id:job.id},data:{estado:terminal?'FALLIDA':job.ticketId?'RECIBO':'PENDIENTE',
             proximoIntento:new Date(Date.now()+Math.min(3600,30*2**job.intentos)*1000),error:String(error?.message||'Error push').slice(0,255)}});

@@ -2,23 +2,32 @@ import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { Bell, CalendarClock } from 'lucide-react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { abrirNotificacion } from '../../../App';
+import { useFeedback } from '../../components/FeedbackProvider';
 import { API_URL, userStore } from '../../utils/userStore';
 
 const GREEN = '#449D3A';
 export default function StaffNotificacionesScreen({ navigation }: any) {
   const admin = userStore.get()?.rolEvento === 'ADMINISTRADOR';
+  const show = useFeedback();
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const cargar = useCallback(async (mostrarCarga = true) => { if (mostrarCarga) setLoading(true); try { const r = await fetch(`${API_URL}/${admin ? 'admin/notificaciones' : 'tecnico/notificaciones-reuniones'}`); const d = await r.json(); setItems(d.notificaciones || []); } catch { setItems([]); } finally { if (mostrarCarga) setLoading(false); } }, [admin]);
+  const cargar = useCallback(async (mostrarCarga = true) => { if (mostrarCarga) setLoading(true); try { const r = await fetch(`${API_URL}/notificaciones`); const d = await r.json(); setItems(d.notificaciones || []); } catch { setItems([]); } finally { if (mostrarCarga) setLoading(false); } }, [admin]);
   useFocusEffect(useCallback(() => {
     cargar();
-    if (!admin) fetch(`${API_URL}/tecnico/notificaciones-reuniones/marcar-vistas`, { method: 'PUT' }).catch(() => {});
+
     const timer = setInterval(() => cargar(false), 15000);
     return () => clearInterval(timer);
   }, [cargar, admin]));
-  const abrir = (n: any) => {
+  const abrir = async (n: any) => {
+    try {
+      const response = await fetch(API_URL + '/notificaciones/leidas', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: [n.id] }) });
+      if (!response.ok) throw new Error('No se pudo actualizar la lectura');
+      void cargar(false);
+    } catch (e: any) { show({ type: 'error', title: 'Notificaciones', message: e.message }); return; }
+    if (n.referenciaTipo === 'noticia') { abrirNotificacion({ tipo: n.tipo, referenciaId: n.referenciaId }); return; }
     if (!admin) {
-      if (n.referenciaNombreTabla === 'mesa') navigation.navigate('TecnicoTabs', { screen: 'TecnicoMesas' });
+      if (n.referenciaTipo === 'mesa') navigation.navigate('TecnicoTabs', { screen: 'TecnicoMesas' });
       else navigation.navigate('TecnicoTabs', { screen: 'TecnicoVirtuales' });
       return;
     }

@@ -14,7 +14,7 @@ import {
   Hash, ExternalLink, CheckCircle2, Camera, Eye, EyeOff,
 } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
-import { LIMITES } from '../../utils/validaciones';
+import { LIMITES, validarNombrePersona, validarTelefono } from '../../utils/validaciones';
 import { RUBROS } from '../../constants/rubros';
 import { useModal } from '../../components/AppModal';
 
@@ -215,6 +215,10 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
 
   const handleSavePerfil = async () => {
     if (savingRef.current) return;
+    const errNom = validarNombrePersona(editNombre, 'El nombre');
+    if (errNom) { setSaveError(errNom); return; }
+    const errTel = validarTelefono(editTel);
+    if (errTel) { setSaveError(errTel); return; }
     savingRef.current = true;
     setSaveError(''); setSaving(true);
     try {
@@ -283,8 +287,12 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
   const handleAddParticipant = async () => {
     if (addingRef.current) return;
     addingRef.current = true;
-    if (!addNombre.trim() || !addApellido.trim() || !addCorreo.trim() || !addTel.trim()) {
-      setAddError('Nombres, apellido paterno, correo y teléfono son obligatorios.');
+    const errNom = validarNombrePersona(addNombre, 'El nombre');
+    if (errNom) { setAddError(errNom); addingRef.current = false; return; }
+    const errApe = validarNombrePersona(addApellido, 'El apellido paterno');
+    if (errApe) { setAddError(errApe); addingRef.current = false; return; }
+    if (!addCorreo.trim()) {
+      setAddError('El correo es obligatorio.');
       addingRef.current = false;
       return;
     }
@@ -293,11 +301,8 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
       addingRef.current = false;
       return;
     }
-    if (addTel.replace(/\D/g, '').length < 7) {
-      setAddError('El teléfono no es válido.');
-      addingRef.current = false;
-      return;
-    }
+    const errTel = validarTelefono(addTel);
+    if (errTel) { setAddError(errTel); addingRef.current = false; return; }
     setAddError(''); setAdding(true);
     try {
       const eeId = empresa?.empresaeventoId;

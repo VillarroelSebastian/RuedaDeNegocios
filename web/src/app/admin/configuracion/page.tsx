@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { User, Lock, Camera, Save, LogOut, Mail, KeyRound, CheckCircle2, X, Eye, EyeOff, Send } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useModal } from '@/components/ui/Modal';
+import { validarNombrePersona, validarTelefono } from '@/lib/validaciones';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
@@ -65,6 +66,18 @@ export default function ConfiguracionPage() {
 
   const handleSavePerfil = async (confirmarResetCorreo = false) => {
     if (!user) return;
+    const errNom = validarNombrePersona(form.nombres, 'El nombre');
+    if (errNom) { showError('Datos inválidos', errNom); return; }
+    const errApe = validarNombrePersona(form.apellidoPaterno, 'El apellido paterno');
+    if (errApe) { showError('Datos inválidos', errApe); return; }
+    if (form.apellidoMaterno.trim()) {
+      const errApeM = validarNombrePersona(form.apellidoMaterno, 'El apellido materno');
+      if (errApeM) { showError('Datos inválidos', errApeM); return; }
+    }
+    if (form.telefono.trim()) {
+      const errTel = validarTelefono(form.telefono);
+      if (errTel) { showError('Datos inválidos', errTel); return; }
+    }
     const correoCambio = form.correo.trim().toLowerCase() !== String(user.correo || '').trim().toLowerCase();
     if (correoCambio && !confirmarResetCorreo) {
       showConfirm(

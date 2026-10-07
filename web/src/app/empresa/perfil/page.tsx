@@ -8,7 +8,7 @@ import {
   KeyRound, Shield, X, Upload, FileText, Download, Camera, Eye, EyeOff,
 } from "lucide-react";
 import ImagenLightbox from "@/components/ui/ImagenLightbox";
-import { LIMITES } from "@/lib/validaciones";
+import { LIMITES, validarNombrePersona, validarTelefono } from "@/lib/validaciones";
 import { RUBROS } from "@/lib/rubros";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
@@ -37,18 +37,17 @@ function AgregarParticipanteModal({ eeId, euEncargadoId, slotsDisponibles, maxPe
   const submit = async () => {
     if (enviandoRef.current) return;
     setErr(null);
-    if (!form.nombres.trim() || !form.apellidoPaterno.trim() || !form.correo.trim() || !form.telefono.trim()) {
-      setErr("Nombres, apellido paterno, correo y teléfono son requeridos");
-      return;
-    }
+    const errNom = validarNombrePersona(form.nombres, "El nombre");
+    if (errNom) { setErr(errNom); return; }
+    const errApe = validarNombrePersona(form.apellidoPaterno, "El apellido paterno");
+    if (errApe) { setErr(errApe); return; }
+    if (!form.correo.trim()) { setErr("El correo es requerido."); return; }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.correo.trim())) {
       setErr("El correo electrónico no es válido");
       return;
     }
-    if (form.telefono.replace(/\D/g, "").length < 7) {
-      setErr("El teléfono no es válido");
-      return;
-    }
+    const errTel = validarTelefono(form.telefono);
+    if (errTel) { setErr(errTel); return; }
     enviandoRef.current = true;
     setEnviando(true);
     try {
@@ -497,8 +496,16 @@ export default function EmpresaPerfilPage() {
   const handleGuardar = async () => {
     if (guardandoRef.current) return;
     setErrForm(null); setExito(null);
-    if (!form.nombres.trim()) { setErrForm("El nombre es requerido."); return; }
-    if (!form.apellidoPaterno.trim()) { setErrForm("El apellido paterno es requerido."); return; }
+    const errNom = validarNombrePersona(form.nombres, "El nombre");
+    if (errNom) { setErrForm(errNom); return; }
+    const errApe = validarNombrePersona(form.apellidoPaterno, "El apellido paterno");
+    if (errApe) { setErrForm(errApe); return; }
+    if (form.apellidoMaterno.trim()) {
+      const errApeM = validarNombrePersona(form.apellidoMaterno, "El apellido materno");
+      if (errApeM) { setErrForm(errApeM); return; }
+    }
+    const errTel = validarTelefono(form.telefono);
+    if (errTel) { setErrForm(errTel); return; }
     guardandoRef.current = true;
     setGuardando(true);
     try {

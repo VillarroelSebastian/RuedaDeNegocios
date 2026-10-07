@@ -10,7 +10,9 @@ import { useModal } from '../components/AppModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AsistenteChatModal, { AsistenteChatButton } from '../components/AsistenteChatMobile';
 import { rutaDeNotifMobile, useNotificacionesMobile } from '../hooks/useNotificaciones';
-import { navigationRef } from '../../App';
+import { navigationRef, abrirNotificacion } from '../../App';
+import NotificationBell from '../components/NotificationBell';
+import { subscribeNotifications } from '../utils/notificationEvents';
 
 import EmpresaDashboardScreen   from '../screens/empresa/EmpresaDashboardScreen';
 import EmpresaEmpresasScreen    from '../screens/empresa/EmpresaEmpresasScreen';
@@ -37,6 +39,8 @@ const LS_KEY = 'comunicadosLastSeen';
 
 function EmpresaMenuScreen({ navigation }: any) {
   const esEncargado = !!userStore.get()?.esResponsable;
+  const [canPackage, setCanPackage] = useState(userStore.get()?.puedeVerPaquete === true);
+  useEffect(() => userStore.subscribe(() => setCanPackage(userStore.get()?.puedeVerPaquete === true)), []);
   const opciones = [
     { nombre: 'Perfil', pantalla: 'Perfil', icono: User },
     { nombre: 'Cronograma en vivo', pantalla: 'Eventos', icono: CalendarDays },
@@ -45,7 +49,7 @@ function EmpresaMenuScreen({ navigation }: any) {
     { nombre: 'Mensajes', pantalla: 'Mensajes', icono: MessageCircle },
     { nombre: 'Galería', pantalla: 'Galeria', icono: Images },
     { nombre: 'Resultados', pantalla: 'Resultados', icono: Star },
-    { nombre: 'Mi paquete', pantalla: 'MiPaquete', icono: Package },
+    ...(canPackage ? [{ nombre: 'Mi paquete', pantalla: 'MiPaquete', icono: Package }] : []),
     ...(esEncargado ? [
       { nombre: 'Mis horarios', pantalla: 'Horarios', icono: Clock },
     ] : []),
@@ -71,47 +75,7 @@ function EmpresaMenuScreen({ navigation }: any) {
 
 // ── Bell button ─────────────────────────────────────────────────────────────
 
-function BellButton() {
-  const navigation = useNavigation<any>();
-  const [count, setCount] = useState(0);
-
-  const refresh = useCallback(async () => {
-    try {
-      const lastSeen = await AsyncStorage.getItem(LS_KEY);
-      const res = await fetch(`${API_URL}/empresa/comunicados`);
-      if (!res.ok) return;
-      const data: any[] = await res.json();
-      const n = lastSeen
-        ? data.filter((c) => new Date(c.fechaHoraPublicacion).getTime() > new Date(lastSeen).getTime()).length
-        : data.length;
-      setCount(n);
-    } catch {}
-  }, []);
-
-  useEffect(() => {
-    refresh();
-    const iv = setInterval(refresh, 30_000);
-    return () => clearInterval(iv);
-  }, [refresh]);
-
-  return (
-    <TouchableOpacity
-      onPress={() => navigation.navigate('Comunicados')}
-      style={bell.btn}
-      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-      activeOpacity={0.7}
-    >
-      <Bell size={22} color="#374151" />
-      {count > 0 && (
-        <View style={bell.badge}>
-          <Text style={bell.badgeTxt}>{count > 99 ? '99+' : String(count)}</Text>
-        </View>
-      )}
-    </TouchableOpacity>
-  );
-}
-
-// ── Messages button ────────────────────────────────────────────────────────
+function BellButton() { return <NotificationBell />; }
 
 function MessagesButton({ eeId }: { eeId: number | null }) {
   const navigation = useNavigation<any>();
@@ -126,6 +90,7 @@ function MessagesButton({ eeId }: { eeId: number | null }) {
       setCount(Array.isArray(data) ? data.reduce((sum, c) => sum + (c.noLeidos || 0), 0) : 0);
     } catch {}
   }, [eeId]);
+  useEffect(() => subscribeNotifications(() => { void refresh(); }), [refresh]);
 
   // useFocusEffect en vez de useEffect: el header persiste montado mientras
   // se navega a 'Mensajes' y vuelve, así que un useEffect normal solo corre
@@ -375,6 +340,8 @@ function ForoTabs() {
 export default function EmpresaNavigator() {
   const insetsBanner = useSafeAreaInsets();
   const [esForo] = useState(userStore.get()?.rolEvento === 'FORO');
+  const [canPackage, setCanPackage] = useState(userStore.get()?.puedeVerPaquete === true);
+  useEffect(() => userStore.subscribe(() => setCanPackage(userStore.get()?.puedeVerPaquete === true)), []);
   const [esEncargado, setEsEncargado] = useState(!!userStore.get()?.esResponsable);
   const [chatOpen, setChatOpen] = useState(false);
   const [eeId, setEeId] = useState<number | null>(userStore.get()?.empresaeventoId ?? null);
@@ -395,6 +362,8 @@ export default function EmpresaNavigator() {
             empresaeventoId: ctx.empresaeventoId,
             empresaUsuarioId: ctx.empresaUsuarioId,
             esResponsable: ctx.esResponsable,
+            puedeVerPaquete: ctx.puedeVerPaquete,
+            eventoActualId: ctx.evento?.id,
           });
           setEsEncargado(Boolean(ctx.esResponsable));
           setEeId(ctx.empresaeventoId);
@@ -440,7 +409,7 @@ export default function EmpresaNavigator() {
       <Stack.Screen name="Perfil"        component={EmpresaPerfilScreen}        options={{ title: 'Perfil' }} />
       <Stack.Screen name="PerfilEmpresa" component={EmpresaPerfilEmpresaScreen} options={{ title: 'Perfil de empresa', headerShown: false }} />
       <Stack.Screen name="Resultados"  component={EmpresaResultadosScreen}  options={{ title: 'Resultados' }} />
-      <Stack.Screen name="MiPaquete"   component={EmpresaMiPaqueteScreen}   options={{ title: 'Mi paquete' }} />
+      {canPackage && <Stack.Screen name="MiPaquete" component={EmpresaMiPaqueteScreen} options={{ title: 'Mi paquete' }} />}
       {esEncargado && (
         <Stack.Screen name="Horarios"    component={EmpresaHorariosScreen}    options={{ title: 'Mis horarios disponibles' }} />
       )}
@@ -457,6 +426,10 @@ export default function EmpresaNavigator() {
               <TouchableOpacity onPress={() => {
                 const ruta = rutaDeNotifMobile(notifActual.evento);
                 dismiss(notifActual.id);
+                if (notifActual.evento.startsWith('comunicado') || notifActual.evento.startsWith('noticia')) {
+                  abrirNotificacion({ tipo: notifActual.evento, referenciaId: notifActual.referenciaId });
+                  return;
+                }
                 if (ruta && navigationRef.isReady()) {
                   const esTabPrincipal = ['Inicio', 'Empresas', 'Solicitudes', 'Mas'].includes(ruta);
                   const params = notifActual.evento === 'solicitud:nueva' || notifActual.evento === 'solicitud:editada' || notifActual.evento === 'solicitud:cancelada'

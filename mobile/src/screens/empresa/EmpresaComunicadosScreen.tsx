@@ -9,6 +9,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Newspaper, AlertCircle, Bell, ChevronRight } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL, userStore } from '../../utils/userStore';
+import { abrirNotificacion } from '../../../App';
+import { useFeedback } from '../../components/FeedbackProvider';
 import { rutaDeNotifMobile } from '../../hooks/useNotificaciones';
 
 const TABS_PRINCIPALES = ['Inicio', 'Empresas', 'Solicitudes', 'Mas'];
@@ -25,6 +27,7 @@ function fmtNotifFecha(f: string) {
 }
 
 export default function EmpresaComunicadosScreen({ navigation }: any) {
+  const show = useFeedback();
   const [items,     setItems]     = useState<any[]>([]);
   const [avisos,    setAvisos]    = useState<any[]>([]);
   const [loading,   setLoading]   = useState(true);
@@ -43,17 +46,11 @@ export default function EmpresaComunicadosScreen({ navigation }: any) {
       // Mis avisos personales (notificaciones persistentes) + marcar como leídas
       const eeId = userStore.get()?.empresaeventoId;
       if (eeId) {
-        const nRes = await fetch(`${API_URL}/empresa/notificaciones?eeId=${eeId}`);
+        const nRes = await fetch(`${API_URL}/notificaciones`);
         if (nRes.ok) {
           const nData = await nRes.json();
           setAvisos(nData.notificaciones ?? []);
-          if ((nData.noLeidas ?? 0) > 0) {
-            fetch(`${API_URL}/empresa/notificaciones/leidas`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ eeId }),
-            }).catch(() => {});
-          }
+
         }
       }
     } catch (e: any) {
@@ -74,17 +71,12 @@ export default function EmpresaComunicadosScreen({ navigation }: any) {
   // Cada aviso lleva a la pantalla donde ocurrió (reunión, solicitud, mensaje,
   // pago...). Los tabs viven en el navigator anidado 'EmpresaTabs'; el resto
   // son pantallas hermanas de este stack.
-  const abrirAviso = (aviso: any) => {
-    const ruta = rutaDeNotifMobile(aviso.tipo);
-    if (!ruta || ruta === 'Comunicados') return;
-    const params = aviso.tipo === 'solicitud:nueva' || aviso.tipo === 'solicitud:editada' || aviso.tipo === 'solicitud:cancelada'
-      ? { tab: 'recibidas' }
-      : aviso.tipo.startsWith('solicitud') ? { tab: 'enviadas' }
-      : aviso.tipo.startsWith('reunion') || aviso.tipo === 'mensaje:tecnico'
-        ? (aviso.referenciaId ? { tab: 'reuniones', reunionId: aviso.referenciaId } : { tab: 'reuniones' })
-        : undefined;
-    if (TABS_PRINCIPALES.includes(ruta)) navigation.navigate('EmpresaTabs', { screen: ruta, params });
-    else navigation.navigate(ruta, params);
+  const abrirAviso = async (aviso: any) => {
+    try {
+      const r = await fetch(API_URL + '/notificaciones/leidas', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: [aviso.id] }) });
+      if (!r.ok) throw new Error('No se pudo actualizar la lectura');
+      abrirNotificacion({ tipo: aviso.tipo, referenciaId: aviso.referenciaId, url: aviso.enlace });
+    } catch (e: any) { show({ type: 'error', title: 'Notificaciones', message: e.message }); }
   };
 
   if (loading) return (
@@ -112,7 +104,7 @@ export default function EmpresaComunicadosScreen({ navigation }: any) {
                 <Text style={s.avisosTitle}>Mis avisos</Text>
               </View>
               {avisos.slice(0, 8).map((a) => {
-                const navegable = !!rutaDeNotifMobile(a.tipo) && rutaDeNotifMobile(a.tipo) !== 'Comunicados';
+                const navegable = true;
                 const Wrapper = navegable ? TouchableOpacity : View;
                 return (
                   <Wrapper key={a.id} style={[s.avisoItem, !a.leida && s.avisoNoLeido]}
@@ -141,7 +133,7 @@ export default function EmpresaComunicadosScreen({ navigation }: any) {
         renderItem={({ item }) => {
           const isOpen = !!expanded[item.id];
           return (
-            <TouchableOpacity style={s.card} onPress={() => toggle(item.id)} activeOpacity={0.8}>
+            <TouchableOpacity style={s.card} onPress={() => navigation.navigate('NoticiaDetalle', { id: item.id })} activeOpacity={0.8}>
               {item.urlImagen ? (
                 <ImagenLightbox uri={item.urlImagen} style={s.cardImg} />
               ) : (

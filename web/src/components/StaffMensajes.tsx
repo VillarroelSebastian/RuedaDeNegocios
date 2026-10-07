@@ -5,6 +5,11 @@ import {
   MessageSquare, Send, Search, X, Building2, ChevronLeft, AlertCircle, Plus,
 } from "lucide-react";
 
+import { MessageActions, DeleteConversation } from '@/components/MessageActions';
+import { useModal } from '@/components/ui/Modal';
+
+import ChatViewport from '@/components/ChatViewport';
+
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 const POLL_MS = 8000;
 
@@ -97,7 +102,9 @@ export default function StaffMensajes({ storageKey, embedded = false }: { storag
   const [enviando, setEnviando] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [modalNueva, setModalNueva] = useState(false);
+  const { showError, ModalComponent } = useModal();
   const [error, setError] = useState<string | null>(null);
+  useEffect(() => { if (error) showError('Error de mensajer\u00eda', error); }, [error]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const activaRef = useRef(activa);
   useEffect(() => { activaRef.current = activa; }, [activa]);
@@ -169,7 +176,7 @@ export default function StaffMensajes({ storageKey, embedded = false }: { storag
   );
 
   return (
-    <div className={embedded ? "p-4 sm:p-6 h-full flex flex-col" : "p-4 sm:p-6 h-[calc(100vh-4rem)] flex flex-col"}>
+    <ChatViewport embedded={embedded} className={embedded ? "p-4 sm:p-6 h-full flex flex-col" : "p-4 sm:p-6 h-[calc(100dvh-4rem)] flex flex-col"}>
       {modalNueva && (
         <NuevaConversacionModal
           onClose={() => setModalNueva(false)}
@@ -193,11 +200,8 @@ export default function StaffMensajes({ storageKey, embedded = false }: { storag
         </button>
       </div>
 
-      {error && (
-        <div className="flex items-center gap-2 bg-red-50 text-red-700 rounded-xl p-3 text-sm mb-3">
-          <AlertCircle className="w-4 h-4 shrink-0" />{error}
-        </div>
-      )}
+      {ModalComponent}
+
 
       <div className="flex-1 min-h-0 bg-white rounded-2xl border border-gray-100 shadow-sm flex overflow-hidden">
         <div className={`w-full md:w-80 border-r border-gray-100 flex-col ${activa ? "hidden md:flex" : "flex"}`}>
@@ -256,6 +260,7 @@ export default function StaffMensajes({ storageKey, embedded = false }: { storag
                   <Building2 className="w-4 h-4" />
                 </div>
                 <p className="font-bold text-gray-900 text-sm truncate">{activa.nombre}</p>
+                <DeleteConversation canal="staff" otroEeId={activa.eeId} onDeleted={() => { setActiva(null); setMensajes([]); cargarConvs(); }} />
               </div>
 
               <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-gray-50/50">
@@ -273,7 +278,8 @@ export default function StaffMensajes({ storageKey, embedded = false }: { storag
                         <p className={`text-[10px] font-bold mb-0.5 ${m.esMio ? "text-white/80" : "text-[#449D3A]"}`}>{m.autor}</p>
                       )}
                       <p className="whitespace-pre-line break-words">{m.contenido}</p>
-                      <p className={`text-[9px] mt-1 text-right ${m.esMio ? "text-white/60" : "text-gray-400"}`}>{fmtHora(m.fecha)}</p>
+                      <MessageActions mensaje={m} onChanged={() => { if (activa) { cargarMensajes(activa.eeId); cargarConvs(); } }} />
+                      <p className={`text-[9px] mt-1 text-right ${m.esMio ? "text-white/60" : "text-gray-400"}`}>{m.editado && !m.eliminado ? 'Editado \u00b7 ' : ''}{fmtHora(m.fecha)}</p>
                     </div>
                   </div>
                 ))}
@@ -302,6 +308,6 @@ export default function StaffMensajes({ storageKey, embedded = false }: { storag
           )}
         </div>
       </div>
-    </div>
+    </ChatViewport>
   );
 }

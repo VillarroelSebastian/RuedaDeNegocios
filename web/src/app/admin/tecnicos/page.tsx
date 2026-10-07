@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Mail, Plus, Pencil, Trash2, User, X, Upload } from 'lucide-react';
 import { useModal } from '@/components/ui/Modal';
+import { correoValido, validarNombrePersona, validarTelefono } from '@/lib/validaciones';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
@@ -64,6 +65,17 @@ export default function TecnicosPage() {
       showError('Campos requeridos', 'Completa nombre, apellido, correo y teléfono.');
       return;
     }
+    const errNom = validarNombrePersona(form.nombres, 'El nombre');
+    if (errNom) { showError('Datos inválidos', errNom); return; }
+    const errApe = validarNombrePersona(form.apellidoPaterno, 'El apellido paterno');
+    if (errApe) { showError('Datos inválidos', errApe); return; }
+    if (form.apellidoMaterno?.trim()) {
+      const errApeM = validarNombrePersona(form.apellidoMaterno, 'El apellido materno');
+      if (errApeM) { showError('Datos inválidos', errApeM); return; }
+    }
+    if (!correoValido(form.correo)) { showError('Datos inválidos', 'El correo electrónico no es válido.'); return; }
+    const errTel = validarTelefono(form.telefono);
+    if (errTel) { showError('Datos inválidos', errTel); return; }
     if (savingRef.current) return;
     savingRef.current = true;
     setSaving(true);

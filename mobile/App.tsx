@@ -7,6 +7,8 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
+import { FeedbackProvider } from './src/components/FeedbackProvider';
+import ArticleDetailScreen from './src/screens/shared/ArticleDetailScreen';
 import PushNotifications from './src/components/PushNotifications';
 import LoginScreen      from './src/screens/auth/LoginScreen';
 import RegistroScreen   from './src/screens/RegistroScreen';
@@ -19,21 +21,35 @@ import { rutaDeNotifMobile } from './src/hooks/useNotificaciones';
 const Stack = createNativeStackNavigator();
 const VALID_ROLES = ['ADMINISTRADOR', 'TECNICO', 'TECNICO_EVENTOS', 'EMPRESA', 'FORO'];
 
-function abrirNotificacion(data: any): boolean {
+export function abrirNotificacion(data: any): boolean {
   const user = userStore.get();
   if (!user || !navigationRef.isReady()) return false;
   if (data?.usuarioId && Number(data.usuarioId) !== user.id) return true;
   const tipo = String(data?.tipo || '');
   const role = user.rolEvento;
+  if (data?.eventoId && user?.eventoActualId && Number(data.eventoId) !== Number(user.eventoActualId)) return true;
+  if ((tipo.startsWith('comunicado') || tipo.startsWith('noticia')) && Number(data.referenciaId)) {
+    (navigationRef as any).navigate('NoticiaDetalle', { id: Number(data.referenciaId) });
+    return true;
+  }
   const root = (role === 'EMPRESA' || role === 'FORO') ? 'EmpresaRoot' : role === 'ADMINISTRADOR' ? 'AdminRoot' : 'TecnicoRoot';
   let params: any;
+  if (role === 'ADMINISTRADOR' && /^\/admin\/pagos\/\d+$/.test(data?.url || '')) {
+    (navigationRef as any).navigate(root, { screen: 'PagoDetail', params: { id: Number(data.url.split('/').pop()) } });
+    return true;
+  }
+  if (role === 'ADMINISTRADOR' && (data?.url || '').includes('/pagos-adicionales')) {
+    (navigationRef as any).navigate(root, { screen: 'AdminTabs', params: { screen: 'Pagos', params: { initialTab: 'adicionales' } } });
+    return true;
+  }
   if (role === 'FORO') {
     params = {screen:tipo.startsWith('evento')?'Eventos':'Comunicados'};
   } else if (role === 'EMPRESA') {
     const ruta = rutaDeNotifMobile(tipo) || 'Comunicados';
     const esTab = ['Solicitudes', 'Reuniones'].includes(ruta);
     const subParams = ruta === 'Solicitudes'
-      ? { tab: ['solicitud:nueva', 'solicitud:editada', 'solicitud:cancelada'].includes(tipo) ? 'recibidas' : 'enviadas' }
+      ? tipo.startsWith('reunion') ? { tab: 'reuniones', reunionId: Number(data?.referenciaId) || undefined }
+        : { tab: ['solicitud:nueva', 'solicitud:editada', 'solicitud:cancelada'].includes(tipo) ? 'recibidas' : 'enviadas' }
       : ruta === 'Reuniones' && data?.referenciaId ? { reunionId: Number(data.referenciaId) }
       : undefined;
     params = esTab ? { screen: 'EmpresaTabs', params: { screen: ruta, params: subParams } } : { screen: ruta, params: subParams };
@@ -41,7 +57,10 @@ function abrirNotificacion(data: any): boolean {
     params = {screen:tipo.startsWith('chat-interno')?'ChatInterno':tipo.startsWith('mensaje')?
       (role==='ADMINISTRADOR'?'Mensajes':'TecnicoMensajes'):
       (role==='ADMINISTRADOR'?'Notificaciones':'TecnicoContenido')};
-    if(params.screen==='TecnicoContenido')params={screen:'TecnicoTabs',params:{screen:'TecnicoContenido'}};
+    if (tipo.startsWith('ticket')) params = { screen: role === 'ADMINISTRADOR' ? 'Mensajes' : 'TecnicoMensajes' };
+    else if (tipo.startsWith('mesa')) params = role === 'ADMINISTRADOR' ? { screen: 'AdminTabs', params: { screen: 'Mesas' } } : { screen: 'TecnicoTabs', params: { screen: 'TecnicoMesas' } };
+    else if (tipo.startsWith('staff:reunion') || tipo.startsWith('reunion')) params = role === 'ADMINISTRADOR' ? { screen: 'Virtuales' } : { screen: 'TecnicoTabs', params: { screen: 'TecnicoVirtuales' } };
+    else if(params.screen==='TecnicoContenido' && role !== 'TECNICO_EVENTOS')params={screen:'TecnicoTabs',params:{screen:'TecnicoContenido'}};
   }
   (navigationRef as any).navigate(root, params);
   return true;
@@ -169,8 +188,10 @@ export default function App() {
   return (
     <AppErrorBoundary>
       <SafeAreaProvider>
+      <FeedbackProvider>
       <NavigationContainer ref={navigationRef}>
         <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName={initialRoute}>
+          <Stack.Screen name="NoticiaDetalle" component={ArticleDetailScreen} options={{ headerShown: true, title: 'Publicaci\u00f3n' }} />
           <Stack.Screen name="Login"       component={LoginScreen}      />
           <Stack.Screen name="Registro"    component={RegistroScreen}   />
           <Stack.Screen name="AdminRoot"   component={AdminNavigator}   />
@@ -180,6 +201,7 @@ export default function App() {
         <PushNotifications onOpen={abrirNotificacion} />
         <StatusBar style="dark" />
       </NavigationContainer>
+      </FeedbackProvider>
       </SafeAreaProvider>
     </AppErrorBoundary>
   );

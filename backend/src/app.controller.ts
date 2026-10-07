@@ -9,6 +9,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomBytes, createHmac } from 'node:crypto';
 import { JwtService } from '@nestjs/jwt';
+import { MensajeriaService } from './mensajeria/mensajeria.service.js';
 
 function createMailTransporter() {
   return nodemailer.createTransport({
@@ -85,6 +86,7 @@ export class AppController implements OnModuleInit {
     private readonly prisma: PrismaService,
     private readonly notifGateway: NotificacionesGateway,
     private readonly jwt: JwtService,
+    private readonly mensajeria: MensajeriaService = new MensajeriaService(prisma, notifGateway),
   ) {}
 
   // Notifica a una empresa: persiste en la tabla notificacion (historial/campanita)
@@ -98,7 +100,7 @@ export class AppController implements OnModuleInit {
     referenciaTabla = '-',
   ) {
     try {
-      await this.prisma.notificacion.create({
+      if (!tipo.startsWith('mensaje')) await this.prisma.notificacion.create({
         data: {
           empresaevento_id: eeId,
           tituloNotificacion: titulo,
@@ -146,7 +148,7 @@ export class AppController implements OnModuleInit {
       });
       if (existente) return;
     }
-    await this.prisma.notificacionstaff.create({
+    if (!tipo.startsWith('mensaje')) await this.prisma.notificacionstaff.create({
       data: {
         evento_id: eventoId,
         tituloNotificacion: titulo,
@@ -158,7 +160,7 @@ export class AppController implements OnModuleInit {
         estaActivo: 1,
       },
     });
-    this.notifGateway.emitirParaStaff(tipo, { titulo, mensaje, referenciaId, urgente });
+    this.notifGateway.emitirParaEvento(eventoId, tipo, { titulo, mensaje, referenciaId, urgente }, true);
   }
 
   // A diferencia de notificarStaff (tablón compartido por todo el equipo),
@@ -461,14 +463,12 @@ export class AppController implements OnModuleInit {
       where: { estaActivo: 1, estadoPublicacion: 'PROGRAMADA', fechaHoraPublicacion: { lte: new Date() } },
     });
     for (const n of pendientes) {
-      await this.prisma.noticia.update({
-        where: { id: n.id },
+      const claim = await this.prisma.noticia.updateMany({
+        where: { id: n.id, estadoPublicacion: 'PROGRAMADA', estaActivo: 1 },
         data: { estadoPublicacion: 'PUBLICADO', creadoModificadoFecha: new Date() },
       });
-      this.notifGateway.emitirGlobal('comunicado:nuevo', {
-        mensaje: `Nuevo comunicado: ${n.tituloNoticia}`,
-        titulo: n.tituloNoticia,
-      });
+      if (!claim.count) continue;
+      this.notifGateway.emitirParaEvento(n.evento_id, n.tipoNoticia === 'COMUNICADO' ? 'comunicado:nuevo' : 'noticia:nueva', { titulo: n.tituloNoticia, mensaje: n.contenidoNoticia, referenciaId: n.id, referenciaTipo: 'noticia' });
     }
   }
 
@@ -3086,10 +3086,7 @@ export class AppController implements OnModuleInit {
         },
       });
       if (publicacion.estadoPublicacion === 'PUBLICADO') {
-        this.notifGateway.emitirGlobal('comunicado:nuevo', {
-          mensaje: `Nuevo comunicado: ${body.tituloNoticia}`,
-          titulo: body.tituloNoticia,
-        });
+        this.notifGateway.emitirParaEvento(noticia.evento_id, noticia.tipoNoticia === 'COMUNICADO' ? 'comunicado:nuevo' : 'noticia:nueva', { titulo: noticia.tituloNoticia, mensaje: noticia.contenidoNoticia, referenciaId: noticia.id, referenciaTipo: 'noticia' });
       }
       return noticia;
     } catch (error) {
@@ -3114,10 +3111,7 @@ export class AppController implements OnModuleInit {
         },
       });
       if (publicacion.estadoPublicacion === 'PUBLICADO' && antes?.estadoPublicacion !== 'PUBLICADO') {
-        this.notifGateway.emitirGlobal('comunicado:nuevo', {
-          mensaje: `Nuevo comunicado: ${body.tituloNoticia}`,
-          titulo: body.tituloNoticia,
-        });
+        this.notifGateway.emitirParaEvento(noticia.evento_id, noticia.tipoNoticia === 'COMUNICADO' ? 'comunicado:nuevo' : 'noticia:nueva', { titulo: noticia.tituloNoticia, mensaje: noticia.contenidoNoticia, referenciaId: noticia.id, referenciaTipo: 'noticia' });
       }
       return noticia;
     } catch (error) {
@@ -5157,6 +5151,7 @@ export class AppController implements OnModuleInit {
         emisorEe_id: 0,
         receptorEe_id: ee.id,
         empresa_usuario_id: null,
+        remitenteUsuario_id: usuarioId,
         remitenteRol: rol,
         remitenteNombre: nombreStaff,
         contenido: body.mensaje.trim().slice(0, 1000),
@@ -5687,6 +5682,7 @@ export class AppController implements OnModuleInit {
     return {
       empresaUsuarioId: eu.id,
       empresaeventoId: eu.empresaevento_id,
+      puedeVerPaquete: eu.usuario.rolEvento !== 'FORO' && eu.empresa.rubro.toLowerCase() !== 'auspiciador',
       usuario: eu.usuario,
       empresa: {
         id: eu.empresa.id, nombre: eu.empresa.nombre, rubro: eu.empresa.rubro,
@@ -5981,6 +5977,12 @@ export class AppController implements OnModuleInit {
         evento_id: eventoId, estaActivo: 1,
         estadoVerificacionPago: 'COMPLETADO', estadoHabilitacionAcceso: 'HABILITADO',
         id: { not: Number(eeId) },
+        // Foro y auspiciador no son empresas buscando negocio: su "rubro" es
+        // en realidad una marca de tipo de cuenta, así que coincidir por ese
+        // texto generaba sugerencias sin sentido (p. ej. dos auspiciadores
+        // "con el mismo rubro").
+        empresa: { rubro: { notIn: ['Auspiciador', 'Foro'] } },
+        empresa_usuario: { none: { usuario: { rolEvento: 'FORO' } } },
       },
       include: { empresa: { include: { ciudad: { include: { pais: true } } } } },
     });
@@ -6031,7 +6033,13 @@ export class AppController implements OnModuleInit {
     const eventoId = await this.getPrincipalEventoId();
     if (!eventoId) return [];
     const inscripciones = await this.prisma.empresaevento.findMany({
-      where: { evento_id: eventoId, estaActivo: 1, estadoVerificacionPago: 'COMPLETADO', estadoHabilitacionAcceso: 'HABILITADO', empresa: { estaActivo: 1 } },
+      where: {
+        evento_id: eventoId, estaActivo: 1, estadoVerificacionPago: 'COMPLETADO', estadoHabilitacionAcceso: 'HABILITADO',
+        // Mismo motivo que en empresa/oportunidades: foro/auspiciador no
+        // tienen un rubro real, así que se excluyen del cálculo de afinidad.
+        empresa: { estaActivo: 1, rubro: { notIn: ['Auspiciador', 'Foro'] } },
+        empresa_usuario: { none: { usuario: { rolEvento: 'FORO' } } },
+      },
       include: { empresa: true }, orderBy: { empresa: { nombre: 'asc' } },
     });
     if (inscripciones.length < 2) return [];
@@ -6763,12 +6771,12 @@ export class AppController implements OnModuleInit {
   async getNotificacionesEmpresa(@Query('eeId') eeId: string) {
     if (!eeId) throw new BadRequestException('eeId requerido');
     const notifs = await this.prisma.notificacion.findMany({
-      where: { empresaevento_id: Number(eeId), estaActivo: 1 },
+      where: { empresaevento_id: Number(eeId), estaActivo: 1, NOT: { tipoNotificacion: { startsWith: 'mensaje' } } },
       orderBy: { fechaCreacion: 'desc' },
       take: 30,
     });
     const noLeidas = await this.prisma.notificacion.count({
-      where: { empresaevento_id: Number(eeId), estaActivo: 1, haSidoLeida: 0 },
+      where: { empresaevento_id: Number(eeId), estaActivo: 1, haSidoLeida: 0, NOT: { tipoNotificacion: { startsWith: 'mensaje' } } },
     });
     return {
       noLeidas,
@@ -6798,19 +6806,21 @@ export class AppController implements OnModuleInit {
   // ── Mensajería entre empresas ───────────────────────────────────────────────
 
   @Get('empresa/mensajes/conversaciones')
-  async getConversaciones(@Query('eeId') eeId: string) {
+  async getConversaciones(@Query('eeId') eeId: string, @Req() req: any) {
     if (!eeId) throw new BadRequestException('eeId requerido');
     const id = Number(eeId);
-    const msgs = await this.prisma.mensajeempresa.findMany({
-      where: { estaActivo: 1, OR: [{ emisorEe_id: id }, { receptorEe_id: id }] },
+    const eventoId = await this.mensajeria.evento(req.user);
+    let msgs = await this.prisma.mensajeempresa.findMany({
+      where: { evento_id: eventoId, OR: [{ emisorEe_id: id }, { receptorEe_id: id }] },
       orderBy: { fechaCreacion: 'desc' },
     });
+    msgs = await this.mensajeria.visibles(req.user.sub, eventoId, 'empresa', id, msgs);
     // Agrupar por contraparte: último mensaje + cantidad de no leídos
     const porContraparte = new Map<number, { ultimo: any; noLeidos: number }>();
     for (const m of msgs) {
       const otro = m.emisorEe_id === id ? m.receptorEe_id : m.emisorEe_id;
       if (!porContraparte.has(otro)) porContraparte.set(otro, { ultimo: m, noLeidos: 0 });
-      if (m.receptorEe_id === id && m.haSidoLeido === 0) porContraparte.get(otro)!.noLeidos++;
+      if (m.receptorEe_id === id && m.haSidoLeido === 0 && m.estaActivo === 1) porContraparte.get(otro)!.noLeidos++;
     }
     const ids = [...porContraparte.keys()];
     const ees = ids.length
@@ -6831,7 +6841,7 @@ export class AppController implements OnModuleInit {
           codigo: esStaff ? null : (emp?.codigo ?? null),
           urlFotoPerfil: esStaff ? null : (emp?.urlFotoPerfil ?? null),
           esStaff,
-          ultimoMensaje: ultimo.contenido,
+          ultimoMensaje: ultimo.estaActivo === 0 ? 'Mensaje eliminado' : ultimo.contenido,
           esMio: ultimo.emisorEe_id === id,
           fecha: ultimo.fechaCreacion,
           noLeidos,
@@ -6850,26 +6860,28 @@ export class AppController implements OnModuleInit {
   }
 
   @Get('empresa/mensajes')
-  async getMensajes(@Query('eeId') eeId: string, @Query('otroEeId') otroEeId: string) {
+  async getMensajes(@Query('eeId') eeId: string, @Query('otroEeId') otroEeId: string, @Req() req: any) {
     if (!eeId || !otroEeId) throw new BadRequestException('eeId y otroEeId requeridos');
     const a = Number(eeId);
     const b = Number(otroEeId);
+    const { eventoId } = await this.mensajeria.contexto(req.user, 'empresa', a, b);
     // Al abrir la conversación, los mensajes entrantes quedan leídos
     await this.prisma.mensajeempresa.updateMany({
-      where: { emisorEe_id: b, receptorEe_id: a, haSidoLeido: 0, estaActivo: 1 },
+      where: { evento_id: eventoId, emisorEe_id: b, receptorEe_id: a, haSidoLeido: 0, estaActivo: 1 },
       data: { haSidoLeido: 1, creadoModificadoFecha: new Date() },
     });
-    const msgs = await this.prisma.mensajeempresa.findMany({
+    let msgs = await this.prisma.mensajeempresa.findMany({
       where: {
-        estaActivo: 1,
+        evento_id: eventoId,
         OR: [
           { emisorEe_id: a, receptorEe_id: b },
           { emisorEe_id: b, receptorEe_id: a },
         ],
       },
-      orderBy: { fechaCreacion: 'asc' },
+      orderBy: { fechaCreacion: 'desc' },
       take: 200,
     });
+    msgs = await this.mensajeria.visibles(req.user.sub, eventoId, req.user.role === 'EMPRESA' ? 'empresa' : 'staff', req.user.role === 'EMPRESA' ? Number(eeId) : 0, msgs.reverse());
     const euIds = [...new Set(msgs.map((m) => m.empresa_usuario_id).filter((x): x is number => !!x))];
     const eus = euIds.length
       ? await this.prisma.empresa_usuario.findMany({
@@ -6887,7 +6899,10 @@ export class AppController implements OnModuleInit {
         id: m.id,
         esMio: m.emisorEe_id === a,
         esStaff: m.emisorEe_id === 0,
-        contenido: m.contenido,
+        contenido: m.estaActivo === 0 ? 'Mensaje eliminado' : m.contenido,
+        eliminado: m.estaActivo === 0,
+        editado: !!m.fechaEdicion,
+        puedeModificar: m.estaActivo === 1 && (m.remitenteUsuario_id === req.user.sub || req.user.euIds?.includes(m.empresa_usuario_id)),
         autor: autorStaff ?? (m.empresa_usuario_id ? autorPorEu.get(m.empresa_usuario_id) ?? null : null),
         fecha: m.fechaCreacion,
       };
@@ -6895,12 +6910,13 @@ export class AppController implements OnModuleInit {
   }
 
   @Post('empresa/mensajes')
-  async enviarMensajeEmpresa(@Body() body: { eeId: number; euId: number; receptorEeId: number; contenido: string }) {
+  async enviarMensajeEmpresa(@Body() body: { eeId: number; euId: number; receptorEeId: number; contenido: string }, @Req() req?: any) {
     const { eeId, euId, receptorEeId, contenido } = body;
     if (!eeId || !euId || receptorEeId == null || !Number.isInteger(Number(receptorEeId)) || Number(receptorEeId) < 0 || !contenido?.trim())
       throw new BadRequestException('eeId, euId, receptorEeId y contenido son requeridos');
     if (Number(eeId) === Number(receptorEeId))
       throw new BadRequestException('No puedes enviarte mensajes a tu propia empresa');
+    if (req?.user) await this.mensajeria.contexto(req.user, 'empresa', Number(eeId), Number(receptorEeId));
     const paraStaff = Number(receptorEeId) === 0;
     const eventoId = await this.getPrincipalEventoId();
     if (!eventoId) throw new BadRequestException('No hay un evento activo');
@@ -6942,7 +6958,7 @@ export class AppController implements OnModuleInit {
         eventoId,
         'mensaje:empresa_staff',
         'Nuevo mensaje de una empresa',
-        `${emisor?.empresa?.nombre ?? 'Una empresa'} te envió un mensaje.`,
+        `${emisor?.empresa?.nombre ?? 'Una empresa'}: ${contenido.trim().slice(0, 200)}`,
         msg.id,
       );
       try { this.notifGateway.emitirParaStaff('mensaje:nuevo', { deEeId: Number(eeId) }); } catch {}
@@ -6951,7 +6967,7 @@ export class AppController implements OnModuleInit {
         Number(receptorEeId),
         'mensaje:empresa',
         'Nuevo mensaje',
-        `${emisor?.empresa?.nombre ?? 'Otra empresa'} te envio un mensaje.`,
+        `${emisor?.empresa?.nombre ?? 'Otra empresa'}: ${contenido.trim().slice(0, 200)}`,
         msg.id,
         'mensajeempresa',
       );
@@ -7088,13 +7104,14 @@ export class AppController implements OnModuleInit {
   // receptorEeId=0) aparece aquí, agrupado por empresa.
 
   @Get('staff/mensajes/conversaciones')
-  async getConversacionesStaff() {
+  async getConversacionesStaff(@Req() req: any) {
     const eventoId = await this.getPrincipalEventoId();
     if (!eventoId) return [];
-    const msgs = await this.prisma.mensajeempresa.findMany({
-      where: { evento_id: eventoId, estaActivo: 1, OR: [{ emisorEe_id: 0 }, { receptorEe_id: 0 }] },
+    let msgs = await this.prisma.mensajeempresa.findMany({
+      where: { evento_id: eventoId, OR: [{ emisorEe_id: 0 }, { receptorEe_id: 0 }] },
       orderBy: { fechaCreacion: 'desc' },
     });
+    msgs = await this.mensajeria.visibles(req.user.sub, eventoId, 'staff', 0, msgs);
     const porEmpresa = new Map<number, any[]>();
     for (const m of msgs) {
       const eeId = m.emisorEe_id === 0 ? m.receptorEe_id : m.emisorEe_id;
@@ -7130,35 +7147,37 @@ export class AppController implements OnModuleInit {
   }
 
   @Get('staff/mensajes/no-leidos')
-  async getNoLeidosStaff() {
+  async getNoLeidosStaff(@Req() req: any) {
     const eventoId = await this.getPrincipalEventoId();
     if (!eventoId) return { count: 0 };
-    const count = await this.prisma.mensajeempresa.count({
+    const messages = await this.prisma.mensajeempresa.findMany({
       where: { evento_id: eventoId, estaActivo: 1, receptorEe_id: 0, haSidoLeido: 0 },
     });
-    return { count };
+    return { count: (await this.mensajeria.visibles(req.user.sub, eventoId, 'staff', 0, messages)).length };
   }
 
   @Get('staff/mensajes')
-  async getMensajesStaff(@Query('eeId') eeId: string) {
+  async getMensajesStaff(@Query('eeId') eeId: string, @Req() req: any) {
     if (!eeId) throw new BadRequestException('eeId requerido');
     const eventoId = await this.getPrincipalEventoId();
     if (!eventoId) return [];
     const id = Number(eeId);
+    await this.mensajeria.contexto(req.user, 'staff', 0, id);
     // Al abrir la conversación, los mensajes entrantes (de la empresa hacia el
     // staff) quedan leídos.
     await this.prisma.mensajeempresa.updateMany({
-      where: { emisorEe_id: id, receptorEe_id: 0, haSidoLeido: 0, estaActivo: 1 },
+      where: { evento_id: eventoId, emisorEe_id: id, receptorEe_id: 0, haSidoLeido: 0, estaActivo: 1 },
       data: { haSidoLeido: 1, creadoModificadoFecha: new Date() },
     });
-    const msgs = await this.prisma.mensajeempresa.findMany({
+    let msgs = await this.prisma.mensajeempresa.findMany({
       where: {
-        evento_id: eventoId, estaActivo: 1,
+        evento_id: eventoId,
         OR: [{ emisorEe_id: 0, receptorEe_id: id }, { emisorEe_id: id, receptorEe_id: 0 }],
       },
-      orderBy: { fechaCreacion: 'asc' },
+      orderBy: { fechaCreacion: 'desc' },
       take: 200,
     });
+    msgs = await this.mensajeria.visibles(req.user.sub, eventoId, req.user.role === 'EMPRESA' ? 'empresa' : 'staff', req.user.role === 'EMPRESA' ? Number(eeId) : 0, msgs.reverse());
     const euIds = [...new Set(msgs.map((m) => m.empresa_usuario_id).filter((x): x is number => !!x))];
     const eus = euIds.length
       ? await this.prisma.empresa_usuario.findMany({
@@ -7170,7 +7189,10 @@ export class AppController implements OnModuleInit {
     return msgs.map((m) => ({
       id: m.id,
       esMio: m.emisorEe_id === 0,
-      contenido: m.contenido,
+      contenido: m.estaActivo === 0 ? 'Mensaje eliminado' : m.contenido,
+        eliminado: m.estaActivo === 0,
+        editado: !!m.fechaEdicion,
+        puedeModificar: m.estaActivo === 1 && (m.remitenteUsuario_id === req.user.sub || req.user.euIds?.includes(m.empresa_usuario_id)),
       autor: m.emisorEe_id === 0
         ? (m.remitenteNombre ? `${m.remitenteNombre} · ${m.remitenteRol === 'ADMIN' ? 'Organización' : 'Técnico'}` : null)
         : (m.empresa_usuario_id ? autorPorEu.get(m.empresa_usuario_id) ?? null : null),
@@ -7181,8 +7203,9 @@ export class AppController implements OnModuleInit {
   // Admin/técnico envía un mensaje a una empresa (una sola vía). Aparece en la
   // sección Mensajes de la empresa como conversación "Equipo del evento".
   @Post('staff/mensajes')
-  async enviarMensajeStaff(@Body() body: { usuarioId: number; receptorEeId: number; contenido: string }) {
-    const { usuarioId, receptorEeId, contenido } = body;
+  async enviarMensajeStaff(@Body() body: { usuarioId: number; receptorEeId: number; contenido: string }, @Req() req: any) {
+    const usuarioId = req.user.sub;
+    const { receptorEeId, contenido } = body;
     if (!usuarioId || !receptorEeId || !contenido?.trim())
       throw new BadRequestException('usuarioId, receptorEeId y contenido son requeridos');
     const usuario = await this.prisma.usuario.findUnique({
@@ -7190,7 +7213,7 @@ export class AppController implements OnModuleInit {
       select: { nombres: true, apellidoPaterno: true, rolEvento: true },
     });
     if (!usuario) throw new BadRequestException('Usuario no encontrado');
-    if (usuario.rolEvento !== 'ADMINISTRADOR' && usuario.rolEvento !== 'TECNICO')
+    if (!['ADMINISTRADOR', 'TECNICO', 'TECNICO_EVENTOS'].includes(usuario.rolEvento))
       throw new BadRequestException('Solo administradores o técnicos pueden usar esta función');
     const eventoId = await this.getPrincipalEventoId();
     if (!eventoId) throw new BadRequestException('No hay un evento activo');
@@ -7204,6 +7227,7 @@ export class AppController implements OnModuleInit {
         emisorEe_id: 0, // centinela: equipo del evento
         receptorEe_id: Number(receptorEeId),
         empresa_usuario_id: null,
+        remitenteUsuario_id: usuarioId,
         remitenteRol: rol,
         remitenteNombre: nombre,
         contenido: contenido.trim().slice(0, 1000),
@@ -7231,15 +7255,16 @@ export class AppController implements OnModuleInit {
   // staff ve y puede escribir en el mismo tablón para coordinarse.
 
   @Get('staff/chat-interno')
-  async getChatInterno() {
+  async getChatInterno(@Req() req: any) {
     const eventoId = await this.getPrincipalEventoId();
     if (!eventoId) return [];
-    const mensajes = await this.prisma.mensajeinterno.findMany({
-      where: { evento_id: eventoId, estaActivo: 1 },
+    let mensajes = await this.prisma.mensajeinterno.findMany({
+      where: { evento_id: eventoId },
       orderBy: { fechaCreacion: 'desc' },
       take: 300,
     });
-    return mensajes.reverse();
+    mensajes = await this.mensajeria.visibles(req.user.sub, eventoId, 'interno', 0, mensajes);
+    return mensajes.reverse().map(m => ({ ...m, contenido: m.estaActivo === 0 ? 'Mensaje eliminado' : m.contenido, eliminado: m.estaActivo === 0, editado: !!m.fechaEdicion, puedeModificar: m.estaActivo === 1 && m.usuario_id === req.user.sub }));
   }
 
   @Post('staff/chat-interno')

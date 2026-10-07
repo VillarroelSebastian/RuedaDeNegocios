@@ -1,12 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, TextInput, FlatList,
-  Modal, KeyboardAvoidingView, Platform, ActivityIndicator, StyleSheet,
+  Modal, Platform, ActivityIndicator, StyleSheet,
   Pressable,
 } from 'react-native';
 import { Bot, X, Send, User, Calendar, Clock, MapPin, Video, Building2 } from 'lucide-react-native';
 import { API_URL, userStore } from '../utils/userStore';
 import ImagenLightbox from './ImagenLightbox';
+import KeyboardSafeView from './KeyboardSafeView';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const GREEN = '#449D3A';
 
@@ -157,13 +159,11 @@ export default function AsistenteChatModal({ visible, onClose }: { visible: bool
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent statusBarTranslucent>
-      <Pressable style={s.overlay} onPress={onClose}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
-          style={s.sheet}
-        >
+    <Modal visible={visible} animationType="slide" transparent statusBarTranslucent onRequestClose={onClose}>
+      <SafeAreaView style={s.overlay}>
+      <KeyboardSafeView>
+      <Pressable style={{ flex: 1, justifyContent: 'center', padding: 12 }} onPress={onClose}>
+        <View style={s.sheet}>
           <Pressable onPress={() => {}} style={{ flex: 1 }}>
             {/* Header */}
             <View style={s.header}>
@@ -185,6 +185,7 @@ export default function AsistenteChatModal({ visible, onClose }: { visible: bool
               data={msgs}
               keyExtractor={(_, i) => String(i)}
               contentContainerStyle={s.msgList}
+              onLayout={() => listRef.current?.scrollToEnd({ animated: false })}
               onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
@@ -265,8 +266,10 @@ export default function AsistenteChatModal({ visible, onClose }: { visible: bool
               </TouchableOpacity>
             </View>
           </Pressable>
-        </KeyboardAvoidingView>
+        </View>
       </Pressable>
+      </KeyboardSafeView>
+      </SafeAreaView>
     </Modal>
   );
 }
@@ -277,7 +280,7 @@ const s = StyleSheet.create({
   },
   sheet: {
     height: '80%', backgroundColor: '#fff',
-    borderTopLeftRadius: 24, borderTopRightRadius: 24, overflow: 'hidden',
+    borderRadius: 24, overflow: 'hidden',
   },
   header: {
     backgroundColor: GREEN, flexDirection: 'row', alignItems: 'center',

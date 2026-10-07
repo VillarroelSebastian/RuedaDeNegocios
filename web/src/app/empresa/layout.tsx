@@ -14,6 +14,7 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
   const pathname = usePathname();
   const [esEncargado, setEsEncargado] = useState(false);
   const [esForo, setEsForo] = useState(false);
+  const [canPackage, setCanPackage] = useState(false);
   const [eeId, setEeId] = useState<number | null>(null);
   const [euId, setEuId] = useState<number | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -45,6 +46,8 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
       })
       .then((ctx) => {
         setEsEncargado(Boolean(ctx?.esResponsable));
+        setCanPackage(ctx.puedeVerPaquete === true);
+        if (!ctx.puedeVerPaquete && pathname.startsWith('/empresa/mi-paquete')) router.replace('/empresa/comunicados');
         if (ctx?.empresaeventoId) setEeId(ctx.empresaeventoId);
         if (ctx?.empresaUsuarioId) setEuId(ctx.empresaUsuarioId);
         localStorage.setItem('empresaUser', JSON.stringify({
@@ -52,6 +55,7 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
           empresaeventoId: ctx.empresaeventoId,
           empresaUsuarioId: ctx.empresaUsuarioId,
           esResponsable: Boolean(ctx.esResponsable),
+          puedeVerPaquete: ctx.puedeVerPaquete,
         }));
       })
       .catch(() => {
@@ -61,7 +65,7 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
 
   return (
     <div className="min-h-screen bg-[#F9FAFB]">
-      <EmpresaSidebar esEncargado={esEncargado} esForo={esForo} eeId={eeId} mobileOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <EmpresaSidebar canPackage={canPackage} esEncargado={esEncargado} esForo={esForo} eeId={eeId} mobileOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="md:ml-64 flex flex-col min-h-screen">
         <EmpresaHeader onMenuClick={() => setSidebarOpen(true)} eeId={eeId} />
         <main className="flex-1">{children}</main>

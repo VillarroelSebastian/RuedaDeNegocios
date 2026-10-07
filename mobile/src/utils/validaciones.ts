@@ -71,3 +71,17 @@ export function validarNombrePersona(valor: string, etiqueta = 'El nombre'): str
   if (!REGEX_NOMBRE_PERSONA.test(v)) return `${etiqueta} solo puede contener letras, tildes, espacios, apóstrofo y guion.`;
   return null;
 }
+
+// Teléfono: solo dígitos (con un + inicial opcional, espacios, guiones y
+// paréntesis como separadores). Sin letras: un número de contacto no las lleva.
+const REGEX_TELEFONO = /^\+?[\d\s()-]+$/;
+
+export function validarTelefono(valor: string, etiqueta = 'El teléfono'): string | null {
+  const v = (valor || '').trim();
+  if (!v) return `${etiqueta} es obligatorio.`;
+  if (!REGEX_TELEFONO.test(v)) return `${etiqueta} solo puede contener números.`;
+  const digitos = v.replace(/\D/g, '');
+  if (digitos.length < 6) return `${etiqueta} debe tener al menos 6 dígitos.`;
+  if (digitos.length > 15) return `${etiqueta} no debe superar los 15 dígitos.`;
+  return null;
+}

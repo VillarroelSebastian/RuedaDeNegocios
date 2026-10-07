@@ -60,8 +60,8 @@ export default function EmpresaDashboardPage() {
         // Cargar estadísticas reales
         const sRes = await fetch(`${API}/empresa/dashboard-stats?eeId=${data.empresaeventoId}`);
         if (sRes.ok) setStats(await sRes.json());
-        const pRes = await fetch(`${API}/empresa/mi-paquete?eeId=${data.empresaeventoId}`);
-        if (pRes.ok) setPaquete(await pRes.json());
+        const pRes = data.puedeVerPaquete ? await fetch(`${API}/empresa/mi-paquete?eeId=${data.empresaeventoId}`) : null;
+        if (pRes?.ok) setPaquete(await pRes.json());
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));

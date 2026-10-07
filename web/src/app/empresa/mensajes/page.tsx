@@ -7,6 +7,11 @@ import {
   MessageSquare, Send, Search, X, Building2, ChevronLeft, AlertCircle, Plus,
 } from "lucide-react";
 
+import { MessageActions, DeleteConversation } from '@/components/MessageActions';
+import { useModal } from '@/components/ui/Modal';
+
+import ChatViewport from '@/components/ChatViewport';
+
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 const SOCKET_URL = API.replace(/\/api\/?$/, "");
 const POLL_MS = 5000;
@@ -122,7 +127,9 @@ function MensajesContent() {
   const enviandoRef = useRef(false);
   const [cargando, setCargando] = useState(true);
   const [modalNueva, setModalNueva] = useState(false);
+  const { showError, ModalComponent } = useModal();
   const [error, setError] = useState<string | null>(null);
+  useEffect(() => { if (error) showError('Error de mensajer\u00eda', error); }, [error]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const activaRef = useRef(activa);
   useEffect(() => { activaRef.current = activa; }, [activa]);
@@ -234,7 +241,7 @@ function MensajesContent() {
   const activaEsStaff = activa?.eeId === 0; // conversación con el equipo del evento
 
   return (
-    <div className="p-4 sm:p-6 h-[calc(100vh-4rem)] flex flex-col">
+    <ChatViewport className="p-4 sm:p-6 h-[calc(100dvh-4rem)] flex flex-col">
       {modalNueva && ctx && (
         <NuevaConversacionModal
           eeId={ctx.empresaeventoId}
@@ -261,11 +268,8 @@ function MensajesContent() {
         )}
       </div>
 
-      {error && (
-        <div className="flex items-center gap-2 bg-red-50 text-red-700 rounded-xl p-3 text-sm mb-3">
-          <AlertCircle className="w-4 h-4 shrink-0" />{error}
-        </div>
-      )}
+      {ModalComponent}
+
 
       <div className="flex-1 min-h-0 bg-white rounded-2xl border border-gray-100 shadow-sm flex overflow-hidden">
         {/* Lista de conversaciones */}
@@ -327,6 +331,7 @@ function MensajesContent() {
                   <Building2 className="w-4 h-4" />
                 </div>
                 <p className="font-bold text-gray-900 text-sm truncate">{activa.nombre}</p>
+                <DeleteConversation canal="empresa" eeId={ctx?.empresaeventoId} otroEeId={activa.eeId} onDeleted={() => { setActiva(null); setMensajes([]); cargarConvs(ctx.empresaeventoId); }} />
                 {activaEsStaff && <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">Organización</span>}
               </div>
 
@@ -346,7 +351,8 @@ function MensajesContent() {
                         <p className="text-[10px] font-bold text-[#449D3A] mb-0.5">{m.autor}</p>
                       )}
                       <p className="whitespace-pre-line break-words">{m.contenido}</p>
-                      <p className={`text-[9px] mt-1 text-right ${m.esMio ? "text-white/60" : "text-gray-400"}`}>{fmtHora(m.fecha)}</p>
+                      <MessageActions mensaje={m} onChanged={() => { if (ctx && activa) { cargarMensajes(ctx.empresaeventoId, activa.eeId); cargarConvs(ctx.empresaeventoId); } }} />
+                      <p className={`text-[9px] mt-1 text-right ${m.esMio ? "text-white/60" : "text-gray-400"}`}>{m.editado && !m.eliminado ? 'Editado \u00b7 ' : ''}{fmtHora(m.fecha)}</p>
                     </div>
                   </div>
                 ))}
@@ -382,7 +388,7 @@ function MensajesContent() {
           )}
         </div>
       </div>
-    </div>
+    </ChatViewport>
   );
 }
 

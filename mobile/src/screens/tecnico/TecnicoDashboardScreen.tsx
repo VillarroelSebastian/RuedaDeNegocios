@@ -12,6 +12,8 @@ import {
 } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
 
+import NotificationBell from '../../components/NotificationBell';
+
 const GREEN = '#449D3A';
 
 function fmtTime(iso: string) {
@@ -255,10 +257,7 @@ export default function TecnicoDashboardScreen() {
           <Text numberOfLines={1} style={{ fontSize:16, fontWeight:'800', color:'#0f172a' }}>Panel Técnico</Text>
           <Text numberOfLines={1} style={{ fontSize:12, color:'#94a3b8' }}>{user?.nombres} {user?.apellidoPaterno}</Text>
         </View>
-        <TouchableOpacity onPress={() => navigation.navigate('TecnicoContenido')} style={{ width:38, height:38, borderRadius:19, backgroundColor:'#dcfce7', alignItems:'center', justifyContent:'center', position:'relative' }} accessibilityLabel="Notificaciones">
-          <Bell color="#166534" size={18} />
-          {notifNoLeidas > 0 && <View style={{ position:'absolute', top:5, right:5, width:9, height:9, borderRadius:5, backgroundColor:'#ef4444', borderWidth:1.5, borderColor:'#dcfce7' }} />}
-        </TouchableOpacity>
+        <NotificationBell />
         <TouchableOpacity onPress={() => navigation.navigate('TecnicoMensajes')} style={{ width:38, height:38, borderRadius:19, backgroundColor:'#dcfce7', alignItems:'center', justifyContent:'center', position:'relative' }} accessibilityLabel="Mensajes">
           <MessageSquare color="#166534" size={18} />
           {mensajesNoLeidos > 0 && <View style={{ position:'absolute', top:5, right:5, width:9, height:9, borderRadius:5, backgroundColor:'#ef4444', borderWidth:1.5, borderColor:'#dcfce7' }} />}

@@ -4,6 +4,8 @@ import { Search, Bell, ChevronDown, User, LogOut, Settings, X, MessageSquare } f
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
+import NotificationBell from '@/components/NotificationBell';
+
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
 interface Notificacion {
@@ -165,64 +167,7 @@ export default function Header() {
         </Link>
 
         {/* Notifications */}
-        <div ref={notifRef} className="relative">
-          <button
-            onClick={() => {
-              const abrir = !showNotif;
-              setShowNotif(abrir);
-              setShowProfile(false);
-              if (abrir) void fetchNotificaciones();
-            }}
-            aria-label="Abrir notificaciones"
-            title="Notificaciones"
-            className="relative p-2 text-gray-500 hover:text-gray-700 transition-colors rounded-lg hover:bg-gray-50"
-          >
-            <Bell className="h-5 w-5" />
-            {totalNoLeidas > 0 && (
-              <span className="absolute top-1.5 right-1.5 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" />
-            )}
-          </button>
-
-          {showNotif && (
-            <div className="absolute right-0 top-full mt-2 w-[min(20rem,calc(100vw-2rem))] bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-                <h3 className="font-bold text-sm text-gray-900">Notificaciones</h3>
-                {totalNoLeidas > 0 && (
-                  <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{totalNoLeidas}</span>
-                )}
-              </div>
-              <div className="max-h-80 overflow-y-auto divide-y divide-gray-50">
-                {notificaciones.length === 0 ? (
-                  <p className="text-sm text-gray-500 text-center py-6">Sin notificaciones</p>
-                ) : (
-                  notificaciones.map((n) => (
-                    <Link
-                      key={n.id}
-                      href={n.enlace}
-                      onClick={() => setShowNotif(false)}
-                      className={`block px-4 py-3 hover:bg-gray-50 transition-colors ${!n.leida ? 'bg-orange-50/50' : ''}`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <span className={`shrink-0 mt-0.5 w-2 h-2 rounded-full ${tipoColor(n.tipo).split(' ')[0]}`} />
-                        <div className="min-w-0">
-                          <p className="text-xs font-semibold text-gray-900">{n.titulo}</p>
-                          <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{n.mensaje}</p>
-                          <p className="text-[10px] text-gray-400 mt-1">
-                            {new Date(n.fecha).toLocaleString('es-BO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                          </p>
-                        </div>
-                      </div>
-                    </Link>
-                  ))
-                )}
-              </div>
-              <div className="flex flex-wrap gap-x-4 gap-y-1 px-4 py-2 border-t border-gray-100">
-                <Link href="/admin/pagos" onClick={() => setShowNotif(false)} className="text-xs font-semibold text-[#449D3A] hover:underline">Pagos iniciales →</Link>
-                <Link href="/admin/pagos?tab=adicionales" onClick={() => setShowNotif(false)} className="text-xs font-semibold text-[#449D3A] hover:underline">Pagos adicionales →</Link>
-              </div>
-            </div>
-          )}
-        </div>
+        <NotificationBell storageKey="adminUser" />
 
         {/* Profile */}
         <div ref={profileRef} className="relative">

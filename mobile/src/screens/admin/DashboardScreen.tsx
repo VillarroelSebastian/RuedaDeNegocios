@@ -12,6 +12,8 @@ import {
 } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
 
+import NotificationBell from '../../components/NotificationBell';
+
 const GREEN = '#449D3A';
 const GREEN_DARK = '#166534';
 
@@ -114,10 +116,7 @@ export default function DashboardScreen() {
           <Text style={s.headerSub}>Panel de administración</Text>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <TouchableOpacity style={s.headerIconBtn} onPress={() => navigation.navigate('Notificaciones')} activeOpacity={0.8} accessibilityLabel="Notificaciones">
-            <Bell color={GREEN_DARK} size={19} />
-            {notifNoLeidas > 0 && <View style={s.headerIconBadge} />}
-          </TouchableOpacity>
+          <NotificationBell />
           <TouchableOpacity style={s.headerIconBtn} onPress={() => navigation.navigate('Mensajes')} activeOpacity={0.8} accessibilityLabel="Mensajes">
             <MessageSquare color={GREEN_DARK} size={19} />
             {mensajesNoLeidos > 0 && <View style={s.headerIconBadge} />}

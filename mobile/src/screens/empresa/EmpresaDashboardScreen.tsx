@@ -44,13 +44,13 @@ export default function EmpresaDashboardScreen({ navigation }: any) {
       setCtx(ctxData);
 
       // Persist eeId into userStore so other screens can read it
-      userStore.set({ ...user, empresaeventoId: ctxData.empresaeventoId, empresaUsuarioId: ctxData.empresaUsuarioId, esResponsable: ctxData.esResponsable });
+      userStore.set({ ...user, empresaeventoId: ctxData.empresaeventoId, empresaUsuarioId: ctxData.empresaUsuarioId, esResponsable: ctxData.esResponsable, puedeVerPaquete: ctxData.puedeVerPaquete });
 
       if (ctxData.empresaeventoId) {
         const statsRes = await fetch(`${API_URL}/empresa/dashboard-stats?eeId=${ctxData.empresaeventoId}`);
         if (statsRes.ok) setStats(await statsRes.json());
-        const pRes = await fetch(`${API_URL}/empresa/mi-paquete?eeId=${ctxData.empresaeventoId}`);
-        if (pRes.ok) setPaquete(await pRes.json());
+        const pRes = ctxData.puedeVerPaquete ? await fetch(`${API_URL}/empresa/mi-paquete?eeId=${ctxData.empresaeventoId}`) : null;
+        if (pRes?.ok) setPaquete(await pRes.json());
       }
     } catch (e: any) {
       setError(e.message || 'Error cargando datos');
@@ -234,7 +234,7 @@ export default function EmpresaDashboardScreen({ navigation }: any) {
               { label: 'Resultados',     screen: 'Resultados',     color: '#f5f3ff', soloEncargado: false },
               { label: 'Solicitudes',    screen: 'Solicitudes',    color: '#fff7ed', soloEncargado: false },
               { label: 'Horarios',       screen: 'Horarios',       color: '#ecfdf5', soloEncargado: true  },
-            ].filter(q => esEncargado || !q.soloEncargado).map((q) => (
+            ].filter(q => (esEncargado || !q.soloEncargado) && (q.screen !== 'MiPaquete' || ctx?.puedeVerPaquete === true)).map((q) => (
               <TouchableOpacity
                 key={q.screen}
                 style={[s.quickCard, { backgroundColor: q.color }]}

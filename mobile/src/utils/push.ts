@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { refreshNotifications } from './notificationEvents';
 
 const KEY = 'rueda_push_token';
 const ENABLED = 'rueda_push_enabled';
@@ -85,9 +86,16 @@ export async function escucharPush(onOpen: (data: any) => boolean) {
       if (pending && onOpen(pending)) { pending = null; await n.clearLastNotificationResponseAsync(); }
     };
     const listener = n.addNotificationResponseReceivedListener(r => { pending = r.notification.request.content.data; void open(); });
+    const received = n.addNotificationReceivedListener(() => refreshNotifications());
+    const tokenChanged = n.addPushTokenListener(() => {
+      void import('./userStore').then(async ({ API_URL, userStore }) => {
+        const user = userStore.get();
+        if (user?.token) await restaurarPush(API_URL, user.token);
+      }).catch(() => {});
+    });
     const last = await n.getLastNotificationResponseAsync();
     if (last) { pending = last.notification.request.content.data; void open(); }
     const timer = setInterval(() => { void open(); }, 1000);
-    return () => { listener.remove(); clearInterval(timer); };
+    return () => { listener.remove(); received.remove(); tokenChanged.remove(); clearInterval(timer); };
   } catch { return () => {}; }
 }

@@ -1,10 +1,12 @@
 import React, { useRef, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, Modal, ActivityIndicator, StyleSheet,
-  KeyboardAvoidingView, Platform,
+  ScrollView,
 } from 'react-native';
 import { MessageSquare, X, Send, CheckCircle2 } from 'lucide-react-native';
 import { API_URL, userStore } from '../utils/userStore';
+import KeyboardSafeView from './KeyboardSafeView';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const GREEN = '#449D3A';
 
@@ -48,9 +50,10 @@ export default function EnviarMensajeEmpresaModal({ receptorEeId, empresaNombre,
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }}>
+      <KeyboardSafeView>
       <View style={s.overlay}>
-        <View style={s.card}>
+        <ScrollView style={{ flexShrink: 1, width: '100%', maxWidth: 400 }} contentContainerStyle={s.card} keyboardShouldPersistTaps="handled">
           {ok ? (
             <View style={{ alignItems: 'center' }}>
               <View style={s.okIcon}><CheckCircle2 size={32} color={GREEN} /></View>
@@ -106,15 +109,16 @@ export default function EnviarMensajeEmpresaModal({ receptorEeId, empresaNombre,
               </View>
             </>
           )}
-        </View>
+        </ScrollView>
       </View>
-      </KeyboardAvoidingView>
+      </KeyboardSafeView>
+      </SafeAreaView>
     </Modal>
   );
 }
 
 const s = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  overlay: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   card: { backgroundColor: '#fff', borderRadius: 20, padding: 22, width: '100%', maxWidth: 400 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
   title: { fontSize: 16, fontWeight: '800', color: '#0f172a' },

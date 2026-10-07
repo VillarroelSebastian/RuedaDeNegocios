@@ -370,7 +370,14 @@ export default function EmpresasScreen({ navigation }: any) {
                   {emp.codigo && (
                     <Text style={{ fontSize: 11, fontFamily: 'monospace', fontWeight: '600', color: GREEN, marginTop: 1 }}>{emp.codigo}</Text>
                   )}
-                  <Text className="text-xs text-gray-500 mt-0.5">{emp.rubro} · {emp.ciudad}</Text>
+                  <Text className="text-xs text-gray-500 mt-0.5">
+                    {emp.rubro === 'Auspiciador'
+                      ? <Text style={{ color: '#7c3aed', fontWeight: '700' }}>Auspiciador</Text>
+                      : emp.rubro === 'Foro'
+                        ? <Text style={{ color: '#2563eb', fontWeight: '700' }}>Foro</Text>
+                        : emp.rubro}
+                    {' · '}{emp.ciudad}
+                  </Text>
                   <View className="flex-row items-center gap-3 mt-2">
                     {badgePago(emp.estadoVerificacionPago)}
                     <View className="flex-row items-center gap-1">

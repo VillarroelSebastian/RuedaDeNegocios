@@ -1,16 +1,16 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   View, Text, TextInput, TouchableOpacity, Image,
   ScrollView, KeyboardAvoidingView, Modal,
-  Platform, StyleSheet, ActivityIndicator,
+  Platform, StyleSheet, ActivityIndicator, Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Mail, Lock, Eye, EyeOff, X, KeyRound, CheckCircle } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
 import { correoValido, sinEspacios } from '../../utils/validaciones';
-import { useAlturaTeclado } from '../../hooks/useAlturaTeclado';
+import KeyboardSafeView from '../../components/KeyboardSafeView';
 
 const GREEN  = '#449D3A';
 const GREEN2 = '#166534';
@@ -20,8 +20,6 @@ const RESET_STORAGE_KEY = 'rueda_password_reset';
 type ResetStep = 'correo' | 'codigo' | 'exito';
 
 export default function LoginScreen({ navigation }: any) {
-  // El teclado tapaba los campos del modal de recuperar contraseña (ver hook).
-  const alturaTeclado = useAlturaTeclado();
   const [correo,      setCorreo]      = useState('');
   const [contrasenia, setContrasenia] = useState('');
   const [showPwd,     setShowPwd]     = useState(false);
@@ -41,28 +39,35 @@ export default function LoginScreen({ navigation }: any) {
   const resetLoadingRef = useRef(false);
   const [resetError,    setResetError]    = useState('');
 
-  useEffect(() => {
-    AsyncStorage.getItem(RESET_STORAGE_KEY).then((raw) => {
-      if (!raw) return;
-      try {
-        const saved = JSON.parse(raw);
-        if (saved?.correo && Number(saved?.vence) > Date.now()) {
-          setResetCorreo(String(saved.correo));
-          setResetStep('codigo');
-          setResetVisible(true);
-        } else AsyncStorage.removeItem(RESET_STORAGE_KEY);
-      } catch { AsyncStorage.removeItem(RESET_STORAGE_KEY); }
-    });
-  }, []);
+  const resetSession = useRef(0);
+  const closeReset = () => {
+    resetSession.current += 1;
+    Keyboard.dismiss();
+    setResetVisible(false);
+    setResetCodigo(''); setResetNueva(''); setResetConfirm('');
+    void AsyncStorage.removeItem(RESET_STORAGE_KEY);
+  };
 
-  const openReset = () => {
+  // Resume a pending code only when the user explicitly opens recovery.
+  const openReset = async () => {
+    const session = ++resetSession.current;
     setResetStep('correo'); setResetCorreo(''); setResetCodigo('');
-    setResetNueva(''); setResetConfirm(''); setResetError('');
+    setResetNueva(''); setResetConfirm(''); setResetError(''); setResetShowPwd(false);
     setResetVisible(true);
+    try {
+      const raw = await AsyncStorage.getItem(RESET_STORAGE_KEY);
+      if (session !== resetSession.current || !raw) return;
+      const saved = JSON.parse(raw);
+      if (saved?.correo && Number(saved?.vence) > Date.now()) {
+        setResetCorreo(String(saved.correo));
+        setResetStep('codigo');
+      } else await AsyncStorage.removeItem(RESET_STORAGE_KEY);
+    } catch { await AsyncStorage.removeItem(RESET_STORAGE_KEY); }
   };
 
   const handleSolicitarReset = async () => {
     if (resetLoadingRef.current) return;
+    const session = resetSession.current;
     resetLoadingRef.current = true;
     if (!resetCorreo.trim()) { setResetError('Ingresa tu correo electrónico.'); resetLoadingRef.current = false; return; }
     setResetError(''); setResetLoading(true);
@@ -73,17 +78,23 @@ export default function LoginScreen({ navigation }: any) {
         body: JSON.stringify({ correo: resetCorreo.trim().toLowerCase() }),
       });
       const data = await res.json().catch(() => ({}));
+      if (session !== resetSession.current) return;
       if (!res.ok) throw new Error(data?.message || 'No se pudo enviar el correo.');
       await AsyncStorage.setItem(RESET_STORAGE_KEY, JSON.stringify({
         correo: resetCorreo.trim().toLowerCase(), vence: Date.now() + 15 * 60 * 1000,
       }));
+      if (session !== resetSession.current) {
+        await AsyncStorage.removeItem(RESET_STORAGE_KEY);
+        return;
+      }
       setResetStep('codigo');
-    } catch (error: any) { setResetError(error?.message || 'No se pudo enviar el correo. Intenta de nuevo.'); }
+    } catch (error: any) { if (session === resetSession.current) setResetError(error?.message || 'No se pudo enviar el correo. Intenta de nuevo.'); }
     finally { resetLoadingRef.current = false; setResetLoading(false); }
   };
 
   const handleConfirmarReset = async () => {
     if (resetLoadingRef.current) return;
+    const session = resetSession.current;
     if (!resetCodigo || resetCodigo.length !== 6) { setResetError('Ingresa el código de 6 dígitos.'); return; }
     if (!resetNueva || resetNueva.length < 6) { setResetError('La contraseña debe tener al menos 6 caracteres.'); return; }
     if (resetNueva !== resetConfirm) { setResetError('Las contraseñas no coinciden.'); return; }
@@ -96,10 +107,12 @@ export default function LoginScreen({ navigation }: any) {
         body: JSON.stringify({ correo: resetCorreo.trim(), codigo: resetCodigo, nuevaContrasenia: resetNueva }),
       });
       const data = await res.json();
+      if (session !== resetSession.current) return;
       if (!res.ok) throw new Error(data?.message || 'Código incorrecto o expirado.');
       await AsyncStorage.removeItem(RESET_STORAGE_KEY);
+      if (session !== resetSession.current) return;
       setResetStep('exito');
-    } catch (err: any) { setResetError(err.message); }
+    } catch (err: any) { if (session === resetSession.current) setResetError(err.message); }
     finally { resetLoadingRef.current = false; setResetLoading(false); }
   };
 
@@ -222,7 +235,7 @@ export default function LoginScreen({ navigation }: any) {
 
             <TouchableOpacity
               style={s.btnSecondary}
-              onPress={() => navigation.navigate('Registro')}
+              onPress={() => { closeReset(); navigation.navigate('Registro'); }}
               activeOpacity={0.85}
             >
               <Text style={s.btnSecondaryText}>Registrar mi empresa</Text>
@@ -270,16 +283,18 @@ export default function LoginScreen({ navigation }: any) {
       </KeyboardAvoidingView>
 
       {/* ── Modal recuperar contraseña ─────────────────────────── */}
-      <Modal visible={resetVisible} animationType="slide" transparent>
-        <View style={[s.modalOverlay, { paddingBottom: alturaTeclado }]}>
-          <View style={[s.modalCard, alturaTeclado > 0 && s.modalCardConTeclado]}>
+      <Modal visible={resetVisible} animationType="slide" transparent onRequestClose={closeReset}>
+        <SafeAreaView style={s.modalOverlay}>
+        <KeyboardSafeView>
+        <View style={s.modalPosition}>
+          <View style={s.modalCard}>
 
             {/* Header */}
             <View style={s.modalHeader}>
               <Text style={s.modalTitle}>
                 {resetStep === 'correo' ? '¿Olvidaste tu contraseña?' : resetStep === 'codigo' ? 'Revisa tu correo' : '¡Contraseña actualizada!'}
               </Text>
-              <TouchableOpacity onPress={() => setResetVisible(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <TouchableOpacity onPress={closeReset} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <X size={22} color="#6b7280" />
               </TouchableOpacity>
             </View>
@@ -296,7 +311,7 @@ export default function LoginScreen({ navigation }: any) {
             {/* Paso 1: Correo */}
             {resetStep === 'correo' && (
               <>
-                {alturaTeclado === 0 && <Text style={s.modalSub}>Ingresa tu correo y te enviaremos un código de verificación de 6 dígitos.</Text>}
+                <Text style={s.modalSub}>Ingresa tu correo y te enviaremos un código de verificación de 6 dígitos.</Text>
                 <Text style={s.label}>Correo electrónico</Text>
                 <View style={s.inputRow}>
                   <Mail size={18} color="#9ca3af" style={{ marginRight: 10 }} />
@@ -379,7 +394,7 @@ export default function LoginScreen({ navigation }: any) {
                 </View>
                 <TouchableOpacity
                   style={[s.btnPrimary, { marginTop: 8 }]}
-                  onPress={() => setResetVisible(false)}
+                  onPress={closeReset}
                   activeOpacity={0.85}
                 >
                   <Text style={s.btnPrimaryText}>Ir al inicio de sesión</Text>
@@ -418,6 +433,8 @@ export default function LoginScreen({ navigation }: any) {
             )}
           </View>
         </View>
+        </KeyboardSafeView>
+        </SafeAreaView>
       </Modal>
     </SafeAreaView>
   );
@@ -477,7 +494,7 @@ const s = StyleSheet.create({
   },
   btnPrimaryText: { color: '#fff', fontWeight: '700', fontSize: 16 },
   // Separa el botón fijo del contenido desplazable de arriba.
-  btnPie: { marginTop: 14 },
+  btnPie: { marginTop: 14, flexShrink: 0 },
 
   btnSecondary: {
     backgroundColor: '#f1f5f9',
@@ -523,23 +540,16 @@ const s = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-start',
   },
+  modalPosition: { flex: 1, justifyContent: 'center', padding: 16 },
   modalCard: {
     backgroundColor: '#fff',
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    borderRadius: 24,
     paddingHorizontal: 28,
     paddingTop: 20,
     paddingBottom: 28,
-    maxHeight: '85%',
-  },
-  // El overlay ya descuenta el teclado, así que la tarjeta puede usar todo el
-  // alto libre: con el tope del 85% el botón de acción quedaba fuera.
-  modalCardConTeclado: {
     maxHeight: '100%',
-    paddingTop: 16,
-    paddingBottom: 16,
+    flexShrink: 1,
   },
   modalHeader: {
     flexDirection: 'row',

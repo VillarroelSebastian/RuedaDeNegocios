@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { UserCircle, Lock, LogOut, Eye, EyeOff, Shield, Camera } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { API_URL, userStore } from '../../utils/userStore';
+import { validarNombrePersona, validarTelefono } from '../../utils/validaciones';
 
 const GREEN = '#449D3A';
 
@@ -134,6 +135,18 @@ export default function TecnicoPerfilScreen({ navigation }: any) {
     if (!nombres.trim() || !apellidoPaterno.trim()) {
       setModal({ visible: true, type: 'error', title: 'Campos requeridos', message: 'Nombres y apellido paterno son obligatorios.' });
       return;
+    }
+    const errNom = validarNombrePersona(nombres, 'El nombre');
+    if (errNom) { setModal({ visible: true, type: 'error', title: 'Datos inválidos', message: errNom }); return; }
+    const errApe = validarNombrePersona(apellidoPaterno, 'El apellido paterno');
+    if (errApe) { setModal({ visible: true, type: 'error', title: 'Datos inválidos', message: errApe }); return; }
+    if (apellidoMaterno?.trim()) {
+      const errApeM = validarNombrePersona(apellidoMaterno, 'El apellido materno');
+      if (errApeM) { setModal({ visible: true, type: 'error', title: 'Datos inválidos', message: errApeM }); return; }
+    }
+    if (telefono?.trim()) {
+      const errTel = validarTelefono(telefono);
+      if (errTel) { setModal({ visible: true, type: 'error', title: 'Datos inválidos', message: errTel }); return; }
     }
     if (savingPerfilRef.current) return;
     savingPerfilRef.current = true;

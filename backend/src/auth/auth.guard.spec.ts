@@ -14,6 +14,13 @@ describe('AuthGuard', () => {
   } as any;
   const guard = new AuthGuard(jwt, prisma);
 
+  it('bloquea los paquetes a los auspiciadores, incluso con enlace directo', async () => {
+    const sponsorPrisma = { ...prisma, empresa_usuario: { findFirst: jest.fn(async () => ({ empresa: { rubro: 'Auspiciador' } })) } } as any;
+    const sponsorGuard = new AuthGuard(jwt, sponsorPrisma);
+    await expect(sponsorGuard.canActivate(context({ method: 'GET', path: '/empresa/mi-paquete', headers: { authorization: 'Bearer ok' }, query: { eeId: 700 }, body: {} })))
+      .rejects.toBeInstanceOf(ForbiddenException);
+  });
+
   it('rechaza rutas privadas sin token', async () => {
     await expect(guard.canActivate(context({ method: 'GET', path: '/empresa/perfil', headers: {} })))
       .rejects.toBeInstanceOf(UnauthorizedException);

@@ -3,6 +3,9 @@
 import React, { useState, useEffect } from "react";
 import { Newspaper, Clock, Tag, AlertCircle, User } from "lucide-react";
 
+import ImagenLightbox from '@/components/ui/ImagenLightbox';
+import Link from 'next/link';
+
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
 function formatFecha(f: string) {
@@ -70,6 +73,7 @@ export default function EmpresaComunicadosPage() {
             key={c.id}
             className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
           >
+            {c.urlImagen && <ImagenLightbox src={c.urlImagen} alt={c.titulo} className="w-full h-48" imgClassName="w-full h-full object-contain" />}
             <div className="p-5">
               <div className="flex flex-wrap items-center gap-2 mb-2">
                 {c.tipoNoticia && (
@@ -83,8 +87,9 @@ export default function EmpresaComunicadosPage() {
                 </span>
               </div>
 
-              <h2 className="font-extrabold text-gray-900 text-base mb-1">{c.titulo}</h2>
+              <h2 className="font-extrabold text-gray-900 text-base mb-1"><Link href={`/contenido/noticias/${c.id}`}>{c.titulo}</Link></h2>
 
+              <Link href={`/contenido/noticias/${c.id}`} className="text-xs text-green-700 font-bold">Abrir publicación</Link>
               {c.usuario && (
                 <p className="flex items-center gap-1.5 text-xs text-gray-400 mb-3">
                   <User className="w-3 h-3" />

@@ -313,6 +313,15 @@ export function EmpresasRegistradasPage({ modoTecnico = false }: { modoTecnico?:
     );
   };
 
+  // Foro y auspiciador usan el campo "rubro" como marca de tipo de cuenta,
+  // no como sector real: se muestran como una etiqueta de tipo en vez de
+  // mezclarse con los rubros de verdad (Tecnología, Comercio, etc.).
+  const rubroODisplay = (rubro: string) => {
+    if (rubro === 'Auspiciador') return <span className="inline-flex items-center rounded-full bg-violet-100 px-2.5 py-1 text-[11px] font-bold text-violet-700">Auspiciador</span>;
+    if (rubro === 'Foro') return <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-1 text-[11px] font-bold text-blue-700">Foro</span>;
+    return rubro || '—';
+  };
+
   const badgeAcceso = (estado: string) => {
     const isHab = estado === 'HABILITADO';
     const isInhabilitada = estado === 'INHABILITADO';
@@ -454,7 +463,7 @@ export function EmpresasRegistradasPage({ modoTecnico = false }: { modoTecnico?:
                         </div>
                       </div>
                     </td>
-                    <td className="py-4 px-5 text-sm text-gray-600">{emp.rubro}</td>
+                    <td className="py-4 px-5 text-sm text-gray-600">{rubroODisplay(emp.rubro)}</td>
                     <td className="py-4 px-5 text-sm text-gray-600">{emp.ciudad}</td>
                     <td className="py-4 px-5">
                       {emp.paquete ? (
