@@ -41,7 +41,6 @@ export default function GaleriaEvento({
   const [fotos, setFotos] = useState<Foto[]>([]);
   const [cargando, setCargando] = useState(true);
   const [subiendo, setSubiendo] = useState(false);
-  const [descripcion, setDescripcion] = useState("");
   const [ampliada, setAmpliada] = useState<Foto | null>(null);
   const [actualizandoLanding, setActualizandoLanding] = useState<number | null>(null);
   const [descargando, setDescargando] = useState(false);
@@ -103,13 +102,11 @@ export default function GaleriaEvento({
           autorNombre: autorNombre || "Participante",
           empresa_usuario_id: empresaUsuarioId ?? null,
           usuario_id: usuarioId ?? null,
-          descripcion: descripcion.trim() || null,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || "No se pudo publicar la foto.");
       setFotos((prev) => [data, ...prev]);
-      setDescripcion("");
       onOk?.("Foto publicada", "Ya es visible para todos los participantes.");
     } catch (e: any) {
       onError?.(e.message);
@@ -190,15 +187,6 @@ export default function GaleriaEvento({
       {esStaff && <div className="mb-4"><button onClick={descargarTodas} disabled={descargando || !fotosLanding.length} className="w-full sm:w-auto rounded-xl border border-green-700 px-4 py-3 font-semibold text-green-800 disabled:opacity-50">{descargando ? "Preparando descarga…" : `Descargar fotos del landing (ZIP · ${fotosLanding.length})`}</button>{errorDescarga&&<p role="alert" className="mt-2 text-sm text-red-700">{errorDescarga}</p>}</div>}
       {puedeSubir && (
         <div className="mb-6">
-          <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-gray-500">
-            Descripción (opcional)
-          </label>
-          <input
-            value={descripcion}
-            onChange={(e) => setDescripcion(e.target.value.slice(0, 305))}
-            placeholder="Ej.: Encuentro entre productores y distribuidores"
-            className="mb-3 w-full max-w-xl rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-[#449D3A] focus:outline-none focus:ring-2 focus:ring-[#449D3A]/20"
-          />
           <input ref={fileRef} type="file" accept="image/*" className="hidden"
             onChange={(e) => { const f = e.target.files?.[0]; if (f) subir(f); }} />
           <button onClick={() => fileRef.current?.click()} disabled={subiendo}

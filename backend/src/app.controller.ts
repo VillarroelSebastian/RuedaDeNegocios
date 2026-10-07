@@ -9657,7 +9657,7 @@ export class AppController implements OnModuleInit {
 
   @Put('empresa/perfil')
   async updateEmpresaPerfil(@Body() body: any) {
-    const { euId, nombres, apellidoPaterno, apellidoMaterno, telefono, urlFotoPerfil } = body;
+    const { euId, nombres, apellidoPaterno, apellidoMaterno, telefono, cargo, urlFotoPerfil } = body;
     if (!euId) throw new BadRequestException('euId requerido');
     const eu = await this.prisma.empresa_usuario.findUnique({
       where: { id: Number(euId) },
@@ -9672,6 +9672,9 @@ export class AppController implements OnModuleInit {
           apellidoPaternoEvento: apellidoPaterno || undefined,
           apellidoMaternoEvento: apellidoMaterno || null,
           telefonoEvento: telefono || undefined,
+          // El cargo es dato del participante en este evento: se edita junto al
+          // resto de datos personales. Correo y contraseña no se tocan aquí.
+          cargo: cargo || undefined,
         },
       });
       const usuario = urlFotoPerfil !== undefined

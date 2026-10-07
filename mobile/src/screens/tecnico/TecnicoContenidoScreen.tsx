@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Bell, Megaphone, Radio } from 'lucide-react-native';
+import { Bell, Megaphone, Radio, ArrowLeft } from 'lucide-react-native';
 import NoticiasScreen from '../admin/NoticiasScreen';
 import ActividadesScreen from '../admin/ActividadesScreen';
 import StaffNotificacionesScreen from '../shared/StaffNotificacionesScreen';
@@ -21,6 +21,22 @@ export default function TecnicoContenidoScreen({ navigation }: any) {
   const [tab, setTab] = useState<'avisos' | 'comunicados' | 'vivo'>('avisos');
   return <SafeAreaView style={{ flex: 1, backgroundColor: '#f8fafc' }} edges={['top']}>
     <View style={{ backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e2e8f0' }}>
+      {/* Esta pantalla es una pestaña, así que no trae cabecera propia: al
+          llegar desde otra pantalla (p. ej. la campana del panel) no había
+          manera de volver. El botón solo se muestra si hay a dónde volver. */}
+      {navigation?.canGoBack?.() && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingTop: 12 }}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityLabel="Volver"
+            style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <ArrowLeft size={20} color="#0f172a" />
+          </TouchableOpacity>
+          <Text style={{ fontSize: 16, fontWeight: '800', color: '#0f172a' }}>Alertas</Text>
+        </View>
+      )}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 16, paddingBottom: 12, gap: 8 }}>
         {TABS.map(([id, label, Icon]) => {
           const activo = tab === id;

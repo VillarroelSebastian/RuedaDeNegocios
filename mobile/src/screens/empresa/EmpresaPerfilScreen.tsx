@@ -88,6 +88,12 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
   const [comercialOk,     setComercialOk]     = useState(false);
 
   const user = userStore.get();
+  // El rol FORO asiste al evento sin oferta comercial que publicar.
+  const esForo = user?.rolEvento === 'FORO';
+  // El auspiciador entra con rol EMPRESA pero su inscripción se crea con
+  // rubro 'Auspiciador': como el foro, asiste sin oferta comercial ni paquete.
+  const esAuspiciador = empresa?.rubro === 'Auspiciador';
+  const sinPerfilComercial = esForo || esAuspiciador;
   const [subiendoFoto, setSubiendoFoto] = useState(false);
   const subiendoFotoRef = useRef(false);
   const [subiendoLogo, setSubiendoLogo] = useState(false);
@@ -617,8 +623,9 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
           </View>
         )}
 
-        {/* Ficha comercial: oferta / demanda / intereses */}
-        {empresa && (
+        {/* Ficha comercial (oferta/demanda/intereses): no aplica al rol FORO,
+            que asiste al evento sin oferta comercial que publicar. */}
+        {empresa && !sinPerfilComercial && (
           <View style={s.section}>
             <View style={[s.sectionHeader, { justifyContent: 'space-between' }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>

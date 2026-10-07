@@ -251,6 +251,13 @@ function PagoAdicionalModal({ eeId, euEncargadoId, maxPermitidos, slotsPagados, 
 export default function EmpresaPerfilPage() {
   const router = useRouter();
   const [ctx, setCtx] = useState<any>(null);
+  // El rol FORO asiste al evento sin oferta comercial: no se le muestra la
+  // ficha ni los campos de empresa asociados a ella.
+  const [esForo, setEsForo] = useState(false);
+  // El auspiciador entra con rol EMPRESA, pero su inscripción se crea con
+  // rubro 'Auspiciador': como el foro, asiste sin oferta comercial ni paquete.
+  const esAuspiciador = ctx?.empresa?.rubro === "Auspiciador";
+  const sinPerfilComercial = esForo || esAuspiciador;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -462,6 +469,7 @@ export default function EmpresaPerfilPage() {
     if (!raw) { router.replace("/auth/login"); return; }
     let user: any;
     try { user = JSON.parse(raw); } catch { router.replace("/auth/login"); return; }
+    setEsForo(user?.rolEvento === "FORO");
 
     fetch(`${API}/empresa/perfil?usuarioId=${user.id}`)
       .then((r) => r.json())
@@ -892,7 +900,9 @@ export default function EmpresaPerfilPage() {
           </div>
         </div>
 
-        {/* Ficha comercial: oferta / demanda / intereses — visible a todos, editable solo por el encargado */}
+        {/* Ficha comercial (oferta/demanda/intereses): no aplica al rol FORO,
+            que asiste al evento sin oferta comercial que publicar. */}
+        {!sinPerfilComercial && (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-2">
@@ -993,9 +1003,10 @@ export default function EmpresaPerfilPage() {
             </p>
           )}
         </div>
+        )}
 
         {/* ═══ SECTION: Gestión de Participantes (Encargado only) ═══════════════ */}
-        {esResponsable && (
+        {esResponsable && !sinPerfilComercial && (
           <>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-gray-100 pt-6">
               <div>

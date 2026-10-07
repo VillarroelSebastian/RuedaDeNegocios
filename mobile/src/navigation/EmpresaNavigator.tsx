@@ -4,7 +4,7 @@ import { TouchableOpacity, View, Text, StyleSheet, ScrollView, Image } from 'rea
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator }   from '@react-navigation/bottom-tabs';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { LayoutDashboard, Building2, Send, CalendarDays, User, Bell, MoreHorizontal, Star, Clock, Newspaper, Lightbulb, MessageCircle, Images, LogOut, Mail, Package } from 'lucide-react-native';
+import { LayoutDashboard, Building2, Send, CalendarDays, User, Bell, MoreHorizontal, Star, Clock, Newspaper, Lightbulb, MessageCircle, Images, LogOut, Mail, Package, Home } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useModal } from '../components/AppModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -17,6 +17,7 @@ import EmpresaEmpresasScreen    from '../screens/empresa/EmpresaEmpresasScreen';
 import EmpresaSolicitudesScreen from '../screens/empresa/EmpresaSolicitudesScreen';
 import EmpresaPerfilScreen      from '../screens/empresa/EmpresaPerfilScreen';
 import EmpresaComunicadosScreen from '../screens/empresa/EmpresaComunicadosScreen';
+import ForoInicioScreen        from '../screens/empresa/ForoInicioScreen';
 import EmpresaEventosScreen     from '../screens/empresa/EmpresaEventosScreen';
 import EmpresaResultadosScreen  from '../screens/empresa/EmpresaResultadosScreen';
 import EmpresaHorariosScreen    from '../screens/empresa/EmpresaHorariosScreen';
@@ -333,6 +334,11 @@ function ForoTabs() {
     <>
       {modal}
       <Tab.Navigator screenOptions={{ ...baseTabOptions, tabBarStyle }}>
+        <Tab.Screen
+          name="ForoInicio"
+          component={ForoInicioScreen}
+          options={{ title: 'Inicio', tabBarIcon: ({ color }) => <Home color={color} size={22} /> }}
+        />
         <Tab.Screen
           name="Inicio"
           component={EmpresaComunicadosScreen}

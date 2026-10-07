@@ -57,3 +57,17 @@ export function limpiarEspacios(v: string): string {
 export function sinEspacios(v: string): string {
   return (v || '').replace(/\s+/g, '');
 }
+
+// Nombres y apellidos de personas: letras con tilde y ñ, espacios, apóstrofo y
+// guion (apellidos compuestos). Sin dígitos ni signos: un nombre no los lleva y
+// así se evitan entradas basura en credenciales y listados.
+const REGEX_NOMBRE_PERSONA = /^[a-zA-ZÀ-ÿñÑ\s'-]+$/;
+
+export function validarNombrePersona(valor: string, etiqueta = 'El nombre'): string | null {
+  const v = (valor || '').trim();
+  if (!v) return `${etiqueta} es obligatorio.`;
+  if (v.length < 2) return `${etiqueta} debe tener al menos 2 caracteres.`;
+  if (v.length > 65) return `${etiqueta} no debe superar los 65 caracteres.`;
+  if (!REGEX_NOMBRE_PERSONA.test(v)) return `${etiqueta} solo puede contener letras, tildes, espacios, apóstrofo y guion.`;
+  return null;
+}

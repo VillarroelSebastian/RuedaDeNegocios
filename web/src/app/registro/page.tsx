@@ -10,7 +10,7 @@ import {
   AlertCircle, X, Check, RefreshCw, UserPlus, Briefcase, Mail, Phone, GraduationCap,
 } from "lucide-react";
 
-import { LIMITES, correoValido, validarNombreEmpresa, limpiarEspacios } from "@/lib/validaciones";
+import { LIMITES, correoValido, validarNombreEmpresa, limpiarEspacios, validarNombrePersona } from "@/lib/validaciones";
 import { RUBROS, RUBROS_CON_OTRO, OTRO } from "@/lib/rubros";
 import ImagenLightbox from "@/components/ui/ImagenLightbox";
 
@@ -340,6 +340,14 @@ function RegistroEmpresaPage({ tipo = "empresa" }: { tipo?: "empresa" | "foro" }
   const validateStep3 = () => {
     if (!responsable.nombres.trim()) return "El nombre del responsable es obligatorio.";
     if (!responsable.apellidoPaterno.trim()) return "El apellido paterno del responsable es obligatorio.";
+    const errNom = validarNombrePersona(responsable.nombres, "El nombre del responsable");
+    if (errNom) return errNom;
+    const errApe = validarNombrePersona(responsable.apellidoPaterno, "El apellido paterno del responsable");
+    if (errApe) return errApe;
+    if (responsable.apellidoMaterno?.trim()) {
+      const errApeM = validarNombrePersona(responsable.apellidoMaterno, "El apellido materno del responsable");
+      if (errApeM) return errApeM;
+    }
     if (!responsable.cargo.trim()) return "El cargo del responsable es obligatorio.";
     if (!responsable.correo.trim()) return "El correo del responsable es obligatorio.";
     if (!correoValido(responsable.correo)) return "El correo del responsable no es válido.";
@@ -348,6 +356,10 @@ function RegistroEmpresaPage({ tipo = "empresa" }: { tipo?: "empresa" | "foro" }
     for (const [i, p] of adicionales.entries()) {
       if (!p.nombres?.trim()) return `El nombre del participante ${i + 2} es obligatorio.`;
       if (!p.apellidoPaterno?.trim()) return `El apellido paterno del participante ${i + 2} es obligatorio.`;
+      const errN = validarNombrePersona(p.nombres, `El nombre del participante ${i + 2}`);
+      if (errN) return errN;
+      const errA = validarNombrePersona(p.apellidoPaterno, `El apellido paterno del participante ${i + 2}`);
+      if (errA) return errA;
       if (!p.cargo.trim()) return `El cargo del participante ${i + 2} es obligatorio.`;
       if (!p.correo.trim()) return `El correo del participante ${i + 2} es obligatorio.`;
       if (!correoValido(p.correo)) return `El correo del participante ${i + 2} no es válido.`;

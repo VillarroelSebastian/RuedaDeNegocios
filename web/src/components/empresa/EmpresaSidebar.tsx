@@ -6,10 +6,13 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Newspaper, Building2,
   Send, Star, User, Briefcase, Clock, X, Sparkles, MessageSquare,
-  Radio, Images, Package, LogOut,
+  Radio, Images, Package, LogOut, Home,
 } from 'lucide-react';
 
 const allMenuItems = [
+  // El foro no tiene Dashboard de empresa: su entrada es un resumen del
+  // landing con la información del evento.
+  { name: 'Inicio',         icon: Home,            href: '/empresa/inicio',        soloEncargado: false, soloForo: true },
   { name: 'Dashboard',      icon: LayoutDashboard, href: '/empresa/dashboard',     soloEncargado: false, ocultoParaForo: true  },
   { name: 'Comunicados',    icon: Newspaper,       href: '/empresa/comunicados',   soloEncargado: false, ocultoParaForo: false },
   { name: 'Empresas',       icon: Building2,       href: '/empresa/empresas',      soloEncargado: false, ocultoParaForo: true  },
@@ -20,7 +23,7 @@ const allMenuItems = [
   { name: 'Solicitudes y Reuniones', icon: Send,   href: '/empresa/solicitudes',   soloEncargado: false, ocultoParaForo: true  },
   { name: 'Mis Horarios',   icon: Clock,           href: '/empresa/horarios',      soloEncargado: true,  ocultoParaForo: true  },
   { name: 'Resultados',     icon: Star,            href: '/empresa/resultados',    soloEncargado: false, ocultoParaForo: true  },
-  { name: 'Mi Paquete',     icon: Package,         href: '/empresa/mi-paquete',    soloEncargado: false, ocultoParaForo: false },
+  { name: 'Mi Paquete',     icon: Package,         href: '/empresa/mi-paquete',    soloEncargado: false, ocultoParaForo: true  },
   { name: 'Mi Perfil',      icon: User,            href: '/empresa/perfil',        soloEncargado: false, ocultoParaForo: false },
 ];
 
@@ -117,7 +120,7 @@ export default function EmpresaSidebar({ esEncargado = false, esForo = false, ee
         </div>
       )}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {allMenuItems.filter(item => (esEncargado || !item.soloEncargado) && !(esForo && item.ocultoParaForo)).map((item) => {
+        {allMenuItems.filter(item => (esEncargado || !item.soloEncargado) && !(esForo && item.ocultoParaForo) && !(!esForo && item.soloForo)).map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
           return (
             <Link

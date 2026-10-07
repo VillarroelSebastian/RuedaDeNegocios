@@ -26,12 +26,14 @@ export default function TecnicoGaleriaScreen() {
     [subiendo, setSubiendo] = useState(false),
     [refreshing, setRefreshing] = useState(false),
     [ampliada, setAmpliada] = useState<any | null>(null);
-  const [descripcion, setDescripcion] = useState("");
   const [actualizandoLanding, setActualizandoLanding] = useState<number | null>(null);
   const actualizandoLandingRef = useRef(false);
   const eliminandoRef = useRef(false);
   const actual = userStore.get();
-  const esEmpresa = actual?.rolEvento === "EMPRESA";
+  // FORO participa igual que EMPRESA: sube por la ruta pública y se
+  // identifica con su empresa_usuario. Tratarlo como staff hacía que pidiera
+  // /admin/imagenes/upload, ruta que su rol tiene prohibida.
+  const esEmpresa = ["EMPRESA", "FORO"].includes(actual?.rolEvento);
   const esStaff = ["ADMINISTRADOR","TECNICO","TECNICO_EVENTOS"].includes(actual?.rolEvento);
   const [descargando,setDescargando]=useState(false);
   const descargarTodas=async()=>{
@@ -176,13 +178,11 @@ export default function TecnicoGaleriaScreen() {
         body: JSON.stringify({
           urlFoto: ud.url,
           ...(esEmpresa ? { empresa_usuario_id: u?.empresaUsuarioId } : { usuario_id: u?.id }),
-          descripcion: descripcion.trim() || null,
           autorNombre: `${u?.nombres || (esEmpresa ? "Participante" : "Técnico")} ${u?.apellidoPaterno || ""}`.trim(),
         }),
       });
       if (!pub.ok)
         throw new Error((await pub.json()).message || "No se pudo publicar.");
-      setDescripcion("");
       show({
         type: "success",
         title: "Foto publicada",
@@ -245,13 +245,6 @@ export default function TecnicoGaleriaScreen() {
                 : "Comparte fotografías en el repositorio del evento."}
             </Text>
             {esStaff&&<TouchableOpacity disabled={descargando||!fotosLanding.length} onPress={descargarTodas} style={{padding:14,borderWidth:1,borderColor:GREEN,borderRadius:12,marginBottom:12,opacity:descargando?.5:1}}><Text style={{color:GREEN,textAlign:"center",fontWeight:"700"}}>{descargando?"Preparando descarga…":`Descargar fotos del landing (ZIP · ${fotosLanding.length})`}</Text></TouchableOpacity>}
-            <TextInput
-              value={descripcion}
-              onChangeText={setDescripcion}
-              maxLength={305}
-              placeholder="Descripción breve de la próxima foto"
-              style={{ backgroundColor: "#fff", borderWidth: 1, borderColor: "#e2e8f0", borderRadius: 12, padding: 12, marginBottom: 10 }}
-            />
             <TouchableOpacity
               onPress={() => setSelector(true)}
               disabled={subiendo}

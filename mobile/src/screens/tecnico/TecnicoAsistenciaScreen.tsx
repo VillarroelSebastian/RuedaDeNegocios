@@ -1,4 +1,6 @@
 import React, { useCallback, useRef, useState } from "react";
+// Sin área segura el encabezado quedaba bajo la barra de estado del sistema.
+import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ActivityIndicator,
   FlatList,
@@ -287,7 +289,7 @@ export default function TecnicoAsistenciaScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#f8fafc" }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#f8fafc" }} edges={["top"]}>
       <View
         style={{
           padding: 18,
@@ -459,6 +461,6 @@ export default function TecnicoAsistenciaScreen() {
         />
       )}
       {modal}
-    </View>
+    </SafeAreaView>
   );
 }

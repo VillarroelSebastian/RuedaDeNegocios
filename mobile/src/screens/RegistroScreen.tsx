@@ -1,13 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
-  SafeAreaView, KeyboardAvoidingView, Platform, ActivityIndicator,
+  KeyboardAvoidingView, Platform, ActivityIndicator,
   Image, Linking, Modal as RNModal,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { StatusBar } from 'expo-status-bar';
+// SafeAreaView de safe-area-context: el de react-native se ignora en Android
+// y el encabezado quedaba bajo la barra de estado.
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { API_URL } from '../utils/userStore';
-import { LIMITES, correoValido, validarNombreEmpresa, limpiarEspacios } from '../utils/validaciones';
+import { LIMITES, correoValido, validarNombreEmpresa, limpiarEspacios, validarNombrePersona } from '../utils/validaciones';
 
 // Los rubros viven en ../constants/rubros para no repetirlos entre pantallas.
 
@@ -306,6 +309,10 @@ function RegistroEmpresaScreen({ navigation, tipo = 'empresa' }: any) {
   };
   const validateStep2 = () => {
     if (!responsable.nombre.trim() || !responsable.apellido.trim()) return 'Nombre y apellido del responsable son requeridos.';
+    const errRespNombre = validarNombrePersona(responsable.nombre, 'El nombre del responsable');
+    if (errRespNombre) return errRespNombre;
+    const errRespApellido = validarNombrePersona(responsable.apellido, 'El apellido del responsable');
+    if (errRespApellido) return errRespApellido;
     if (!responsable.correo.trim()) return 'El correo del responsable es requerido.';
     if (!correoValido(responsable.correo)) return 'El correo del responsable no es válido.';
     if (!responsable.cargo.trim()) return 'El cargo del responsable es requerido.';
@@ -315,6 +322,10 @@ function RegistroEmpresaScreen({ navigation, tipo = 'empresa' }: any) {
       if (!p.nombre.trim() || !p.apellido.trim() || !p.correo.trim() || !p.cargo.trim() || !p.telefono.trim())
         return `Completa todos los campos del participante adicional ${i + 2}.`;
       if (!correoValido(p.correo)) return `El correo del participante adicional ${i + 2} no es válido.`;
+      const errNom = validarNombrePersona(p.nombre, `El nombre del participante ${i + 2}`);
+      if (errNom) return errNom;
+      const errApe = validarNombrePersona(p.apellido, `El apellido del participante ${i + 2}`);
+      if (errApe) return errApe;
       if (!validTel(p.telefono)) return `El teléfono del participante adicional ${i + 2} no es válido.`;
     }
     return null;
@@ -923,8 +934,10 @@ function RegistroForoScreen({ navigation }: any) {
   };
 
   const enviar = async () => {
-    if (nombres.trim().length < 2) return showModal('warning', 'Falta un dato', 'Escribe tus nombres.');
-    if (apellidos.trim().length < 2) return showModal('warning', 'Falta un dato', 'Escribe tus apellidos.');
+    const errNombres = validarNombrePersona(nombres, 'Tus nombres');
+    if (errNombres) return showModal('warning', 'Revisa tus datos', errNombres);
+    const errApellidos = validarNombrePersona(apellidos, 'Tus apellidos');
+    if (errApellidos) return showModal('warning', 'Revisa tus datos', errApellidos);
     if (!correoValido(correo)) return showModal('warning', 'Falta un dato', 'Escribe un correo válido.');
     if (telefono.trim().length < 6) return showModal('warning', 'Falta un dato', 'Escribe un teléfono válido.');
     if (institucion.trim().length < 2) return showModal('warning', 'Falta un dato', 'Escribe tu institución u organización.');

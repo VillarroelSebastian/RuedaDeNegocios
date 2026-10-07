@@ -22,12 +22,11 @@ module.exports = {
     },
     android: {
       package: "edu.univalle.ruedadenegocios",
-      // Sin esto Android dibuja la app por debajo de la barra de estado
-      // (edge-to-edge, el modo por defecto desde Expo 54): la barra se ve
-      // transparente y el reloj/batería se enciman con la cabecera de cada
-      // pantalla. Desactivado, el sistema le reserva su propia franja.
-      edgeToEdgeEnabled: false,
-      versionCode: 10,
+      // Android 16 (targetSdk 36) impone edge-to-edge y ya ignora
+      // windowOptOutEdgeToEdgeEnforcement, así que desactivarlo no servía de
+      // nada: la app se dibuja bajo la barra de estado igual. La solución es
+      // que cada pantalla reserve el inset superior con SafeAreaView.
+      versionCode: 11,
       googleServicesFile: process.env.GOOGLE_SERVICES_JSON ?? "./google-services.json",
       softwareKeyboardLayoutMode: "resize",
       adaptiveIcon: {

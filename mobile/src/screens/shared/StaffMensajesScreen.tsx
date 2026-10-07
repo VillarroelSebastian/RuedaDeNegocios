@@ -163,6 +163,9 @@ export default function StaffMensajesScreen({ embedded = false }: { embedded?: b
               onChangeText={setTexto}
               maxLength={1000}
               multiline
+              returnKeyType="send"
+              submitBehavior="submit"
+              onSubmitEditing={enviar}
             />
             <TouchableOpacity
               style={[s.sendBtn, (!texto.trim() || enviando) && { opacity: 0.4 }]}
