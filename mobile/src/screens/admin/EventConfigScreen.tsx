@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, TextInput, TouchableOpacity,
   ActivityIndicator, Image, Modal, KeyboardAvoidingView, Platform,
@@ -103,6 +103,7 @@ export default function EventConfigScreen({ navigation }: any) {
   const [filtroEstado, setFiltroEstado] = useState<'TODOS' | 'PRINCIPAL' | 'NO_PRINCIPAL'>('TODOS');
   const [loadingForm, setLoadingForm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const guardandoRef = useRef(false);
   const [editingId, setEditingId] = useState<number | 'nuevo'>('nuevo');
   const [uploadingField, setUploadingField] = useState<string | null>(null);
 
@@ -358,6 +359,7 @@ export default function EventConfigScreen({ navigation }: any) {
 
   // ── Guardar ──────────────────────────────────────────────────────────────────
   const handleSave = async () => {
+    if (guardandoRef.current) return;
     if (!formData.nombre || !formData.fechaInicioEvento || !formData.fechaFinEvento || !formData.fechaInicioInscripciones || !formData.fechaFinInscripciones) {
       show({ type: 'warning', title: 'Campos obligatorios', message: 'Completa el nombre y las fechas del evento y del período de inscripciones.' });
       return;
@@ -382,6 +384,7 @@ export default function EventConfigScreen({ navigation }: any) {
       show({ type: 'warning', title: 'Horarios de reuniones', message: 'Todos los días deben tener al menos un rango válido para reuniones.' });
       return;
     }
+    guardandoRef.current = true;
     setSaving(true);
     const orNull = (v: string) => (v === '' ? null : v);
     const payload: any = {
@@ -443,7 +446,7 @@ export default function EventConfigScreen({ navigation }: any) {
     } catch {
       show({ type: 'error', title: 'Sin conexión', message: 'No se pudo conectar con el servidor.' });
     } finally {
-      setSaving(false); }
+      setSaving(false); guardandoRef.current = false; }
   };
 
   const paisList = Object.keys(SOUTH_AMERICA);

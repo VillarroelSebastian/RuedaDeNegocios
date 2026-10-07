@@ -63,7 +63,10 @@ export default function PaquetesPage() {
   const [paso, setPaso] = useState<"elegir" | "form">("elegir");
   const [editandoId, setEditandoId] = useState<number | null>(null);
   const [guardando, setGuardando] = useState(false);
+  const guardandoRef = useRef(false);
   const [subiendo, setSubiendo] = useState(false);
+  const [marcandoPrincipalId, setMarcandoPrincipalId] = useState<number | null>(null);
+  const marcandoPrincipalRef = useRef(false);
   const [form, setForm] = useState(formVacio);
   const [eventoId, setEventoId] = useState<number | null>(null);
   const [eventoNombre, setEventoNombre] = useState("");
@@ -172,6 +175,8 @@ export default function PaquetesPage() {
       return showError("Mejora de paquete incompleta",
         "Para habilitar la mejora de paquete debes indicar tanto el costo de mejora como subir su QR de pago.");
 
+    if (guardandoRef.current) return;
+    guardandoRef.current = true;
     setGuardando(true);
     try {
       const url = editandoId ? `${API}/admin/paquetes/${editandoId}` : `${API}/admin/paquetes`;
@@ -198,17 +203,24 @@ export default function PaquetesPage() {
     } catch (e: any) {
       showError("No se pudo guardar", e.message);
     } finally {
+      guardandoRef.current = false;
       setGuardando(false);
     }
   };
 
   const marcarPrincipal = async (p: Paquete) => {
+    if (marcandoPrincipalRef.current) return;
+    marcandoPrincipalRef.current = true;
+    setMarcandoPrincipalId(p.id);
     try {
       const res = await fetch(`${API}/admin/paquetes/${p.id}/principal`, { method: "PUT" });
       if (!res.ok) throw new Error((await res.json())?.message || "No se pudo marcar como principal.");
       await cargar();
     } catch (e: any) {
       showError("No se pudo marcar como principal", e.message);
+    } finally {
+      marcandoPrincipalRef.current = false;
+      setMarcandoPrincipalId(null);
     }
   };
 
@@ -227,7 +239,7 @@ export default function PaquetesPage() {
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto">
-      <ModalComponent />
+      {ModalComponent}
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
@@ -289,8 +301,8 @@ export default function PaquetesPage() {
                   </div>
                   <div className="flex gap-1 flex-shrink-0">
                     {mostrarPrincipal && p.esPrincipal !== 1 && (
-                      <button onClick={() => marcarPrincipal(p)} title="Marcar como paquete principal de Foro"
-                        className="p-2 rounded-lg text-gray-500 hover:bg-amber-50 hover:text-amber-600">
+                      <button onClick={() => marcarPrincipal(p)} disabled={marcandoPrincipalId === p.id} title="Marcar como paquete principal de Foro"
+                        className="p-2 rounded-lg text-gray-500 hover:bg-amber-50 hover:text-amber-600 disabled:opacity-50">
                         <Star className="w-4 h-4" />
                       </button>
                     )}

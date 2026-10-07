@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, TextInput,
   ActivityIndicator, RefreshControl, StyleSheet, Modal, ScrollView,
@@ -45,6 +45,7 @@ export default function EmpresaResultadosScreen({ route }: any) {
   const [rango,        setRango]        = useState(RANGOS[0]);
   const [observacion,  setObservacion]  = useState('');
   const [saving,       setSaving]       = useState(false);
+  const savingRef = useRef(false);
   const [saveError,    setSaveError]    = useState('');
   const [saveOk,       setSaveOk]       = useState(false);
 
@@ -98,7 +99,9 @@ export default function EmpresaResultadosScreen({ route }: any) {
   };
 
   const handleSubmit = async () => {
-    if (calificacion === 0) { setSaveError('Selecciona una calificación de 1 a 5 estrellas.'); return; }
+    if (savingRef.current) return;
+    savingRef.current = true;
+    if (calificacion === 0) { setSaveError('Selecciona una calificación de 1 a 5 estrellas.'); savingRef.current = false; return; }
     setSaveError('');
     setSaving(true);
     try {
@@ -123,6 +126,7 @@ export default function EmpresaResultadosScreen({ route }: any) {
       setSaveError(e.message || 'Error de red');
     } finally {
       setSaving(false);
+      savingRef.current = false;
     }
   };
 

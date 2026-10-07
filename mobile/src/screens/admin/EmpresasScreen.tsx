@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   ActivityIndicator, RefreshControl, Modal as RNModal, KeyboardAvoidingView, Platform,
@@ -55,9 +55,14 @@ export function ParticipantesModal({ empresa, onClose, permitirCambiarPassword =
   const [avisoReenvio, setAvisoReenvio] = useState<{ ok: boolean; texto: string } | null>(null);
   const [confirmandoReenvio, setConfirmandoReenvio] = useState<any | null>(null);
   const [confirmandoPassword, setConfirmandoPassword] = useState<{ p: any; manual: boolean } | null>(null);
+  const guardandoCorreoRef = useRef(false);
+  const reenviandoRef = useRef(false);
+  const reiniciandoRef = useRef(false);
 
   const guardarCorreo = async (p: any) => {
     if (!correoNuevo.trim()) return;
+    if (guardandoCorreoRef.current) return;
+    guardandoCorreoRef.current = true;
     setGuardandoCorreo(true);
     try {
       const res = await fetch(`${API_URL}/admin/participantes/${p.usuarioId}/correo`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ correo: correoNuevo.trim() }) });
@@ -66,10 +71,12 @@ export function ParticipantesModal({ empresa, onClose, permitirCambiarPassword =
       setParticipantes(ps => ps.map(x => x.usuarioId === p.usuarioId ? { ...x, correo: data.correo } : x));
       setEditandoCorreo(null); setCorreoNuevo('');
     } catch (error: any) { setAvisoReenvio({ ok: false, texto: error.message }); }
-    finally { setGuardandoCorreo(false); }
+    finally { setGuardandoCorreo(false); guardandoCorreoRef.current = false; }
   };
 
   const reenviarCredenciales = async (p: any) => {
+    if (reenviandoRef.current) return;
+    reenviandoRef.current = true;
     setReenviando(p.usuarioId);
     setAvisoReenvio(null);
     try {
@@ -78,7 +85,7 @@ export function ParticipantesModal({ empresa, onClose, permitirCambiarPassword =
       if (!res.ok) throw new Error(data.message || 'No se pudo reenviar las credenciales');
       setAvisoReenvio({ ok: true, texto: `Credenciales reenviadas a ${data.correo}.` });
     } catch (error: any) { setAvisoReenvio({ ok: false, texto: error.message }); }
-    finally { setReenviando(null); }
+    finally { setReenviando(null); reenviandoRef.current = false; }
   };
 
   const reiniciarPassword = async (p: any, manual = false) => {
@@ -86,6 +93,8 @@ export function ParticipantesModal({ empresa, onClose, permitirCambiarPassword =
       setCredencial({ correo: p.correo, nuevaContrasenia: 'ERROR: la contraseña escrita debe cumplir las reglas de seguridad (mínimo 8 caracteres).' });
       return;
     }
+    if (reiniciandoRef.current) return;
+    reiniciandoRef.current = true;
     setEditandoCorreo(null);
     setReiniciando(p.usuarioId);
     try {
@@ -94,7 +103,7 @@ export function ParticipantesModal({ empresa, onClose, permitirCambiarPassword =
       setCredencial(res.ok ? data : { correo:p.correo, nuevaContrasenia:`ERROR: ${data.message}` });
       if (res.ok) setPasswordManual('');
     } catch { setCredencial({ correo:p.correo, nuevaContrasenia:'ERROR: no se pudo generar' }); }
-    finally { setReiniciando(null); }
+    finally { setReiniciando(null); reiniciandoRef.current = false; }
   };
 
   useEffect(() => {
@@ -239,6 +248,8 @@ export default function EmpresasScreen({ navigation }: any) {
     visible: false, type: 'confirm', title: '', message: '',
   });
   const limit = 20;
+  const eliminandoRef = useRef(false);
+  const inhabilitarRef = useRef(false);
 
   const showModal = (type: string, title: string, message: string, onConfirm?: () => void) =>
     setAppModal({ visible: true, type, title, message, onConfirm });
@@ -263,6 +274,8 @@ export default function EmpresasScreen({ navigation }: any) {
 
   const handleDelete = (id: number, nombre: string) => {
     showModal('confirm', 'Eliminar empresa', `¿Desactivar a "${nombre}" del evento?`, async () => {
+      if (eliminandoRef.current) return;
+      eliminandoRef.current = true;
       closeModal();
       try {
         const res = await fetch(`${API_URL}/admin/empresas/${id}`, { method: 'DELETE' });
@@ -271,6 +284,8 @@ export default function EmpresasScreen({ navigation }: any) {
         await fetchEmpresas(1, search);
       } catch (e: any) {
         showModal('error', 'No se pudo eliminar', e.message || 'Intenta nuevamente.');
+      } finally {
+        eliminandoRef.current = false;
       }
     });
   };
@@ -284,6 +299,8 @@ export default function EmpresasScreen({ navigation }: any) {
         ? `"${emp.nombre}" perderá acceso a reuniones, mensajes y oportunidades en este evento hasta que la reactives. No se elimina ningún dato.`
         : `"${emp.nombre}" recupera su acceso normal en este evento.`,
       async () => {
+        if (inhabilitarRef.current) return;
+        inhabilitarRef.current = true;
         closeModal();
         try {
           const res = await fetch(`${API_URL}/admin/empresas/${emp.id}/inhabilitar`, { method: 'PUT' });
@@ -292,6 +309,8 @@ export default function EmpresasScreen({ navigation }: any) {
           await fetchEmpresas(1, search);
         } catch (e: any) {
           showModal('error', 'No se pudo actualizar', e.message || 'Intenta nuevamente.');
+        } finally {
+          inhabilitarRef.current = false;
         }
       },
     );

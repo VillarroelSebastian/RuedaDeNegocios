@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   ActivityIndicator, RefreshControl, StyleSheet, Modal, Image, Linking,
@@ -35,6 +35,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
   const [editTel,     setEditTel]     = useState('');
   const [editCargo,   setEditCargo]   = useState('');
   const [saving,      setSaving]      = useState(false);
+  const savingRef = useRef(false);
   const [saveError,   setSaveError]   = useState('');
   const [saveOk,      setSaveOk]      = useState(false);
 
@@ -46,6 +47,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
   const [addTel,      setAddTel]      = useState('');
   const [addCargo,    setAddCargo]    = useState('');
   const [adding,      setAdding]      = useState(false);
+  const addingRef = useRef(false);
   const [addError,    setAddError]    = useState('');
   const [addOk,       setAddOk]       = useState(false);
 
@@ -57,6 +59,8 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
   const [passConf,    setPassConf]    = useState('');
   const [mostrarPass, setMostrarPass] = useState(false);
   const [passLoading, setPassLoading] = useState(false);
+  const passLoadingRef = useRef(false);
+  const enviandoCodigoRef = useRef(false);
   const [passError,   setPassError]   = useState('');
 
   // Additional payment modal
@@ -67,7 +71,9 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
   const [pagoMonto,     setPagoMonto]     = useState('');
   const [pagoQr,        setPagoQr]        = useState<string | null>(null);
   const [pagandoAd,     setPagandoAd]     = useState(false);
+  const pagandoAdRef = useRef(false);
   const [pagoUploading, setPagoUploading] = useState(false);
+  const pagoUploadingRef = useRef(false);
   const [pagoError,     setPagoError]     = useState('');
   const [pagoOk,        setPagoOk]        = useState(false);
 
@@ -77,15 +83,21 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
   const [comDemanda,      setComDemanda]      = useState('');
   const [comIntereses,    setComIntereses]    = useState('');
   const [comercialSaving, setComercialSaving] = useState(false);
+  const comercialSavingRef = useRef(false);
   const [comercialError,  setComercialError]  = useState('');
   const [comercialOk,     setComercialOk]     = useState(false);
 
   const user = userStore.get();
   const [subiendoFoto, setSubiendoFoto] = useState(false);
+  const subiendoFotoRef = useRef(false);
   const [subiendoLogo, setSubiendoLogo] = useState(false);
+  const subiendoLogoRef = useRef(false);
+  const [activandoId, setActivandoId] = useState<any>(null);
+  const activandoRef = useRef<any>(null);
 
   // Selecciona una foto de la galería, la sube y la guarda como foto de perfil.
   const cambiarFoto = async () => {
+    if (subiendoFotoRef.current) return;
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) { setError('Se necesita permiso para acceder a la galería.'); return; }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -96,6 +108,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
     });
     if (result.canceled || !result.assets?.length) return;
     const asset = result.assets[0];
+    subiendoFotoRef.current = true;
     setSubiendoFoto(true);
     setError('');
     try {
@@ -117,10 +130,12 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
       setError(e.message || 'Error al cambiar la foto');
     } finally {
       setSubiendoFoto(false);
+      subiendoFotoRef.current = false;
     }
   };
 
   const cambiarFotoEmpresa = async () => {
+    if (subiendoLogoRef.current) return;
     if (!perfil?.esResponsable) return;
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) { setError('Se necesita permiso para acceder a la galería.'); return; }
@@ -130,6 +145,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
       quality: 0.85,
     });
     if (result.canceled || !result.assets?.length) return;
+    subiendoLogoRef.current = true;
     setSubiendoLogo(true);
     setError('');
     try {
@@ -152,6 +168,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
       setError(e.message || 'Error al cambiar la imagen de la empresa');
     } finally {
       setSubiendoLogo(false);
+      subiendoLogoRef.current = false;
     }
   };
 
@@ -191,6 +208,8 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
   };
 
   const handleSavePerfil = async () => {
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSaveError(''); setSaving(true);
     try {
       const res = await fetch(`${API_URL}/empresa/perfil`, {
@@ -210,6 +229,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
       setSaveError(e.message || 'Error de red');
     } finally {
       setSaving(false);
+      savingRef.current = false;
     }
   };
 
@@ -222,6 +242,8 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
   };
 
   const handleSaveComercial = async () => {
+    if (comercialSavingRef.current) return;
+    comercialSavingRef.current = true;
     setComercialError(''); setComercialSaving(true);
     try {
       const res = await fetch(`${API_URL}/empresa/perfil-comercial`, {
@@ -242,6 +264,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
       setComercialError(e.message || 'Error de red');
     } finally {
       setComercialSaving(false);
+      comercialSavingRef.current = false;
     }
   };
 
@@ -252,16 +275,21 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
   };
 
   const handleAddParticipant = async () => {
+    if (addingRef.current) return;
+    addingRef.current = true;
     if (!addNombre.trim() || !addApellido.trim() || !addCorreo.trim() || !addTel.trim()) {
       setAddError('Nombres, apellido paterno, correo y teléfono son obligatorios.');
+      addingRef.current = false;
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(addCorreo.trim())) {
       setAddError('El correo electrónico no es válido.');
+      addingRef.current = false;
       return;
     }
     if (addTel.replace(/\D/g, '').length < 7) {
       setAddError('El teléfono no es válido.');
+      addingRef.current = false;
       return;
     }
     setAddError(''); setAdding(true);
@@ -288,6 +316,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
       setAddError(e.message || 'Error de red');
     } finally {
       setAdding(false);
+      addingRef.current = false;
     }
   };
 
@@ -312,6 +341,9 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
   };
 
   const handleActivate = async (eu: any) => {
+    if (activandoRef.current) return;
+    activandoRef.current = eu.id;
+    setActivandoId(eu.id);
     try {
       const res = await fetch(`${API_URL}/empresa/participantes/${eu.id}/activar`, {
         method: 'PUT',
@@ -324,6 +356,9 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
       fetchAll();
     } catch {
       show({ type: 'error', title: 'Error', message: 'Error de red' });
+    } finally {
+      activandoRef.current = null;
+      setActivandoId(null);
     }
   };
 
@@ -357,6 +392,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
   }, [pagoModal, pagoCant, empresa?.empresaeventoId]);
 
   const pickComprobante = async () => {
+    if (pagoUploadingRef.current) return;
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) { setPagoError('Se necesita permiso para acceder a la galería.'); return; }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -369,6 +405,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
       setPagoError('El archivo no debe superar los 10 MB.');
       return;
     }
+    pagoUploadingRef.current = true;
     setPagoUploading(true); setPagoError('');
     try {
       const mimeType = asset.mimeType ?? 'image/jpeg';
@@ -384,11 +421,14 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
       setPagoError(e.message || 'Error al subir la imagen');
     } finally {
       setPagoUploading(false);
+      pagoUploadingRef.current = false;
     }
   };
 
   const handlePagoAdicional = async () => {
-    if (!pagoUrl.trim()) { setPagoError('Debes subir el comprobante de pago.'); return; }
+    if (pagandoAdRef.current) return;
+    pagandoAdRef.current = true;
+    if (!pagoUrl.trim()) { setPagoError('Debes subir el comprobante de pago.'); pagandoAdRef.current = false; return; }
     setPagoError(''); setPagandoAd(true);
     try {
       const eeId = empresa?.empresaeventoId;
@@ -411,12 +451,15 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
       setPagoError(e.message || 'Error de red');
     } finally {
       setPagandoAd(false);
+      pagandoAdRef.current = false;
     }
   };
 
   const handleEnviarCodigo = async () => {
+    if (enviandoCodigoRef.current) return;
+    enviandoCodigoRef.current = true;
     const correo = user?.correo;
-    if (!correo) return;
+    if (!correo) { enviandoCodigoRef.current = false; return; }
     setPassStep('sending');
     setPassError('');
     try {
@@ -431,14 +474,18 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
     } catch {
       setPassStep('code');
       setPassError('No se pudo enviar el correo. Intenta de nuevo.');
+    } finally {
+      enviandoCodigoRef.current = false;
     }
   };
 
   const handleConfirmarReset = async () => {
+    if (passLoadingRef.current) return;
+    passLoadingRef.current = true;
     setPassError('');
-    if (resetCodigo.length !== 6) { setPassError('Ingresa el código de 6 dígitos.'); return; }
-    if (passNueva.length < 6)     { setPassError('La contraseña debe tener al menos 6 caracteres.'); return; }
-    if (passNueva !== passConf)   { setPassError('Las contraseñas no coinciden.'); return; }
+    if (resetCodigo.length !== 6) { setPassError('Ingresa el código de 6 dígitos.'); passLoadingRef.current = false; return; }
+    if (passNueva.length < 6)     { setPassError('La contraseña debe tener al menos 6 caracteres.'); passLoadingRef.current = false; return; }
+    if (passNueva !== passConf)   { setPassError('Las contraseñas no coinciden.'); passLoadingRef.current = false; return; }
     setPassLoading(true);
     try {
       const res = await fetch(`${API_URL}/auth/confirmar-reset`, {
@@ -453,6 +500,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
       setPassError(e.message || 'Error de red');
     } finally {
       setPassLoading(false);
+      passLoadingRef.current = false;
     }
   };
 
@@ -489,7 +537,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
                 <Text style={s.avatarText}>{(user?.nombres ?? 'U')[0].toUpperCase()}</Text>
               )}
             </View>
-            <TouchableOpacity onPress={cambiarFoto} activeOpacity={0.8} style={s.avatarCamBadge}>
+            <TouchableOpacity onPress={cambiarFoto} disabled={subiendoFoto} activeOpacity={0.8} style={s.avatarCamBadge}>
               {subiendoFoto
                 ? <ActivityIndicator size="small" color="#fff" />
                 : <Camera size={12} color="#fff" />}
@@ -695,7 +743,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
                         </TouchableOpacity>
                       )}
                       {!activo ? (
-                        <TouchableOpacity style={s.activateBtn} onPress={() => handleActivate(p)} activeOpacity={0.8}>
+                        <TouchableOpacity style={s.activateBtn} onPress={() => handleActivate(p)} disabled={activandoId === p.id} activeOpacity={0.8}>
                           <Text style={s.activateBtnText}>Activar</Text>
                         </TouchableOpacity>
                       ) : !isMe && !isEnc && (

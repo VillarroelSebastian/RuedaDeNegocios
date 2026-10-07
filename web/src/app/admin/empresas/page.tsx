@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Search, Building2, Users, Eye, Trash2, ChevronLeft, ChevronRight, Filter, X, MessageSquare, KeyRound, CalendarClock, Copy, Check, CreditCard, ShieldOff, ShieldCheck } from 'lucide-react';
 import ImagenLightbox from '@/components/ui/ImagenLightbox';
 import { useModal } from '@/components/ui/Modal';
@@ -30,11 +30,14 @@ function ParticipantesModal({ empresa, onClose, permitirCambiarPassword = true }
   const [participanteCorreo, setParticipanteCorreo] = useState<any | null>(null);
   const [correoNuevo, setCorreoNuevo] = useState('');
   const [guardandoCorreo, setGuardandoCorreo] = useState(false);
+  const guardandoCorreoRef = useRef(false);
+  const reiniciandoRef = useRef(false);
   const [reenviando, setReenviando] = useState<number | null>(null);
   const [avisoReenvio, setAvisoReenvio] = useState<{ ok: boolean; texto: string } | null>(null);
 
   const guardarCorreo = async (p: any) => {
-    if (!correoNuevo.trim()) return;
+    if (!correoNuevo.trim() || guardandoCorreoRef.current) return;
+    guardandoCorreoRef.current = true;
     setGuardandoCorreo(true);
     try {
       const res = await fetch(`${API}/admin/participantes/${p.usuarioId}/correo`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ correo: correoNuevo.trim() }) });
@@ -43,7 +46,7 @@ function ParticipantesModal({ empresa, onClose, permitirCambiarPassword = true }
       setParticipantes(ps => ps.map(x => x.usuarioId === p.usuarioId ? { ...x, correo: data.correo } : x));
       setParticipanteCorreo(null); setCorreoNuevo('');
     } catch (error: any) { setAvisoReenvio({ ok: false, texto: error.message }); }
-    finally { setGuardandoCorreo(false); }
+    finally { guardandoCorreoRef.current = false; setGuardandoCorreo(false); }
   };
 
   const confirmarReenvioCredenciales = (p: any) => {
@@ -82,6 +85,8 @@ function ParticipantesModal({ empresa, onClose, permitirCambiarPassword = true }
   };
 
   const reiniciarPassword = async (p: any, nuevaContrasenia?: string) => {
+    if (reiniciandoRef.current) return;
+    reiniciandoRef.current = true;
     setReiniciando(p.usuarioId);
     try {
       const res = await fetch(`${API}/admin/participantes/${p.usuarioId}/password-temporal`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(nuevaContrasenia ? { nuevaContrasenia } : {}) });
@@ -90,7 +95,7 @@ function ParticipantesModal({ empresa, onClose, permitirCambiarPassword = true }
       setCredencial({ correo: data.correo, password: data.nuevaContrasenia });
       setParticipanteManual(null); setPasswordManual('');
     } catch (error: any) { setCredencial({ correo: p.correo, password: `ERROR: ${error.message}` }); }
-    finally { setReiniciando(null); }
+    finally { reiniciandoRef.current = false; setReiniciando(null); }
   };
 
   useEffect(() => {
@@ -109,7 +114,7 @@ function ParticipantesModal({ empresa, onClose, permitirCambiarPassword = true }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={onClose}>
-      <ModalConfirmReenvio />
+      {ModalConfirmReenvio}
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between p-6 border-b border-gray-100">
           <div>
@@ -344,7 +349,7 @@ export function EmpresasRegistradasPage({ modoTecnico = false }: { modoTecnico?:
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
-      <ModalComponent />
+      {ModalComponent}
       <ParticipantesModal empresa={participantesEmpresa} onClose={() => setParticipantesEmpresa(null)} permitirCambiarPassword={!modoTecnico} />
       {!modoTecnico && <FichaEmpresaModal empresaId={fichaEmpresaId} onClose={() => setFichaEmpresaId(null)} />}
       {modoTecnico && <PerfilEmpresaStaffModal empresaEventoId={perfilTecnicoEeId} onClose={() => setPerfilTecnicoEeId(null)} />}

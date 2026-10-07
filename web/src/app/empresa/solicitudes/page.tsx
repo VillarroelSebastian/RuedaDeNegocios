@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, Suspense, useCallback } from "react";
+import React, { useState, useEffect, useRef, Suspense, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Send, Clock, CheckCircle2, XCircle, AlertCircle, AlertTriangle,
@@ -41,7 +41,10 @@ function formatDT(dt: string) {
 
 function RechazarModal({ sol, eeId, onClose, onOk }: { sol: any; eeId: number; onClose: () => void; onOk: () => void }) {
   const [motivo, setMotivo] = useState(""); const [loading, setLoading] = useState(false); const [err, setErr] = useState<string | null>(null);
+  const loadingRef = useRef(false);
   const ok = async () => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
     setLoading(true); setErr(null);
     try {
       const res = await fetch(`${API}/empresa/solicitudes/${sol.id}/rechazar`, {
@@ -50,7 +53,7 @@ function RechazarModal({ sol, eeId, onClose, onOk }: { sol: any; eeId: number; o
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
       onOk();
-    } catch (e: any) { setErr(e.message); } finally { setLoading(false); }
+    } catch (e: any) { setErr(e.message); } finally { loadingRef.current = false; setLoading(false); }
   };
   return (
     <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
@@ -77,8 +80,11 @@ function RechazarModal({ sol, eeId, onClose, onOk }: { sol: any; eeId: number; o
 function AceptarModal({ sol, eeId, onClose, onOk }: { sol: any; eeId: number; onClose: () => void; onOk: () => void }) {
   const [enviando, setEnviando] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const enviandoRef = useRef(false);
 
   const ok = async () => {
+    if (enviandoRef.current) return;
+    enviandoRef.current = true;
     setEnviando(true); setErr(null);
     try {
       const res = await fetch(`${API}/empresa/solicitudes/${sol.id}/aceptar`, {
@@ -87,7 +93,7 @@ function AceptarModal({ sol, eeId, onClose, onOk }: { sol: any; eeId: number; on
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
       onOk();
-    } catch (e: any) { setErr(e.message); } finally { setEnviando(false); }
+    } catch (e: any) { setErr(e.message); } finally { enviandoRef.current = false; setEnviando(false); }
   };
 
   return (
@@ -334,6 +340,7 @@ function SolicitudesContent() {
   const [modalRechazar, setModalRechazar] = useState<any | null>(null);
   const [modalAceptar, setModalAceptar] = useState<any | null>(null);
   const [cancelando, setCancelando] = useState<number | null>(null);
+  const cancelandoRef = useRef(false);
   const [toastMsg, setToastMsg] = useState<{ tipo: "ok" | "err"; msg: string } | null>(null);
   const [exitoMsg, setExitoMsg] = useState<string | null>(null);
 
@@ -415,7 +422,8 @@ function SolicitudesContent() {
   };
 
   const handleCancelar = async (solId: number) => {
-    if (!ctx) return;
+    if (!ctx || cancelandoRef.current) return;
+    cancelandoRef.current = true;
     setCancelando(solId);
     try {
       const res = await fetch(`${API}/empresa/solicitudes/${solId}/cancelar`, {
@@ -428,7 +436,7 @@ function SolicitudesContent() {
       toast("ok", "Solicitud cancelada correctamente.");
       recargar();
     } catch (e: any) { toast("err", e.message); }
-    finally { setCancelando(null); }
+    finally { cancelandoRef.current = false; setCancelando(null); }
   };
 
   if (loading) return (

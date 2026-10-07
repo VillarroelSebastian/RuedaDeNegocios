@@ -46,6 +46,11 @@ export default function GaleriaEvento({
   const [actualizandoLanding, setActualizandoLanding] = useState<number | null>(null);
   const [descargando, setDescargando] = useState(false);
   const [errorDescarga, setErrorDescarga] = useState("");
+  const [eliminando, setEliminando] = useState(false);
+  // Guards sincrónicos: un doble clic podía disparar la petición real dos
+  // veces antes de que el estado se re-renderizara.
+  const eliminandoRef = useRef(false);
+  const actualizandoLandingRef = useRef(false);
   const descargarTodas = async () => {
     setDescargando(true);setErrorDescarga("");
     try {
@@ -115,6 +120,9 @@ export default function GaleriaEvento({
   };
 
   const eliminar = async (foto: Foto) => {
+    if (eliminandoRef.current) return;
+    eliminandoRef.current = true;
+    setEliminando(true);
     try {
       const params = new URLSearchParams();
       if (esStaff) params.set("esStaff", "1");
@@ -127,10 +135,15 @@ export default function GaleriaEvento({
       onOk?.("Foto eliminada", "La foto se quitó de la galería.");
     } catch (e: any) {
       onError?.(e.message);
+    } finally {
+      eliminandoRef.current = false;
+      setEliminando(false);
     }
   };
 
   const toggleLanding = async (foto: Foto) => {
+    if (actualizandoLandingRef.current) return;
+    actualizandoLandingRef.current = true;
     setActualizandoLanding(foto.id);
     try {
       const nuevo = foto.visibleLanding ? 0 : 1;
@@ -148,6 +161,7 @@ export default function GaleriaEvento({
     } catch (e: any) {
       onError?.(e.message);
     } finally {
+      actualizandoLandingRef.current = false;
       setActualizandoLanding(null);
     }
   };
@@ -286,8 +300,8 @@ export default function GaleriaEvento({
                   </button>
                 )}
                 {puedeBorrar(ampliada) && (
-                  <button onClick={() => eliminar(ampliada)}
-                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-red-300 hover:text-red-200">
+                  <button onClick={() => eliminar(ampliada)} disabled={eliminando}
+                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-red-300 hover:text-red-200 disabled:opacity-50">
                     <Trash2 className="w-4 h-4" /> Eliminar
                   </button>
                 )}

@@ -69,6 +69,9 @@ export default function AsistenteChat({ eeId, euId }: { eeId: number | null; euI
   const [loading, setLoading] = useState(false);
   const [contexto, setContexto] = useState<any>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  // Guard sincrónico: evita que un doble clic en una opción rápida dispare el
+  // mismo mensaje dos veces antes de que `loading` se re-renderice.
+  const enviandoRef = useRef(false);
 
   useEffect(() => {
     if (open) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -80,7 +83,8 @@ export default function AsistenteChat({ eeId, euId }: { eeId: number | null; euI
     const ultimasOpciones = ultimoMensaje?.role === "bot" ? ultimoMensaje.opciones : undefined;
     const indice = /^\d+$/.test(escrito) ? Number(escrito) - 1 : -1;
     const t = indice >= 0 && ultimasOpciones?.[indice] ? ultimasOpciones[indice] : escrito;
-    if (!t || loading || !eeId) return;
+    if (!t || loading || !eeId || enviandoRef.current) return;
+    enviandoRef.current = true;
     setInput("");
     setMsgs((prev) => [...prev, { role: "user", text: t }]);
     setLoading(true);
@@ -103,6 +107,7 @@ export default function AsistenteChat({ eeId, euId }: { eeId: number | null; euI
     } catch {
       setMsgs((prev) => [...prev, { role: "bot", text: "Lo siento, no pude conectarme al servidor. Intenta de nuevo." }]);
     } finally {
+      enviandoRef.current = false;
       setLoading(false);
     }
   };

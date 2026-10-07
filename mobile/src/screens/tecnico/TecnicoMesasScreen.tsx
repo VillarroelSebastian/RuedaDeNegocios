@@ -321,11 +321,13 @@ export default function TecnicoMesasScreen() {
   const [msgModal, setMsgModal]  = useState<{ reunionId: number; empresa: 'A' | 'B'; empresaNombre: string; encargadoNombre: string } | null>(null);
   const [msgText,  setMsgText]   = useState('');
   const [sending,  setSending]   = useState(false);
+  const sendingRef = useRef(false);
 
   // Modal link
   const [linkModal,  setLinkModal]  = useState<{ reunion: any } | null>(null);
   const [linkText,   setLinkText]   = useState('');
   const [savingLink, setSavingLink] = useState(false);
+  const savingLinkRef = useRef(false);
 
   const fetchMesas = useCallback(async () => {
     try {
@@ -401,6 +403,8 @@ export default function TecnicoMesasScreen() {
 
   const sendMessage = async () => {
     if (!msgModal || !msgText.trim()) return;
+    if (sendingRef.current) return;
+    sendingRef.current = true;
     setSending(true);
     try {
       const res = await fetch(`${API_URL}/tecnico/reuniones/${msgModal.reunionId}/mensaje`, {
@@ -411,11 +415,13 @@ export default function TecnicoMesasScreen() {
       setMsgModal(null);
       showModal({ type: 'success', title: 'Mensaje enviado', message: `Mensaje enviado al encargado de ${msgModal.empresaNombre}.` });
     } catch { showModal({ type: 'error', title: 'Error', message: 'No se pudo enviar el mensaje. Intenta de nuevo.' }); }
-    finally { setSending(false); }
+    finally { setSending(false); sendingRef.current = false; }
   };
 
   const saveLink = async () => {
     if (!linkModal) return;
+    if (savingLinkRef.current) return;
+    savingLinkRef.current = true;
     setSavingLink(true);
     try {
       const res = await fetch(`${API_URL}/tecnico/reuniones/${linkModal.reunion.id}/link`, {
@@ -427,7 +433,7 @@ export default function TecnicoMesasScreen() {
       showModal({ type: 'success', title: 'Link actualizado', message: 'El enlace de la reunión fue actualizado correctamente.' });
       fetchMesas();
     } catch { showModal({ type: 'error', title: 'Error', message: 'No se pudo actualizar el link. Intenta de nuevo.' }); }
-    finally { setSavingLink(false); }
+    finally { setSavingLink(false); savingLinkRef.current = false; }
   };
 
   if (loading) {

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Check, X, Eye, AlertCircle, CheckCircle2, RefreshCw } from "lucide-react";
 import ImagenLightbox from "@/components/ui/ImagenLightbox";
 
@@ -26,6 +26,10 @@ export default function PagosAdicionales({ embedded = false }: { embedded?: bool
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [mensajeErr, setMensajeErr] = useState<string | null>(null);
   const [procesando, setProcesando] = useState<number | null>(null);
+  // Guard sincrónico: un doble clic en "Confirmar"/"Rechazar" podía disparar
+  // la petición real dos veces porque el estado `procesando` todavía no se
+  // había re-renderizado cuando llegaba el segundo clic.
+  const procesandoRef = useRef(false);
   const [modalObs, setModalObs] = useState<{ id: number } | null>(null);
   const [observacion, setObservacion] = useState("");
   const [modalAprobar, setModalAprobar] = useState<number | null>(null);
@@ -49,7 +53,8 @@ export default function PagosAdicionales({ embedded = false }: { embedded?: bool
   useEffect(() => { cargar(); }, [cargar]);
 
   const confirmarAprobar = async () => {
-    if (!modalAprobar) return;
+    if (!modalAprobar || procesandoRef.current) return;
+    procesandoRef.current = true;
     const id = modalAprobar;
     setModalAprobar(null);
     setProcesando(id);
@@ -61,11 +66,12 @@ export default function PagosAdicionales({ embedded = false }: { embedded?: bool
       setTimeout(() => setMensaje(null), 4000);
       cargar();
     } catch (e: any) { setMensajeErr(e.message); setTimeout(() => setMensajeErr(null), 5000); }
-    finally { setProcesando(null); }
+    finally { procesandoRef.current = false; setProcesando(null); }
   };
 
   const confirmarRechazar = async () => {
-    if (!modalRechazar) return;
+    if (!modalRechazar || procesandoRef.current) return;
+    procesandoRef.current = true;
     const id = modalRechazar.id;
     const motivo = motivoRechazo.trim() || undefined;
     setModalRechazar(null); setMotivoRechazo("");
@@ -81,12 +87,13 @@ export default function PagosAdicionales({ embedded = false }: { embedded?: bool
       setTimeout(() => setMensaje(null), 3000);
       cargar();
     } catch (e: any) { setMensajeErr(e.message); setTimeout(() => setMensajeErr(null), 5000); }
-    finally { setProcesando(null); }
+    finally { procesandoRef.current = false; setProcesando(null); }
   };
 
   const observar = async () => {
-    if (!modalObs) return;
+    if (!modalObs || procesandoRef.current) return;
     if (!observacion.trim()) { setMensajeErr("La observacion es requerida"); return; }
+    procesandoRef.current = true;
     setProcesando(modalObs.id);
     try {
       const res = await fetch(`${API}/admin/pagos-adicionales/${modalObs.id}/observar`, {
@@ -101,7 +108,7 @@ export default function PagosAdicionales({ embedded = false }: { embedded?: bool
       setObservacion("");
       cargar();
     } catch (e: any) { setMensajeErr(e.message); setTimeout(() => setMensajeErr(null), 5000); }
-    finally { setProcesando(null); }
+    finally { procesandoRef.current = false; setProcesando(null); }
   };
 
   return (
@@ -121,7 +128,7 @@ export default function PagosAdicionales({ embedded = false }: { embedded?: bool
             </div>
             <div className="flex gap-3">
               <button onClick={() => setModalAprobar(null)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50">Cancelar</button>
-              <button onClick={confirmarAprobar} className="flex-1 py-2.5 rounded-xl bg-green-600 hover:bg-green-700 text-white text-sm font-bold">Confirmar</button>
+              <button onClick={confirmarAprobar} disabled={!!procesando} className="flex-1 py-2.5 rounded-xl bg-green-600 hover:bg-green-700 text-white text-sm font-bold disabled:opacity-50">Confirmar</button>
             </div>
           </div>
         </div>
@@ -137,7 +144,7 @@ export default function PagosAdicionales({ embedded = false }: { embedded?: bool
               className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-300 resize-none" />
             <div className="flex gap-3">
               <button onClick={() => { setModalRechazar(null); setMotivoRechazo(""); }} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50">Cancelar</button>
-              <button onClick={confirmarRechazar} className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-bold">Rechazar</button>
+              <button onClick={confirmarRechazar} disabled={!!procesando} className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-bold disabled:opacity-50">Rechazar</button>
             </div>
           </div>
         </div>

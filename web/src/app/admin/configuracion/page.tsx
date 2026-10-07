@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { User, Lock, Camera, Save, LogOut, Mail, KeyRound, CheckCircle2, X, Eye, EyeOff, Send } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useModal } from '@/components/ui/Modal';
@@ -24,6 +24,7 @@ export default function ConfiguracionPage() {
   const [user, setUser] = useState<any>(null);
   const [form, setForm] = useState({ nombres: '', apellidoPaterno: '', apellidoMaterno: '', correo: '', telefono: '', urlFotoPerfil: '' });
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [uploading, setUploading] = useState(false);
   const [tab, setTab] = useState<'perfil' | 'seguridad'>('perfil');
 
@@ -37,6 +38,8 @@ export default function ConfiguracionPage() {
   const [showConf, setShowConf] = useState(false);
   const [resetError, setResetError] = useState('');
   const [resetLoading, setResetLoading] = useState(false);
+  const resetLoadingRef = useRef(false);
+  const enviandoCodigoRef = useRef(false);
 
   useEffect(() => {
     const stored = localStorage.getItem('adminUser');
@@ -71,6 +74,8 @@ export default function ConfiguracionPage() {
       );
       return;
     }
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     try {
       const res = await fetch(`${API}/admin/perfil/${user.id}`, {
@@ -89,11 +94,12 @@ export default function ConfiguracionPage() {
         setTimeout(handleLogout, 1800);
       } else showSuccess('Perfil actualizado', 'Los cambios se guardaron correctamente.');
     } catch (e: any) { showError('Error', e.message || 'No se pudo actualizar el perfil.'); }
-    finally { setSaving(false); }
+    finally { savingRef.current = false; setSaving(false); }
   };
 
   const handleEnviarCodigo = async () => {
-    if (!user?.correo) return;
+    if (!user?.correo || enviandoCodigoRef.current) return;
+    enviandoCodigoRef.current = true;
     setResetStep('sending');
     try {
       await fetch(`${API}/auth/solicitar-reset`, {
@@ -107,6 +113,8 @@ export default function ConfiguracionPage() {
     } catch {
       setResetStep('idle');
       showError('Error', 'No se pudo enviar el correo. Intenta de nuevo.');
+    } finally {
+      enviandoCodigoRef.current = false;
     }
   };
 
@@ -115,6 +123,8 @@ export default function ConfiguracionPage() {
     if (codigo.length !== 6) { setResetError('Ingresa el código de 6 dígitos.'); return; }
     if (nuevaPass.length < 6) { setResetError('La contraseña debe tener al menos 6 caracteres.'); return; }
     if (nuevaPass !== confirmar) { setResetError('Las contraseñas no coinciden.'); return; }
+    if (resetLoadingRef.current) return;
+    resetLoadingRef.current = true;
     setResetLoading(true);
     try {
       const res = await fetch(`${API}/auth/confirmar-reset`, {
@@ -127,7 +137,7 @@ export default function ConfiguracionPage() {
       setResetStep('success');
     } catch (e: any) {
       setResetError(e.message);
-    } finally { setResetLoading(false); }
+    } finally { resetLoadingRef.current = false; setResetLoading(false); }
   };
 
   const closeResetModal = () => {
@@ -146,7 +156,7 @@ export default function ConfiguracionPage() {
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
-      <ModalComponent />
+      {ModalComponent}
 
       {/* ── Modal cambio de contraseña ──────────────────────────────────────── */}
       {modalOpen && (

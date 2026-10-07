@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, Suspense } from "react";
+import React, { useState, useEffect, useMemo, useRef, Suspense } from "react";
 import {
   Building2, Search, Check, CheckCircle2, AlertCircle, Users, Monitor,
   ChevronLeft, Table2, CalendarPlus, Send,
@@ -138,6 +138,7 @@ function TecnicoAgendarPageInner() {
   const [enlace, setEnlace] = useState("");
   const [mensaje, setMensaje] = useState("");
   const [enviando, setEnviando] = useState(false);
+  const enviandoRef = useRef(false);
   const [err, setErr] = useState<string | null>(null);
   const [exito, setExito] = useState<string | null>(null);
 
@@ -256,7 +257,8 @@ function TecnicoAgendarPageInner() {
   }, [tipo, mesa, fechaSelec]);
 
   const crear = async () => {
-    if (!empA || !empB || !horario) return;
+    if (!empA || !empB || !horario || enviandoRef.current) return;
+    enviandoRef.current = true;
     setErr(null);
     setEnviando(true);
     try {
@@ -275,7 +277,7 @@ function TecnicoAgendarPageInner() {
       if (!res.ok) throw new Error(data.message ?? "Error al crear la reunión");
       setExito(`Reunión creada entre ${empA.nombre} y ${empB.nombre} para el ${fmtOnlyDate(horario.inicio)} a las ${fmtTime(horario.inicio)}. Ambas empresas fueron notificadas.`);
     } catch (e: any) { setErr(e.message); }
-    finally { setEnviando(false); }
+    finally { enviandoRef.current = false; setEnviando(false); }
   };
 
   const reiniciar = () => {

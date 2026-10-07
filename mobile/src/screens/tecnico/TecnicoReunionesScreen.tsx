@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, ActivityIndicator,
   RefreshControl, Image, Modal as RNModal, TextInput, Linking,
@@ -190,6 +190,9 @@ export default function TecnicoReunionesScreen({ embedded = false }: { embedded?
   const [evaluando, setEvaluando] = useState<any>(null);
   const [evaluacion, setEvaluacion] = useState<any>({ calificacionA:0, rangoA:'', observacionesA:'', calificacionB:0, rangoB:'', observacionesB:'' });
   const [guardando, setGuardando] = useState(false);
+  const guardarEdicionRef = useRef(false);
+  const guardarEvaluacionRef = useRef(false);
+  const cambiandoEstadoRef = useRef(false);
   const [editando,setEditando]=useState<any>(null),[horarios,setHorarios]=useState<any[]>([]),[mesas,setMesas]=useState<any[]>([]),[inicio,setInicio]=useState(''),[mesaId,setMesaId]=useState<number|null>(null),[cargandoEdicion,setCargandoEdicion]=useState(false),[errorEdicion,setErrorEdicion]=useState('');
   async function abrirEditar(r:any){
     setEditando(r);setInicio('');setMesaId(r.mesa_id);setHorarios([]);setMesas([]);setErrorEdicion('');setCargandoEdicion(true);
@@ -205,12 +208,14 @@ export default function TecnicoReunionesScreen({ embedded = false }: { embedded?
   }
   async function guardarEdicion(){
     if(!inicio||!editando)return;
+    if(guardarEdicionRef.current)return;
+    guardarEdicionRef.current=true;
     setGuardando(true);setErrorEdicion('');
     try{
       const res=await fetch(API_URL+'/tecnico/reuniones/'+editando.id+'/reprogramar',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({inicio,mesaId})});
       const d=await res.json();if(!res.ok)throw new Error(d.message||'No se pudo reprogramar.');
       setEditando(null);void fetchReuniones();setModal({visible:true,type:'success',title:'Reunión actualizada',message:'Se avisó a ambas empresas del nuevo horario.'});
-    }catch(e:any){setErrorEdicion(e.message);}finally{setGuardando(false);}
+    }catch(e:any){setErrorEdicion(e.message);}finally{setGuardando(false);guardarEdicionRef.current=false;}
   }
   function eliminarReunion(r:any){
     Alert.alert('Eliminar reunión','Se liberará la mesa y se avisará a ambas empresas.',[
@@ -241,6 +246,8 @@ export default function TecnicoReunionesScreen({ embedded = false }: { embedded?
       setEvaluando(reuniones.find((r) => r.id === id) ?? null);
       return;
     }
+    if (cambiandoEstadoRef.current) return;
+    cambiandoEstadoRef.current = true;
     try {
       const res = await fetch(`${API_URL}/tecnico/reuniones/${id}/estado`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -251,6 +258,8 @@ export default function TecnicoReunionesScreen({ embedded = false }: { embedded?
       fetchReuniones();
     } catch {
       setModal({ visible:true, type:'error', title:'Error', message:'No se pudo actualizar el estado.' });
+    } finally {
+      cambiandoEstadoRef.current = false;
     }
   };
 
@@ -258,6 +267,8 @@ export default function TecnicoReunionesScreen({ embedded = false }: { embedded?
     if (!evaluando || !evaluacion.calificacionA || !evaluacion.calificacionB || !evaluacion.rangoA.trim() || !evaluacion.rangoB.trim() || !evaluacion.observacionesA.trim() || !evaluacion.observacionesB.trim()) {
       setModal({ visible:true, type:'error', title:'Datos incompletos', message:'Completa la evaluación de ambas empresas.' }); return;
     }
+    if (guardarEvaluacionRef.current) return;
+    guardarEvaluacionRef.current = true;
     setGuardando(true);
     try {
       const res = await fetch(`${API_URL}/tecnico/reuniones/${evaluando.id}/finalizar-evaluar`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(evaluacion) });
@@ -266,7 +277,7 @@ export default function TecnicoReunionesScreen({ embedded = false }: { embedded?
       setEvaluando(null); setEvaluacion({ calificacionA:0, rangoA:'', observacionesA:'', calificacionB:0, rangoB:'', observacionesB:'' });
       setModal({ visible:true, type:'success', title:'Reunión finalizada', message:'Se guardaron las evaluaciones de ambas empresas.' }); fetchReuniones();
     } catch (e:any) { setModal({ visible:true, type:'error', title:'Error', message:e.message }); }
-    finally { setGuardando(false); }
+    finally { setGuardando(false); guardarEvaluacionRef.current = false; }
   };
 
   const estados = ['TODOS','PROGRAMADA','REPROGRAMADA','EN_CURSO','FINALIZADA','CANCELADA'];

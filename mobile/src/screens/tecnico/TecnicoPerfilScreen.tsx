@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, Image,
   TextInput, Modal as RNModal, ActivityIndicator, KeyboardAvoidingView, Platform,
@@ -86,6 +86,8 @@ export default function TecnicoPerfilScreen({ navigation }: any) {
   const [telefono,         setTelefono]         = useState(user?.telefono        ?? '');
   const [urlFoto,          setUrlFoto]          = useState(user?.urlFotoPerfil   ?? '');
   const [savingPerfil,     setSavingPerfil]     = useState(false);
+  const savingPerfilRef = useRef(false);
+  const savingPwRef = useRef(false);
   const [uploadingPhoto,   setUploadingPhoto]   = useState(false);
 
   const handleLogout = () => {
@@ -133,6 +135,8 @@ export default function TecnicoPerfilScreen({ navigation }: any) {
       setModal({ visible: true, type: 'error', title: 'Campos requeridos', message: 'Nombres y apellido paterno son obligatorios.' });
       return;
     }
+    if (savingPerfilRef.current) return;
+    savingPerfilRef.current = true;
     setSavingPerfil(true);
     try {
       const res = await fetch(`${API_URL}/admin/perfil/${user?.id}`, {
@@ -155,6 +159,7 @@ export default function TecnicoPerfilScreen({ navigation }: any) {
       setModal({ visible: true, type: 'error', title: 'Error', message: err.message ?? 'No se pudo guardar el perfil.' });
     } finally {
       setSavingPerfil(false);
+      savingPerfilRef.current = false;
     }
   };
 
@@ -172,6 +177,8 @@ export default function TecnicoPerfilScreen({ navigation }: any) {
       setModal({ visible: true, type: 'error', title: 'Error', message: 'La nueva contraseña debe tener al menos 6 caracteres.' });
       return;
     }
+    if (savingPwRef.current) return;
+    savingPwRef.current = true;
     setSavingPw(true);
     try {
       const res = await fetch(`${API_URL}/admin/perfil/${user?.id}`, {
@@ -187,7 +194,7 @@ export default function TecnicoPerfilScreen({ navigation }: any) {
     } catch (err: any) {
       setModal({ visible: true, type: 'error', title: 'Error', message: err.message ?? 'No se pudo cambiar la contraseña.' });
     } finally {
-      setSavingPw(false); }
+      setSavingPw(false); savingPwRef.current = false; }
   };
 
   const initials = `${nombres?.[0] ?? ''}${apellidoPaterno?.[0] ?? ''}`.toUpperCase();

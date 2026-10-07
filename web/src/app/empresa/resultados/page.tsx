@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Star, CheckCircle2, AlertCircle, Calendar, Building2, Clock, Award } from "lucide-react";
 
@@ -70,6 +70,7 @@ function ResultadosContent() {
     observaciones: string;
   }>({ reunionId: null, calificacion: 0, rango: "", observaciones: "" });
   const [guardando, setGuardando] = useState(false);
+  const guardandoRef = useRef(false);
   const [exito, setExito] = useState<string | null>(null);
   const [errForm, setErrForm] = useState<string | null>(null);
 
@@ -110,11 +111,13 @@ function ResultadosContent() {
   const yaEvaluadas = reuniones.filter((r) => r.miResultado !== null);
 
   const handleGuardar = async () => {
+    if (guardandoRef.current) return;
     setErrForm(null); setExito(null);
     if (!formulario.reunionId) { setErrForm("Selecciona una reunión."); return; }
     if (formulario.calificacion === 0) { setErrForm("Selecciona una calificación (1-5 estrellas)."); return; }
     if (!formulario.rango) { setErrForm("Selecciona el rango de acuerdo comercial."); return; }
 
+    guardandoRef.current = true;
     setGuardando(true);
     try {
       const res = await fetch(`${API}/empresa/resultados`, {
@@ -135,7 +138,7 @@ function ResultadosContent() {
       setFormulario({ reunionId: null, calificacion: 0, rango: "", observaciones: "" });
       await cargar(ctx.empresaeventoId);
     } catch (e: any) { setErrForm(e.message); }
-    finally { setGuardando(false); }
+    finally { guardandoRef.current = false; setGuardando(false); }
   };
 
   if (loading) return (

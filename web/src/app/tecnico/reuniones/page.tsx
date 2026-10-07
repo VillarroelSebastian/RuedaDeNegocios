@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Building2, Clock, Video, MapPin, CheckCircle, AlertCircle, X, ChevronDown, Star, Pencil } from 'lucide-react';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
@@ -212,6 +212,11 @@ export default function TecnicoReunionesPage({ embedded = false }: { embedded?: 
   const [editando, setEditando] = useState<any>(null);
   const [nuevoHorario, setNuevoHorario] = useState('');
   const [guardandoEdicion, setGuardandoEdicion] = useState(false);
+  const guardandoEvaluacionRef = useRef(false);
+  const guardandoEdicionRef = useRef(false);
+  const [eliminando, setEliminando] = useState(false);
+  const eliminandoRef = useRef(false);
+  const cambiandoEstadoRef = useRef(false);
 
   const fetchReuniones = useCallback(async () => {
     setLoading(true);
@@ -230,6 +235,9 @@ export default function TecnicoReunionesPage({ embedded = false }: { embedded?: 
 
   const [porEliminar,setPorEliminar]=useState<any>(null);
   const eliminarReunion = async (r: any) => {
+    if (eliminandoRef.current) return;
+    eliminandoRef.current = true;
+    setEliminando(true);
     setPorEliminar(null);
     try {
       const res = await fetch(API + "/tecnico/reuniones/" + r.id, {method:"DELETE"});
@@ -238,6 +246,7 @@ export default function TecnicoReunionesPage({ embedded = false }: { embedded?: 
       setReuniones(prev=>prev.filter(x=>x.id!==r.id));
       setModal({visible:true,type:"success",title:"Reunión eliminada",message:"La mesa quedó disponible y las empresas fueron notificadas."});
     } catch(e: any) {setModal({visible:true,type:"error",title:"No se pudo eliminar",message:e.message});}
+    finally { eliminandoRef.current = false; setEliminando(false); }
   };
 
   const handleCambiarEstado = async (id: number, estado: string) => {
@@ -246,6 +255,8 @@ export default function TecnicoReunionesPage({ embedded = false }: { embedded?: 
       if (reunion) setEvaluando(reunion);
       return;
     }
+    if (cambiandoEstadoRef.current) return;
+    cambiandoEstadoRef.current = true;
     try {
       const res = await fetch(`${API}/tecnico/reuniones/${id}/estado`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -257,15 +268,18 @@ export default function TecnicoReunionesPage({ embedded = false }: { embedded?: 
       fetchReuniones();
     } catch (e: any) {
       setModal({ visible:true, type:'error', title:'Error', message:e?.message || 'No se pudo actualizar el estado.' });
+    } finally {
+      cambiandoEstadoRef.current = false;
     }
   };
 
   const guardarEvaluacion = async () => {
-    if (!evaluando) return;
+    if (!evaluando || guardandoEvaluacionRef.current) return;
     if (!evaluacion.calificacionA || !evaluacion.calificacionB || !evaluacion.rangoA.trim() || !evaluacion.rangoB.trim() || !evaluacion.observacionesA.trim() || !evaluacion.observacionesB.trim()) {
       setModal({ visible:true, type:'error', title:'Datos incompletos', message:'Califica y completa el rango y las observaciones de ambas empresas.' });
       return;
     }
+    guardandoEvaluacionRef.current = true;
     setGuardandoEvaluacion(true);
     try {
       const res = await fetch(`${API}/tecnico/reuniones/${evaluando.id}/finalizar-evaluar`, {
@@ -279,7 +293,7 @@ export default function TecnicoReunionesPage({ embedded = false }: { embedded?: 
       fetchReuniones();
     } catch (error: any) {
       setModal({ visible:true, type:'error', title:'No se pudo finalizar', message:error.message });
-    } finally { setGuardandoEvaluacion(false); }
+    } finally { guardandoEvaluacionRef.current = false; setGuardandoEvaluacion(false); }
   };
 
   const abrirEditar = (r: any) => {
@@ -288,7 +302,8 @@ export default function TecnicoReunionesPage({ embedded = false }: { embedded?: 
   };
 
   const guardarEdicion = async () => {
-    if (!editando || !nuevoHorario) return;
+    if (!editando || !nuevoHorario || guardandoEdicionRef.current) return;
+    guardandoEdicionRef.current = true;
     setGuardandoEdicion(true);
     try {
       const res = await fetch(`${API}/tecnico/reuniones/${editando.id}/reprogramar`, {
@@ -302,7 +317,7 @@ export default function TecnicoReunionesPage({ embedded = false }: { embedded?: 
       fetchReuniones();
     } catch (error: any) {
       setModal({ visible:true, type:'error', title:'No se pudo reprogramar', message:error.message });
-    } finally { setGuardandoEdicion(false); }
+    } finally { guardandoEdicionRef.current = false; setGuardandoEdicion(false); }
   };
 
   const estados = ['TODOS', 'PROGRAMADA', 'REPROGRAMADA', 'EN_CURSO', 'FINALIZADA', 'CANCELADA'];
@@ -313,7 +328,7 @@ export default function TecnicoReunionesPage({ embedded = false }: { embedded?: 
 
   return (
     <div className={embedded ? "" : "p-6 max-w-6xl mx-auto"}>
-      {porEliminar && <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4"><div role="dialog" aria-modal="true" aria-labelledby="eliminar-reunion" className="w-full max-w-sm rounded-2xl bg-white p-6"><h2 id="eliminar-reunion" className="text-lg font-bold">Eliminar reunión</h2><p className="my-4 text-sm">Se liberará la mesa y se avisará a ambas empresas.</p><div className="flex gap-3"><button onClick={()=>setPorEliminar(null)} className="flex-1 rounded-xl border p-3">Volver</button><button onClick={()=>void eliminarReunion(porEliminar)} className="flex-1 rounded-xl bg-red-600 p-3 text-white">Eliminar</button></div></div></div>}
+      {porEliminar && <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4"><div role="dialog" aria-modal="true" aria-labelledby="eliminar-reunion" className="w-full max-w-sm rounded-2xl bg-white p-6"><h2 id="eliminar-reunion" className="text-lg font-bold">Eliminar reunión</h2><p className="my-4 text-sm">Se liberará la mesa y se avisará a ambas empresas.</p><div className="flex gap-3"><button onClick={()=>setPorEliminar(null)} className="flex-1 rounded-xl border p-3">Volver</button><button onClick={()=>void eliminarReunion(porEliminar)} disabled={eliminando} className="flex-1 rounded-xl bg-red-600 p-3 text-white disabled:opacity-50">{eliminando ? "Eliminando..." : "Eliminar"}</button></div></div></div>}
       <Modal {...modal} onClose={() => setModal((m: any) => ({ ...m, visible:false }))} />
       {evaluando && (() => {
         const sol = evaluando.solicitudreunion;

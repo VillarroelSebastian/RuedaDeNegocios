@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CalendarClock, CheckCircle2, Copy, Info, Plus, Power, Trash2 } from "lucide-react";
 import { useModal } from "@/components/ui/Modal";
 
@@ -15,6 +15,7 @@ export default function EmpresaHorariosPage() {
   const [configurado, setConfigurado] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
+  const guardandoRef = useRef(false);
 
   const cargar = useCallback(async (id: number) => {
     setCargando(true);
@@ -57,11 +58,12 @@ export default function EmpresaHorariosPage() {
   };
 
   const guardar = async () => {
-    if (!eeId) return;
+    if (!eeId || guardandoRef.current) return;
     const invalido = dias.some((dia) => dia.habilitado && (
       dia.rangos.length === 0 || dia.rangos.some((r) => !r.desde || !r.hasta || r.desde >= r.hasta)
     ));
     if (invalido) return showError("Revisa tus horarios", "Cada día habilitado debe tener al menos un rango válido.");
+    guardandoRef.current = true;
     setGuardando(true);
     try {
       const res = await fetch(`${API}/empresa/horarios-empresa/dias`, {
@@ -72,11 +74,11 @@ export default function EmpresaHorariosPage() {
       setDias(data.dias); setConfigurado(true);
       showSuccess("Disponibilidad guardada", "Las demás empresas ya verán esta agenda al solicitarte una reunión.");
     } catch (e: any) { showError("No se pudo guardar", e.message); }
-    finally { setGuardando(false); }
+    finally { guardandoRef.current = false; setGuardando(false); }
   };
 
   return <div className="mx-auto max-w-5xl space-y-5 p-4 sm:p-6">
-    <ModalComponent />
+    {ModalComponent}
     <div>
       <h1 className="flex items-center gap-2 text-2xl font-extrabold text-gray-900"><CalendarClock className="h-6 w-6 text-[#449D3A]" />Mi agenda disponible</h1>
       <p className="mt-1 text-sm text-gray-500">Elige los rangos en los que tu empresa acepta reuniones durante cada día del evento.</p>

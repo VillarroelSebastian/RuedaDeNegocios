@@ -21,6 +21,9 @@ export default function TecnicoHeader() {
   const profileRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
+  // Guard sincrónico: evita que un doble clic en la campanita dispare la
+  // petición de marcar notificaciones como vistas dos veces.
+  const marcandoVistasRef = useRef(false);
 
   useEffect(() => {
     const stored = localStorage.getItem('tecnicoUser');
@@ -42,8 +45,11 @@ export default function TecnicoHeader() {
   };
 
   const marcarVistas = async () => {
+    if (marcandoVistasRef.current) return;
+    marcandoVistasRef.current = true;
     setNoLeidas(0);
     try { await fetch(`${API}/tecnico/notificaciones-reuniones/marcar-vistas`, { method: 'PUT' }); } catch {}
+    finally { marcandoVistasRef.current = false; }
   };
 
   const cargarMensajesNoLeidos = async () => {

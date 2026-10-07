@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Info, LayoutGrid, CreditCard, QrCode, Plus, Trash2, Save, Image as ImageIcon } from 'lucide-react';
 import { useRouter, useParams } from 'next/navigation';
 import styles from './ConfiguracionEvento.module.css';
@@ -65,6 +65,7 @@ export default function ConfiguracionDeEventoPage() {
   
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [formData, setFormData] = useState({
     id: 0,
     nombre: '',
@@ -104,7 +105,7 @@ export default function ConfiguracionDeEventoPage() {
 
   const [uploadingField, setUploadingField] = useState<string | null>(null);
   const [previewImg, setPreviewImg] = useState<string | null>(null);
-  const { modal, showModal, closeModal } = useModal();
+  const { modal, generation, showModal, closeModal } = useModal();
 
   useEffect(() => {
     if (isNew) return;
@@ -261,6 +262,8 @@ export default function ConfiguracionDeEventoPage() {
       showModal('warning', 'Período de inscripción inválido', 'El inicio del período de inscripciones debe ser anterior a la fecha límite.');
       return;
     }
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     
     // Helper: convert empty strings to null for optional fields
@@ -339,6 +342,7 @@ export default function ConfiguracionDeEventoPage() {
     } catch (err) {
       showModal('error', 'Sin Conexión', 'No se pudo conectar con el servidor. Verifica tu conexión.');
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
@@ -765,6 +769,7 @@ export default function ConfiguracionDeEventoPage() {
         title={modal.title}
         message={modal.message}
         onConfirm={modal.onConfirm}
+        generation={generation}
       />
 
       {previewImg && (

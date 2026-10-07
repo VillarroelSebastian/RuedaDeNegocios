@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { Package, Check, Users, Armchair, Star, Globe, X as XIcon, TrendingUp, AlertCircle, Upload, FileText, Clock } from "lucide-react";
 import ImagenLightbox from "@/components/ui/ImagenLightbox";
 
@@ -41,6 +41,7 @@ function MejorarPaqueteModal({ eeId, euEncargadoId, mejoras, onClose, onOk }: {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  const enviandoRef = useRef(false);
   const [err, setErr] = useState<string | null>(null);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -65,9 +66,11 @@ function MejorarPaqueteModal({ eeId, euEncargadoId, mejoras, onClose, onOk }: {
   };
 
   const submit = async () => {
+    if (enviandoRef.current) return;
     setErr(null);
     if (!seleccionado) { setErr("Selecciona el paquete al que quieres mejorar"); return; }
     if (!urlComprobante.trim()) { setErr("Debes subir el comprobante de pago"); return; }
+    enviandoRef.current = true;
     setEnviando(true);
     try {
       const res = await fetch(`${API}/empresa/mi-paquete/mejorar`, {
@@ -81,6 +84,7 @@ function MejorarPaqueteModal({ eeId, euEncargadoId, mejoras, onClose, onOk }: {
     } catch (e: any) {
       setErr(e.message);
     } finally {
+      enviandoRef.current = false;
       setEnviando(false);
     }
   };

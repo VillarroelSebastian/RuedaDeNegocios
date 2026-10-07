@@ -48,7 +48,6 @@ export default function PagoDetailPage() {
         finally { setSubmitting(false); }
       },
       'success',
-      true,
     );
   };
 
@@ -143,7 +142,7 @@ export default function PagoDetailPage() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
-      <ModalComponent />
+      {ModalComponent}
       {verFicha && pago.empresa?.id && (
         <FichaEmpresaModal empresaId={pago.empresa.id} onClose={() => setVerFicha(false)} />
       )}

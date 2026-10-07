@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, ActivityIndicator,
   RefreshControl, Image, TextInput, Linking, Modal, KeyboardAvoidingView, Platform,
@@ -204,6 +204,7 @@ function VirtualCard({ r, acting, onEditLink, onMessage, onCambiarEstado }: {
 function LinkModal({ reunion, onClose, onGuardado }: { reunion: any; onClose: () => void; onGuardado: () => void }) {
   const [enlace, setEnlace] = useState(reunion?.solicitudreunion?.enlaceReunionVirtual ?? '');
   const [guardando, setGuardando] = useState(false);
+  const guardandoRef = useRef(false);
   const [err, setErr] = useState('');
 
   const guardar = async () => {
@@ -216,6 +217,8 @@ function LinkModal({ reunion, onClose, onGuardado }: { reunion: any; onClose: ()
       setErr('El enlace debe ser una URL segura que comience con https://');
       return;
     }
+    if (guardandoRef.current) return;
+    guardandoRef.current = true;
     setGuardando(true);
     try {
       const res = await fetch(`${API_URL}/tecnico/reuniones/${reunion.id}/link`, {
@@ -230,6 +233,7 @@ function LinkModal({ reunion, onClose, onGuardado }: { reunion: any; onClose: ()
       setErr(error instanceof Error ? error.message : 'No se pudo guardar el enlace.');
     } finally {
       setGuardando(false);
+      guardandoRef.current = false;
     }
   };
 
@@ -293,6 +297,7 @@ export default function TecnicoVirtualesScreen() {
   const [msgModal, setMsgModal] = useState<{ reunionId: number; empresa: 'A' | 'B'; empresaNombre: string; encargadoNombre: string } | null>(null);
   const [msgText,  setMsgText]  = useState('');
   const [sending,  setSending]  = useState(false);
+  const sendingRef = useRef(false);
   const [acting,   setActing]   = useState(false);
 
   const fetchReuniones = useCallback(async () => {
@@ -318,6 +323,8 @@ export default function TecnicoVirtualesScreen() {
 
   const sendMessage = async () => {
     if (!msgModal || !msgText.trim()) return;
+    if (sendingRef.current) return;
+    sendingRef.current = true;
     setSending(true);
     try {
       const res = await fetch(`${API_URL}/tecnico/reuniones/${msgModal.reunionId}/mensaje`, {
@@ -328,7 +335,7 @@ export default function TecnicoVirtualesScreen() {
       setMsgModal(null);
       showModal({ type: 'success', title: 'Mensaje enviado', message: `Mensaje enviado al encargado de ${msgModal.empresaNombre}.` });
     } catch { showModal({ type: 'error', title: 'Error', message: 'No se pudo enviar el mensaje. Intenta de nuevo.' }); }
-    finally { setSending(false); }
+    finally { setSending(false); sendingRef.current = false; }
   };
 
   const cambiarEstado = (reunion: any, estado: string) => {

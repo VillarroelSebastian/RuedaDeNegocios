@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, RefreshControl, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Handshake, Plus, X } from 'lucide-react-native';
 import { useModal } from '../../components/AppModal';
@@ -19,6 +19,7 @@ export default function AuspiciadoresScreen() {
   const [editId, setEditId] = useState<number | null>(null);
   const [reenviando, setReenviando] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
+  const guardandoRef = useRef(false);
   const [form, setForm] = useState({ ...formVacio });
   const [personas, setPersonas] = useState<Persona[]>([personaVacia()]);
 
@@ -64,9 +65,10 @@ export default function AuspiciadoresScreen() {
     setPersonas((actuales) => actuales.map((p, j) => j === i ? { ...p, [campo]: valor } : p));
 
   const guardar = async () => {
-    if (saving) return;
+    if (guardandoRef.current) return;
     const error = validarAuspiciador(form, personas);
     if (error) return show({ type: 'warning', title: 'Revisa los campos', message: error });
+    guardandoRef.current = true;
     setSaving(true);
     try {
       const personasEnvio = personas.map((p) => ({
@@ -87,7 +89,7 @@ export default function AuspiciadoresScreen() {
       }
       show({ type: 'success', title: editId ? 'Auspiciador actualizado' : 'Auspiciador registrado', message: editId ? 'Los cambios fueron guardados.' : 'El servidor de correo acepto las credenciales. Revisa tambien Spam o Correo no deseado.' });
     } catch (e: any) { show({ type: 'error', title: 'No se pudo guardar', message: e.message }); }
-    finally { setSaving(false); }
+    finally { setSaving(false); guardandoRef.current = false; }
   };
 
   const reenviar = (a: any) => show({

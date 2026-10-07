@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   ActivityIndicator, RefreshControl, StyleSheet, Image,
@@ -36,7 +36,9 @@ export default function EmpresaMiPaqueteScreen() {
   const [seleccionado, setSeleccionado] = useState<any>(null);
   const [urlComprobante, setUrlComprobante] = useState('');
   const [subiendo, setSubiendo] = useState(false);
+  const subiendoRef = useRef(false);
   const [enviando, setEnviando] = useState(false);
+  const enviandoRef = useRef(false);
 
   const fetchAll = useCallback(async () => {
     setError('');
@@ -71,11 +73,13 @@ export default function EmpresaMiPaqueteScreen() {
   useFocusEffect(useCallback(() => { fetchAll(); }, [fetchAll]));
 
   const elegirComprobante = async () => {
+    if (subiendoRef.current) return;
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) { show({ type: 'error', title: 'Permiso necesario', message: 'Se necesita permiso para acceder a la galería.' }); return; }
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.85 });
     if (result.canceled || !result.assets?.length) return;
     const asset = result.assets[0];
+    subiendoRef.current = true;
     setSubiendo(true);
     try {
       const fd = new FormData();
@@ -88,11 +92,14 @@ export default function EmpresaMiPaqueteScreen() {
       show({ type: 'error', title: 'Error al subir', message: e.message || 'No se pudo subir el comprobante.' });
     } finally {
       setSubiendo(false);
+      subiendoRef.current = false;
     }
   };
 
   const enviarMejora = async () => {
+    if (enviandoRef.current) return;
     if (!seleccionado || !urlComprobante || !ctx) return;
+    enviandoRef.current = true;
     setEnviando(true);
     try {
       const res = await fetch(`${API_URL}/empresa/mi-paquete/mejorar`, {
@@ -114,6 +121,7 @@ export default function EmpresaMiPaqueteScreen() {
       show({ type: 'error', title: 'No se pudo enviar', message: e.message || 'Intenta nuevamente.' });
     } finally {
       setEnviando(false);
+      enviandoRef.current = false;
     }
   };
 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { UserPlus, Plus, Pencil, Trash2, X, Mail, Phone, Package, Eye, Clock, CheckCircle, AlertCircle, XCircle, CreditCard, Users } from "lucide-react";
 import { useModal } from "@/components/ui/Modal";
@@ -186,6 +186,7 @@ export default function ForoPage() {
   const [abierto, setAbierto] = useState(false);
   const [editandoId, setEditandoId] = useState<number | null>(null);
   const [guardando, setGuardando] = useState(false);
+  const guardandoRef = useRef(false);
   const [form, setForm] = useState(formVacio);
 
   const cargar = useCallback(async () => {
@@ -221,7 +222,8 @@ export default function ForoPage() {
     if (!form.nombres.trim() || !form.apellidoPaterno.trim()) return showError("Falta un dato", "Escribe el nombre y el apellido.");
     if (!editandoId && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.correo)) return showError("Falta un dato", "Escribe un correo válido.");
     if (!form.telefono.trim()) return showError("Falta un dato", "Escribe un teléfono.");
-
+    if (guardandoRef.current) return;
+    guardandoRef.current = true;
     setGuardando(true);
     try {
       const url = editandoId ? `${API}/admin/foro-usuarios/${editandoId}` : `${API}/admin/foro-usuarios`;
@@ -245,6 +247,7 @@ export default function ForoPage() {
     } catch (e: any) {
       showError("No se pudo guardar", e.message);
     } finally {
+      guardandoRef.current = false;
       setGuardando(false);
     }
   };
@@ -264,7 +267,7 @@ export default function ForoPage() {
 
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto">
-      <ModalComponent />
+      {ModalComponent}
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>

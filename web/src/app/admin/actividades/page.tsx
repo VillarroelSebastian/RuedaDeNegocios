@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Plus, Pencil, Trash2, Calendar, Clock, MapPin, X, Radio } from 'lucide-react';
 import { useModal } from '@/components/ui/Modal';
 import CronogramaVivo from '@/components/CronogramaVivo';
@@ -52,6 +52,7 @@ function ActividadesCRUD({ embedded = false }: { embedded?: boolean }) {
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState({ ...defaultForm });
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
 
   const fetch_ = useCallback(async () => {
     setLoading(true);
@@ -92,6 +93,8 @@ function ActividadesCRUD({ embedded = false }: { embedded?: boolean }) {
       showError('Campos requeridos', 'Completa nombre, descripción, sala, capacidad, fecha y horario.');
       return;
     }
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     try {
       const url = editId ? `${API}/admin/actividades/${editId}` : `${API}/admin/actividades`;
@@ -109,7 +112,7 @@ function ActividadesCRUD({ embedded = false }: { embedded?: boolean }) {
       setShowForm(false);
       fetch_();
     } catch { showError('Error', 'No se pudo guardar la actividad.'); }
-    finally { setSaving(false); }
+    finally { savingRef.current = false; setSaving(false); }
   };
 
   const handleDelete = (id: number, nombre: string) => {
@@ -126,7 +129,7 @@ function ActividadesCRUD({ embedded = false }: { embedded?: boolean }) {
 
   return (
     <div className={embedded ? "" : "p-8 max-w-7xl mx-auto"}>
-      <ModalComponent />
+      {ModalComponent}
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         {!embedded && (
@@ -327,7 +330,7 @@ export default function AdminActividadesPage({ embedded = false }: { embedded?: 
 
   return (
     <div className={embedded ? "" : "p-4 sm:p-8 max-w-7xl mx-auto"}>
-      <ModalComponent />
+      {ModalComponent}
       {!embedded && (
         <div className="mb-6">
           <h1 className="text-2xl font-extrabold text-gray-900 flex items-center gap-2">

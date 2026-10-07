@@ -269,11 +269,13 @@ export default function TecnicoMesasPage() {
   const [msgModal, setMsgModal] = useState<{ reunionId: number; empresa: 'A' | 'B'; empresaNombre: string; encargadoNombre: string } | null>(null);
   const [msgText,  setMsgText]  = useState('');
   const [sending,  setSending]  = useState(false);
+  const sendingRef = useRef(false);
 
   // Modal de link
   const [linkModal, setLinkModal]  = useState<{ reunion: any } | null>(null);
   const [linkText,  setLinkText]   = useState('');
   const [savingLink, setSavingLink] = useState(false);
+  const savingLinkRef = useRef(false);
 
   const fetchMesas = useCallback(async () => {
     try {
@@ -380,7 +382,7 @@ export default function TecnicoMesasPage() {
 
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto">
-      <ModalComponent />
+      {ModalComponent}
 
       {/* Modal de mensaje */}
       {msgModal && (

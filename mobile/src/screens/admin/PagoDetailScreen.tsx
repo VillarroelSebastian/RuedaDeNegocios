@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   TextInput, ActivityIndicator, Linking, KeyboardAvoidingView, Platform,
@@ -18,6 +18,7 @@ export default function PagoDetailScreen({ route, navigation }: any) {
   const [loading, setLoading] = useState(true);
   const [observacion, setObservacion] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const [verFicha, setVerFicha] = useState(false);
 
   const fetchPago = async () => {
@@ -90,6 +91,8 @@ export default function PagoDetailScreen({ route, navigation }: any) {
       show({ type: 'warning', title: 'Requerido', message: 'Escribe una observación antes de continuar.' });
       return;
     }
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       await fetch(`${API_URL}/admin/pagos/${id}/observar`, {
@@ -101,7 +104,7 @@ export default function PagoDetailScreen({ route, navigation }: any) {
       setObservacion('');
       fetchPago();
     } catch { show({ type: 'error', title: 'Error', message: 'No se pudo enviar la observación.' }); }
-    finally { setSubmitting(false); }
+    finally { setSubmitting(false); submittingRef.current = false; }
   };
 
   if (loading) {

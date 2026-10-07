@@ -53,6 +53,9 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // Guard sincrónico: evita que un doble clic en "Enviar propuesta" dispare
+  // la petición dos veces antes de que `guardando` se re-renderice.
+  const guardandoRef = useRef(false);
 
   const fechasDisponibles = useMemo(() =>
     [...new Set(horarios.map((h: any) => partesFechaEvento(h.inicio).dateKey))],
@@ -108,6 +111,8 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
 
   const handleGuardar = async () => {
     if (!seleccionado) { setErr("Selecciona un horario válido."); return; }
+    if (guardandoRef.current) return;
+    guardandoRef.current = true;
     setGuardando(true); setErr(null);
     try {
       const res = await fetch(`${API}/empresa/reuniones/${reunion.id}/cambiar-horario`, {
@@ -118,7 +123,7 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
       if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
       onOk();
     } catch (e: any) { setErr(e.message || "Error al cambiar el horario."); }
-    finally { setGuardando(false); }
+    finally { guardandoRef.current = false; setGuardando(false); }
   };
 
   return (
@@ -299,8 +304,15 @@ function DetalleReunionModal({ reunion, eeId, onClose, onCambiarHorario, onRefre
   const [confirmandoCancelacion, setConfirmandoCancelacion] = useState(false);
   const [cancelandoReunion, setCancelandoReunion] = useState(false);
   const [motivoCancelacion, setMotivoCancelacion] = useState("");
+  // Guards sincrónicos: evitan que un doble clic dispare la petición real dos
+  // veces antes de que el estado de carga se re-renderice.
+  const iniciandoRef = useRef(false);
+  const finalizandoRef = useRef(false);
+  const cancelandoReunionRef = useRef(false);
 
   const handleIniciar = async () => {
+    if (iniciandoRef.current) return;
+    iniciandoRef.current = true;
     setIniciando(true); setMsgIni(null);
     try {
       const res = await fetch(`${API}/empresa/reuniones/${reunion.id}/iniciar`, {
@@ -312,9 +324,12 @@ function DetalleReunionModal({ reunion, eeId, onClose, onCambiarHorario, onRefre
       if (d.iniciada) { onRefresh(); }
       else { setMsgIni("Le avisamos a la otra empresa. La reunión iniciará cuando ambas confirmen."); setIniciando(false); onRefresh(); }
     } catch (e: any) { setMsgIni(e.message || "Error al iniciar"); setIniciando(false); }
+    finally { iniciandoRef.current = false; }
   };
 
   const handleFinalizar = async () => {
+    if (finalizandoRef.current) return;
+    finalizandoRef.current = true;
     setConfirmandoFin(false);
     setFinalizando(true); setErrFin(null);
     try {
@@ -325,9 +340,12 @@ function DetalleReunionModal({ reunion, eeId, onClose, onCambiarHorario, onRefre
       if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
       onRefresh();
     } catch (e: any) { setErrFin(e.message || "Error al finalizar"); setFinalizando(false); }
+    finally { finalizandoRef.current = false; }
   };
 
   const handleCancelarReunion = async () => {
+    if (cancelandoReunionRef.current) return;
+    cancelandoReunionRef.current = true;
     setCancelandoReunion(true); setErrFin(null);
     try {
       const res = await fetch(`${API}/empresa/reuniones/${reunion.id}/cancelar`, {
@@ -340,6 +358,8 @@ function DetalleReunionModal({ reunion, eeId, onClose, onCambiarHorario, onRefre
     } catch (e: any) {
       setErrFin(e.message || "No se pudo cancelar la reunión.");
       setCancelandoReunion(false);
+    } finally {
+      cancelandoReunionRef.current = false;
     }
   };
 
@@ -527,6 +547,10 @@ export function ReunionesSection({ embedded = false }: { embedded?: boolean } = 
   const [detalleModal, setDetalleModal] = useState<any>(null);
   const [cambiarModal, setCambiarModal] = useState<any>(null);
   const deepLinkProcesadoRef = useRef(false);
+  const [respondiendoCambioId, setRespondiendoCambioId] = useState<number | null>(null);
+  // Guard sincrónico: evita que un doble clic en "Aceptar"/"Rechazar" dispare
+  // la petición dos veces antes de que el estado se re-renderice.
+  const respondiendoRef = useRef(false);
 
   const cargarReuniones = useCallback((id: number) => {
     fetch(`${API}/empresa/reuniones?eeId=${id}`, { cache: "no-store" })
@@ -588,7 +612,9 @@ export function ReunionesSection({ embedded = false }: { embedded?: boolean } = 
   });
 
   const responderCambio = async (cambioId: number, aceptar: boolean) => {
-    if (!eeId) return;
+    if (!eeId || respondiendoRef.current) return;
+    respondiendoRef.current = true;
+    setRespondiendoCambioId(cambioId);
     try {
       const res = await fetch(`${API}/empresa/reuniones/cambios/${cambioId}/responder`, {
         method: "PUT", headers: { "Content-Type": "application/json" },
@@ -600,6 +626,9 @@ export function ReunionesSection({ embedded = false }: { embedded?: boolean } = 
       cargarReuniones(eeId);
     } catch (e: any) {
       setError(e.message);
+    } finally {
+      respondiendoRef.current = false;
+      setRespondiendoCambioId(null);
     }
   };
 
@@ -678,11 +707,13 @@ export function ReunionesSection({ embedded = false }: { embedded?: boolean } = 
               </div>
               <div className="flex gap-2">
                 <button onClick={() => responderCambio(r.cambioPendiente.id, false)}
-                  className="rounded-xl border border-amber-300 bg-white px-4 py-2 text-xs font-bold text-amber-800">
+                  disabled={respondiendoCambioId === r.cambioPendiente.id}
+                  className="rounded-xl border border-amber-300 bg-white px-4 py-2 text-xs font-bold text-amber-800 disabled:opacity-50">
                   Rechazar
                 </button>
                 <button onClick={() => responderCambio(r.cambioPendiente.id, true)}
-                  className="rounded-xl bg-[#449D3A] px-4 py-2 text-xs font-bold text-white">
+                  disabled={respondiendoCambioId === r.cambioPendiente.id}
+                  className="rounded-xl bg-[#449D3A] px-4 py-2 text-xs font-bold text-white disabled:opacity-50">
                   Aceptar cambio
                 </button>
               </div>

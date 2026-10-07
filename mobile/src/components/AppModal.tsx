@@ -107,14 +107,24 @@ export function AppModal({
   const genRef = useRef(generation);
   genRef.current = generation;
 
-  useEffect(() => { setConfirming(false); }, [visible, type, title]);
+  // Guard sincrónico aparte del estado: un doble tap puede invocar
+  // handleConfirm dos veces antes de que React re-renderice con
+  // confirming=true, disparando el onConfirm real (aprobar, reenviar
+  // credenciales, etc.) dos veces. El ref se lee/escribe al instante, sin
+  // esperar al ciclo de render, así la segunda invocación se descarta siempre.
+  const confirmingRef = useRef(false);
+
+  useEffect(() => { setConfirming(false); confirmingRef.current = false; }, [visible, type, title]);
 
   const handleConfirm = async () => {
+    if (confirmingRef.current) return;
+    confirmingRef.current = true;
     const startGen = genRef.current;
-    if (waitForConfirm) setConfirming(true);
+    setConfirming(true);
     try {
       await onConfirm?.();
     } finally {
+      confirmingRef.current = false;
       setConfirming(false);
       // Solo autocerrar si nadie más (dentro de onConfirm) ya mostró
       // un modal nuevo; si lo hizo, generation cambió y lo dejamos como está.

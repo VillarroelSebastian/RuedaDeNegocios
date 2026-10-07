@@ -53,6 +53,7 @@ export default function AuspiciadoresPage() {
   const [abierto, setAbierto] = useState(false);
   const [editandoId, setEditandoId] = useState<number | null>(null);
   const [guardando, setGuardando] = useState(false);
+  const guardandoRef = useRef(false);
   const [form, setForm] = useState({
     nombreEmpresa: "", descripcion: "", tipoAporte: "DINERO",
     montoAporte: "", detalleAporte: "", paquete_id: "", cantidadIngresos: 1,
@@ -117,10 +118,11 @@ export default function AuspiciadoresPage() {
   };
 
   const guardar = async () => {
-    if (guardando) return;
+    if (guardando || guardandoRef.current) return;
     const error = validarAuspiciador(form, personas);
     if (error) return showError("Revisa los campos", error);
 
+    guardandoRef.current = true;
     setGuardando(true);
     try {
       const url = editandoId ? `${API}/admin/auspiciadores/${editandoId}` : `${API}/admin/auspiciadores`;
@@ -157,6 +159,7 @@ export default function AuspiciadoresPage() {
     } catch (e: any) {
       showError("No se pudo guardar", e.message);
     } finally {
+      guardandoRef.current = false;
       setGuardando(false);
     }
   };
@@ -212,7 +215,7 @@ export default function AuspiciadoresPage() {
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto">
-      <ModalComponent />
+      {ModalComponent}
 
       {/* Encabezado */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">

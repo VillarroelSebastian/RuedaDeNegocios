@@ -12,7 +12,7 @@ export default function TecnicoGaleriaPage() {
     try { setUser(JSON.parse(localStorage.getItem("tecnicoUser") || "null")); } catch { setUser(null); }
   }, []);
   return <div className="p-4 sm:p-6 max-w-6xl mx-auto">
-    <ModalComponent />
+    {ModalComponent}
     <h1 className="text-2xl font-extrabold text-gray-900 flex items-center gap-2 mb-1"><Images className="w-6 h-6 text-[#449D3A]" /> Fotos del evento</h1>
     <p className="text-sm text-gray-500 mb-6">Fotos de todos los participantes, agrupadas por quién las subió. Marca la estrella de una foto para que se muestre en el landing público.</p>
     <GaleriaEvento usuarioId={user?.id} autorNombre={`${user?.nombres || "Técnico"} ${user?.apellidoPaterno || ""}`.trim()} puedeSubir esStaff

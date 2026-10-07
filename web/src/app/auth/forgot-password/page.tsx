@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Mail, ArrowLeft, KeyRound, Lock, Eye, EyeOff, CheckCircle2 } from "lucide-react";
@@ -19,6 +19,7 @@ export default function ForgotPasswordPage() {
   const [showPass, setShowPass] = useState(false);
   const [showConf, setShowConf] = useState(false);
   const [loading, setLoading] = useState(false);
+  const loadingRef = useRef(false);
   const [error, setError] = useState("");
 
   // Un navegador móvil puede descargar esta pestaña mientras se abre el correo.
@@ -35,8 +36,10 @@ export default function ForgotPasswordPage() {
 
   const handleSolicitarCodigo = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loadingRef.current) return;
     setError("");
     if (!correo) { setError("Ingresa tu correo electrónico."); return; }
+    loadingRef.current = true;
     setLoading(true);
     try {
       const res = await fetch(`${API}/auth/solicitar-reset`, {
@@ -55,16 +58,19 @@ export default function ForgotPasswordPage() {
     } catch (err: any) {
       setError(err.message || "No se pudo enviar el correo. Intenta de nuevo.");
     } finally {
+      loadingRef.current = false;
       setLoading(false);
     }
   };
 
   const handleConfirmarReset = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loadingRef.current) return;
     setError("");
     if (!codigo || codigo.length !== 6) { setError("Ingresa el código de 6 dígitos."); return; }
     if (!nuevaContrasenia || nuevaContrasenia.length < 6) { setError("La contraseña debe tener al menos 6 caracteres."); return; }
     if (nuevaContrasenia !== confirmar) { setError("Las contraseñas no coinciden."); return; }
+    loadingRef.current = true;
     setLoading(true);
     try {
       const res = await fetch(`${API}/auth/confirmar-reset`, {
@@ -79,6 +85,7 @@ export default function ForgotPasswordPage() {
     } catch (err: any) {
       setError(err.message);
     } finally {
+      loadingRef.current = false;
       setLoading(false);
     }
   };

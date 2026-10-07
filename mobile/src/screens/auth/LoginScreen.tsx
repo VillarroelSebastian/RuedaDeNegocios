@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   View, Text, TextInput, TouchableOpacity, Image,
@@ -26,6 +26,7 @@ export default function LoginScreen({ navigation }: any) {
   const [contrasenia, setContrasenia] = useState('');
   const [showPwd,     setShowPwd]     = useState(false);
   const [loading,     setLoading]     = useState(false);
+  const loadingRef = useRef(false);
   const [error,       setError]       = useState('');
 
   // ── Reset de contraseña ──────────────────────────────────────────────────
@@ -37,6 +38,7 @@ export default function LoginScreen({ navigation }: any) {
   const [resetConfirm,  setResetConfirm]  = useState('');
   const [resetShowPwd,  setResetShowPwd]  = useState(false);
   const [resetLoading,  setResetLoading]  = useState(false);
+  const resetLoadingRef = useRef(false);
   const [resetError,    setResetError]    = useState('');
 
   useEffect(() => {
@@ -60,7 +62,9 @@ export default function LoginScreen({ navigation }: any) {
   };
 
   const handleSolicitarReset = async () => {
-    if (!resetCorreo.trim()) { setResetError('Ingresa tu correo electrónico.'); return; }
+    if (resetLoadingRef.current) return;
+    resetLoadingRef.current = true;
+    if (!resetCorreo.trim()) { setResetError('Ingresa tu correo electrónico.'); resetLoadingRef.current = false; return; }
     setResetError(''); setResetLoading(true);
     try {
       const res = await fetch(`${API_URL}/auth/solicitar-reset`, {
@@ -75,13 +79,15 @@ export default function LoginScreen({ navigation }: any) {
       }));
       setResetStep('codigo');
     } catch (error: any) { setResetError(error?.message || 'No se pudo enviar el correo. Intenta de nuevo.'); }
-    finally { setResetLoading(false); }
+    finally { resetLoadingRef.current = false; setResetLoading(false); }
   };
 
   const handleConfirmarReset = async () => {
+    if (resetLoadingRef.current) return;
     if (!resetCodigo || resetCodigo.length !== 6) { setResetError('Ingresa el código de 6 dígitos.'); return; }
     if (!resetNueva || resetNueva.length < 6) { setResetError('La contraseña debe tener al menos 6 caracteres.'); return; }
     if (resetNueva !== resetConfirm) { setResetError('Las contraseñas no coinciden.'); return; }
+    resetLoadingRef.current = true;
     setResetError(''); setResetLoading(true);
     try {
       const res = await fetch(`${API_URL}/auth/confirmar-reset`, {
@@ -94,10 +100,11 @@ export default function LoginScreen({ navigation }: any) {
       await AsyncStorage.removeItem(RESET_STORAGE_KEY);
       setResetStep('exito');
     } catch (err: any) { setResetError(err.message); }
-    finally { setResetLoading(false); }
+    finally { resetLoadingRef.current = false; setResetLoading(false); }
   };
 
   const handleLogin = async () => {
+    if (loadingRef.current) return;
     // El login no acepta espacios; validamos formato de correo antes de enviar.
     const correoLimpio = sinEspacios(correo);
     if (!correoValido(correoLimpio)) {
@@ -108,6 +115,7 @@ export default function LoginScreen({ navigation }: any) {
       setError('Ingresa tu contraseña.');
       return;
     }
+    loadingRef.current = true;
     setError('');
     setLoading(true);
     try {
@@ -132,6 +140,7 @@ export default function LoginScreen({ navigation }: any) {
     } catch (err: any) {
       setError(err.message || 'Error al iniciar sesión.');
     } finally {
+      loadingRef.current = false;
       setLoading(false);
     }
   };

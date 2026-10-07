@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import {
   CalendarCheck, Video, Armchair, CheckCircle,
@@ -107,6 +107,7 @@ export default function TecnicoDashboardPage() {
   const [loading,     setLoading]     = useState(true);
   const [modal,       setModal]       = useState<any>({ visible:false, type:'success', title:'', message:'' });
   const [estadoModal, setEstadoModal] = useState<{ visible:boolean; reunion:any }>({ visible:false, reunion:null });
+  const guardandoEstadoRef = useRef(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -120,6 +121,8 @@ export default function TecnicoDashboardPage() {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleSaveEstado = async (id: number, estado: string) => {
+    if (guardandoEstadoRef.current) return;
+    guardandoEstadoRef.current = true;
     setEstadoModal({ visible:false, reunion:null });
     try {
       const res = await fetch(`${API}/tecnico/reuniones/${id}/estado`, {
@@ -131,6 +134,8 @@ export default function TecnicoDashboardPage() {
       fetchData();
     } catch {
       setModal({ visible:true, type:'error', title:'Error', message:'No se pudo actualizar el estado.' });
+    } finally {
+      guardandoEstadoRef.current = false;
     }
   };
 

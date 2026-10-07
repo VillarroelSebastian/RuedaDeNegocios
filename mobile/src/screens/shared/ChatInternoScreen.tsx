@@ -25,6 +25,7 @@ export default function ChatInternoScreen({ embedded = false }: { embedded?: boo
   const [error, setError] = useState('');
 
   const listRef = useRef<FlatList>(null);
+  const enviandoRef = useRef(false);
 
   const cargar = useCallback(async () => {
     try {
@@ -43,7 +44,8 @@ export default function ChatInternoScreen({ embedded = false }: { embedded?: boo
 
   const enviar = async () => {
     const t = texto.trim();
-    if (!t || !user?.id || enviando) return;
+    if (!t || !user?.id || enviandoRef.current) return;
+    enviandoRef.current = true;
     setEnviando(true);
     setError('');
     try {
@@ -57,7 +59,7 @@ export default function ChatInternoScreen({ embedded = false }: { embedded?: boo
       setTexto('');
       await cargar();
     } catch (e: any) { setError(e.message || 'Error de red'); }
-    finally { setEnviando(false); }
+    finally { setEnviando(false); enviandoRef.current = false; }
   };
 
   if (loading) return (

@@ -21,6 +21,9 @@ export default function ChatInterno({ storageKey, embedded = false }: { storageK
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  // Guard sincrónico: `enviando` todavía no se había re-renderizado cuando
+  // llegaba un segundo clic rápido, duplicando el mensaje.
+  const enviandoRef = useRef(false);
 
   useEffect(() => {
     try { setUser(JSON.parse(localStorage.getItem(storageKey) || "null")); } catch { setUser(null); }
@@ -43,7 +46,8 @@ export default function ChatInterno({ storageKey, embedded = false }: { storageK
 
   const enviar = async () => {
     const t = texto.trim();
-    if (!t || !user?.id || enviando) return;
+    if (!t || !user?.id || enviando || enviandoRef.current) return;
+    enviandoRef.current = true;
     setEnviando(true);
     try {
       const res = await fetch(`${API}/staff/chat-interno`, {
@@ -55,7 +59,7 @@ export default function ChatInterno({ storageKey, embedded = false }: { storageK
       setTexto("");
       cargar();
     } catch (e: any) { setError(e.message); setTimeout(() => setError(null), 4000); }
-    finally { setEnviando(false); }
+    finally { enviandoRef.current = false; setEnviando(false); }
   };
 
   let fechaAnterior = "";

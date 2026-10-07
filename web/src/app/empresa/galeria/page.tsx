@@ -31,7 +31,7 @@ export default function EmpresaGaleriaPage() {
 
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto">
-      <ModalComponent />
+      {ModalComponent}
       <div className="mb-6">
         <h1 className="text-2xl font-extrabold text-gray-900 flex items-center gap-2">
           <Images className="w-6 h-6 text-[#449D3A]" /> Galería del evento

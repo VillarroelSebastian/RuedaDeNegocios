@@ -101,6 +101,9 @@ export default function StaffMensajes({ storageKey, embedded = false }: { storag
   const bottomRef = useRef<HTMLDivElement>(null);
   const activaRef = useRef(activa);
   useEffect(() => { activaRef.current = activa; }, [activa]);
+  // Guard sincrónico: `enviando` todavía no se había re-renderizado cuando
+  // llegaba un segundo clic rápido, duplicando el mensaje.
+  const enviandoRef = useRef(false);
 
   useEffect(() => {
     try { setUser(JSON.parse(localStorage.getItem(storageKey) || "null")); } catch { setUser(null); }
@@ -142,7 +145,8 @@ export default function StaffMensajes({ storageKey, embedded = false }: { storag
 
   const enviar = async () => {
     const t = texto.trim();
-    if (!t || !user?.id || !activa || enviando) return;
+    if (!t || !user?.id || !activa || enviando || enviandoRef.current) return;
+    enviandoRef.current = true;
     setEnviando(true);
     try {
       const res = await fetch(`${API}/staff/mensajes`, {
@@ -155,7 +159,7 @@ export default function StaffMensajes({ storageKey, embedded = false }: { storag
       cargarMensajes(activa.eeId);
       cargarConvs();
     } catch (e: any) { setError(e.message); setTimeout(() => setError(null), 4000); }
-    finally { setEnviando(false); }
+    finally { enviandoRef.current = false; setEnviando(false); }
   };
 
   if (cargando) return (

@@ -89,6 +89,7 @@ export default function AsistenteChatModal({ visible, onClose }: { visible: bool
   const [eeId, setEeId] = useState<number | null>(userStore.get()?.empresaeventoId ?? null);
   const [contexto, setContexto] = useState<any>(null);
   const listRef = useRef<FlatList>(null);
+  const sendingRef = useRef(false);
 
   // Resolver eeId si aún no está en el userStore (ej: chat abierto antes de cargar dashboard)
   useEffect(() => {
@@ -115,37 +116,43 @@ export default function AsistenteChatModal({ visible, onClose }: { visible: bool
   }, [msgs, visible]);
 
   const send = async (texto: string) => {
-    const escrito = texto.trim();
-    const ultimoMensaje = msgs[msgs.length - 1];
-    const ultimasOpciones = ultimoMensaje?.role === 'bot' ? ultimoMensaje.opciones : undefined;
-    const indice = /^\d+$/.test(escrito) ? Number(escrito) - 1 : -1;
-    const t = indice >= 0 && ultimasOpciones?.[indice] ? ultimasOpciones[indice] : escrito;
-    if (!t || loading) return;
-    if (!eeId) {
-      setMsgs((prev) => [...prev, { role: 'bot', text: 'Aún estoy cargando tu información. Intenta en unos segundos.' }]);
-      return;
-    }
-    setInput('');
-    const newMsgs: Msg[] = [...msgs, { role: 'user', text: t }];
-    setMsgs(newMsgs);
-    setLoading(true);
+    if (sendingRef.current) return;
+    sendingRef.current = true;
     try {
-      const res = await fetch(`${API_URL}/empresa/asistente`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eeId, euId: userStore.get()?.empresaUsuarioId ?? undefined, mensaje: t, contexto }),
-      });
-      const data = await res.json();
-      setContexto(data.contexto ?? null);
-      const sigueFlujo = Boolean(data.contexto?.paso);
-      setMsgs((prev) => [...prev, {
-        role: 'bot', text: data.respuesta, imageUrl: data.imageUrl, reuniones: data.reuniones,
-        opciones: data.opciones?.length ? data.opciones : (sigueFlujo ? undefined : SUGERENCIAS),
-      }]);
-    } catch {
-      setMsgs((prev) => [...prev, { role: 'bot', text: 'Lo siento, no pude conectarme. Intenta de nuevo.' }]);
+      const escrito = texto.trim();
+      const ultimoMensaje = msgs[msgs.length - 1];
+      const ultimasOpciones = ultimoMensaje?.role === 'bot' ? ultimoMensaje.opciones : undefined;
+      const indice = /^\d+$/.test(escrito) ? Number(escrito) - 1 : -1;
+      const t = indice >= 0 && ultimasOpciones?.[indice] ? ultimasOpciones[indice] : escrito;
+      if (!t || loading) return;
+      if (!eeId) {
+        setMsgs((prev) => [...prev, { role: 'bot', text: 'Aún estoy cargando tu información. Intenta en unos segundos.' }]);
+        return;
+      }
+      setInput('');
+      const newMsgs: Msg[] = [...msgs, { role: 'user', text: t }];
+      setMsgs(newMsgs);
+      setLoading(true);
+      try {
+        const res = await fetch(`${API_URL}/empresa/asistente`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ eeId, euId: userStore.get()?.empresaUsuarioId ?? undefined, mensaje: t, contexto }),
+        });
+        const data = await res.json();
+        setContexto(data.contexto ?? null);
+        const sigueFlujo = Boolean(data.contexto?.paso);
+        setMsgs((prev) => [...prev, {
+          role: 'bot', text: data.respuesta, imageUrl: data.imageUrl, reuniones: data.reuniones,
+          opciones: data.opciones?.length ? data.opciones : (sigueFlujo ? undefined : SUGERENCIAS),
+        }]);
+      } catch {
+        setMsgs((prev) => [...prev, { role: 'bot', text: 'Lo siento, no pude conectarme. Intenta de nuevo.' }]);
+      } finally {
+        setLoading(false);
+      }
     } finally {
-      setLoading(false);
+      sendingRef.current = false;
     }
   };
 

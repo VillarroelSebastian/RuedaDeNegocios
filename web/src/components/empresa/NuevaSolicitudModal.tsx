@@ -107,6 +107,9 @@ export function NuevaSolicitudModal({ ctx, receptoraId, receptoraNombre, onClose
   const [cargando, setCargando] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // Guard sincrónico: evita que un doble clic en "Enviar solicitud" dispare
+  // la petición dos veces antes de que `enviando` se re-renderice.
+  const enviandoRef = useRef(false);
 
   // Fecha ISO (YYYY-MM-DD, en horario local) del slot — usada para agrupar horarios por día.
   const fechaISO = (iso: string) => {
@@ -166,9 +169,11 @@ export function NuevaSolicitudModal({ ctx, receptoraId, receptoraNombre, onClose
   }, [ctx, receptoraId, solicitud?.id]);
 
   const handleSubmit = async () => {
+    if (enviandoRef.current) return;
     setErr(null);
     if (!horario) { setErr("Selecciona un horario disponible."); return; }
     if (tipo === "PRESENCIAL" && !mesa) { setErr("Selecciona una mesa."); return; }
+    enviandoRef.current = true;
     setEnviando(true);
     try {
       const res = await fetch(solicitud ? `${API}/empresa/solicitudes/${solicitud.id}/editar` : `${API}/empresa/solicitudes`, {
@@ -185,7 +190,7 @@ export function NuevaSolicitudModal({ ctx, receptoraId, receptoraNombre, onClose
       if (!res.ok) throw new Error(data.message ?? "Error al crear la solicitud");
       onCreada();
     } catch (e: any) { setErr(e.message); }
-    finally { setEnviando(false); }
+    finally { enviandoRef.current = false; setEnviando(false); }
   };
 
   return (

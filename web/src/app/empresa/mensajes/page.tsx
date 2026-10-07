@@ -119,6 +119,7 @@ function MensajesContent() {
   const [mensajes, setMensajes] = useState<any[]>([]);
   const [texto, setTexto] = useState("");
   const [enviando, setEnviando] = useState(false);
+  const enviandoRef = useRef(false);
   const [cargando, setCargando] = useState(true);
   const [modalNueva, setModalNueva] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -203,7 +204,8 @@ function MensajesContent() {
 
   const enviar = async () => {
     const t = texto.trim();
-    if (!t || !ctx || !activa || enviando) return;
+    if (!t || !ctx || !activa || enviando || enviandoRef.current) return;
+    enviandoRef.current = true;
     setEnviando(true);
     try {
       const res = await fetch(`${API}/empresa/mensajes`, {
@@ -219,7 +221,7 @@ function MensajesContent() {
       cargarMensajes(ctx.empresaeventoId, activa.eeId);
       cargarConvs(ctx.empresaeventoId);
     } catch (e: any) { setError(e.message); setTimeout(() => setError(null), 4000); }
-    finally { setEnviando(false); }
+    finally { enviandoRef.current = false; setEnviando(false); }
   };
 
   if (cargando) return (

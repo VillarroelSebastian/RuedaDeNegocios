@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View, Text, FlatList, ActivityIndicator,
   RefreshControl, StyleSheet, TouchableOpacity, Linking, Image,
@@ -41,6 +41,8 @@ export default function EmpresaEventosScreen() {
   const [loading,   setLoading]   = useState(true);
   const [refreshing,setRefreshing] = useState(false);
   const [error,     setError]     = useState('');
+  const [suscribiendoId, setSuscribiendoId] = useState<any>(null);
+  const suscribiendoRef = useRef<any>(null);
 
   const fetchData = useCallback(async () => {
     setError('');
@@ -67,10 +69,18 @@ export default function EmpresaEventosScreen() {
   useFocusEffect(useCallback(() => { fetchData(); }, [fetchData]));
 
   const suscribir = async (item: any) => {
-    const eeId = userStore.get()?.empresaeventoId ?? userStore.get()?.empresaEventoId;
-    if (!eeId) return;
-    await fetch(`${API_URL}/empresa/cronograma-vivo/${item.id}/suscripcion`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ eeId, suscrito: !item.suscrito }) });
-    fetchData();
+    if (suscribiendoRef.current) return;
+    suscribiendoRef.current = item.id;
+    setSuscribiendoId(item.id);
+    try {
+      const eeId = userStore.get()?.empresaeventoId ?? userStore.get()?.empresaEventoId;
+      if (!eeId) return;
+      await fetch(`${API_URL}/empresa/cronograma-vivo/${item.id}/suscripcion`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ eeId, suscrito: !item.suscrito }) });
+      fetchData();
+    } finally {
+      suscribiendoRef.current = null;
+      setSuscribiendoId(null);
+    }
   };
 
   if (loading) return (
@@ -142,7 +152,7 @@ export default function EmpresaEventosScreen() {
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
                 {!!item.linkReunionVirtual && <TouchableOpacity onPress={() => Linking.openURL(item.linkReunionVirtual)} style={{ backgroundColor: GREEN, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, flexDirection: 'row', gap: 6 }}><ExternalLink size={14} color="#fff"/><Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>Ver transmisión</Text></TouchableOpacity>}
                 {puedeSuscribirse && (
-                  <TouchableOpacity onPress={() => suscribir(item)} style={{ backgroundColor: item.suscrito ? '#fef3c7' : '#f1f5f9', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, flexDirection: 'row', gap: 6 }}><Bell size={14} color={item.suscrito ? '#92400e' : '#475569'}/><Text style={{ color: item.suscrito ? '#92400e' : '#475569', fontSize: 12, fontWeight: '700' }}>{item.suscrito ? 'Suscrito' : 'Suscribirme'}</Text></TouchableOpacity>
+                  <TouchableOpacity onPress={() => suscribir(item)} disabled={suscribiendoId === item.id} style={{ backgroundColor: item.suscrito ? '#fef3c7' : '#f1f5f9', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, flexDirection: 'row', gap: 6 }}><Bell size={14} color={item.suscrito ? '#92400e' : '#475569'}/><Text style={{ color: item.suscrito ? '#92400e' : '#475569', fontSize: 12, fontWeight: '700' }}>{item.suscrito ? 'Suscrito' : 'Suscribirme'}</Text></TouchableOpacity>
                 )}
               </View>
               {!!item.anuncios?.length && <View style={{ marginTop: 10, gap: 6 }}>{item.anuncios.map((a: any) => <View key={a.id} style={{ backgroundColor: '#fffbeb', borderRadius: 10, padding: 10, flexDirection: 'row', gap: 6 }}><Megaphone size={14} color="#92400e"/><Text style={{ color: '#92400e', fontSize: 12, flex: 1 }}>{a.mensaje}</Text></View>)}</View>}

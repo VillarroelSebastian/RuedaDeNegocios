@@ -344,18 +344,22 @@ export default function MesasGrid() {
   const [msgModal, setMsgModal] = useState<{ reunionId: number; empresa: 'A' | 'B'; empresaNombre: string; encargadoNombre: string } | null>(null);
   const [msgText,  setMsgText]  = useState('');
   const [sending,  setSending]  = useState(false);
+  const sendingRef = useRef(false);
 
   const [linkModal, setLinkModal]  = useState<{ reunion: any } | null>(null);
   const [linkText,  setLinkText]   = useState('');
   const [savingLink, setSavingLink] = useState(false);
+  const savingLinkRef = useRef(false);
 
   const [editando, setEditando] = useState<any>(null);
   const [nuevoHorario, setNuevoHorario] = useState('');
   const [guardandoEdicion, setGuardandoEdicion] = useState(false);
+  const guardandoEdicionRef = useRef(false);
 
   const [tecnicos, setTecnicos] = useState<any[]>([]);
   const [asignandoMesa, setAsignandoMesa] = useState<any>(null);
   const [guardandoTecnico, setGuardandoTecnico] = useState(false);
+  const guardandoTecnicoRef = useRef(false);
 
   const fetchMesas = useCallback(async () => {
     try {
@@ -376,7 +380,8 @@ export default function MesasGrid() {
   }, []);
 
   const asignarTecnico = async (usuarioId: number | null) => {
-    if (!asignandoMesa) return;
+    if (!asignandoMesa || guardandoTecnicoRef.current) return;
+    guardandoTecnicoRef.current = true;
     setGuardandoTecnico(true);
     try {
       const res = await fetch(`${API}/admin/mesas/${asignandoMesa.id}/tecnico`, {
@@ -392,7 +397,7 @@ export default function MesasGrid() {
       );
       setAsignandoMesa(null);
     } catch { showError('Error', 'No se pudo actualizar el técnico asignado. Intenta de nuevo.'); }
-    finally { setGuardandoTecnico(false); }
+    finally { guardandoTecnicoRef.current = false; setGuardandoTecnico(false); }
   };
 
   const fetchHistorial = useCallback(async (q?: string) => {
@@ -505,7 +510,8 @@ export default function MesasGrid() {
   };
 
   const sendMessage = async () => {
-    if (!msgModal || !msgText.trim()) return;
+    if (!msgModal || !msgText.trim() || sendingRef.current) return;
+    sendingRef.current = true;
     setSending(true);
     try {
       const res = await fetch(`${API}/tecnico/reuniones/${msgModal.reunionId}/mensaje`, {
@@ -517,11 +523,12 @@ export default function MesasGrid() {
       showSuccess('Mensaje enviado', `El mensaje fue enviado al encargado de ${msgModal.empresaNombre}.`);
       setMsgModal(null);
     } catch (e: any) { showError('Error', e?.message || 'No se pudo enviar el mensaje. Intenta de nuevo.'); }
-    finally { setSending(false); }
+    finally { sendingRef.current = false; setSending(false); }
   };
 
   const saveLink = async () => {
-    if (!linkModal) return;
+    if (!linkModal || savingLinkRef.current) return;
+    savingLinkRef.current = true;
     setSavingLink(true);
     try {
       const res = await fetch(`${API}/tecnico/reuniones/${linkModal.reunion.id}/link`, {
@@ -534,7 +541,7 @@ export default function MesasGrid() {
       setLinkModal(null);
       fetchMesas();
     } catch (e: any) { showError('Error', e?.message || 'No se pudo actualizar el link. Intenta de nuevo.'); }
-    finally { setSavingLink(false); }
+    finally { savingLinkRef.current = false; setSavingLink(false); }
   };
 
   const abrirEditar = (reunion: any) => {
@@ -543,7 +550,8 @@ export default function MesasGrid() {
   };
 
   const guardarEdicion = async () => {
-    if (!editando || !nuevoHorario) return;
+    if (!editando || !nuevoHorario || guardandoEdicionRef.current) return;
+    guardandoEdicionRef.current = true;
     setGuardandoEdicion(true);
     try {
       const res = await fetch(`${API}/tecnico/reuniones/${editando.id}/reprogramar`, {
@@ -556,7 +564,7 @@ export default function MesasGrid() {
       setEditando(null);
       fetchMesas();
     } catch (e: any) { showError('Error', e?.message || 'No se pudo reprogramar la reunión.'); }
-    finally { setGuardandoEdicion(false); }
+    finally { guardandoEdicionRef.current = false; setGuardandoEdicion(false); }
   };
 
   const confirmarEliminar = (reunion: any) => {
@@ -615,7 +623,7 @@ export default function MesasGrid() {
 
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto">
-      <ModalComponent />
+      {ModalComponent}
 
       {/* Modal de mensaje */}
       {msgModal && (

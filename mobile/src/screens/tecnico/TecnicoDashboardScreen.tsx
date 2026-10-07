@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, ActivityIndicator,
   RefreshControl, Image, Modal as RNModal, Linking,
@@ -181,6 +181,7 @@ export default function TecnicoDashboardScreen() {
     ({ visible:false, type:'info', title:'', message:'' });
   const [mensajesNoLeidos, setMensajesNoLeidos] = useState(0);
   const [notifNoLeidas, setNotifNoLeidas] = useState(0);
+  const cambiandoEstadoRef = useRef(false);
 
   useEffect(() => {
     const cargar = () => fetch(`${API_URL}/staff/mensajes/no-leidos`).then((r) => r.json()).then((d) => setMensajesNoLeidos(d.count || 0)).catch(() => {});
@@ -208,6 +209,8 @@ export default function TecnicoDashboardScreen() {
   useEffect(() => { fetchData(); }, []);
 
   const handleEstadoChange = async (reunionId: number, nuevoEstado: string) => {
+    if (cambiandoEstadoRef.current) return;
+    cambiandoEstadoRef.current = true;
     try {
       const res = await fetch(`${API_URL}/tecnico/reuniones/${reunionId}/estado`, {
         method: 'PUT',
@@ -219,6 +222,8 @@ export default function TecnicoDashboardScreen() {
       fetchData();
     } catch {
       setModal({ visible:true, type:'error', title:'Error', message:'No se pudo actualizar el estado.' });
+    } finally {
+      cambiandoEstadoRef.current = false;
     }
   };
 

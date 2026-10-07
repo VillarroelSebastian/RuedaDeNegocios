@@ -123,22 +123,46 @@ export default function CronogramaVivo({
   const { actividades, cargando, actualizado, setActividades, recargar } = useCronogramaVivo(eeId);
   const [cambiando, setCambiando] = useState<number | null>(null);
   const [anuncios, setAnuncios] = useState<Record<number, string>>({});
+  const [suscribiendo, setSuscribiendo] = useState(false);
+  const [publicandoAnuncio, setPublicandoAnuncio] = useState(false);
+  // Guards sincrónicos: un doble clic podía disparar la petición real dos
+  // veces porque el estado todavía no se había re-renderizado.
+  const suscribiendoRef = useRef(false);
+  const publicandoAnuncioRef = useRef(false);
+  const cambiandoRef = useRef(false);
 
   const suscribir = async (a: ActividadVivo) => {
-    if (!eeId) return;
-    await fetch(`${API}/empresa/cronograma-vivo/${a.id}/suscripcion`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ eeId, suscrito: !a.suscrito }) });
-    recargar();
+    if (!eeId || suscribiendoRef.current) return;
+    suscribiendoRef.current = true;
+    setSuscribiendo(true);
+    try {
+      await fetch(`${API}/empresa/cronograma-vivo/${a.id}/suscripcion`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ eeId, suscrito: !a.suscrito }) });
+      recargar();
+    } finally {
+      suscribiendoRef.current = false;
+      setSuscribiendo(false);
+    }
   };
 
   const publicarAnuncio = async (a: ActividadVivo) => {
     const mensaje = (anuncios[a.id] || '').trim();
     if (!mensaje || !usuarioId) return onError?.('Escribe el anuncio antes de publicarlo.');
-    const res = await fetch(`${API}/staff/cronograma-vivo/${a.id}/anuncios`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ usuarioId, mensaje }) });
-    if (!res.ok) return onError?.((await res.json())?.message || 'No se pudo publicar el anuncio.');
-    setAnuncios((n) => ({ ...n, [a.id]: '' })); recargar();
+    if (publicandoAnuncioRef.current) return;
+    publicandoAnuncioRef.current = true;
+    setPublicandoAnuncio(true);
+    try {
+      const res = await fetch(`${API}/staff/cronograma-vivo/${a.id}/anuncios`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ usuarioId, mensaje }) });
+      if (!res.ok) return onError?.((await res.json())?.message || 'No se pudo publicar el anuncio.');
+      setAnuncios((n) => ({ ...n, [a.id]: '' })); recargar();
+    } finally {
+      publicandoAnuncioRef.current = false;
+      setPublicandoAnuncio(false);
+    }
   };
 
   const cambiarEstado = async (id: number, estadoEnVivo: string) => {
+    if (cambiandoRef.current) return;
+    cambiandoRef.current = true;
     setCambiando(id);
     try {
       const res = await fetch(`${API}/staff/cronograma-vivo/${id}`, {
@@ -152,6 +176,7 @@ export default function CronogramaVivo({
     } catch (e: any) {
       onError?.(e.message);
     } finally {
+      cambiandoRef.current = false;
       setCambiando(null);
     }
   };
@@ -169,8 +194,11 @@ export default function CronogramaVivo({
   }
 
   const enVivo = actividades.filter((a) => a.estadoEnVivo === "EN_VIVO");
-  // Se agrupa por día para que la agenda se lea como un programa.
+  // Se agrupa por día para que la agenda se lea como un programa. Lo que ya
+  // está en vivo se muestra arriba en "AHORA" — se excluye aquí para no
+  // repetir la misma actividad dos veces en la pantalla.
   const porDia = actividades.reduce<Record<string, ActividadVivo[]>>((acc, a) => {
+    if (a.estadoEnVivo === "EN_VIVO") return acc;
     const dia = a.fechaActividad.substring(0, 10);
     (acc[dia] ??= []).push(a);
     return acc;
@@ -255,12 +283,12 @@ export default function CronogramaVivo({
                       </a>
                     )}
                     {!!eeId && (a.suscrito || a.estadoEnVivo === 'PENDIENTE') && (
-                      <button onClick={() => suscribir(a)} className={`ml-2 mt-3 inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold ${a.suscrito ? 'bg-amber-100 text-amber-800' : 'border border-gray-300 text-gray-700'}`}>
+                      <button onClick={() => suscribir(a)} disabled={suscribiendo} className={`ml-2 mt-3 inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold disabled:opacity-50 ${a.suscrito ? 'bg-amber-100 text-amber-800' : 'border border-gray-300 text-gray-700'}`}>
                         <Bell className="w-3.5 h-3.5" />{a.suscrito ? 'Suscrito' : 'Suscribirme'}
                       </button>
                     )}
                     {!!a.anuncios?.length && <div className="mt-3 space-y-1">{a.anuncios.map((an) => <div key={an.id} className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900"><Megaphone className="inline w-3.5 h-3.5 mr-1" />{an.mensaje}</div>)}</div>}
-                    {staff && <div className="mt-3 flex flex-col sm:flex-row gap-2"><input value={anuncios[a.id] || ''} onChange={(e) => setAnuncios((n) => ({ ...n, [a.id]: e.target.value }))} maxLength={500} placeholder="Anuncio o cambio para los suscritos" className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-xs" /><button onClick={() => publicarAnuncio(a)} className="rounded-lg bg-amber-500 px-3 py-2 text-xs font-bold text-white">Publicar anuncio</button></div>}
+                    {staff && <div className="mt-3 flex flex-col sm:flex-row gap-2"><input value={anuncios[a.id] || ''} onChange={(e) => setAnuncios((n) => ({ ...n, [a.id]: e.target.value }))} maxLength={500} placeholder="Anuncio o cambio para los suscritos" className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-xs" /><button onClick={() => publicarAnuncio(a)} disabled={publicandoAnuncio} className="rounded-lg bg-amber-500 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">Publicar anuncio</button></div>}
                   </div>
 
                   {staff && (

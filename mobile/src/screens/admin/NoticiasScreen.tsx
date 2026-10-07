@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   ActivityIndicator, RefreshControl, Modal, Image, KeyboardAvoidingView, Platform, Switch,
@@ -45,6 +45,7 @@ export default function NoticiasScreen() {
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState({ ...defaultForm });
   const [saving, setSaving] = useState(false);
+  const guardandoRef = useRef(false);
   const [uploading, setUploading] = useState(false);
 
   const fetchNoticias = useCallback(async () => {
@@ -76,6 +77,7 @@ export default function NoticiasScreen() {
   };
 
   const handleSave = async (estadoDeseado: 'BORRADOR' | 'PUBLICAR') => {
+    if (guardandoRef.current) return;
     if (!form.tituloNoticia || !form.contenidoNoticia) {
       show({ type: 'warning', title: 'Requerido', message: 'Ingresa título y contenido.' });
       return;
@@ -98,6 +100,7 @@ export default function NoticiasScreen() {
     } else {
       estadoPublicacion = 'PUBLICADO';
     }
+    guardandoRef.current = true;
     setSaving(true);
     try {
       const user = userStore.get();
@@ -121,7 +124,7 @@ export default function NoticiasScreen() {
       setShowForm(false);
       fetchNoticias();
     } catch (e: any) { show({ type: 'error', title: 'Error', message: e.message || 'No se pudo guardar.' }); }
-    finally { setSaving(false); }
+    finally { setSaving(false); guardandoRef.current = false; }
   };
 
   const handleDelete = (id: number, titulo: string) => {

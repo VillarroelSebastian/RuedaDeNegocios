@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
   SafeAreaView, KeyboardAvoidingView, Platform, ActivityIndicator,
@@ -173,6 +173,7 @@ function RegistroEmpresaScreen({ navigation, tipo = 'empresa' }: any) {
   const [paqueteId, setPaqueteId] = useState<number | null>(null);
   const [loadingInit, setLoadingInit] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const [verificando, setVerificando] = useState(false);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [showParticipants, setShowParticipants] = useState(false);
@@ -378,6 +379,8 @@ function RegistroEmpresaScreen({ navigation, tipo = 'empresa' }: any) {
   const goPrev = () => step === 0 ? navigation.goBack() : setStep(s => s - 1);
 
   const submitRegistro = async () => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       const payload = {
@@ -412,7 +415,7 @@ function RegistroEmpresaScreen({ navigation, tipo = 'empresa' }: any) {
       setStep(3);
     } catch (err: any) {
       showModal('error', 'Error en el registro', err.message ?? 'No se pudo completar el registro.');
-    } finally { setSubmitting(false); }
+    } finally { submittingRef.current = false; setSubmitting(false); }
   };
 
   if (loadingInit) {
@@ -878,6 +881,7 @@ function RegistroForoScreen({ navigation }: any) {
   const [uploadingFile, setUploadingFile] = useState(false);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const [enviado, setEnviado] = useState(false);
   const [modal, setModal] = useState<{ visible: boolean; type: ModalType; title: string; message: string }>({
     visible: false, type: 'error', title: '', message: '',
@@ -925,6 +929,8 @@ function RegistroForoScreen({ navigation }: any) {
     if (telefono.trim().length < 6) return showModal('warning', 'Falta un dato', 'Escribe un teléfono válido.');
     if (institucion.trim().length < 2) return showModal('warning', 'Falta un dato', 'Escribe tu institución u organización.');
     if (!comprobanteUrl) return showModal('warning', 'Falta el comprobante', 'Sube tu comprobante de pago para completar el registro.');
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       const res = await fetch(`${API_URL}/public/registro-foro`, {
@@ -942,6 +948,7 @@ function RegistroForoScreen({ navigation }: any) {
     } catch (e: any) {
       showModal('error', 'No se pudo registrar', e.message ?? 'Error de red');
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };

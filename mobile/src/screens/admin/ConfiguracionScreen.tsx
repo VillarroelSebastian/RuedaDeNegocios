@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   Image, ActivityIndicator, KeyboardAvoidingView, Platform,
@@ -18,6 +18,8 @@ export default function ConfiguracionScreen({ navigation }: any) {
   const [mostrarPass, setMostrarPass] = useState(false);
   const [tab, setTab] = useState<'perfil' | 'seguridad'>('perfil');
   const [saving, setSaving] = useState(false);
+  const guardandoPerfilRef = useRef(false);
+  const guardandoPasswordRef = useRef(false);
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
@@ -48,6 +50,8 @@ export default function ConfiguracionScreen({ navigation }: any) {
 
   const handleSavePerfil = async () => {
     if (!user) return;
+    if (guardandoPerfilRef.current) return;
+    guardandoPerfilRef.current = true;
     setSaving(true);
     try {
       const res = await fetch(`${API_URL}/admin/perfil/${user.id}`, {
@@ -62,7 +66,7 @@ export default function ConfiguracionScreen({ navigation }: any) {
       setUser(newUser);
       show({ type: 'success', title: '¡Listo!', message: 'Perfil actualizado correctamente.' });
     } catch { show({ type: 'error', title: 'Error', message: 'No se pudo actualizar el perfil.' }); }
-    finally { setSaving(false); }
+    finally { setSaving(false); guardandoPerfilRef.current = false; }
   };
 
   const handleSavePassword = async () => {
@@ -79,6 +83,8 @@ export default function ConfiguracionScreen({ navigation }: any) {
       show({ type: 'warning', title: 'Contraseña muy corta', message: 'La nueva contraseña debe tener al menos 6 caracteres.' });
       return;
     }
+    if (guardandoPasswordRef.current) return;
+    guardandoPasswordRef.current = true;
     setSaving(true);
     try {
       const res = await fetch(`${API_URL}/admin/perfil/${user.id}`, {
@@ -91,7 +97,7 @@ export default function ConfiguracionScreen({ navigation }: any) {
       show({ type: 'success', title: '¡Listo!', message: 'Contraseña cambiada correctamente.' });
       setPassForm({ contraseniaActual: '', nuevaContrasenia: '', confirmar: '' });
     } catch (e: any) { show({ type: 'error', title: 'Error', message: e.message || 'No se pudo cambiar la contraseña.' }); }
-    finally { setSaving(false); }
+    finally { setSaving(false); guardandoPasswordRef.current = false; }
   };
 
   const handleLogout = () => {

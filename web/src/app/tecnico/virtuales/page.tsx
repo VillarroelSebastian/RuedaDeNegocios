@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -177,6 +177,7 @@ export default function TecnicoVirtualesPage() {
   const [msgModal, setMsgModal] = useState<{ reunionId: number; empresa: 'A' | 'B'; empresaNombre: string; encargadoNombre: string } | null>(null);
   const [msgText, setMsgText] = useState('');
   const [sending, setSending] = useState(false);
+  const sendingRef = useRef(false);
   const [acting, setActing] = useState(false);
 
   const load = useCallback(async (mostrarCarga = false) => {
@@ -201,7 +202,8 @@ export default function TecnicoVirtualesPage() {
   }, []);
 
   const sendMessage = async () => {
-    if (!msgModal || !msgText.trim()) return;
+    if (!msgModal || !msgText.trim() || sendingRef.current) return;
+    sendingRef.current = true;
     setSending(true);
     try {
       const res = await fetch(`${API}/tecnico/reuniones/${msgModal.reunionId}/mensaje`, {
@@ -212,7 +214,7 @@ export default function TecnicoVirtualesPage() {
       showSuccess('Mensaje enviado', `El mensaje fue enviado al encargado de ${msgModal.empresaNombre}.`);
       setMsgModal(null);
     } catch { showError('Error', 'No se pudo enviar el mensaje. Intenta de nuevo.'); }
-    finally { setSending(false); }
+    finally { sendingRef.current = false; setSending(false); }
   };
 
   const cambiarEstado = (reunion: any, estado: string) => {
@@ -290,7 +292,7 @@ export default function TecnicoVirtualesPage() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
-      <ModalComponent />
+      {ModalComponent}
 
       {/* Modal de mensaje */}
       {msgModal && (

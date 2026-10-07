@@ -98,6 +98,7 @@ export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?:
   // Mensaje / envío
   const [mensaje,   setMensaje]   = useState('');
   const [sending,   setSending]   = useState(false);
+  const sendingRef = useRef(false);
   const [sendError, setSendError] = useState('');
   const [sendOk,    setSendOk]    = useState(false);
 
@@ -316,10 +317,13 @@ export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?:
   // ── Submit ────────────────────────────────────────────────────────────────────
 
   const handleSubmit = async () => {
+    if (sendingRef.current) return;
+    sendingRef.current = true;
     const eeId = user?.empresaeventoId;
-    if (!eeId || !horarioSel || !selected) return;
+    if (!eeId || !horarioSel || !selected) { sendingRef.current = false; return; }
     if (modalidad === 'PRESENCIAL' && !mesaSel) {
       setSendError('Selecciona una mesa para continuar.');
+      sendingRef.current = false;
       return;
     }
     setSendError('');
@@ -358,6 +362,7 @@ export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?:
       setSendError(e.message || 'Error de red');
     } finally {
       setSending(false);
+      sendingRef.current = false;
     }
   };
 

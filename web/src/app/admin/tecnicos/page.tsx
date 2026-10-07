@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Mail, Plus, Pencil, Trash2, User, X, Upload } from 'lucide-react';
 import { useModal } from '@/components/ui/Modal';
 
@@ -23,6 +23,7 @@ export default function TecnicosPage() {
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState({ ...defaultForm });
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [uploading, setUploading] = useState(false);
   const [resendingId, setResendingId] = useState<number | null>(null);
 
@@ -63,6 +64,8 @@ export default function TecnicosPage() {
       showError('Campos requeridos', 'Completa nombre, apellido, correo y teléfono.');
       return;
     }
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     try {
       const url = editId ? `${API}/admin/tecnicos/${editId}` : `${API}/admin/tecnicos`;
@@ -78,7 +81,7 @@ export default function TecnicosPage() {
       fetch_();
     } catch (e: any) {
       showError('Error', e.message || 'No se pudo guardar.');
-    } finally { setSaving(false); }
+    } finally { savingRef.current = false; setSaving(false); }
   };
 
   const handleDelete = (id: number, nombre: string) => {
@@ -116,7 +119,7 @@ export default function TecnicosPage() {
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
-      <ModalComponent />
+      {ModalComponent}
 
       <div className="flex items-center justify-between mb-6">
         <div>

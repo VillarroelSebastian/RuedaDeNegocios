@@ -42,6 +42,9 @@ export default function EmpresaHeader({ onMenuClick, eeId }: { onMenuClick?: () 
   const profileRef = useRef<HTMLDivElement>(null);
   const notifsRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
+  // Guard sincrónico: evita que un doble clic en la campanita dispare la
+  // petición de marcar notificaciones como leídas dos veces.
+  const marcandoLeidasRef = useRef(false);
 
   useEffect(() => {
     const leer = () => {
@@ -92,7 +95,8 @@ export default function EmpresaHeader({ onMenuClick, eeId }: { onMenuClick?: () 
     const abriendo = !showNotifs;
     setShowNotifs(abriendo);
     if (abriendo) await cargarNotifs();
-    if (abriendo && unread > 0 && eeId) {
+    if (abriendo && unread > 0 && eeId && !marcandoLeidasRef.current) {
+      marcandoLeidasRef.current = true;
       try {
         await fetch(`${API}/empresa/notificaciones/leidas`, {
           method: 'PUT',
@@ -102,6 +106,7 @@ export default function EmpresaHeader({ onMenuClick, eeId }: { onMenuClick?: () 
         setUnread(0);
         setNotifs((prev) => prev.map((n) => ({ ...n, leida: true })));
       } catch {}
+      finally { marcandoLeidasRef.current = false; }
     }
   };
 

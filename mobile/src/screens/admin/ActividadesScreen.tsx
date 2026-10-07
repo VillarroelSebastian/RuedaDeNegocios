@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   ActivityIndicator, RefreshControl, Modal, KeyboardAvoidingView, Platform,
@@ -45,6 +45,7 @@ export default function ActividadesScreen({ mostrarCronograma = true }: { mostra
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState({ ...defaultForm });
   const [saving, setSaving] = useState(false);
+  const guardandoRef = useRef(false);
 
   const fetchActividades = useCallback(async () => {
     try {
@@ -75,11 +76,13 @@ export default function ActividadesScreen({ mostrarCronograma = true }: { mostra
   };
 
   const handleSave = async () => {
+    if (guardandoRef.current) return;
     if (!form.nombreActividad.trim() || !form.descripcionActividad.trim() || !form.nombreSalaEspacio.trim() ||
         !(Number(form.capacidadPersonasSala) > 0) || !form.fechaActividad || !form.horaInicioActividad || !form.horaFinActividad) {
       show({ type: 'warning', title: 'Campos requeridos', message: 'Completa nombre, descripción, sala, capacidad, fecha y horario.' });
       return;
     }
+    guardandoRef.current = true;
     setSaving(true);
     try {
       const url = editId ? `${API_URL}/admin/actividades/${editId}` : `${API_URL}/admin/actividades`;
@@ -96,7 +99,7 @@ export default function ActividadesScreen({ mostrarCronograma = true }: { mostra
       setShowForm(false);
       fetchActividades();
     } catch { show({ type: 'error', title: 'Error', message: 'No se pudo guardar la actividad.' }); }
-    finally { setSaving(false); }
+    finally { setSaving(false); guardandoRef.current = false; }
   };
 
   const handleDelete = (id: number, nombre: string) => {

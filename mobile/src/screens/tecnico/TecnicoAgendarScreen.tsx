@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput, ActivityIndicator,
   StyleSheet, Modal, KeyboardAvoidingView, Platform,
@@ -76,6 +76,7 @@ export default function TecnicoAgendarScreen() {
   const [enlace, setEnlace] = useState('');
   const [mensaje, setMensaje] = useState('');
   const [enviando, setEnviando] = useState(false);
+  const enviandoRef = useRef(false);
   const [err, setErr] = useState('');
   const [exito, setExito] = useState('');
 
@@ -198,6 +199,8 @@ export default function TecnicoAgendarScreen() {
 
   const crear = async () => {
     if (!empA || !empB || !horario) return;
+    if (enviandoRef.current) return;
+    enviandoRef.current = true;
     setErr('');
     setEnviando(true);
     try {
@@ -216,7 +219,7 @@ export default function TecnicoAgendarScreen() {
       if (!res.ok) throw new Error(data?.message ?? 'Error al crear la reunión');
       setExito(`Reunión creada entre ${empA.nombre} y ${empB.nombre} para el ${fmtSoloFecha(fechaISO(horario.inicio))} a las ${fmtTime(horario.inicio)}. Ambas empresas fueron notificadas.`);
     } catch (e: any) { setErr(e.message || 'Error de red'); }
-    finally { setEnviando(false); }
+    finally { setEnviando(false); enviandoRef.current = false; }
   };
 
   const reiniciar = () => {

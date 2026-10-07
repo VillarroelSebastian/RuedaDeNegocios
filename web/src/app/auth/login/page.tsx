@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -15,9 +15,11 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const loadingRef = useRef(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loadingRef.current) return;
     setError("");
 
     // El login no acepta espacios; validamos formato de correo antes de enviar.
@@ -31,6 +33,7 @@ export default function LoginPage() {
       return;
     }
 
+    loadingRef.current = true;
     setLoading(true);
 
     try {
@@ -70,6 +73,7 @@ export default function LoginPage() {
     } catch (err: any) {
       setError(err.message);
     } finally {
+      loadingRef.current = false;
       setLoading(false);
     }
   };

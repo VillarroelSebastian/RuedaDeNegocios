@@ -19,7 +19,7 @@ export default function EventosListPage() {
   const [loading, setLoading] = useState(true);
   const [busqueda, setBusqueda] = useState('');
   const [filtroEstado, setFiltroEstado] = useState<'TODOS' | 'PRINCIPAL' | 'NO_PRINCIPAL'>('TODOS');
-  const { modal, showModal, closeModal } = useModal();
+  const { modal, generation, showModal, closeModal } = useModal();
 
   const fetchEventos = async () => {
     try {
@@ -213,6 +213,7 @@ export default function EventosListPage() {
         title={modal.title}
         message={modal.message}
         onConfirm={modal.onConfirm}
+        generation={generation}
       />
     </div>
   );

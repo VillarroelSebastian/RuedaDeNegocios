@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Plus, Pencil, Trash2, X, Upload, Image as ImageIcon, Clock } from 'lucide-react';
 import ImagenLightbox from '@/components/ui/ImagenLightbox';
 import { useModal } from '@/components/ui/Modal';
@@ -39,6 +39,7 @@ export default function NoticiasPage() {
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState({ ...defaultForm });
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [uploading, setUploading] = useState(false);
 
   const fetch_ = useCallback(async () => {
@@ -112,6 +113,8 @@ export default function NoticiasPage() {
     } else {
       estadoPublicacion = 'PUBLICADO';
     }
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     try {
       const user = JSON.parse(localStorage.getItem('adminUser') || localStorage.getItem('tecnicoUser') || '{}');
@@ -135,7 +138,7 @@ export default function NoticiasPage() {
       setShowForm(false);
       fetch_();
     } catch (e: any) { showError('Error', e.message || 'No se pudo guardar.'); }
-    finally { setSaving(false); }
+    finally { savingRef.current = false; setSaving(false); }
   };
 
   const handleDelete = (id: number, titulo: string) => {
@@ -162,7 +165,7 @@ export default function NoticiasPage() {
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
-      <ModalComponent />
+      {ModalComponent}
 
       <div className="flex items-center justify-between mb-6">
         <div>

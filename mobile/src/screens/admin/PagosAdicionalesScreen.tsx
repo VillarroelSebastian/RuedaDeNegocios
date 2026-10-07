@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   ActivityIndicator, RefreshControl, Linking, StyleSheet, Modal,
@@ -52,6 +52,7 @@ export default function PagosAdicionalesScreen({ embedded = false }: { embedded?
   const [selected,  setSelected]  = useState<any>(null);
   const [obs, setObs]             = useState('');
   const [acting, setActing]       = useState(false);
+  const actingRef = useRef(false);
   const [expanded, setExpanded]   = useState<Set<number>>(new Set());
 
   const fetchPagos = useCallback(async () => {
@@ -109,6 +110,8 @@ export default function PagosAdicionalesScreen({ embedded = false }: { embedded?
       show({ type: 'warning', title: 'Requerido', message: 'Escribe una observación antes de continuar.' });
       return;
     }
+    if (actingRef.current) return;
+    actingRef.current = true;
     setActing(true);
     try {
       const res = await fetch(`${API_URL}/admin/pagos-adicionales/${selected.id}/observar`, {
@@ -123,7 +126,7 @@ export default function PagosAdicionalesScreen({ embedded = false }: { embedded?
       fetchPagos();
     } catch {
       show({ type: 'error', title: 'Error', message: 'No se pudo enviar la observación.' });
-    } finally { setActing(false); }
+    } finally { setActing(false); actingRef.current = false; }
   };
 
   const handleRechazar = () => {

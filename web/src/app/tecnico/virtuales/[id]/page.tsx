@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
 import {
@@ -91,8 +91,11 @@ export default function VirtualDetailPage() {
   const [editandoLink, setEditandoLink] = useState(false);
   const [nuevoLink, setNuevoLink] = useState('');
   const [guardandoLink, setGuardandoLink] = useState(false);
+  const guardandoLinkRef = useRef(false);
 
   const guardarLink = async () => {
+    if (guardandoLinkRef.current) return;
+    guardandoLinkRef.current = true;
     setGuardandoLink(true);
     try {
       const res = await fetch(`${API}/tecnico/reuniones/${id}/link`, {
@@ -108,6 +111,7 @@ export default function VirtualDetailPage() {
     } catch (error) {
       setModal({ visible: true, type: 'error', title: 'Error', message: error instanceof Error ? error.message : 'No se pudo guardar el enlace.' });
     } finally {
+      guardandoLinkRef.current = false;
       setGuardandoLink(false);
     }
   };

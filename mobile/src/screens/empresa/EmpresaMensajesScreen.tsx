@@ -46,6 +46,7 @@ export default function EmpresaMensajesScreen() {
   const [cargandoEmp, setCargandoEmp] = useState(false);
 
   const listRef = useRef<FlatList>(null);
+  const enviandoRef = useRef(false);
   const activaRef = useRef(activa);
   useEffect(() => { activaRef.current = activa; }, [activa]);
 
@@ -107,7 +108,8 @@ export default function EmpresaMensajesScreen() {
 
   const enviar = async () => {
     const t = texto.trim();
-    if (!t || !eeId || !euId || !activa || enviando) return;
+    if (!t || !eeId || !euId || !activa || enviandoRef.current) return;
+    enviandoRef.current = true;
     setEnviando(true);
     setError('');
     try {
@@ -122,7 +124,7 @@ export default function EmpresaMensajesScreen() {
       await cargarMensajes(activa.eeId);
       cargarConvs();
     } catch (e: any) { setError(e.message || 'Error de red'); }
-    finally { setEnviando(false); }
+    finally { setEnviando(false); enviandoRef.current = false; }
   };
 
   const filtradas = empresas.filter((e: any) =>

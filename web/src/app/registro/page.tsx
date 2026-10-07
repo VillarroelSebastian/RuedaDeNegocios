@@ -166,6 +166,7 @@ function RegistroEmpresaPage({ tipo = "empresa" }: { tipo?: "empresa" | "foro" }
   const [evento, setEvento] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
@@ -395,6 +396,8 @@ function RegistroEmpresaPage({ tipo = "empresa" }: { tipo?: "empresa" | "foro" }
 
   /* ─── Submit ─────────────────────────────────────────────────── */
   const handleSubmit = async () => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       // Limpieza de espacios en todo lo que escribe el usuario antes de enviar.
@@ -441,6 +444,7 @@ function RegistroEmpresaPage({ tipo = "empresa" }: { tipo?: "empresa" | "foro" }
     } catch (e: any) {
       showModal("error", "Error en el registro", e.message || "No se pudo completar el registro.");
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
@@ -1142,6 +1146,7 @@ function RegistroForoPage({ onVolver }: { onVolver: () => void }) {
   const [urlComprobante, setUrlComprobante] = useState("");
   const [uploadingFile, setUploadingFile] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const [enviado, setEnviado] = useState(false);
   const [modal, setModal] = useState<{ open: boolean; type: string; title: string; message: string }>({
     open: false, type: "error", title: "", message: "",
@@ -1181,6 +1186,8 @@ function RegistroForoPage({ onVolver }: { onVolver: () => void }) {
     if (telefono.trim().length < 6) return showModal("error", "Falta un dato", "Escribe un teléfono válido.");
     if (institucion.trim().length < 2) return showModal("error", "Falta un dato", "Escribe tu institución u organización.");
     if (!urlComprobante) return showModal("error", "Falta el comprobante", "Sube tu comprobante de pago para completar el registro.");
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       const res = await fetch(`${API}/public/registro-foro`, {
@@ -1198,6 +1205,7 @@ function RegistroForoPage({ onVolver }: { onVolver: () => void }) {
     } catch (e: any) {
       showModal("error", "No se pudo registrar", e.message);
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };

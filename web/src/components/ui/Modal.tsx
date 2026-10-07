@@ -16,7 +16,7 @@ interface ModalProps {
   confirmText?: string;
   cancelText?: string;
   confirmTone?: 'danger' | 'success';
-  waitForConfirm?: boolean;
+  generation: number;
 }
 
 const iconMap = {
@@ -37,26 +37,45 @@ export default function Modal({
   confirmText = 'Confirmar',
   cancelText = 'Cancelar',
   confirmTone = 'danger',
-  waitForConfirm = false,
+  generation,
 }: ModalProps) {
   const [confirming, setConfirming] = React.useState(false);
+  // Guard sincrónico aparte del estado: un doble clic/doble tap puede invocar
+  // handleConfirm dos veces antes de que React termine de re-renderizar con
+  // confirming=true, y eso disparaba el onConfirm real (aprobar, reenviar
+  // credenciales, etc.) dos veces. El ref se lee/escribe al instante, sin
+  // esperar al ciclo de render, así la segunda invocación se descarta siempre.
+  const confirmingRef = React.useRef(false);
+  // Se actualiza en cada render (no en un efecto) para poder comparar, justo
+  // después de esperar a onConfirm, si mientras tanto se abrió otro modal
+  // encadenado (p. ej. un "¡Listo!" disparado desde el propio onConfirm) y
+  // así evitar cerrar por encima de ese modal nuevo.
+  const genRef = React.useRef(generation);
+  genRef.current = generation;
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.key === 'Escape' && !confirming) onClose();
   }, [onClose, confirming]);
 
-  useEffect(() => { setConfirming(false); }, [isOpen, type, title]);
+  useEffect(() => { setConfirming(false); confirmingRef.current = false; }, [isOpen, type, title]);
 
   const handleConfirm = async () => {
-    if (!waitForConfirm) {
-      onClose();
-      onConfirm?.();
-      return;
-    }
+    if (confirmingRef.current) return;
+    confirmingRef.current = true;
+    const startGen = genRef.current;
     setConfirming(true);
     try {
+      // No cerramos antes de esperar: si cerráramos ya y luego onConfirm
+      // abre un modal de éxito/error, el usuario ve este modal cerrarse y
+      // el otro abrirse de inmediato — un parpadeo que parece "el modal
+      // salió 2 veces". En vez de eso dejamos este modal abierto (con
+      // "Procesando…") mientras se resuelve.
       await onConfirm?.();
     } finally {
+      confirmingRef.current = false;
       setConfirming(false);
+      // Solo autocerramos si nadie más (dentro de onConfirm) ya mostró un
+      // modal nuevo; si lo hizo, generation cambió y lo dejamos como está.
+      if (genRef.current === startGen) onClose();
     }
   };
 
@@ -127,7 +146,6 @@ export interface ModalState {
   message: string;
   onConfirm?: () => void | Promise<void>;
   confirmTone?: 'danger' | 'success';
-  waitForConfirm?: boolean;
 }
 
 export function useModal() {
@@ -137,8 +155,16 @@ export function useModal() {
     title: '',
     message: '',
   });
+  // Cada vez que se muestra un modal (incluyendo uno encadenado desde dentro
+  // de un onConfirm) se incrementa esta generación; así Modal puede saber,
+  // al terminar de esperar su propio onConfirm, si ya lo reemplazaron por
+  // otro modal y evitar cerrarlo por encima.
+  const generationRef = React.useRef(0);
+  const [generation, setGeneration] = React.useState(0);
 
   const showModal = (type: ModalType, title: string, message: string, onConfirm?: () => void | Promise<void>) => {
+    generationRef.current += 1;
+    setGeneration(generationRef.current);
     setModal({ isOpen: true, type, title, message, onConfirm });
   };
 
@@ -153,10 +179,22 @@ export function useModal() {
     message: string,
     onConfirm: () => void | Promise<void>,
     confirmTone: 'danger' | 'success' = 'danger',
-    waitForConfirm = false,
-  ) => setModal({ isOpen: true, type: 'confirm', title, message, onConfirm, confirmTone, waitForConfirm });
+  ) => {
+    generationRef.current += 1;
+    setGeneration(generationRef.current);
+    setModal({ isOpen: true, type: 'confirm', title, message, onConfirm, confirmTone });
+  };
 
-  const ModalComponent = () => (
+  // Nota deliberada: esto es el elemento YA renderizado (`<Modal ... />`), no
+  // una función componente. Antes `ModalComponent` era una función definida
+  // aquí dentro, así que en cada render del que llama a useModal() se creaba
+  // una función nueva con una identidad distinta; React la trata como un tipo
+  // de componente diferente en cada render y desmonta/remonta el <Modal> de
+  // verdad por debajo — lo que reproducía su animación de aparición cada vez,
+  // incluso por cambios de estado ajenos al modal (p. ej. un sondeo en segundo
+  // plano) o al encadenar confirm -> éxito/error. Con un elemento ya armado,
+  // `Modal` conserva su identidad entre renders: solo cambian sus props.
+  const ModalComponent = (
     <Modal
       isOpen={modal.isOpen}
       onClose={closeModal}
@@ -165,13 +203,14 @@ export function useModal() {
       message={modal.message}
       onConfirm={modal.onConfirm}
       confirmTone={modal.confirmTone}
-      waitForConfirm={modal.waitForConfirm}
+      generation={generation}
     />
   );
 
   return {
     modal,
     modalState: modal,
+    generation,
     showModal,
     closeModal,
     showSuccess,

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   User, Building2, Save, AlertCircle, CheckCircle2, Edit3,
@@ -32,8 +32,10 @@ function AgregarParticipanteModal({ eeId, euEncargadoId, slotsDisponibles, maxPe
   const [form, setForm] = useState({ nombres: "", apellidoPaterno: "", correo: "", telefono: "", cargo: "" });
   const [enviando, setEnviando] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const enviandoRef = useRef(false);
 
   const submit = async () => {
+    if (enviandoRef.current) return;
     setErr(null);
     if (!form.nombres.trim() || !form.apellidoPaterno.trim() || !form.correo.trim() || !form.telefono.trim()) {
       setErr("Nombres, apellido paterno, correo y teléfono son requeridos");
@@ -47,6 +49,7 @@ function AgregarParticipanteModal({ eeId, euEncargadoId, slotsDisponibles, maxPe
       setErr("El teléfono no es válido");
       return;
     }
+    enviandoRef.current = true;
     setEnviando(true);
     try {
       const res = await fetch(`${API}/empresa/participantes`, {
@@ -60,6 +63,7 @@ function AgregarParticipanteModal({ eeId, euEncargadoId, slotsDisponibles, maxPe
     } catch (e: any) {
       setErr(e.message);
     } finally {
+      enviandoRef.current = false;
       setEnviando(false);
     }
   };
@@ -114,6 +118,7 @@ function PagoAdicionalModal({ eeId, euEncargadoId, maxPermitidos, slotsPagados, 
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const enviandoRef = useRef(false);
   const [qrPago, setQrPago] = useState<string | null>(null);
   const [montoCalculado, setMontoCalculado] = useState<number>(0);
 
@@ -145,9 +150,11 @@ function PagoAdicionalModal({ eeId, euEncargadoId, maxPermitidos, slotsPagados, 
   };
 
   const submit = async () => {
+    if (enviandoRef.current) return;
     setErr(null);
     if (!urlComprobante.trim()) { setErr("Debes subir el comprobante de pago"); return; }
     if (cantidad < 1) { setErr("La cantidad debe ser al menos 1"); return; }
+    enviandoRef.current = true;
     setEnviando(true);
     try {
       const res = await fetch(`${API}/empresa/pagos-adicionales`, {
@@ -161,6 +168,7 @@ function PagoAdicionalModal({ eeId, euEncargadoId, maxPermitidos, slotsPagados, 
     } catch (e: any) {
       setErr(e.message);
     } finally {
+      enviandoRef.current = false;
       setEnviando(false);
     }
   };
@@ -250,6 +258,7 @@ export default function EmpresaPerfilPage() {
   const [editando, setEditando] = useState(false);
   const [form, setForm] = useState({ nombres: "", apellidoPaterno: "", apellidoMaterno: "", telefono: "" });
   const [guardando, setGuardando] = useState(false);
+  const guardandoRef = useRef(false);
   const [exito, setExito] = useState<string | null>(null);
   const [errForm, setErrForm] = useState<string | null>(null);
   const [subiendoFoto, setSubiendoFoto] = useState(false);
@@ -330,8 +339,12 @@ export default function EmpresaPerfilPage() {
   const [modalAgregar, setModalAgregar] = useState(false);
   const [modalPago, setModalPago] = useState(false);
   const [desactivando, setDesactivando] = useState<number | null>(null);
+  // Guard sincrónico contra doble clic en el "Desactivar" del modal de confirmación.
+  const desactivandoRef = useRef(false);
   const [activando, setActivando] = useState<number | null>(null);
+  const activandoRef = useRef(false);
   const [reenviando, setReenviando] = useState<number | null>(null);
+  const reenviandoRef = useRef(false);
   const [modalDesactivarEu, setModalDesactivarEu] = useState<number | null>(null);
   const [mensajeP, setMensajeP] = useState<string | null>(null);
   const [mensajeErrP, setMensajeErrP] = useState<string | null>(null);
@@ -340,11 +353,13 @@ export default function EmpresaPerfilPage() {
   const [editandoComercial, setEditandoComercial] = useState(false);
   const [formComercial, setFormComercial] = useState({ oferta: "", demanda: "", interesesBusqueda: "" });
   const [guardandoComercial, setGuardandoComercial] = useState(false);
+  const guardandoComercialRef = useRef(false);
   const [errComercial, setErrComercial] = useState<string | null>(null);
   const [exitoComercial, setExitoComercial] = useState<string | null>(null);
 
   const handleGuardarComercial = async () => {
-    if (!ctx) return;
+    if (!ctx || guardandoComercialRef.current) return;
+    guardandoComercialRef.current = true;
     setErrComercial(null);
     setGuardandoComercial(true);
     try {
@@ -362,6 +377,7 @@ export default function EmpresaPerfilPage() {
     } catch (e: any) {
       setErrComercial(e.message);
     } finally {
+      guardandoComercialRef.current = false;
       setGuardandoComercial(false);
     }
   };
@@ -375,10 +391,14 @@ export default function EmpresaPerfilPage() {
   const [resetConf,    setResetConf]    = useState("");
   const [resetLoading, setResetLoading] = useState(false);
   const [resetErr,     setResetErr]     = useState<string | null>(null);
+  const enviandoCodigoRef = useRef(false);
+  const resetLoadingRef = useRef(false);
 
   const handleEnviarCodigo = async () => {
+    if (enviandoCodigoRef.current) return;
     const correo = ctx?.usuario?.correo;
     if (!correo) return;
+    enviandoCodigoRef.current = true;
     setResetStep("sending");
     try {
       await fetch(`${API}/auth/solicitar-reset`, {
@@ -391,14 +411,18 @@ export default function EmpresaPerfilPage() {
       setResetModal(true);
     } catch {
       setResetStep("idle");
+    } finally {
+      enviandoCodigoRef.current = false;
     }
   };
 
   const handleConfirmarReset = async () => {
+    if (resetLoadingRef.current) return;
     setResetErr(null);
     if (resetCodigo.length !== 6) { setResetErr("Ingresa el código de 6 dígitos."); return; }
     if (resetNueva.length < 6)    { setResetErr("La contraseña debe tener al menos 6 caracteres."); return; }
     if (resetNueva !== resetConf)  { setResetErr("Las contraseñas no coinciden."); return; }
+    resetLoadingRef.current = true;
     setResetLoading(true);
     try {
       const res = await fetch(`${API}/auth/confirmar-reset`, {
@@ -412,6 +436,7 @@ export default function EmpresaPerfilPage() {
     } catch (e: any) {
       setResetErr(e.message);
     } finally {
+      resetLoadingRef.current = false;
       setResetLoading(false);
     }
   };
@@ -462,9 +487,11 @@ export default function EmpresaPerfilPage() {
   }, [router, cargarParticipantes]);
 
   const handleGuardar = async () => {
+    if (guardandoRef.current) return;
     setErrForm(null); setExito(null);
     if (!form.nombres.trim()) { setErrForm("El nombre es requerido."); return; }
     if (!form.apellidoPaterno.trim()) { setErrForm("El apellido paterno es requerido."); return; }
+    guardandoRef.current = true;
     setGuardando(true);
     try {
       const res = await fetch(`${API}/empresa/perfil`, {
@@ -488,12 +515,14 @@ export default function EmpresaPerfilPage() {
     } catch (e: any) {
       setErrForm(e.message);
     } finally {
+      guardandoRef.current = false;
       setGuardando(false);
     }
   };
 
   const confirmarDesactivar = async () => {
-    if (!ctx || !modalDesactivarEu) return;
+    if (!ctx || !modalDesactivarEu || desactivandoRef.current) return;
+    desactivandoRef.current = true;
     const euId = modalDesactivarEu;
     setModalDesactivarEu(null);
     setDesactivando(euId);
@@ -512,6 +541,7 @@ export default function EmpresaPerfilPage() {
       setMensajeErrP(e.message);
       setTimeout(() => setMensajeErrP(null), 4000);
     } finally {
+      desactivandoRef.current = false;
       setDesactivando(null);
     }
   };
@@ -522,7 +552,8 @@ export default function EmpresaPerfilPage() {
   };
 
   const handleActivar = async (euId: number) => {
-    if (!ctx) return;
+    if (!ctx || activandoRef.current) return;
+    activandoRef.current = true;
     setActivando(euId);
     try {
       const res = await fetch(`${API}/empresa/participantes/${euId}/activar`, {
@@ -539,12 +570,14 @@ export default function EmpresaPerfilPage() {
       setMensajeErrP(e.message);
       setTimeout(() => setMensajeErrP(null), 4000);
     } finally {
+      activandoRef.current = false;
       setActivando(null);
     }
   };
 
   const handleReenviarCredenciales = async (euId: number) => {
-    if (!ctx) return;
+    if (!ctx || reenviandoRef.current) return;
+    reenviandoRef.current = true;
     setReenviando(euId);
     try {
       const res = await fetch(`${API}/empresa/participantes/${euId}/reenviar-credenciales`, {
@@ -560,6 +593,7 @@ export default function EmpresaPerfilPage() {
       setMensajeErrP(e.message);
       setTimeout(() => setMensajeErrP(null), 5000);
     } finally {
+      reenviandoRef.current = false;
       setReenviando(null);
     }
   };
@@ -633,9 +667,9 @@ export default function EmpresaPerfilPage() {
                 className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50">
                 Cancelar
               </button>
-              <button onClick={confirmarDesactivar}
-                className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-bold">
-                Desactivar
+              <button onClick={confirmarDesactivar} disabled={desactivando !== null}
+                className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-bold disabled:opacity-50">
+                {desactivando !== null ? "Desactivando..." : "Desactivar"}
               </button>
             </div>
           </div>

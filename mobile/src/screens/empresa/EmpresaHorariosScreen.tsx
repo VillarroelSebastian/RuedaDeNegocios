@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -16,6 +16,7 @@ export default function EmpresaHorariosScreen() {
   const [configurado, setConfigurado] = useState(false);
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(false);
+  const guardandoRef = useRef(false);
   const [mensaje, setMensaje] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null);
 
   const cargar = useCallback(async () => {
@@ -53,10 +54,12 @@ export default function EmpresaHorariosScreen() {
   };
 
   const guardar = async () => {
-    if (!eeId || guardando) return;
+    if (!eeId || guardandoRef.current) return;
+    guardandoRef.current = true;
     const invalido = dias.some((d) => d.habilitado && (d.rangos.length === 0 || d.rangos.some((r) => !r.desde || !r.hasta || r.desde >= r.hasta)));
     if (invalido) {
       setMensaje({ tipo: 'error', texto: 'Cada día habilitado debe tener al menos un rango válido.' });
+      guardandoRef.current = false;
       return;
     }
     setGuardando(true);
@@ -71,7 +74,7 @@ export default function EmpresaHorariosScreen() {
       setMensaje({ tipo: 'ok', texto: 'Tu agenda quedó disponible para las demás empresas.' });
     } catch (e: any) {
       setMensaje({ tipo: 'error', texto: e.message || 'No se pudo guardar la agenda.' });
-    } finally { setGuardando(false); }
+    } finally { setGuardando(false); guardandoRef.current = false; }
   };
 
   if (loading) return <SafeAreaView style={s.root}><View style={s.center}><ActivityIndicator size="large" color={GREEN} /></View></SafeAreaView>;

@@ -53,6 +53,7 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
   const [mensaje, setMensaje] = useState(reunion?.mensaje ?? '');
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
+  const guardandoRef = useRef(false);
   const [appModal, setAppModal] = useState<AppModal | null>(null);
 
   const fechasDisponibles = useMemo(() =>
@@ -108,7 +109,9 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
   }, [reunion, eeId]);
 
   const handleGuardar = async () => {
-    if (!horarioMatch) { setAppModal({ tipo: 'err', msg: 'Selecciona un horario válido.' }); return; }
+    if (guardandoRef.current) return;
+    guardandoRef.current = true;
+    if (!horarioMatch) { setAppModal({ tipo: 'err', msg: 'Selecciona un horario válido.' }); guardandoRef.current = false; return; }
     setGuardando(true);
     try {
       const res = await fetch(`${API_URL}/empresa/reuniones/${reunion.id}/cambiar-horario`, {
@@ -120,7 +123,7 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
       onOk();
     } catch (e: any) {
       setAppModal({ tipo: 'err', msg: e.message || 'Error al cambiar el horario.' });
-    } finally { setGuardando(false); }
+    } finally { setGuardando(false); guardandoRef.current = false; }
   };
 
   return (
@@ -322,15 +325,20 @@ function DetalleReunionModal({ reunion, eeId, navigation, onClose, onCambiarHora
   const st = STATUS_STYLE[reunion.estado] ?? { bg: '#f1f5f9', text: '#475569', label: reunion.estado };
   const isVirtual = reunion.tipo === 'VIRTUAL';
   const [finalizando, setFinalizando] = useState(false);
+  const finalizandoRef = useRef(false);
   const [errFin, setErrFin] = useState<string | null>(null);
   const [confirmandoFin, setConfirmandoFin] = useState(false);
   const [iniciando, setIniciando] = useState(false);
+  const iniciandoRef = useRef(false);
   const [msgIni, setMsgIni] = useState<string | null>(null);
   const [confirmandoCancelacion, setConfirmandoCancelacion] = useState(false);
   const [cancelandoReunion, setCancelandoReunion] = useState(false);
+  const cancelandoReunionRef = useRef(false);
   const [motivoCancelacion, setMotivoCancelacion] = useState('');
 
   const handleIniciar = async () => {
+    if (iniciandoRef.current) return;
+    iniciandoRef.current = true;
     setIniciando(true); setMsgIni(null);
     try {
       const res = await fetch(`${API_URL}/empresa/reuniones/${reunion.id}/iniciar`, {
@@ -342,9 +350,12 @@ function DetalleReunionModal({ reunion, eeId, navigation, onClose, onCambiarHora
       if (d.iniciada) { onFinalizado(); }
       else { setMsgIni('Le avisamos a la otra empresa. La reunión iniciará cuando ambas confirmen.'); setIniciando(false); onFinalizado(); }
     } catch (e: any) { setMsgIni(e.message || 'Error al iniciar'); setIniciando(false); }
+    finally { iniciandoRef.current = false; }
   };
 
   const handleFinalizar = async () => {
+    if (finalizandoRef.current) return;
+    finalizandoRef.current = true;
     setConfirmandoFin(false);
     setFinalizando(true); setErrFin(null);
     try {
@@ -355,9 +366,12 @@ function DetalleReunionModal({ reunion, eeId, navigation, onClose, onCambiarHora
       if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
       onFinalizado();
     } catch (e: any) { setErrFin(e.message || 'Error al finalizar'); setFinalizando(false); }
+    finally { finalizandoRef.current = false; }
   };
 
   const handleCancelarReunion = async () => {
+    if (cancelandoReunionRef.current) return;
+    cancelandoReunionRef.current = true;
     setCancelandoReunion(true); setErrFin(null);
     try {
       const res = await fetch(`${API_URL}/empresa/reuniones/${reunion.id}/cancelar`, {
@@ -370,7 +384,7 @@ function DetalleReunionModal({ reunion, eeId, navigation, onClose, onCambiarHora
     } catch (e: any) {
       setErrFin(e.message || 'No se pudo cancelar la reunión.');
       setCancelandoReunion(false);
-    }
+    } finally { cancelandoReunionRef.current = false; }
   };
 
   const Row = ({ label, value }: { label: string; value: string | React.ReactNode }) => (
@@ -648,6 +662,8 @@ export default function EmpresaReunionesScreen({ navigation, route, embedded = f
   const [detalleModal,setDetalleModal]= useState<any>(null);
   const [cambiarModal,setCambiarModal]= useState<any>(null);
   const [appModal,    setAppModal]    = useState<AppModal | null>(null);
+  const [respondiendoCambioId, setRespondiendoCambioId] = useState<number | null>(null);
+  const respondiendoCambioRef = useRef<number | null>(null);
 
   const user = userStore.get();
 
@@ -691,6 +707,9 @@ export default function EmpresaReunionesScreen({ navigation, route, embedded = f
 
   const responderCambio = async (cambioId: number, aceptar: boolean) => {
     if (!eeId) return;
+    if (respondiendoCambioRef.current !== null) return;
+    respondiendoCambioRef.current = cambioId;
+    setRespondiendoCambioId(cambioId);
     try {
       const res = await fetch(`${API_URL}/empresa/reuniones/cambios/${cambioId}/responder`, {
         method: 'PUT',
@@ -703,6 +722,9 @@ export default function EmpresaReunionesScreen({ navigation, route, embedded = f
       fetchData();
     } catch (e: any) {
       setAppModal({ tipo: 'err', msg: e.message || 'No se pudo responder la propuesta' });
+    } finally {
+      respondiendoCambioRef.current = null;
+      setRespondiendoCambioId(null);
     }
   };
 
@@ -786,10 +808,10 @@ export default function EmpresaReunionesScreen({ navigation, route, embedded = f
                 </Text>
                 {!!r.cambioPendiente.mensaje && <Text style={s.changeText}>“{r.cambioPendiente.mensaje}”</Text>}
                 <View style={s.changeActions}>
-                  <TouchableOpacity style={s.changeReject} onPress={() => responderCambio(r.cambioPendiente.id, false)}>
+                  <TouchableOpacity style={s.changeReject} onPress={() => responderCambio(r.cambioPendiente.id, false)} disabled={respondiendoCambioId === r.cambioPendiente.id}>
                     <Text style={s.changeRejectText}>Rechazar</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={s.changeAccept} onPress={() => responderCambio(r.cambioPendiente.id, true)}>
+                  <TouchableOpacity style={s.changeAccept} onPress={() => responderCambio(r.cambioPendiente.id, true)} disabled={respondiendoCambioId === r.cambioPendiente.id}>
                     <Text style={s.changeAcceptText}>Aceptar cambio</Text>
                   </TouchableOpacity>
                 </View>

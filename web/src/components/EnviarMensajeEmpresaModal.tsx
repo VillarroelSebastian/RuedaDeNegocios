@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { MessageSquare, X, Send, CheckCircle2, AlertCircle } from "lucide-react";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
@@ -14,9 +14,13 @@ export function EnviarMensajeEmpresaModal({ usuarioId, receptorEeId, empresaNomb
   const [enviando, setEnviando] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
+  // Guard sincrónico: evita que un doble clic en "Enviar" dispare el mensaje
+  // dos veces antes de que `enviando` se re-renderice.
+  const enviandoRef = useRef(false);
 
   const enviar = async () => {
-    if (!texto.trim()) return;
+    if (!texto.trim() || enviandoRef.current) return;
+    enviandoRef.current = true;
     setEnviando(true);
     setErr(null);
     try {
@@ -31,6 +35,7 @@ export function EnviarMensajeEmpresaModal({ usuarioId, receptorEeId, empresaNomb
     } catch (e: any) {
       setErr(e.message);
     } finally {
+      enviandoRef.current = false;
       setEnviando(false);
     }
   };

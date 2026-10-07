@@ -397,19 +397,23 @@ export default function MesasScreen({ embedded = false }: { embedded?: boolean }
   const [msgModal, setMsgModal]  = useState<{ reunionId: number; empresa: 'A' | 'B'; empresaNombre: string; encargadoNombre: string } | null>(null);
   const [msgText,  setMsgText]   = useState('');
   const [sending,  setSending]   = useState(false);
+  const sendingRef = useRef(false);
 
   const [linkModal,  setLinkModal]  = useState<{ reunion: any } | null>(null);
   const [linkText,   setLinkText]   = useState('');
   const [savingLink, setSavingLink] = useState(false);
+  const savingLinkRef = useRef(false);
 
   const [editando, setEditando] = useState<any>(null);
   const [nuevoHorario, setNuevoHorario] = useState('');
   const [nuevaHora, setNuevaHora] = useState('');
   const [guardandoEdicion, setGuardandoEdicion] = useState(false);
+  const guardandoEdicionRef = useRef(false);
 
   const [tecnicos, setTecnicos] = useState<any[]>([]);
   const [asignandoMesa, setAsignandoMesa] = useState<any>(null);
   const [guardandoTecnico, setGuardandoTecnico] = useState(false);
+  const guardandoTecnicoRef = useRef(false);
 
   const fetchMesas = useCallback(async () => {
     try {
@@ -431,6 +435,8 @@ export default function MesasScreen({ embedded = false }: { embedded?: boolean }
 
   const asignarTecnico = async (usuarioId: number | null) => {
     if (!asignandoMesa) return;
+    if (guardandoTecnicoRef.current) return;
+    guardandoTecnicoRef.current = true;
     setGuardandoTecnico(true);
     try {
       const res = await fetch(`${API_URL}/admin/mesas/${asignandoMesa.id}/tecnico`, {
@@ -448,7 +454,7 @@ export default function MesasScreen({ embedded = false }: { embedded?: boolean }
       });
       setAsignandoMesa(null);
     } catch { showModal({ type: 'error', title: 'Error', message: 'No se pudo actualizar el técnico asignado. Intenta de nuevo.' }); }
-    finally { setGuardandoTecnico(false); }
+    finally { setGuardandoTecnico(false); guardandoTecnicoRef.current = false; }
   };
 
   const fetchHistorial = useCallback(async (q?: string) => {
@@ -565,6 +571,8 @@ export default function MesasScreen({ embedded = false }: { embedded?: boolean }
 
   const sendMessage = async () => {
     if (!msgModal || !msgText.trim()) return;
+    if (sendingRef.current) return;
+    sendingRef.current = true;
     setSending(true);
     try {
       const res = await fetch(`${API_URL}/tecnico/reuniones/${msgModal.reunionId}/mensaje`, {
@@ -575,11 +583,13 @@ export default function MesasScreen({ embedded = false }: { embedded?: boolean }
       setMsgModal(null);
       showModal({ type: 'success', title: 'Mensaje enviado', message: `Mensaje enviado al encargado de ${msgModal.empresaNombre}.` });
     } catch { showModal({ type: 'error', title: 'Error', message: 'No se pudo enviar el mensaje. Intenta de nuevo.' }); }
-    finally { setSending(false); }
+    finally { setSending(false); sendingRef.current = false; }
   };
 
   const saveLink = async () => {
     if (!linkModal) return;
+    if (savingLinkRef.current) return;
+    savingLinkRef.current = true;
     setSavingLink(true);
     try {
       const res = await fetch(`${API_URL}/tecnico/reuniones/${linkModal.reunion.id}/link`, {
@@ -590,7 +600,7 @@ export default function MesasScreen({ embedded = false }: { embedded?: boolean }
       showModal({ type: 'success', title: 'Link actualizado', message: 'El enlace de la reunión fue actualizado correctamente.' });
       fetchMesas();
     } catch { showModal({ type: 'error', title: 'Error', message: 'No se pudo actualizar el link. Intenta de nuevo.' }); }
-    finally { setSavingLink(false); }
+    finally { setSavingLink(false); savingLinkRef.current = false; }
   };
 
   const abrirEditar = (reunion: any) => {
@@ -603,6 +613,8 @@ export default function MesasScreen({ embedded = false }: { embedded?: boolean }
 
   const guardarEdicion = async () => {
     if (!editando || !nuevoHorario || !nuevaHora) return;
+    if (guardandoEdicionRef.current) return;
+    guardandoEdicionRef.current = true;
     setGuardandoEdicion(true);
     try {
       const res = await fetch(`${API_URL}/tecnico/reuniones/${editando.id}/reprogramar`, {
@@ -614,7 +626,7 @@ export default function MesasScreen({ embedded = false }: { embedded?: boolean }
       showModal({ type: 'success', title: 'Reunión reprogramada', message: 'El nuevo horario ya está confirmado y se avisó a ambas empresas.' });
       fetchMesas();
     } catch { showModal({ type: 'error', title: 'Error', message: 'No se pudo reprogramar la reunión.' }); }
-    finally { setGuardandoEdicion(false); }
+    finally { setGuardandoEdicion(false); guardandoEdicionRef.current = false; }
   };
 
   const confirmarEliminar = (reunion: any) => {

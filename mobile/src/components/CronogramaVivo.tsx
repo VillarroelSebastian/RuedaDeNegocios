@@ -56,7 +56,10 @@ export default function CronogramaVivo({
   const [actualizado, setActualizado] = useState<Date | null>(null);
   const [cambiando, setCambiando] = useState<number | null>(null);
   const [anuncios, setAnuncios] = useState<Record<number, string>>({});
+  const [publicandoId, setPublicandoId] = useState<number | null>(null);
   const vivoRef = useRef(true);
+  const cambiandoRef = useRef<number | null>(null);
+  const publicandoIdRef = useRef<number | null>(null);
 
   const cargar = useCallback(async () => {
     try {
@@ -84,18 +87,28 @@ export default function CronogramaVivo({
   }, [cargar]);
 
   const publicarAnuncio = async (a: any) => {
-    const mensaje = (anuncios[a.id] || '').trim();
-    const usuarioId = userStore.get()?.id;
-    if (!mensaje || !usuarioId) return onError?.('Escribe el anuncio antes de publicarlo.');
-    const r = await fetch(`${API_URL}/staff/cronograma-vivo/${a.id}/anuncios`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ usuarioId, mensaje }),
-    });
-    if (!r.ok) return onError?.((await r.json())?.message || 'No se pudo publicar el anuncio.');
-    setAnuncios((n) => ({ ...n, [a.id]: '' }));
-    cargar();
+    if (publicandoIdRef.current === a.id) return;
+    publicandoIdRef.current = a.id;
+    setPublicandoId(a.id);
+    try {
+      const mensaje = (anuncios[a.id] || '').trim();
+      const usuarioId = userStore.get()?.id;
+      if (!mensaje || !usuarioId) return onError?.('Escribe el anuncio antes de publicarlo.');
+      const r = await fetch(`${API_URL}/staff/cronograma-vivo/${a.id}/anuncios`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ usuarioId, mensaje }),
+      });
+      if (!r.ok) return onError?.((await r.json())?.message || 'No se pudo publicar el anuncio.');
+      setAnuncios((n) => ({ ...n, [a.id]: '' }));
+      cargar();
+    } finally {
+      publicandoIdRef.current = null;
+      setPublicandoId(null);
+    }
   };
 
   const cambiarEstado = async (id: number, estadoEnVivo: string) => {
+    if (cambiandoRef.current === id) return;
+    cambiandoRef.current = id;
     setCambiando(id);
     try {
       const r = await fetch(`${API_URL}/staff/cronograma-vivo/${id}`, {
@@ -108,6 +121,7 @@ export default function CronogramaVivo({
       onError?.(e.message);
     } finally {
       setCambiando(null);
+      cambiandoRef.current = null;
     }
   };
 
@@ -124,8 +138,14 @@ export default function CronogramaVivo({
   }
 
   const enVivo = actividades.filter((a) => a.estadoEnVivo === 'EN_VIVO');
+  // Lo que ya está en vivo se muestra arriba en "AHORA" — se excluye aquí
+  // para no repetir la misma actividad dos veces en la pantalla.
   const porDia: Record<string, any[]> = {};
-  for (const a of actividades) { const dia = a.fechaActividad.substring(0, 10); (porDia[dia] ??= []).push(a); }
+  for (const a of actividades) {
+    if (a.estadoEnVivo === 'EN_VIVO') continue;
+    const dia = a.fechaActividad.substring(0, 10);
+    (porDia[dia] ??= []).push(a);
+  }
 
   return (
     <View className="px-4">
@@ -203,7 +223,7 @@ export default function CronogramaVivo({
                           maxLength={500} placeholder="Anuncio o cambio para los suscritos" placeholderTextColor="#9ca3af"
                           className="rounded-lg border border-gray-300 px-3 py-2 text-xs"
                         />
-                        <TouchableOpacity onPress={() => publicarAnuncio(a)} className="rounded-lg bg-amber-500 px-3 py-2 self-start">
+                        <TouchableOpacity disabled={publicandoId === a.id} onPress={() => publicarAnuncio(a)} className="rounded-lg bg-amber-500 px-3 py-2 self-start">
                           <Text className="text-white text-xs font-bold">Publicar anuncio</Text>
                         </TouchableOpacity>
                       </View>

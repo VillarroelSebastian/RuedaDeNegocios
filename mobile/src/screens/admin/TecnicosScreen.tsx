@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   ActivityIndicator, RefreshControl, Modal, Image, KeyboardAvoidingView, Platform,
@@ -29,6 +29,7 @@ export default function TecnicosScreen() {
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState({ ...defaultForm });
   const [saving, setSaving] = useState(false);
+  const guardandoRef = useRef(false);
   const [uploading, setUploading] = useState(false);
   const [resendingId, setResendingId] = useState<number | null>(null);
 
@@ -65,6 +66,8 @@ export default function TecnicosScreen() {
       show({ type: 'warning', title: 'Requerido', message: 'Completa nombre, apellido, correo y teléfono.' });
       return;
     }
+    if (guardandoRef.current) return;
+    guardandoRef.current = true;
     setSaving(true);
     try {
       const url = editId ? `${API_URL}/admin/tecnicos/${editId}` : `${API_URL}/admin/tecnicos`;
@@ -77,7 +80,7 @@ export default function TecnicosScreen() {
       setShowForm(false);
       fetchTecnicos();
     } catch (e: any) { show({ type: 'error', title: 'Error', message: e.message || 'No se pudo guardar.' }); }
-    finally { setSaving(false); }
+    finally { setSaving(false); guardandoRef.current = false; }
   };
 
   const handleDelete = (id: number, nombre: string) => {

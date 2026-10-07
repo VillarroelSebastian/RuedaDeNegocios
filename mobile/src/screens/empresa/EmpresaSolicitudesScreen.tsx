@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, Pressable,
   ActivityIndicator, RefreshControl, StyleSheet, Modal, ScrollView,
@@ -225,11 +225,14 @@ function ActionModal({ sol, type, onClose, onDone }: {
   onClose: () => void; onDone: () => void;
 }) {
   const [acting, setActing] = useState(false);
+  const actingRef = useRef(false);
   const [err, setErr]       = useState('');
   const [ok, setOk]         = useState(false);
   const user = userStore.get();
 
   const doAction = async () => {
+    if (actingRef.current) return;
+    actingRef.current = true;
     setErr(''); setActing(true);
     try {
       const url = `${API_URL}/empresa/solicitudes/${sol.id}/${type}`;
@@ -242,7 +245,7 @@ function ActionModal({ sol, type, onClose, onDone }: {
       setOk(true);
       onDone();
     } catch (e: any) { setErr(e.message || 'Error de red'); }
-    finally { setActing(false); }
+    finally { setActing(false); actingRef.current = false; }
   };
 
   const titleMap = { cancelar: 'Cancelar solicitud', aceptar: 'Confirmar reunión', rechazar: 'Rechazar solicitud' };

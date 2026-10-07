@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, Modal, ActivityIndicator, StyleSheet,
   KeyboardAvoidingView, Platform,
@@ -18,24 +18,31 @@ export default function EnviarMensajeEmpresaModal({ receptorEeId, empresaNombre,
   const [err, setErr] = useState('');
   const [ok, setOk] = useState(false);
   const usuarioId = userStore.get()?.id;
+  const enviandoRef = useRef(false);
 
   const enviar = async () => {
-    if (!texto.trim() || !usuarioId) return;
-    setEnviando(true);
-    setErr('');
+    if (enviandoRef.current) return;
+    enviandoRef.current = true;
     try {
-      const res = await fetch(`${API_URL}/staff/mensajes`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ usuarioId, receptorEeId, contenido: texto.trim() }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.message ?? 'Error al enviar el mensaje');
-      setOk(true);
-    } catch (e: any) {
-      setErr(e.message || 'Error de red');
+      if (!texto.trim() || !usuarioId) return;
+      setEnviando(true);
+      setErr('');
+      try {
+        const res = await fetch(`${API_URL}/staff/mensajes`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ usuarioId, receptorEeId, contenido: texto.trim() }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.message ?? 'Error al enviar el mensaje');
+        setOk(true);
+      } catch (e: any) {
+        setErr(e.message || 'Error de red');
+      } finally {
+        setEnviando(false);
+      }
     } finally {
-      setEnviando(false);
+      enviandoRef.current = false;
     }
   };
 

@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import {
@@ -87,9 +87,12 @@ export default function ReunionDetailPage() {
   const [editandoLink, setEditandoLink] = useState(false);
   const [nuevoLink, setNuevoLink] = useState('');
   const [guardandoLink, setGuardandoLink] = useState(false);
+  const guardandoLinkRef = useRef(false);
   const [linkMsg, setLinkMsg] = useState<{ ok: boolean; texto: string } | null>(null);
 
   const guardarLink = async () => {
+    if (guardandoLinkRef.current) return;
+    guardandoLinkRef.current = true;
     setGuardandoLink(true);
     setLinkMsg(null);
     try {
@@ -105,6 +108,7 @@ export default function ReunionDetailPage() {
     } catch {
       setLinkMsg({ ok: false, texto: 'No se pudo guardar el enlace.' });
     } finally {
+      guardandoLinkRef.current = false;
       setGuardandoLink(false);
     }
   };

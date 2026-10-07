@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -28,6 +28,8 @@ export default function TecnicoGaleriaScreen() {
     [ampliada, setAmpliada] = useState<any | null>(null);
   const [descripcion, setDescripcion] = useState("");
   const [actualizandoLanding, setActualizandoLanding] = useState<number | null>(null);
+  const actualizandoLandingRef = useRef(false);
+  const eliminandoRef = useRef(false);
   const actual = userStore.get();
   const esEmpresa = actual?.rolEvento === "EMPRESA";
   const esStaff = ["ADMINISTRADOR","TECNICO","TECNICO_EVENTOS"].includes(actual?.rolEvento);
@@ -82,6 +84,8 @@ export default function TecnicoGaleriaScreen() {
   }, [grupos, fotosLanding]);
 
   const toggleLanding = async (foto: any) => {
+    if (actualizandoLandingRef.current) return;
+    actualizandoLandingRef.current = true;
     setActualizandoLanding(foto.id);
     try {
       const nuevo = foto.visibleLanding ? 0 : 1;
@@ -102,6 +106,7 @@ export default function TecnicoGaleriaScreen() {
       show({ type: "error", title: "No se pudo actualizar", message: e.message });
     } finally {
       setActualizandoLanding(null);
+      actualizandoLandingRef.current = false;
     }
   };
 
@@ -195,6 +200,8 @@ export default function TecnicoGaleriaScreen() {
     }
   };
   const eliminar = async (id: number) => {
+    if (eliminandoRef.current) return;
+    eliminandoRef.current = true;
     try {
       const r = await fetch(`${API_URL}/galeria/${id}`, { method: "DELETE" });
       if (!r.ok)
@@ -202,6 +209,8 @@ export default function TecnicoGaleriaScreen() {
       setFotos((v) => v.filter((f) => f.id !== id));
     } catch (e: any) {
       show({ type: "error", title: "No se pudo eliminar", message: e.message });
+    } finally {
+      eliminandoRef.current = false;
     }
   };
   return (
