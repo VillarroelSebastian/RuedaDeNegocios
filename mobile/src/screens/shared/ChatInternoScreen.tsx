@@ -1,12 +1,13 @@
 import React, { useState, useCallback, useRef } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, TextInput, ActivityIndicator,
-  StyleSheet, KeyboardAvoidingView, Platform,
+  StyleSheet, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Send, Users } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
+import { useAlturaTeclado } from '../../hooks/useAlturaTeclado';
 
 const GREEN = '#449D3A';
 const POLL_MS = 7000;
@@ -16,6 +17,8 @@ function fmtHora(iso: string) {
 }
 
 export default function ChatInternoScreen({ embedded = false }: { embedded?: boolean } = {}) {
+  // Espacio del teclado: mantiene la fila de escritura siempre visible.
+  const alturaTeclado = useAlturaTeclado();
   const user = userStore.get();
 
   const [mensajes, setMensajes] = useState<any[]>([]);
@@ -68,7 +71,7 @@ export default function ChatInternoScreen({ embedded = false }: { embedded?: boo
 
   return (
     <SafeAreaView style={s.root} edges={['top']}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0} style={{ flex: 1 }}>
+      <View style={{ flex: 1, paddingBottom: alturaTeclado }}>
         {!embedded && (
           <View style={s.header}>
             <View style={s.headerIcon}><Users size={16} color={GREEN} /></View>
@@ -135,7 +138,7 @@ export default function ChatInternoScreen({ embedded = false }: { embedded?: boo
             {enviando ? <ActivityIndicator color="#fff" size="small" /> : <Send size={17} color="#fff" />}
           </TouchableOpacity>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </SafeAreaView>
   );
 }

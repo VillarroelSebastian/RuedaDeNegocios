@@ -1,12 +1,13 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, TextInput, ActivityIndicator,
-  RefreshControl, StyleSheet, Modal, KeyboardAvoidingView, Platform,
+  RefreshControl, StyleSheet, Modal, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRoute } from '@react-navigation/native';
 import { MessageSquare, Send, Search, X, ChevronLeft, Plus, Building2 } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
+import { useAlturaTeclado } from '../../hooks/useAlturaTeclado';
 
 const GREEN = '#449D3A';
 const POLL_MS = 5000;
@@ -21,6 +22,8 @@ function fmtFechaCorta(iso: string) {
 }
 
 export default function EmpresaMensajesScreen() {
+  // Espacio del teclado: mantiene la fila de escritura siempre visible.
+  const alturaTeclado = useAlturaTeclado();
   const route = useRoute<any>();
   const user = userStore.get();
   const eeId = user?.empresaeventoId;
@@ -139,7 +142,7 @@ export default function EmpresaMensajesScreen() {
   if (activa) {
     return (
       <SafeAreaView style={s.root} edges={['top']}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0} style={{ flex: 1 }}>
+        <View style={{ flex: 1, paddingBottom: alturaTeclado }}>
           <View style={s.chatHeader}>
             <TouchableOpacity onPress={() => { setActiva(null); setMensajes([]); cargarConvs(); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <ChevronLeft size={22} color="#374151" />
@@ -203,7 +206,7 @@ export default function EmpresaMensajesScreen() {
               </TouchableOpacity>
             </View>
           )}
-        </KeyboardAvoidingView>
+        </View>
       </SafeAreaView>
     );
   }

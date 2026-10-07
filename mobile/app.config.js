@@ -26,7 +26,7 @@ module.exports = {
       // windowOptOutEdgeToEdgeEnforcement, así que desactivarlo no servía de
       // nada: la app se dibuja bajo la barra de estado igual. La solución es
       // que cada pantalla reserve el inset superior con SafeAreaView.
-      versionCode: 11,
+      versionCode: 13,
       googleServicesFile: process.env.GOOGLE_SERVICES_JSON ?? "./google-services.json",
       softwareKeyboardLayoutMode: "resize",
       adaptiveIcon: {

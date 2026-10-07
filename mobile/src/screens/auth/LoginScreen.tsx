@@ -284,7 +284,7 @@ export default function LoginScreen({ navigation }: any) {
               </TouchableOpacity>
             </View>
 
-            <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <ScrollView style={{ flexShrink: 1 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
             {/* Error */}
             {!!resetError && (
@@ -310,16 +310,6 @@ export default function LoginScreen({ navigation }: any) {
                     onChangeText={setResetCorreo}
                   />
                 </View>
-                <TouchableOpacity
-                  style={[s.btnPrimary, { marginTop: 20 }, resetLoading && { opacity: 0.7 }]}
-                  onPress={handleSolicitarReset}
-                  disabled={resetLoading}
-                  activeOpacity={0.85}
-                >
-                  {resetLoading
-                    ? <ActivityIndicator color="#fff" />
-                    : <Text style={s.btnPrimaryText}>Enviar código</Text>}
-                </TouchableOpacity>
               </>
             )}
 
@@ -371,16 +361,6 @@ export default function LoginScreen({ navigation }: any) {
                   />
                 </View>
 
-                <TouchableOpacity
-                  style={[s.btnPrimary, { marginTop: 20 }, resetLoading && { opacity: 0.7 }]}
-                  onPress={handleConfirmarReset}
-                  disabled={resetLoading}
-                  activeOpacity={0.85}
-                >
-                  {resetLoading
-                    ? <ActivityIndicator color="#fff" />
-                    : <Text style={s.btnPrimaryText}>Actualizar contraseña</Text>}
-                </TouchableOpacity>
 
                 <TouchableOpacity style={{ marginTop: 12, alignSelf: 'center' }} onPress={() => { setResetStep('correo'); setResetError(''); }}>
                   <Text style={{ color: '#6b7280', fontSize: 13, fontWeight: '600' }}>Cambiar correo</Text>
@@ -408,6 +388,34 @@ export default function LoginScreen({ navigation }: any) {
             )}
 
             </ScrollView>
+
+            {/* Acción principal fuera del área desplazable: con el teclado
+                abierto el contenido se encoge, y dentro del ScrollView el
+                botón quedaba fuera de la vista. Aquí siempre está visible. */}
+            {resetStep === 'correo' && (
+              <TouchableOpacity
+                style={[s.btnPrimary, s.btnPie, resetLoading && { opacity: 0.7 }]}
+                onPress={handleSolicitarReset}
+                disabled={resetLoading}
+                activeOpacity={0.85}
+              >
+                {resetLoading
+                  ? <ActivityIndicator color="#fff" />
+                  : <Text style={s.btnPrimaryText}>Enviar código</Text>}
+              </TouchableOpacity>
+            )}
+            {resetStep === 'codigo' && (
+              <TouchableOpacity
+                style={[s.btnPrimary, s.btnPie, resetLoading && { opacity: 0.7 }]}
+                onPress={handleConfirmarReset}
+                disabled={resetLoading}
+                activeOpacity={0.85}
+              >
+                {resetLoading
+                  ? <ActivityIndicator color="#fff" />
+                  : <Text style={s.btnPrimaryText}>Actualizar contraseña</Text>}
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </Modal>
@@ -468,6 +476,8 @@ const s = StyleSheet.create({
     elevation: 4,
   },
   btnPrimaryText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  // Separa el botón fijo del contenido desplazable de arriba.
+  btnPie: { marginTop: 14 },
 
   btnSecondary: {
     backgroundColor: '#f1f5f9',
