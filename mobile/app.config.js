@@ -27,7 +27,7 @@ module.exports = {
       // transparente y el reloj/batería se enciman con la cabecera de cada
       // pantalla. Desactivado, el sistema le reserva su propia franja.
       edgeToEdgeEnabled: false,
-      versionCode: 8,
+      versionCode: 10,
       googleServicesFile: process.env.GOOGLE_SERVICES_JSON ?? "./google-services.json",
       softwareKeyboardLayoutMode: "resize",
       adaptiveIcon: {

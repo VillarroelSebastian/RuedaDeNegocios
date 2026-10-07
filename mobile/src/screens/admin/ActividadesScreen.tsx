@@ -11,8 +11,12 @@ import FechaHoraInput from '../../components/FechaHoraInput';
 
 const GREEN = '#449D3A';
 
-const horaBolivia = (iso: string) => iso
-  ? new Date(iso).toLocaleTimeString('es-BO', { timeZone: 'America/La_Paz', hour: '2-digit', minute: '2-digit', hour12: false })
+// La hora de una actividad es "de reloj de pared" (las 14:00 del programa son
+// las 14:00), no un instante: convertirla a America/La_Paz le restaba 4 horas y
+// se mostraba una hora distinta de la que se guardó. Se lee en UTC, que es como
+// la almacena el backend.
+const horaActividad = (iso: string) => iso
+  ? new Date(iso).toLocaleTimeString('es-BO', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit', hour12: false })
   : '';
 
 const TIPOS = ['Seminario', 'Taller', 'Actividad', 'Conferencia', 'Panel'];
@@ -25,8 +29,8 @@ const defaultForm = {
   nombreSalaEspacio: '',
   capacidadPersonasSala: '',
   fechaActividad: '',
-  horaInicioActividad: '',
-  horaFinActividad: '',
+  horaInicioActividad: '08:00',
+  horaFinActividad: '09:00',
   nombreCompletoPilaExpositor: '',
   linkReunionVirtual: '',
   estadoActividad: 'Activo',
@@ -60,8 +64,8 @@ export default function ActividadesScreen({ mostrarCronograma = true }: { mostra
       nombreSalaEspacio: a.nombreSalaEspacio,
       capacidadPersonasSala: String(a.capacidadPersonasSala),
       fechaActividad: a.fechaActividad?.substring(0, 10) || '',
-      horaInicioActividad: horaBolivia(a.horaInicioActividad),
-      horaFinActividad: horaBolivia(a.horaFinActividad),
+      horaInicioActividad: horaActividad(a.horaInicioActividad),
+      horaFinActividad: horaActividad(a.horaFinActividad),
       nombreCompletoPilaExpositor: a.nombreCompletoPilaExpositor || '',
       linkReunionVirtual: a.linkReunionVirtual || '',
       estadoActividad: a.estadoActividad,
@@ -79,7 +83,15 @@ export default function ActividadesScreen({ mostrarCronograma = true }: { mostra
     setSaving(true);
     try {
       const url = editId ? `${API_URL}/admin/actividades/${editId}` : `${API_URL}/admin/actividades`;
-      await fetch(url, { method: editId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      // fetch solo falla por red: sin revisar res.ok se anunciaba "guardado"
+      // aunque el backend hubiera rechazado la actividad (p. ej. por fecha
+      // fuera del evento) y luego no aparecía en la lista.
+      const res = await fetch(url, { method: editId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      if (!res.ok) {
+        const detalle = await res.json().catch(() => null);
+        show({ type: 'error', title: 'No se pudo guardar', message: detalle?.message || 'Revisa los datos e intenta nuevamente.' });
+        return;
+      }
       show({ type: 'success', title: '¡Listo!', message: editId ? 'Actividad actualizada correctamente.' : 'Actividad creada correctamente.' });
       setShowForm(false);
       fetchActividades();
@@ -155,8 +167,8 @@ export default function ActividadesScreen({ mostrarCronograma = true }: { mostra
             </View>
           ) : (
             actividades.map((a) => {
-              const inicio = horaBolivia(a.horaInicioActividad);
-              const fin = horaBolivia(a.horaFinActividad);
+              const inicio = horaActividad(a.horaInicioActividad);
+              const fin = horaActividad(a.horaFinActividad);
               return (
                 <View key={a.id} className="mx-4 mt-3 bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
                   <View className="flex-row items-start justify-between mb-2">

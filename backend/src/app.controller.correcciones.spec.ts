@@ -73,6 +73,7 @@ describe('AppController - alcance operativo de actividades', () => {
     expect(controller.filtroActividadOperativa(evento)).toEqual({
       evento_id: 9,
       estaActivo: 1,
+      estadoActividad: { not: 'Inactivo' },
       fechaActividad: {
         gte: new Date('2026-08-29T00:00:00.000Z'),
         lte: new Date('2026-08-30T23:59:59.999Z'),
@@ -83,9 +84,10 @@ describe('AppController - alcance operativo de actividades', () => {
   it('rechaza una actividad fuera de los días del evento', () => {
     const controller = new AppController({} as any, {} as any, {} as any, {} as any) as any;
 
-    expect(() => controller.validarFechaActividad(evento, '2026-08-28')).toThrow(
-      'La fecha de la actividad debe estar dentro de las fechas del evento.',
-    );
+    // Se comprueba el comportamiento y que el error liste las fechas válidas,
+    // sin atar la prueba a la redacción exacta del mensaje.
+    expect(() => controller.validarFechaActividad(evento, '2026-08-28')).toThrow(/fecha/i);
+    expect(() => controller.validarFechaActividad(evento, '2026-08-28')).toThrow(/2026-08-30/);
     expect(() => controller.validarFechaActividad(evento, '2026-08-30')).not.toThrow();
   });
 });

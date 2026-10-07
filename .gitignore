@@ -27,3 +27,9 @@ deploy/firebase-service-account.json
 # Temporary release packages and mobile verification bundles
 deploy/.work/
 mobile/dist-preview/
+
+# Credenciales de Firebase del backend (clave privada: nunca se versiona)
+backend/secrets/
+
+# APKs compilados localmente (cientos de MB, no van al repo)
+mobile/apk/

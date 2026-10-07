@@ -1,27 +1,35 @@
 import React, { useEffect, useState } from 'react';
-import { AppState, View, Text, TouchableOpacity, Linking, Alert } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AppState } from 'react-native';
 import { userStore, API_URL } from '../utils/userStore';
-import { activarPush, desactivarPush, restaurarPush, escucharPush, pedirPermisoInicial } from '../utils/push';
+import { restaurarPush, escucharPush, pedirPermisoInicial } from '../utils/push';
 
+// Notificaciones push: sin interfaz propia.
+//
+// Antes mostraba una franja fija ("Activar notificaciones") en todas las
+// pantallas, con un botón para activar o desactivar. Ahora el permiso se pide
+// solo al entrar a la aplicación y el dispositivo se registra en segundo plano:
+// el usuario no ve nada y los errores no interrumpen (si falla, se reintenta
+// al volver a la app o al minuto siguiente).
+//
+// El componente sigue montado porque mantiene tres cosas vivas: el permiso
+// inicial, el registro del token y la navegación al tocar una notificación.
 export default function PushNotifications({ onOpen }: { onOpen: (data: any) => boolean }) {
-  // La franja queda al final de la app, sobre la barra de navegación de
-  // Android: sin el inset inferior sus textos salían cortados por el borde.
-  const insets = useSafeAreaInsets();
   const [user, setUser] = useState(userStore.get());
-  const [active, setActive] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState('');
+
   useEffect(() => userStore.subscribe(() => setUser(userStore.get())), []);
+
+  // Permiso del sistema, una sola vez al abrir la app.
   useEffect(() => { void pedirPermisoInicial().catch(() => {}); }, []);
+
+  // Registro del dispositivo mientras haya sesión. Se reintenta al volver a
+  // primer plano y cada minuto, por si la primera vez no había internet.
   useEffect(() => {
     let alive = true, running = false;
-    setMessage(''); setActive(false);
     const restore = async () => {
       if (!user?.token || running || userStore.get()?.token !== user.token) return;
       running = true;
-      try { const value = await restaurarPush(API_URL, user.token); if (alive) { setActive(value); setMessage(''); } }
-      catch { if (alive) setMessage('No se pudo activar push. Reintenta con conexión a internet.'); }
+      try { await restaurarPush(API_URL, user.token); }
+      catch { /* sin conexión o permiso denegado: se reintenta más tarde */ }
       finally { running = false; }
     };
     void restore();
@@ -29,28 +37,13 @@ export default function PushNotifications({ onOpen }: { onOpen: (data: any) => b
     const retry = setInterval(() => { if (AppState.currentState === 'active') void restore(); }, 60000);
     return () => { alive = false; clearInterval(retry); listener.remove(); };
   }, [user?.token]);
+
+  // Tocar una notificación del sistema abre su sección.
   useEffect(() => {
     let stop: undefined | (() => void), cancelled = false;
     escucharPush(onOpen).then(fn => { if (cancelled) fn(); else stop = fn; });
     return () => { cancelled = true; stop?.(); };
   }, [onOpen]);
-  if (!user?.token) return null;
-  return <View style={{ backgroundColor: '#f0fdf4', paddingHorizontal: 12, paddingTop: 8, paddingBottom: 8 + insets.bottom, borderTopWidth: 1, borderColor: '#dcfce7' }}>
-    <TouchableOpacity disabled={busy} onPress={async () => {
-      setBusy(true); setMessage('');
-      try {
-        if (active) { await desactivarPush(API_URL, user.token); setActive(false); }
-        else { await activarPush(API_URL, user.token); setActive(true); }
-      } catch (e: any) {
-        Alert.alert('Notificaciones', e.message || 'No se pudo configurar push.', [
-          { text: 'Cerrar', style: 'cancel' }, { text: 'Abrir ajustes', onPress: () => { void Linking.openSettings(); } },
-        ]);
-      } finally { setBusy(false); }
-    }}>
-      <Text style={{ textAlign: 'center', color: '#166534', fontWeight: '600' }}>
-        {busy ? 'Procesando…' : active ? 'Notificaciones activadas · Desactivar' : 'Activar notificaciones'}
-      </Text>
-    </TouchableOpacity>
-    {!!message && <Text accessibilityRole="alert" style={{ fontSize: 12, marginTop: 6, textAlign: 'center' }}>{message}</Text>}
-  </View>;
+
+  return null;
 }

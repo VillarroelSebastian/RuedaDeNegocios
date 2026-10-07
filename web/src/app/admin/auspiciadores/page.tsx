@@ -1,10 +1,12 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import {
   Handshake, Plus, Pencil, Trash2, X, Users, Package, Coins,
-  Boxes, QrCode, Download, Search,
+  Boxes, QrCode, Download, Search, Mail,
 } from "lucide-react";
+import { createPortal } from "react-dom";
+import { validarAuspiciador } from "@/lib/validarAuspiciador";
 import { useModal } from "@/components/ui/Modal";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
@@ -46,6 +48,8 @@ export default function AuspiciadoresPage() {
   const [loading, setLoading] = useState(true);
   const [busqueda, setBusqueda] = useState("");
 
+  const [reenviando, setReenviando] = useState<number | null>(null);
+  const dialogo = useRef<HTMLDivElement>(null);
   const [abierto, setAbierto] = useState(false);
   const [editandoId, setEditandoId] = useState<number | null>(null);
   const [guardando, setGuardando] = useState(false);
@@ -113,32 +117,9 @@ export default function AuspiciadoresPage() {
   };
 
   const guardar = async () => {
-    // Validación en cliente para dar el aviso antes de ir al servidor; el
-    // backend vuelve a validar todo de todas formas.
-    if (!form.nombreEmpresa.trim()) return showError("Falta un dato", "Escribe el nombre de la empresa auspiciadora.");
-    if (!form.descripcion.trim())   return showError("Falta un dato", "Escribe la descripción de la empresa.");
-    if (form.tipoAporte !== "INSUMOS" && !(Number(form.montoAporte) > 0))
-      return showError("Falta un dato", "Indica el monto aportado (mayor a 0).");
-    if (form.tipoAporte !== "DINERO" && !form.detalleAporte.trim())
-      return showError("Falta un dato", "Describe qué insumos aporta al evento.");
-    const sinNombres = personas.findIndex((p) => !p.nombres?.trim());
-    if (sinNombres >= 0)
-      return showError("Falta un dato", `Escribe los nombres de la persona ${sinNombres + 1}.`);
-    const sinApellido = personas.findIndex((p) => !p.apellidoPaterno?.trim());
-    if (sinApellido >= 0)
-      return showError("Falta un dato", `Escribe el apellido paterno de la persona ${sinApellido + 1}.`);
-    const sinCargo = personas.findIndex((p) => !p.cargo.trim());
-    if (sinCargo >= 0)
-      return showError("Falta un dato", `Escribe el cargo de la persona ${sinCargo + 1}.`);
-    const sinCorreo = personas.findIndex((p) => !p.correo.trim());
-    if (sinCorreo >= 0)
-      return showError("Falta un dato", `Escribe el correo de la persona ${sinCorreo + 1}; ahí recibirá su credencial.`);
-    const correoInvalido = personas.findIndex((p) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.correo.trim()));
-    if (correoInvalido >= 0)
-      return showError("Correo inválido", `Revisa el correo de la persona ${correoInvalido + 1}.`);
-    const sinTelefono = personas.findIndex((p) => !p.telefono.trim());
-    if (sinTelefono >= 0)
-      return showError("Falta un dato", `Escribe el teléfono de la persona ${sinTelefono + 1}.`);
+    if (guardando) return;
+    const error = validarAuspiciador(form, personas);
+    if (error) return showError("Revisa los campos", error);
 
     setGuardando(true);
     try {
@@ -163,7 +144,7 @@ export default function AuspiciadoresPage() {
       setAbierto(false);
       await cargar();
       const pendientes = [...(data.correosFallidos ?? []), ...(data.accesoPlataforma?.creado === false && data.accesoPlataforma?.motivo ? [data.accesoPlataforma.motivo] : [])];
-      if (!editandoId && pendientes.length) {
+      if (pendientes.length) {
         showError("Auspiciador registrado con envíos pendientes", pendientes.join(" · "));
         return;
       }
@@ -179,6 +160,33 @@ export default function AuspiciadoresPage() {
       setGuardando(false);
     }
   };
+
+  const reenviar = (a: Auspiciador) => showConfirm(
+    "Reenviar credenciales",
+    "Se reenviaran los QR y una nueva contrasena al responsable. Si el envio del acceso falla, conservara su contrasena anterior.",
+    async () => {
+      if (reenviando !== null) return;
+      setReenviando(a.id);
+      try {
+        const res = await fetch(`${API}/admin/auspiciadores/${a.id}/reenviar-credenciales`, { method: "POST" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || "No se pudo reenviar.");
+        const pendientes = [...(data.correosFallidos || []), ...(data.accesoPlataforma?.motivo ? [data.accesoPlataforma.motivo] : [])];
+        if (!data.ok) showError("Envios pendientes", pendientes.join(" ? ") || "No se completo el envio.");
+        else showSuccess("Correos enviados", "El servidor de correo acepto los QR y el acceso del responsable. Revisa tambien Spam o Correo no deseado.");
+      } catch (e: any) { showError("No se pudo reenviar", e.message); }
+      finally { setReenviando(null); }
+    },
+  );
+
+  useEffect(() => {
+    if (!abierto) return;
+    const anterior = document.activeElement as HTMLElement | null;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    dialogo.current?.querySelector<HTMLInputElement>("input")?.focus();
+    return () => { document.body.style.overflow = overflow; anterior?.focus(); };
+  }, [abierto]);
 
   const eliminar = (a: Auspiciador) =>
     showConfirm(
@@ -272,6 +280,10 @@ export default function AuspiciadoresPage() {
                   <p className="text-sm text-gray-500 mt-1 line-clamp-2">{a.descripcion}</p>
                 </div>
                 <div className="flex gap-1 flex-shrink-0">
+                  <button onClick={() => reenviar(a)} disabled={reenviando !== null} title="Reenviar credenciales" aria-label="Reenviar credenciales"
+                    className="p-2 rounded-lg text-green-700 hover:bg-green-50 disabled:opacity-50">
+                    <Mail className="w-4 h-4" />
+                  </button>
                   <button onClick={() => abrirEdicion(a)} title="Editar"
                     className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-800">
                     <Pencil className="w-4 h-4" />
@@ -338,19 +350,19 @@ export default function AuspiciadoresPage() {
       )}
 
       {/* ── Formulario ── */}
-      {abierto && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-start sm:items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl my-4 overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 sticky top-0 bg-white rounded-t-2xl">
-              <h2 className="font-extrabold text-gray-900">
+      {abierto && createPortal(
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div ref={dialogo} role="dialog" aria-modal="true" aria-labelledby="auspiciador-titulo" style={{ width: "100%", maxWidth: 680, maxHeight: "86dvh" }} className="bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-3 shrink-0 border-b border-gray-100 bg-white rounded-t-2xl">
+              <h2 id="auspiciador-titulo" className="font-extrabold text-gray-900">
                 {editandoId ? "Editar auspiciador" : "Nuevo auspiciador"}
               </h2>
-              <button onClick={() => setAbierto(false)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500">
+              <button onClick={() => setAbierto(false)} disabled={guardando} aria-label="Cerrar formulario" className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-6 space-y-5">
+            <div className="min-h-0 overflow-y-auto px-5 py-4 space-y-4">
               <div>
                 <label className="block text-xs font-bold text-gray-700 mb-1.5">
                   Nombre de la empresa <span className="text-red-500">*</span>
@@ -365,7 +377,7 @@ export default function AuspiciadoresPage() {
                 <label className="block text-xs font-bold text-gray-700 mb-1.5">
                   Descripción de la empresa <span className="text-red-500">*</span>
                 </label>
-                <textarea value={form.descripcion} maxLength={1000} rows={3}
+                <textarea value={form.descripcion} maxLength={1000} rows={2}
                   onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm resize-none focus:outline-none focus:border-[#449D3A]"
                   placeholder="A qué se dedica la empresa auspiciadora…" />
@@ -395,7 +407,7 @@ export default function AuspiciadoresPage() {
                   <label className="block text-xs font-bold text-gray-700 mb-1.5">
                     Monto aportado (Bs.) <span className="text-red-500">*</span>
                   </label>
-                  <input type="number" min={1} value={form.montoAporte}
+                  <input type="number" min={0.01} max={99999999.99} step={0.01} value={form.montoAporte}
                     onChange={(e) => setForm({ ...form, montoAporte: e.target.value })}
                     className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#449D3A]"
                     placeholder="Ej. 5000" />
@@ -487,7 +499,7 @@ export default function AuspiciadoresPage() {
               </div>
             </div>
 
-            <div className="flex gap-3 px-6 py-4 border-t border-gray-100 sticky bottom-0 bg-white rounded-b-2xl">
+            <div className="flex gap-3 px-5 py-3 shrink-0 border-t border-gray-100 bg-white rounded-b-2xl">
               <button onClick={() => setAbierto(false)} disabled={guardando}
                 className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50">
                 Cancelar
@@ -498,7 +510,7 @@ export default function AuspiciadoresPage() {
               </button>
             </div>
           </div>
-        </div>
+        </div>, document.body
       )}
     </div>
   );

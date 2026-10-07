@@ -18,7 +18,7 @@ function fmtDate(iso: string) {
 function fmtTime(iso: string) {
   if (!iso) return '';
   return new Date(iso).toLocaleTimeString('es-BO', {
-    timeZone: 'America/La_Paz', hour: '2-digit', minute: '2-digit', hour12: false,
+    timeZone: 'UTC', hour: '2-digit', minute: '2-digit', hour12: false,
   });
 }
 

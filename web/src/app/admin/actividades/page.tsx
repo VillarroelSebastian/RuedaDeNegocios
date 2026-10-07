@@ -9,8 +9,12 @@ const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 const TIPOS = ['Seminario', 'Taller', 'Actividad', 'Conferencia', 'Panel'];
 const ESTADOS = ['Activo', 'Inactivo'];
 
-const horaBolivia = (iso: string) => iso
-  ? new Date(iso).toLocaleTimeString('es-BO', { timeZone: 'America/La_Paz', hour: '2-digit', minute: '2-digit', hour12: false })
+// La hora de una actividad es "de reloj de pared" (las 14:00 del programa son
+// las 14:00), no un instante: convertirla a America/La_Paz le restaba 4 horas
+// y se mostraba una hora distinta de la que se guardó. Se lee en UTC, que es
+// como la almacena el backend.
+const horaActividad = (iso: string) => iso
+  ? new Date(iso).toLocaleTimeString('es-BO', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit', hour12: false })
   : '';
 
 const badgeTipo = (tipo: string) => {
@@ -31,8 +35,8 @@ const defaultForm = {
   nombreSalaEspacio: '',
   capacidadPersonasSala: '',
   fechaActividad: '',
-  horaInicioActividad: '',
-  horaFinActividad: '',
+  horaInicioActividad: '08:00',
+  horaFinActividad: '09:00',
   nombreCompletoPilaExpositor: '',
   organizacionDelExpositor: '',
   estadoActividad: 'Activo',
@@ -70,8 +74,8 @@ function ActividadesCRUD({ embedded = false }: { embedded?: boolean }) {
       nombreSalaEspacio: a.nombreSalaEspacio,
       capacidadPersonasSala: String(a.capacidadPersonasSala),
       fechaActividad: a.fechaActividad?.substring(0, 10) || '',
-      horaInicioActividad: horaBolivia(a.horaInicioActividad),
-      horaFinActividad: horaBolivia(a.horaFinActividad),
+      horaInicioActividad: horaActividad(a.horaInicioActividad),
+      horaFinActividad: horaActividad(a.horaFinActividad),
       nombreCompletoPilaExpositor: a.nombreCompletoPilaExpositor || '',
       organizacionDelExpositor: a.organizacionDelExpositor || '',
       estadoActividad: a.estadoActividad,
@@ -92,7 +96,15 @@ function ActividadesCRUD({ embedded = false }: { embedded?: boolean }) {
     try {
       const url = editId ? `${API}/admin/actividades/${editId}` : `${API}/admin/actividades`;
       const method = editId ? 'PUT' : 'POST';
-      await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      // fetch solo falla por red: sin revisar res.ok se anunciaba "guardado"
+      // aunque el backend hubiera rechazado la actividad (p. ej. por fecha
+      // fuera del evento) y luego no aparecía en la lista.
+      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      if (!res.ok) {
+        const detalle = await res.json().catch(() => null);
+        showError('No se pudo guardar', detalle?.message || 'Revisa los datos e intenta nuevamente.');
+        return;
+      }
       showSuccess(editId ? 'Actividad actualizada' : 'Actividad creada', 'Los cambios se guardaron correctamente.');
       setShowForm(false);
       fetch_();
@@ -155,8 +167,8 @@ function ActividadesCRUD({ embedded = false }: { embedded?: boolean }) {
                 <tr><td colSpan={7} className="py-12 text-center text-sm text-gray-400">No hay actividades registradas</td></tr>
               ) : (
                 actividades.map((a) => {
-                  const inicio = horaBolivia(a.horaInicioActividad);
-                  const fin = horaBolivia(a.horaFinActividad);
+                  const inicio = horaActividad(a.horaInicioActividad);
+                  const fin = horaActividad(a.horaFinActividad);
                   return (
                     <tr key={a.id} className={`hover:bg-gray-50/50 transition-colors ${a.estadoActividad === 'Inactivo' ? 'opacity-60' : ''}`}>
                       <td className="py-4 px-5">

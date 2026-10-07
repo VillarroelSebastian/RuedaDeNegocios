@@ -39,7 +39,7 @@ function fmtDate(iso: string) {
 }
 function fmtTimeObj(t: any) {
   if (!t) return '—';
-  return new Date(t).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return new Date(t).toLocaleTimeString('es-BO', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
 function Modal({ visible, type, title, message, onClose }: any) {
