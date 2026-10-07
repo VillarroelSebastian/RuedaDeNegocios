@@ -1189,6 +1189,85 @@ export class AppController implements OnModuleInit {
     });
   }
 
+  // Asistencia diferenciada: antes vivía mezclada dentro de admin/estadisticas
+  // (empresas y foro contados juntos, sin distinguir). Esta vista separa a
+  // los participantes de empresa (con nombre de empresa) de los del Foro ·
+  // Personal (inscripción individual, solo tienen nombre propio).
+  @Get('admin/asistencia')
+  async getAsistenciaAdmin() {
+    const eventoId = await this.getPrincipalEventoId();
+    if (!eventoId) {
+      return {
+        empresa: { registrados: 0, asistentes: 0, sinAsistencia: 0, empresasRegistradas: 0, empresasAsistentes: 0, empresasSinAsistencia: 0 },
+        foro: { registrados: 0, asistentes: 0, sinAsistencia: 0 },
+        listado: [],
+      };
+    }
+
+    const [participantes, asistencias] = await Promise.all([
+      this.prisma.empresa_usuario.findMany({
+        where: { estaActivo: 1, empresaevento: { evento_id: eventoId, estaActivo: 1 } },
+        select: {
+          id: true,
+          empresaevento_id: true,
+          usuario: { select: { nombres: true, apellidoPaterno: true, rolEvento: true } },
+          empresaevento: { select: { empresa: { select: { nombre: true } } } },
+        },
+      }),
+      this.prisma.asistenciaevento.findMany({
+        where: { evento_id: eventoId, estaActivo: 1 },
+        orderBy: { fechaHoraAsistencia: 'desc' },
+        select: { empresa_usuario_id: true, fechaHoraAsistencia: true },
+      }),
+    ]);
+
+    const asistenciaPorParticipante = new Map<number, Date[]>();
+    for (const a of asistencias) {
+      const lista = asistenciaPorParticipante.get(a.empresa_usuario_id) ?? [];
+      lista.push(a.fechaHoraAsistencia);
+      asistenciaPorParticipante.set(a.empresa_usuario_id, lista);
+    }
+
+    const empresaParticipantes = participantes.filter((p) => p.usuario.rolEvento !== 'FORO');
+    const foroParticipantes = participantes.filter((p) => p.usuario.rolEvento === 'FORO');
+
+    const resumenPersonas = (lista: typeof participantes) => {
+      const asistentes = lista.filter((p) => asistenciaPorParticipante.has(p.id)).length;
+      return { registrados: lista.length, asistentes, sinAsistencia: lista.length - asistentes };
+    };
+
+    const empresaIdsTotal = new Set(empresaParticipantes.map((p) => p.empresaevento_id));
+    const empresaIdsAsistieron = new Set(
+      empresaParticipantes.filter((p) => asistenciaPorParticipante.has(p.id)).map((p) => p.empresaevento_id),
+    );
+
+    const listado = participantes
+      .map((p) => {
+        const asist = asistenciaPorParticipante.get(p.id) ?? [];
+        const esForo = p.usuario.rolEvento === 'FORO';
+        return {
+          id: p.id,
+          tipo: esForo ? 'FORO' : 'EMPRESA',
+          nombre: `${p.usuario.nombres ?? ''} ${p.usuario.apellidoPaterno ?? ''}`.trim() || '—',
+          empresa: esForo ? null : (p.empresaevento?.empresa?.nombre ?? null),
+          cantidadAsistencias: asist.length,
+          ultimaAsistencia: asist[0] ?? null,
+        };
+      })
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+
+    return {
+      empresa: {
+        ...resumenPersonas(empresaParticipantes),
+        empresasRegistradas: empresaIdsTotal.size,
+        empresasAsistentes: empresaIdsAsistieron.size,
+        empresasSinAsistencia: empresaIdsTotal.size - empresaIdsAsistieron.size,
+      },
+      foro: resumenPersonas(foroParticipantes),
+      listado,
+    };
+  }
+
   @Get('public/seguimiento')
   async getSeguimiento(@Query('ee') eeId: string, @Query('t') token: string) {
     const id = Number(eeId);
@@ -5137,6 +5216,8 @@ export class AppController implements OnModuleInit {
         estaActivo: 1,
         estadoVerificacionPago: 'COMPLETADO',
         estadoHabilitacionAcceso: 'HABILITADO',
+        // El Foro es inscripción individual sin mesas ni matchmaking.
+        empresa_usuario: { none: { usuario: { rolEvento: 'FORO' } } },
       },
       include: { empresa: { select: { nombre: true, codigo: true, rubro: true, urlFotoPerfil: true } } },
       orderBy: { empresa: { nombre: 'asc' } },
@@ -5324,7 +5405,6 @@ export class AppController implements OnModuleInit {
         select: { id: true, nombres: true, correo: true },
         orderBy: { id: 'desc' },
       });
-      if (!u) return { ok: true, message: 'Si la cuenta existe, recibirá un código.' };
       if (!u) throw new BadRequestException('No existe una cuenta registrada con ese correo electrónico.');
 
       const codigo = generarCodigo();
@@ -5721,6 +5801,11 @@ export class AppController implements OnModuleInit {
           estadoVerificacionPago: 'COMPLETADO',
           estadoHabilitacionAcceso: 'HABILITADO',
           id: { not: Number(eeId) },
+          // El Foro es inscripción individual sin mesas ni matchmaking: nunca
+          // debe aparecer como candidata para solicitar una reunión. No basta
+          // con mirar el paquete (hay inscripciones Foro sin paquete_id); lo
+          // confiable es el rolEvento de quien se inscribió.
+          empresa_usuario: { none: { usuario: { rolEvento: 'FORO' } } },
           empresa: {
             ...(oferta ? { oferta: { contains: oferta, mode: 'insensitive' } } : {}),
             ...(demanda ? { demanda: { contains: demanda, mode: 'insensitive' } } : {}),
@@ -6035,6 +6120,32 @@ export class AppController implements OnModuleInit {
       .map(({ clave: _clave, puntaje: _puntaje, ...pareja }) => pareja);
   }
 
+  // Tarjeta de reunión para el chat del asistente: junta en un solo objeto lo
+  // que antes iba disperso en una línea de texto (empresa, tipo, horario,
+  // lugar/enlace) para que el front la pinte como un cuadro, no como texto plano.
+  private formatearReunionParaAsistente(
+    reunion: any, eeId: number,
+    fmtFecha: (d: Date | null) => string, fmtHora: (d: Date | null) => string,
+  ) {
+    const sr = reunion.solicitudreunion;
+    const contraparteEmpresa = sr.empresaEvento_id === eeId
+      ? sr.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento?.empresa
+      : sr.empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa;
+    const esVirtual = reunion.tipoReunion === 'VIRTUAL';
+    return {
+      empresa: contraparteEmpresa?.nombre ?? 'Empresa',
+      fecha: fmtFecha(reunion.fechaHoraInicioReunion),
+      horaInicio: fmtHora(reunion.fechaHoraInicioReunion),
+      horaFin: fmtHora(reunion.fechaHoraFinReunion),
+      tipo: esVirtual ? 'Virtual' : 'Presencial',
+      lugar: esVirtual
+        ? (sr.enlaceReunionVirtual ? 'Enlace de videollamada' : 'Enlace pendiente de asignar')
+        : (reunion.mesa ? `Mesa ${reunion.mesa.numeroMesa}` : 'Mesa por confirmar'),
+      enlace: esVirtual ? (sr.enlaceReunionVirtual ?? null) : null,
+      estado: reunion.estadoReunion,
+    };
+  }
+
   @Post('empresa/asistente')
   async asistente(@Body() body: { eeId: number; euId?: number; mensaje: string; contexto?: any }) {
     const { eeId, mensaje = '' } = body;
@@ -6118,15 +6229,11 @@ export class AppController implements OnModuleInit {
         },
       });
       if (!reuniones.length) return { respuesta: 'No tienes reuniones aceptadas para este evento.' };
-      const lineas = reuniones.map((reunion: any, i) => {
-        const sr = reunion.solicitudreunion;
-        const otra = sr.empresaEvento_id === eeId
-          ? sr.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento?.empresa?.nombre
-          : sr.empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa?.nombre;
-        const ubicacion = reunion.tipoReunion === 'VIRTUAL' ? 'Virtual' : reunion.mesa ? `Mesa ${reunion.mesa.numeroMesa}` : 'Mesa por confirmar';
-        return `${i + 1}. ${fmtFecha(reunion.fechaHoraInicioReunion)}, ${fmtHora(reunion.fechaHoraInicioReunion)} · ${otra || 'Empresa'} · ${ubicacion}`;
-      });
-      return { respuesta: `Tienes ${reuniones.length} reunión(es) aceptada(s):\n${lineas.join('\n')}` };
+      const reunionCards = reuniones.map((reunion: any) => this.formatearReunionParaAsistente(reunion, eeId, fmtFecha, fmtHora));
+      return {
+        respuesta: `Tienes ${reuniones.length} reunión(es) aceptada(s). Aquí el detalle:`,
+        reuniones: reunionCards,
+      };
     }
 
     // ── próxima reunión ──────────────────────────────────────────────────────
@@ -6150,14 +6257,10 @@ export class AppController implements OnModuleInit {
         },
       });
       if (!reunion) return { respuesta: 'No tienes reuniones programadas próximamente.' };
-      const sr = (reunion as any).solicitudreunion;
-      const contraparteEmpresa = sr.empresaEvento_id === eeId
-        ? sr.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento?.empresa
-        : sr.empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa;
-      const contraparte = contraparteEmpresa?.nombre ?? 'desconocida';
-      const mesaNum = (reunion as any).mesa ? `Mesa ${(reunion as any).mesa.numeroMesa}` : 'por confirmar';
+      const card = this.formatearReunionParaAsistente(reunion, eeId, fmtFecha, fmtHora);
       return {
-        respuesta: `Tu próxima reunión es el ${fmtFecha(reunion.fechaHoraInicioReunion)} a las ${fmtHora(reunion.fechaHoraInicioReunion)} con ${contraparte}. ${mesaNum}. Estado: ${reunion.estadoReunion}.`,
+        respuesta: 'Esta es tu próxima reunión:',
+        reuniones: [card],
       };
     }
 
@@ -6309,6 +6412,8 @@ export class AppController implements OnModuleInit {
           estadoVerificacionPago: 'COMPLETADO',
           estadoHabilitacionAcceso: 'HABILITADO',
           id: { not: eeId },
+          // Igual que en empresa/directorio: el Foro no agenda reuniones.
+          empresa_usuario: { none: { usuario: { rolEvento: 'FORO' } } },
           empresa: {
             estaActivo: 1,
             OR: [

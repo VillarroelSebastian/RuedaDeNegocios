@@ -159,21 +159,7 @@ export default function EstadisticasScreen() {
 
     {(stats.empresasPorRubro || []).length > 0 && <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 17, borderWidth: 1, borderColor: '#e2e8f0' }}><Text style={{ fontWeight: '900', color: '#0f172a', marginBottom: 15 }}>Empresas por sector (Top 5)</Text>{stats.empresasPorRubro.map((r: any) => <Barra key={r.rubro} etiqueta={r.rubro} valor={r.count} maximo={stats.empresasPorRubro[0].count} color="#2563eb" />)}</View>}
 
-    <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 17, borderWidth: 1, borderColor: '#e2e8f0' }}>
-      <Text style={{ fontWeight: '900', color: '#0f172a', marginBottom: 4 }}>Asistencia</Text>
-      <Text style={{ color: '#94a3b8', fontSize: 11, marginBottom: 14 }}>Registrados frente a quienes tuvieron al menos un ingreso por QR.</Text>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-around' }}>
-        <View style={{ alignItems: 'center', gap: 6 }}>
-          <RadialGauge value={(stats.asistencia.empresasAsistentes / Math.max(stats.asistencia.empresasRegistradas, 1)) * 100} color={GREEN} trackColor="#dcfce7" centerValue={stats.asistencia.empresasAsistentes} centerLabel="Empresas" />
-          <Text style={{ fontSize: 11, color: '#64748b' }}>{stats.asistencia.empresasRegistradas} registradas</Text>
-        </View>
-        <View style={{ alignItems: 'center', gap: 6 }}>
-          <RadialGauge value={(stats.asistencia.personasAsistentes / Math.max(stats.asistencia.personasRegistradas, 1)) * 100} color="#0d9488" trackColor="#ccfbf1" centerValue={stats.asistencia.personasAsistentes} centerLabel="Personas" />
-          <Text style={{ fontSize: 11, color: '#64748b' }}>{stats.asistencia.personasRegistradas} registradas</Text>
-        </View>
-      </View>
-      <Text style={{ color: '#94a3b8', fontSize: 11, textAlign: 'center', marginTop: 14 }}>{stats.asistencia.registros} escaneos. Cada persona se cuenta una sola vez como asistente.</Text>
-    </View>
+    {/* La asistencia (empresa vs Foro) ahora vive en su propia pantalla — ver AsistenciaScreen */}
     {top.length > 0 && <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 17, borderWidth: 1, borderColor: '#e2e8f0' }}><Text style={{ fontWeight: '900', color: '#0f172a', marginBottom: 15 }}>Top 5 empresas por reuniones</Text>{top.map((e: any, i: number) => <Barra key={`${e.nombre}-${i}`} etiqueta={`${i + 1}. ${e.nombre}`} valor={e.total} maximo={top[0]?.total || 1} />)}</View>}
     {(stats.calificaciones || []).length > 0 && <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 17, borderWidth: 1, borderColor: '#e2e8f0' }}><Text style={{ fontWeight: '900', color: '#0f172a', marginBottom: 15 }}>Distribución de calificaciones</Text>{stats.calificaciones.map((c: any) => <Barra key={c.estrellas} etiqueta={`${c.estrellas} estrella${c.estrellas === 1 ? '' : 's'}`} valor={c.total} maximo={Math.max(...stats.calificaciones.map((v: any) => v.total), 1)} color="#f59e0b" />)}</View>}
 

@@ -365,31 +365,8 @@ export default function EstadisticasPage() {
         </tbody></table></div>
       </div>}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-          <h2 className="font-bold text-gray-900 mb-1">Asistencia empresarial</h2>
-          <p className="text-xs text-gray-500 mb-5">Registrados frente a quienes tuvieron al menos un ingreso por QR.</p>
-          <div className="flex flex-wrap items-center justify-around gap-6">
-            <div className="flex flex-col items-center gap-2">
-              <RadialGauge
-                value={(stats.asistencia.empresasAsistentes / Math.max(stats.asistencia.empresasRegistradas, 1)) * 100}
-                color="#449D3A" trackColor="#dcfce7"
-                centerValue={stats.asistencia.empresasAsistentes} centerLabel="Asistieron"
-              />
-              <p className="text-xs text-gray-500"><span className="font-bold text-gray-900">{stats.asistencia.empresasRegistradas}</span> empresas registradas · <span className="font-bold text-gray-500">{stats.asistencia.empresasSinAsistencia}</span> sin asistencia</p>
-            </div>
-            <div className="flex flex-col items-center gap-2">
-              <RadialGauge
-                value={(stats.asistencia.personasAsistentes / Math.max(stats.asistencia.personasRegistradas, 1)) * 100}
-                color="#0d9488" trackColor="#ccfbf1"
-                centerValue={stats.asistencia.personasAsistentes} centerLabel="Asistieron"
-              />
-              <p className="text-xs text-gray-500"><span className="font-bold text-gray-900">{stats.asistencia.personasRegistradas}</span> personas registradas · <span className="font-bold text-gray-500">{stats.asistencia.personasSinAsistencia}</span> sin asistencia</p>
-            </div>
-          </div>
-          <p className="mt-5 text-center text-xs text-gray-400">{stats.asistencia.registros} lecturas QR registradas</p>
-        </div>
-
+      {/* La asistencia (empresa vs Foro) ahora vive en su propia página — ver /admin/asistencia */}
+      <div className="grid grid-cols-1 mt-6">
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
           <h2 className="font-bold text-gray-900 mb-1">Calificaciones de reuniones</h2>
           <p className="text-xs text-gray-500 mb-5">Distribución de todas las encuestas respondidas.</p>

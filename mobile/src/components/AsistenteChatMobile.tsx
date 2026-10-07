@@ -4,7 +4,7 @@ import {
   Modal, KeyboardAvoidingView, Platform, ActivityIndicator, StyleSheet,
   Pressable,
 } from 'react-native';
-import { Bot, X, Send, User } from 'lucide-react-native';
+import { Bot, X, Send, User, Calendar, Clock, MapPin, Video, Building2 } from 'lucide-react-native';
 import { API_URL, userStore } from '../utils/userStore';
 import ImagenLightbox from './ImagenLightbox';
 
@@ -22,11 +22,49 @@ const SUGERENCIAS = [
 
 const BIENVENIDA = '¡Hola! Soy tu asistente virtual del evento. Elige una opción del 1 al 7 o escribe tu pregunta. Después de cada consulta volveré a mostrarte el menú principal.';
 
+interface ReunionCard {
+  empresa: string;
+  fecha: string;
+  horaInicio: string;
+  horaFin: string;
+  tipo: string;
+  lugar: string;
+  enlace: string | null;
+  estado: string;
+}
+
 interface Msg {
   role: 'user' | 'bot';
   text: string;
   imageUrl?: string;
   opciones?: string[];
+  reuniones?: ReunionCard[];
+}
+
+function ReunionCardMobile({ r }: { r: ReunionCard }) {
+  return (
+    <View style={s.reunionCard}>
+      <View style={s.reunionRow}>
+        <Building2 size={13} color={GREEN} />
+        <Text style={s.reunionEmpresa}>{r.empresa}</Text>
+      </View>
+      <View style={s.reunionRow}>
+        <Calendar size={13} color="#6b7280" />
+        <Text style={s.reunionText}>{r.fecha}</Text>
+      </View>
+      <View style={s.reunionRow}>
+        <Clock size={13} color="#6b7280" />
+        <Text style={s.reunionText}>{r.horaInicio} – {r.horaFin}</Text>
+      </View>
+      <View style={s.reunionRow}>
+        {r.tipo === 'Virtual' ? <Video size={13} color="#6b7280" /> : <MapPin size={13} color="#6b7280" />}
+        <Text style={s.reunionText}>{r.tipo} · {r.lugar}</Text>
+      </View>
+      <View style={s.reunionBadge}>
+        <Text style={s.reunionBadgeText}>{r.estado}</Text>
+      </View>
+    </View>
+  );
 }
 
 export function AsistenteChatButton({ onOpen }: { onOpen: () => void }) {
@@ -101,7 +139,7 @@ export default function AsistenteChatModal({ visible, onClose }: { visible: bool
       setContexto(data.contexto ?? null);
       const sigueFlujo = Boolean(data.contexto?.paso);
       setMsgs((prev) => [...prev, {
-        role: 'bot', text: data.respuesta, imageUrl: data.imageUrl,
+        role: 'bot', text: data.respuesta, imageUrl: data.imageUrl, reuniones: data.reuniones,
         opciones: data.opciones?.length ? data.opciones : (sigueFlujo ? undefined : SUGERENCIAS),
       }]);
     } catch {
@@ -159,6 +197,11 @@ export default function AsistenteChatModal({ visible, onClose }: { visible: bool
                       <View style={s.avatar}><User size={14} color={GREEN} /></View>
                     )}
                   </View>
+                  {!!item.reuniones?.length && (
+                    <View style={s.reunionCardsWrap}>
+                      {item.reuniones.map((r: ReunionCard, idx: number) => <ReunionCardMobile key={idx} r={r} />)}
+                    </View>
+                  )}
                   {/* Quick replies: solo en el último mensaje del bot */}
                   {item.role === 'bot' && !!item.opciones?.length && index === msgs.length - 1 && !loading && (
                     <View style={s.quickWrap}>
@@ -270,6 +313,19 @@ const s = StyleSheet.create({
     paddingHorizontal: 10, paddingVertical: 6,
   },
   sugText: { fontSize: 11, color: GREEN, fontWeight: '600' },
+  reunionCardsWrap: { marginLeft: 36, marginTop: 2, marginBottom: 8, gap: 8, maxWidth: '85%' },
+  reunionCard: {
+    backgroundColor: '#f0fdf4', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(68,157,58,0.3)',
+    padding: 10, gap: 4,
+  },
+  reunionRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  reunionEmpresa: { fontSize: 13, fontWeight: '800', color: '#0f172a' },
+  reunionText: { fontSize: 12, color: '#374151' },
+  reunionBadge: {
+    alignSelf: 'flex-start', backgroundColor: '#fff', borderRadius: 20, borderWidth: 1, borderColor: 'rgba(68,157,58,0.3)',
+    paddingHorizontal: 8, paddingVertical: 2, marginTop: 2,
+  },
+  reunionBadgeText: { fontSize: 10, fontWeight: '800', color: GREEN },
   quickWrap: {
     flexDirection: 'row', flexWrap: 'wrap', gap: 6,
     marginLeft: 36, marginTop: 2, marginBottom: 8,

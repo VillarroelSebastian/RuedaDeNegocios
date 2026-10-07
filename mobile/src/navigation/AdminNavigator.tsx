@@ -6,7 +6,7 @@ import {
   LayoutDashboard, Building2, CreditCard, Armchair, MoreHorizontal,
   CalendarCheck, Newspaper, Users, BarChart3, Settings,
   CalendarRange, Handshake,
-  Package, QrCode, FileText, Bell, LogOut, Wifi, MessageSquare,
+  Package, QrCode, FileText, Bell, LogOut, Wifi, MessageSquare, UserCheck,
 } from 'lucide-react-native';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,6 +22,7 @@ import ActividadesScreen  from '../screens/admin/ActividadesScreen';
 import NoticiasScreen     from '../screens/admin/NoticiasScreen';
 import TecnicosScreen     from '../screens/admin/TecnicosScreen';
 import EstadisticasScreen from '../screens/admin/EstadisticasScreen';
+import AsistenciaScreen from '../screens/admin/AsistenciaScreen';
 import ConfiguracionScreen from '../screens/admin/ConfiguracionScreen';
 import EventConfigScreen           from '../screens/admin/EventConfigScreen';
 import AuspiciadoresScreen         from '../screens/admin/AuspiciadoresScreen';
@@ -79,6 +80,7 @@ function MenuScreen({ navigation }: any) {
     { name: 'Galería',          icon: Newspaper,         screen: 'Galeria',           desc: 'Fotos y moderación'       },
     { name: 'Técnicos',         icon: Users,             screen: 'Tecnicos',          desc: 'Gestión de técnicos'      },
     { name: 'Estadísticas',     icon: BarChart3,         screen: 'Estadisticas',      desc: 'Reportes del evento'      },
+    { name: 'Asistencia',       icon: UserCheck,         screen: 'Asistencia',        desc: 'Empresa vs Foro · Personal' },
     { name: 'Reportes',         icon: FileText,          screen: 'Reportes',          desc: 'Exportación por módulo'   },
     { name: 'Credenciales QR',  icon: QrCode,            screen: 'Credenciales',      desc: 'Consultar y compartir'    },
     { name: 'Configuración',    icon: Settings,          screen: 'Configuracion',     desc: 'Mi perfil y cuenta'       },
@@ -246,6 +248,7 @@ export default function AdminNavigator() {
       <AdminStack.Screen name="Galeria"      component={TecnicoGaleriaScreen} options={{ title: 'Galería del evento' }} />
       <AdminStack.Screen name="Tecnicos"     component={TecnicosScreen}     options={{ title: 'Técnicos' }} />
       <AdminStack.Screen name="Estadisticas" component={EstadisticasScreen} options={{ title: 'Estadísticas' }} />
+      <AdminStack.Screen name="Asistencia" component={AsistenciaScreen} options={{ title: 'Asistencia' }} />
       <AdminStack.Screen name="Reportes"     component={ReportesScreen}      options={{ title: 'Reportes' }} />
       <AdminStack.Screen name="Credenciales" component={CredencialesScreen}  options={{ title: 'Credenciales QR' }} />
       <AdminStack.Screen name="Configuracion"component={ConfiguracionScreen}options={{ title: 'Configuración' }} />

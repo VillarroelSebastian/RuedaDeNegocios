@@ -1,16 +1,51 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { MessageCircle, X, Send, Bot, User } from "lucide-react";
+import { MessageCircle, X, Send, Bot, User, Calendar, Clock, MapPin, Video, Building2 } from "lucide-react";
 import ImagenLightbox from "@/components/ui/ImagenLightbox";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
+
+interface ReunionCard {
+  empresa: string;
+  fecha: string;
+  horaInicio: string;
+  horaFin: string;
+  tipo: string;
+  lugar: string;
+  enlace: string | null;
+  estado: string;
+}
 
 interface Msg {
   role: "user" | "bot";
   text: string;
   imageUrl?: string;
   opciones?: string[];
+  reuniones?: ReunionCard[];
+}
+
+function ReunionCardView({ r }: { r: ReunionCard }) {
+  return (
+    <div className="rounded-xl border border-[#449D3A]/30 bg-green-50/50 p-3 space-y-1.5">
+      <div className="flex items-center gap-1.5 text-sm font-bold text-gray-900">
+        <Building2 className="w-3.5 h-3.5 text-[#449D3A] shrink-0" />{r.empresa}
+      </div>
+      <div className="flex items-center gap-1.5 text-xs text-gray-600">
+        <Calendar className="w-3.5 h-3.5 text-gray-400 shrink-0" />{r.fecha}
+      </div>
+      <div className="flex items-center gap-1.5 text-xs text-gray-600">
+        <Clock className="w-3.5 h-3.5 text-gray-400 shrink-0" />{r.horaInicio} – {r.horaFin}
+      </div>
+      <div className="flex items-center gap-1.5 text-xs text-gray-600">
+        {r.tipo === "Virtual" ? <Video className="w-3.5 h-3.5 text-gray-400 shrink-0" /> : <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />}
+        {r.tipo} · {r.enlace ? <a href={r.enlace} target="_blank" rel="noreferrer" className="text-[#449D3A] font-semibold hover:underline">{r.lugar}</a> : r.lugar}
+      </div>
+      <span className="inline-block text-[10px] font-bold text-[#449D3A] bg-white px-2 py-0.5 rounded-full border border-[#449D3A]/30">
+        {r.estado}
+      </span>
+    </div>
+  );
 }
 
 const SUGERENCIAS = [
@@ -62,6 +97,7 @@ export default function AsistenteChat({ eeId, euId }: { eeId: number | null; euI
         role: "bot",
         text: data.respuesta,
         imageUrl: data.imageUrl,
+        reuniones: data.reuniones,
         opciones: data.opciones?.length ? data.opciones : (sigueFlujo ? undefined : SUGERENCIAS),
       }]);
     } catch {
@@ -127,6 +163,11 @@ export default function AsistenteChat({ eeId, euId }: { eeId: number | null; euI
                       src={m.imageUrl}
                       className="w-full h-40 rounded-xl overflow-hidden border border-gray-200"
                     />
+                  )}
+                  {m.reuniones && m.reuniones.length > 0 && (
+                    <div className="space-y-2">
+                      {m.reuniones.map((r, idx) => <ReunionCardView key={idx} r={r} />)}
+                    </div>
                   )}
                   {/* Quick replies: solo en el último mensaje del bot */}
                   {m.role === "bot" && m.opciones && m.opciones.length > 0 && i === msgs.length - 1 && !loading && (

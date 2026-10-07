@@ -26,6 +26,7 @@ import {
   Wifi,
   MessageSquare,
   UserPlus,
+  UserCheck,
 } from 'lucide-react';
 
 const menuItems = [
@@ -46,6 +47,7 @@ const menuItems = [
   { name: 'Noticias', icon: Newspaper, href: '/admin/noticias' },
   { name: 'Técnicos', icon: Users, href: '/admin/tecnicos' },
   { name: 'Estadísticas', icon: BarChart3, href: '/admin/estadisticas' },
+  { name: 'Asistencia', icon: UserCheck, href: '/admin/asistencia' },
   { name: 'Credenciales QR', icon: QrCode, href: '/admin/credenciales' },
   { name: 'Reportes', icon: FileText, href: '/admin/reportes' },
   { name: 'Configuración', icon: Settings, href: '/admin/configuracion' },
