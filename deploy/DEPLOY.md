@@ -56,6 +56,16 @@ ssh root@212.85.0.138 "bash /var/www/rueda/deploy/setup-vps.sh"
 
 ## App móvil
 
+### Notificaciones Android (FCM V1)
+
+El permiso del teléfono y el registro del token no bastan: el proyecto Expo debe tener asignada una cuenta de servicio de Firebase para FCM V1, del mismo proyecto indicado en `mobile/google-services.json`.
+
+Configurar mediante `eas credentials --platform android` → Google Service Account → Manage your Google Service Account Key for Push Notifications (FCM V1). La cuenta de servicio es secreta: no incluir su JSON en GitHub. El archivo `google-services.json` de la app no reemplaza esa credencial del servidor de Expo.
+
+Comprobar `pushdelivery`: `RECIBO` significa que Expo aceptó el envío, `ENTREGADA` significa que el proveedor confirmó la entrega; no confirma que el usuario haya leído la notificación. `InvalidCredentials` indica configuración de FCM/Expo. `DeviceNotRegistered` indica un token que se debe desactivar lógicamente; al abrir la app con sesión y permisos se registra la instalación vigente.
+
+Corregir la credencial FCM del proyecto Expo no requiere reconstruir una app instalada que ya guarda tokens del mismo proyecto. Los cambios de interfaz móvil sí requieren una nueva APK.
+
 Crear `mobile/.env` con:
 
 ```

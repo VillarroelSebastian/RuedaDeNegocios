@@ -59,7 +59,7 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
     const res=await fetch('https://exp.host/--/api/v2/push/'+ruta,{method:'POST',signal:AbortSignal.timeout(10000),
       headers:{'Content-Type':'application/json',...(process.env.EXPO_ACCESS_TOKEN?{Authorization:'Bearer '+process.env.EXPO_ACCESS_TOKEN}:{})},body:JSON.stringify(body)});
     if(!res.ok)throw new Error('Expo HTTP '+res.status);
-    const json=await res.json() as any;if(json.errors?.length)throw new Error('Expo rechazó la solicitud');return json.data;
+    const json=await res.json() as any;if(json.errors?.length)throw new Error(String(json.errors[0].code || 'Expo rechazó la solicitud'));return json.data;
   }
   async procesar(){
     if(this.trabajando)return;this.trabajando=true;
@@ -67,7 +67,8 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
       const jobs=await this.prisma.pushdelivery.findMany({where:{estado:{in:['PENDIENTE','RECIBO','ENVIANDO']},proximoIntento:{lte:new Date()}},include:{subscription:{include:{usuario:{select:{estaActivo:true,rolEvento:true}}}}},orderBy:{id:'asc'},take:50});
       for(let i=0;i<jobs.length;i+=5)await Promise.all(jobs.slice(i,i+5).map(async job=>{
         // Lease avoids duplicates across PM2 workers; expired leases recover after a restart.
-        const claim=await this.prisma.pushdelivery.updateMany({where:{id:job.id,estado:job.estado,proximoIntento:job.proximoIntento},data:{estado:'ENVIANDO',proximoIntento:new Date(Date.now()+120000),intentos:{increment:1}}});
+        // PostgreSQL keeps microseconds; JavaScript dates keep milliseconds.
+        const claim=await this.prisma.pushdelivery.updateMany({where:{id:job.id,estado:job.estado,proximoIntento:{gte:job.proximoIntento,lt:new Date(job.proximoIntento.getTime()+1)}},data:{estado:'ENVIANDO',proximoIntento:new Date(Date.now()+120000),intentos:{increment:1}}});
         if(!claim.count)return;
         const sub=job.subscription,contenido=job.contenido as any;
         try{
@@ -87,11 +88,17 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
             const receipt=receipts?.[job.ticketId];
             if(!receipt){await this.prisma.pushdelivery.update({where:{id:job.id},data:{estado:'RECIBO',proximoIntento:new Date(Date.now()+15*60000)}});return;}
             if(receipt.status==='ok'){await this.prisma.pushdelivery.update({where:{id:job.id},data:{estado:'ENTREGADA',error:null}});return;}
-            if(receipt.details?.error==='DeviceNotRegistered'){await this.prisma.pushsubscription.updateMany({where:{id:sub.id},data:{estaActivo:0}});return;}
+            if(receipt.details?.error==='DeviceNotRegistered'){
+              await this.prisma.pushsubscription.updateMany({where:{id:sub.id},data:{estaActivo:0}});
+              await this.prisma.pushdelivery.update({where:{id:job.id},data:{estado:'FALLIDA',error:'DeviceNotRegistered'}});return;
+            }
             throw new Error(receipt.details?.error||'Error de entrega Expo');
           }
           const ticket=await this.expo('send',{to:sub.destino,sound:'default',channelId:'eventos',priority:'high',ttl:3600,title:contenido.title,body:contenido.body,data:contenido.data});
-          if(ticket?.details?.error==='DeviceNotRegistered'){await this.prisma.pushsubscription.updateMany({where:{id:sub.id},data:{estaActivo:0}});return;}
+          if(ticket?.details?.error==='DeviceNotRegistered'){
+            await this.prisma.pushsubscription.updateMany({where:{id:sub.id},data:{estaActivo:0}});
+            await this.prisma.pushdelivery.update({where:{id:job.id},data:{estado:'FALLIDA',error:'DeviceNotRegistered'}});return;
+          }
           if(ticket?.status!=='ok'||!ticket.id)throw new Error(ticket?.details?.error||'Expo no aceptó el envío');
           await this.prisma.pushdelivery.update({where:{id:job.id},data:{estado:'RECIBO',ticketId:ticket.id,proximoIntento:new Date(Date.now()+15*60000),error:null}});
         }catch(error:any){

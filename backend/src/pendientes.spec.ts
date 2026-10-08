@@ -185,6 +185,22 @@ describe('Entrega push',()=>{
     global.fetch=fn({ok:true,json:async()=>({data:{'receipt-1':{status:'error',details:{error:'DeviceNotRegistered'}}}})}) as any;
     await service.procesar();
     expect(prisma.pushsubscription.updateMany).toHaveBeenCalledWith({where:{id:2},data:{estaActivo:0}});
+    expect(prisma.pushdelivery.update).toHaveBeenCalledWith({where:{id:1},data:{estado:'FALLIDA',error:'DeviceNotRegistered'}});
+  });
+  it('marca InvalidCredentials como fallo de configuracion y conserva el dispositivo registrado',async()=>{
+    const {prisma,service}=setup();
+    global.fetch=fn({ok:true,json:async()=>({data:{status:'error',details:{error:'InvalidCredentials'}}})}) as any;
+    await service.procesar();
+    expect(prisma.pushsubscription.updateMany).not.toHaveBeenCalled();
+    expect(prisma.pushdelivery.updateMany.mock.calls.at(-1)?.[0]).toMatchObject({data:{estado:'FALLIDA',error:'InvalidCredentials'}});
+  });
+  it('reclama avisos con microsegundos sin perder la exclusion entre trabajadores',async()=>{
+    const {prisma,service}=setup();
+    global.fetch=fn({ok:true,json:async()=>({data:{status:'ok',id:'receipt-1'}})}) as any;
+    await service.procesar();
+    const where=prisma.pushdelivery.updateMany.mock.calls[0][0].where;
+    expect(where.estado).toBe('PENDIENTE');
+    expect(where.proximoIntento.lt.getTime()-where.proximoIntento.gte.getTime()).toBe(1);
   });
   it('cancela un envío pendiente si el dispositivo ahora pertenece a otra cuenta',async()=>{
     const {prisma,service}=setup();
