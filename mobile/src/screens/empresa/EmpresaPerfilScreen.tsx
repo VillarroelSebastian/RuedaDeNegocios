@@ -516,7 +516,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
   };
 
   const handleLogout = () => {
-    show({ type: 'confirm', title: 'Cerrar sesión', message: '¿Estás seguro?', cancelText: 'Cancelar', confirmText: 'Salir', onConfirm: () => { userStore.clear(); navigation.replace('Login'); } });
+    show({ type: 'confirm', title: 'Cerrar sesión', message: '¿Estás seguro?', cancelText: 'Cancelar', confirmText: 'Salir', onConfirm: async () => { try { await userStore.clear(); navigation.replace('Login'); } catch { show({ type: 'error', title: 'Cerrar sesi\u00f3n', message: 'No se pudo desactivar este dispositivo. Revisa tu conexi\u00f3n y vuelve a cerrar sesi\u00f3n.' }); } } });
   };
 
   if (loading) return (

@@ -91,8 +91,10 @@ export default function TecnicoPerfilScreen({ navigation }: any) {
   const savingPwRef = useRef(false);
   const [uploadingPhoto,   setUploadingPhoto]   = useState(false);
 
-  const handleLogout = () => {
-    userStore.clear().then(() => navigation.replace('Login'));
+  const handleLogout = async () => {
+    setConfirmLogout(false);
+    try { await userStore.clear(); navigation.replace('Login'); }
+    catch { setModal({ visible: true, type: 'error', title: 'Cerrar sesi\u00f3n', message: 'No se pudo desactivar este dispositivo. Revisa tu conexi\u00f3n y vuelve a cerrar sesi\u00f3n.' }); }
   };
 
   // ── Pick & upload photo ──

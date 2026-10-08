@@ -6,6 +6,8 @@ const STORAGE_KEY = 'rueda_current_user';
 const BACKEND_PORT = 3334;
 
 let currentUser: any = null;
+let loggingOut = false;
+let logoutTask: Promise<void> | null = null;
 const listeners = new Set<() => void>();
 const notify = () => listeners.forEach(fn => fn());
 export function sessionExpiry(user: any): number {
@@ -34,11 +36,18 @@ export const userStore = {
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(user));
   },
   get: () => currentUser,
+  isSessionActive: (token: string) => !loggingOut && currentUser?.token === token && sessionExpiry(currentUser) > Date.now(),
   clear: async () => {
-    if (currentUser?.token) await import('./push').then(m => m.desactivarPush(API_URL, currentUser.token, true)).catch(() => {});
-    currentUser = null;
-    notify();
-    await AsyncStorage.removeItem(STORAGE_KEY);
+    if (logoutTask) return logoutTask;
+    loggingOut = true;
+    const user = currentUser;
+    logoutTask = (async () => {
+      if (user?.token) await import('./push').then(m => m.desactivarPush(API_URL, user.token, true));
+      currentUser = null;
+      notify();
+      await AsyncStorage.removeItem(STORAGE_KEY);
+    })().finally(() => { loggingOut = false; logoutTask = null; });
+    return logoutTask;
   },
   load: async (): Promise<any | null> => {
     try {

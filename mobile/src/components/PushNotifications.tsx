@@ -26,7 +26,7 @@ export default function PushNotifications({ onOpen }: { onOpen: (data: any) => b
   useEffect(() => {
     let alive = true, running = false;
     const restore = async () => {
-      if (!user?.token || running || userStore.get()?.token !== user.token) return;
+      if (!alive || !user?.token || running || !userStore.isSessionActive(user.token)) return;
       running = true;
       try { await restaurarPush(API_URL, user.token); }
       catch { /* sin conexión o permiso denegado: se reintenta más tarde */ }

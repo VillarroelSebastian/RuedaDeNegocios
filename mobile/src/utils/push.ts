@@ -8,6 +8,12 @@ const KEY = 'rueda_push_token';
 const ENABLED = 'rueda_push_enabled';
 const ASKED = 'rueda_push_permission_asked';
 let permissionTask: Promise<boolean> | null = null;
+let deviceTask: Promise<unknown> = Promise.resolve();
+function serializeDevice<T>(operation: () => Promise<T>): Promise<T> {
+  const next = deviceTask.then(operation, operation);
+  deviceTask = next.catch(() => {});
+  return next;
+}
 
 async function notifications() {
   if (Platform.OS === 'web' || Constants.appOwnership === 'expo')
@@ -39,6 +45,9 @@ async function registrar(api: string, token: string, pushToken: string) {
   if (!res.ok) throw new Error('No se pudo registrar el dispositivo. Reintenta con conexión a internet.');
 }
 export async function activarPush(api: string, token: string, pedirPermiso = true) {
+  return serializeDevice(async () => {
+  const { userStore } = await import('./userStore');
+  if (!userStore.isSessionActive(token)) return null;
   if (!Device.isDevice) throw new Error('Activa push desde un dispositivo físico.');
   const n = await notifications();
   await pedirPermisoInicial();
@@ -49,9 +58,13 @@ export async function activarPush(api: string, token: string, pedirPermiso = tru
   const projectId = Constants.expoConfig?.extra?.eas?.projectId || Constants.easConfig?.projectId;
   if (!projectId) throw new Error('Falta configurar el proyecto de notificaciones.');
   const pushToken = (await n.getExpoPushTokenAsync({ projectId })).data;
+  if (!userStore.isSessionActive(token)) return null;
+  // Persist before registration so logout can revoke even if the response is lost.
+  await AsyncStorage.setItem(KEY, pushToken);
   await registrar(api, token, pushToken);
   await AsyncStorage.multiSet([[KEY, pushToken], [ENABLED, '1']]);
   return pushToken;
+  });
 }
 export async function restaurarPush(api: string, token: string) {
   // Ya no existe el botón de desactivar en la app, así que tampoco se consulta
@@ -63,6 +76,7 @@ export async function restaurarPush(api: string, token: string) {
   return true;
 }
 export async function desactivarPush(api: string, token: string, cerrarSesion = false) {
+  return serializeDevice(async () => {
   const stored = await AsyncStorage.getItem(KEY);
   if (stored) {
     const res = await fetch(api + '/push/suscripcion', {
@@ -74,15 +88,30 @@ export async function desactivarPush(api: string, token: string, cerrarSesion = 
     await AsyncStorage.removeItem(KEY);
   }
   if (!cerrarSesion) await AsyncStorage.setItem(ENABLED, '0');
+  const n = await notifications().catch(() => null);
+  if (n) {
+    await n.dismissAllNotificationsAsync().catch(() => {});
+    await n.clearLastNotificationResponseAsync().catch(() => {});
+  }
+  });
 }
 export async function escucharPush(onOpen: (data: any) => boolean) {
   try {
     const n = await notifications();
-    n.setNotificationHandler({ handleNotification: async () => ({
-      shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: false,
-    }) });
+    n.setNotificationHandler({ handleNotification: async notification => {
+      const { userStore } = await import('./userStore');
+      const user = userStore.get();
+      const belongs = !!user?.token && userStore.isSessionActive(user.token) && Number(notification.request.content.data?.usuarioId) === Number(user.id);
+      return { shouldShowBanner: belongs, shouldShowList: belongs, shouldPlaySound: belongs, shouldSetBadge: false };
+    } });
     let pending: any = null;
     const open = async () => {
+      const { userStore } = await import('./userStore');
+      const user = userStore.get();
+      if (pending && (!user?.token || !userStore.isSessionActive(user.token) || Number(pending.usuarioId) !== Number(user.id))) {
+        pending = null;
+        await n.clearLastNotificationResponseAsync();
+      }
       if (pending && onOpen(pending)) { pending = null; await n.clearLastNotificationResponseAsync(); }
     };
     const listener = n.addNotificationResponseReceivedListener(r => { pending = r.notification.request.content.data; void open(); });

@@ -8,7 +8,7 @@ module.exports = {
   expo: {
     name: "Rueda de Negocios",
     slug: "mobile",
-    version: "1.1.2",
+    version: "1.1.3",
     orientation: "portrait",
     icon: "./assets/icon.png",
     userInterfaceStyle: "light",
@@ -26,7 +26,7 @@ module.exports = {
       // windowOptOutEdgeToEdgeEnforcement, así que desactivarlo no servía de
       // nada: la app se dibuja bajo la barra de estado igual. La solución es
       // que cada pantalla reserve el inset superior con SafeAreaView.
-      versionCode: 14,
+      versionCode: 15,
       googleServicesFile: process.env.GOOGLE_SERVICES_JSON ?? "./google-services.json",
       softwareKeyboardLayoutMode: "resize",
       adaptiveIcon: {
