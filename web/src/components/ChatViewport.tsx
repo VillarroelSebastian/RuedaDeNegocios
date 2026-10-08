@@ -24,5 +24,5 @@ export default function ChatViewport({ children, className, embedded = false }: 
     window.visualViewport?.addEventListener('scroll', measure);
     return () => { cancelAnimationFrame(frame); window.removeEventListener('resize', measure); window.visualViewport?.removeEventListener('resize', measure); window.visualViewport?.removeEventListener('scroll', measure); };
   }, [embedded]);
-  return <div ref={ref} className={className} style={{ height, paddingBottom: 'max(12px, env(safe-area-inset-bottom, 0px))' }}>{children}</div>;
+  return <div ref={ref} className={className} style={{ height, paddingBottom: 'max(24px, env(safe-area-inset-bottom, 0px))' }}>{children}</div>;
 }

@@ -45,7 +45,6 @@ export default function EmpresaMensajesScreen() {
   // Modal nueva conversación
   const [modalNueva, setModalNueva] = useState(false);
   const [empresas, setEmpresas] = useState<any[]>([]);
-  const [equipo,setEquipo]=useState<any[]>([]);
   const [busqueda, setBusqueda] = useState('');
   const [cargandoEmp, setCargandoEmp] = useState(false);
 
@@ -100,7 +99,6 @@ export default function EmpresaMensajesScreen() {
 
   const abrirNueva = async () => {
     setModalNueva(true);
-    fetch(API_URL+'/empresa/equipo').then(r=>r.ok?r.json():[]).then(setEquipo).catch(()=>{});
     setBusqueda('');
     setCargandoEmp(true);
     try {
@@ -183,9 +181,9 @@ export default function EmpresaMensajesScreen() {
 
 
           {/* Input — solo el encargado puede escribir */}
-          {!esEncargado ? (
+          {(!esEncargado || activa.eeId === 0) ? (
             <View style={s.readonlyNote}>
-              <Text style={s.readonlyNoteText}>Solo el encargado de la empresa puede enviar mensajes.</Text>
+              <Text style={s.readonlyNoteText}>{activa.eeId === 0 ? 'Los mensajes del equipo son de solo lectura. Puedes escribir a otras empresas.' : 'Solo el encargado de la empresa puede enviar mensajes.'}</Text>
             </View>
           ) : (
             <View style={s.inputRow}>
@@ -297,21 +295,6 @@ export default function EmpresaMensajesScreen() {
                 keyExtractor={(e: any) => String(e.empresaeventoId)}
                 style={{ maxHeight: 380 }}
                 contentContainerStyle={{ padding: 10 }}
-                ListHeaderComponent={<>
-                  {equipo.filter(u=>(u.nombres+' '+u.apellidoPaterno+' '+u.rolEvento).toLowerCase().includes(busqueda.toLowerCase())).map(u=><TouchableOpacity key={u.id} style={s.empRow} onPress={()=>{setModalNueva(false);setActiva({eeId:0,nombre:'Equipo del evento'});}}><View style={{flex:1}}><Text style={s.empNombre}>{u.nombres} {u.apellidoPaterno}</Text><Text style={s.empRubro}>{u.rolEvento==='ADMINISTRADOR'?'Administrador':'Técnico'} · Canal compartido del equipo</Text></View></TouchableOpacity>)}
-                  {!busqueda.trim() || 'equipo del evento organización'.includes(busqueda.toLowerCase()) ? (
-                    <TouchableOpacity
-                      style={s.empRow}
-                      onPress={() => { setModalNueva(false); setActiva({ eeId: 0, nombre: 'Equipo del evento' }); }}
-                      activeOpacity={0.8}
-                    >
-                      <View style={[s.empAvatar, { backgroundColor: '#eef2ff' }]}><MessageSquare size={18} color="#4f46e5" /></View>
-                      <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text style={s.empNombre} numberOfLines={1}>Equipo del evento</Text>
-                        <Text style={s.empRubro} numberOfLines={1}>Escríbele directamente a admin/técnicos</Text>
-                      </View>
-                    </TouchableOpacity>
-                  ) : null}</>}
                 ListEmptyComponent={<Text style={[s.emptyText, { paddingVertical: 20 }]}>Sin resultados.</Text>}
                 renderItem={({ item }: any) => (
                   <TouchableOpacity

@@ -43,6 +43,7 @@ const GREEN = '#449D3A';
 const GRAY  = '#9ca3af';
 
 const baseTabOptions = {
+  tabBarHideOnKeyboard: true,
   headerShown: false,
   tabBarActiveTintColor: GREEN,
   tabBarInactiveTintColor: GRAY,

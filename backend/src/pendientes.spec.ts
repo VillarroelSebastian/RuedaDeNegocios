@@ -101,12 +101,26 @@ describe('Verificación de pagos: separa empresas y foro',()=>{
   });
 });
 describe('Mensajes y galería',()=>{
-  it('permite que una empresa inicie la conversación con receptor 0',async()=>{
-    const prisma={ticketsoporte:{findFirst:fn({id:1,estado:'ABIERTO'})},empresa_usuario:{findFirst:fn({id:4,esResponsable:1})},mensajeempresa:{create:fn({id:9,fechaCreacion:new Date()})},empresaevento:{findUnique:fn({empresa:{nombre:'Empresa'}})}};
-    const c=new AppController({} as any,prisma as any,{emitirParaStaff:jest.fn()} as any,{} as any) as any;
-    c.getPrincipalEventoId=fn(2);c.notificarStaff=fn();
-    await expect(c.enviarMensajeEmpresa({eeId:7,euId:4,receptorEeId:0,contenido:'Necesito ayuda'})).resolves.toMatchObject({ok:true});
-    expect(c.notificarStaff).toHaveBeenCalled();
+  it.each([false, true])('bloquea enviar al equipo incluso con ticket abierto: %s',async abierto=>{
+    const create=fn();
+    const prisma={ticketsoporte:{findFirst:fn(abierto?{id:1,estado:'ABIERTO'}:null)},mensajeempresa:{create}};
+    const c=new AppController({} as any,prisma as any,{} as any,{} as any);
+    await expect(c.enviarMensajeEmpresa({eeId:7,euId:4,receptorEeId:0,contenido:'Hola'})).rejects.toBeInstanceOf(ForbiddenException);
+    expect(create).not.toHaveBeenCalled();
+  });
+  it('bloquea el envio al equipo por la ruta antigua de soporte',async()=>{
+    const create=fn();
+    const c=new AppController({} as any,{mensajeempresa:{create}} as any,{} as any,{} as any);
+    await expect(c.abrirTicketSoporte({eeId:7,euId:4,contenido:'Hola'})).rejects.toBeInstanceOf(ForbiddenException);
+    expect(create).not.toHaveBeenCalled();
+  });
+  it('permite al encargado escribir a otra empresa',async()=>{
+    const create=fn({id:9,fechaCreacion:new Date()});
+    const prisma={empresa_usuario:{findFirst:fn({id:4,esResponsable:1})},mensajeempresa:{create},empresaevento:{findUnique:fn({empresa:{nombre:'Empresa'}})}};
+    const c=new AppController({} as any,prisma as any,{emitirParaEe:jest.fn()} as any,{} as any) as any;
+    c.getPrincipalEventoId=fn(2);c.verificarEE=fn();c.notificar=fn();
+    await expect(c.enviarMensajeEmpresa({eeId:7,euId:4,receptorEeId:8,contenido:'Hola'})).resolves.toMatchObject({ok:true});
+    expect(create.mock.calls[0][0].data.receptorEe_id).toBe(8);
   });
   it.each(['EMPRESA','FORO'])('prohíbe la descarga masiva a %s aunque conozca la URL',async role=>{
     await expect(new ExtrasController({} as any,{} as any).descargarTodasLasFotos({user:{role}},{} as any)).rejects.toBeInstanceOf(ForbiddenException);

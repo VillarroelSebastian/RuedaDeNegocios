@@ -169,6 +169,7 @@ const bell = StyleSheet.create({
 // ── Tab options ──────────────────────────────────────────────────────────────
 
 const baseTabOptions = {
+  tabBarHideOnKeyboard: true,
   headerShown: false,
   tabBarActiveTintColor:   GREEN,
   tabBarInactiveTintColor: GRAY,

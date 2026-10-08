@@ -6917,7 +6917,8 @@ export class AppController implements OnModuleInit {
     if (Number(eeId) === Number(receptorEeId))
       throw new BadRequestException('No puedes enviarte mensajes a tu propia empresa');
     if (req?.user) await this.mensajeria.contexto(req.user, 'empresa', Number(eeId), Number(receptorEeId));
-    const paraStaff = Number(receptorEeId) === 0;
+    if (Number(receptorEeId) === 0)
+      throw new ForbiddenException('Los mensajes directos solo se pueden enviar entre empresas.');
     const eventoId = await this.getPrincipalEventoId();
     if (!eventoId) throw new BadRequestException('No hay un evento activo');
     const eu = await this.prisma.empresa_usuario.findFirst({
@@ -6927,17 +6928,7 @@ export class AppController implements OnModuleInit {
     // Solo el encargado puede enviar mensajes en nombre de la empresa.
     if (eu.esResponsable !== 1)
       throw new BadRequestException('Solo el encargado de la empresa puede enviar mensajes');
-    if (paraStaff) {
-      // Los mensajes directos son solo entre empresas; para contactar al
-      // equipo del evento hay que abrir un ticket de soporte primero.
-      const ticketAbierto = await this.prisma.ticketsoporte.findFirst({
-        where: { empresaevento_id: Number(eeId), estado: 'ABIERTO', estaActivo: 1 },
-      });
-      if (!ticketAbierto)
-        throw new BadRequestException('Usa "Contactar soporte" para escribirle al equipo del evento.');
-    } else {
-      await this.verificarEE(Number(receptorEeId));
-    }
+    await this.verificarEE(Number(receptorEeId));
     const msg = await this.prisma.mensajeempresa.create({
       data: {
         evento_id: eventoId,
@@ -6953,35 +6944,22 @@ export class AppController implements OnModuleInit {
       where: { id: Number(eeId) },
       select: { empresa: { select: { nombre: true } } },
     });
-    if (paraStaff) {
-      await this.notificarStaff(
-        eventoId,
-        'mensaje:empresa_staff',
-        'Nuevo mensaje de una empresa',
-        `${emisor?.empresa?.nombre ?? 'Una empresa'}: ${contenido.trim().slice(0, 200)}`,
-        msg.id,
-      );
-      try { this.notifGateway.emitirParaStaff('mensaje:nuevo', { deEeId: Number(eeId) }); } catch {}
-    } else {
-      await this.notificar(
-        Number(receptorEeId),
-        'mensaje:empresa',
-        'Nuevo mensaje',
-        `${emisor?.empresa?.nombre ?? 'Otra empresa'}: ${contenido.trim().slice(0, 200)}`,
-        msg.id,
-        'mensajeempresa',
-      );
-      // Evento especifico para que una conversacion abierta se refresque al instante.
-      try { this.notifGateway.emitirParaEe(Number(receptorEeId), 'mensaje:nuevo', { deEeId: Number(eeId) }); } catch {}
-    }
+    await this.notificar(
+      Number(receptorEeId),
+      'mensaje:empresa',
+      'Nuevo mensaje',
+      `${emisor?.empresa?.nombre ?? 'Otra empresa'}: ${contenido.trim().slice(0, 200)}`,
+      msg.id,
+      'mensajeempresa',
+    );
+    // Evento especifico para que una conversacion abierta se refresque al instante.
+    try { this.notifGateway.emitirParaEe(Number(receptorEeId), 'mensaje:nuevo', { deEeId: Number(eeId) }); } catch {}
     return { ok: true, id: msg.id, fecha: msg.fechaCreacion };
   }
 
   // ── Tickets de soporte: contacto directo empresa → equipo del evento ───────
-  // Una empresa solo puede tener un ticket ABIERTO a la vez. Abrir uno crea el
-  // primer mensaje en la conversación "Equipo del evento" (receptorEe_id=0) y
-  // avisa a todo el staff; cerrarlo lo hace un admin/técnico y recién ahí la
-  // empresa puede abrir uno nuevo.
+  // Se conserva la consulta del historial; crear tickets que envíen mensajes
+  // al equipo está bloqueado, igual que el envío directo a receptor 0.
 
   @Get('empresa/mensajes/soporte/estado')
   async getEstadoTicketSoporte(@Query('eeId') eeId: string) {
@@ -6994,48 +6972,8 @@ export class AppController implements OnModuleInit {
   }
 
   @Post('empresa/mensajes/soporte')
-  async abrirTicketSoporte(@Body() body: { eeId: number; euId: number; contenido: string }) {
-    const { eeId, euId, contenido } = body;
-    if (!eeId || !euId || !contenido?.trim())
-      throw new BadRequestException('eeId, euId y contenido son requeridos');
-    const eventoId = await this.getPrincipalEventoId();
-    if (!eventoId) throw new BadRequestException('No hay un evento activo');
-    const eu = await this.prisma.empresa_usuario.findFirst({
-      where: { id: Number(euId), empresaevento_id: Number(eeId), estaActivo: 1 },
-    });
-    if (!eu) throw new BadRequestException('No tienes permiso para esta empresa');
-    if (eu.esResponsable !== 1)
-      throw new BadRequestException('Solo el encargado de la empresa puede contactar soporte');
-
-    const ticketExistente = await this.prisma.ticketsoporte.findFirst({
-      where: { empresaevento_id: Number(eeId), estado: 'ABIERTO', estaActivo: 1 },
-    });
-    if (ticketExistente)
-      throw new BadRequestException('Ya tienes un ticket de soporte abierto. Espera a que el equipo técnico te contacte y lo cierre antes de abrir otro.');
-
-    const [ticket, msg] = await this.prisma.$transaction([
-      this.prisma.ticketsoporte.create({
-        data: { evento_id: eventoId, empresaevento_id: Number(eeId), estado: 'ABIERTO', estaActivo: 1 },
-      }),
-      this.prisma.mensajeempresa.create({
-        data: {
-          evento_id: eventoId, emisorEe_id: Number(eeId), receptorEe_id: 0,
-          empresa_usuario_id: Number(euId), contenido: contenido.trim().slice(0, 1000),
-          haSidoLeido: 0, estaActivo: 1,
-        },
-      }),
-    ]);
-
-    const emisor = await this.prisma.empresaevento.findUnique({
-      where: { id: Number(eeId) }, select: { empresa: { select: { nombre: true } } },
-    });
-    await this.notificarStaff(
-      eventoId, 'ticket:nuevo', 'Nuevo ticket de soporte',
-      `${emisor?.empresa?.nombre ?? 'Una empresa'} necesita ayuda y abrió un ticket de soporte.`,
-      ticket.id, true,
-    );
-    try { this.notifGateway.emitirParaStaff('mensaje:nuevo', { deEeId: Number(eeId) }); } catch {}
-    return { ok: true, ticket, mensajeId: msg.id };
+  async abrirTicketSoporte(@Body() _body: { eeId: number; euId: number; contenido: string }) {
+    throw new ForbiddenException('Los mensajes directos solo se pueden enviar entre empresas.');
   }
 
   @Get('staff/tickets')
