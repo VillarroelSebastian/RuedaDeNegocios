@@ -263,8 +263,8 @@ export default function LoginScreen({ navigation }: any) {
             <View style={s.metrics}>
               {[
                 { val: '200+', lbl: 'Empresas' },
-                { val: '1k+',  lbl: 'Reuniones' },
-                { val: '$5M+', lbl: 'Negocios' },
+                { val: '50+',  lbl: 'Reuniones' },
+                { val: 'Bs 2M+', lbl: 'Negocios' },
               ].map((m, i) => (
                 <React.Fragment key={m.lbl}>
                   {i > 0 && <View style={s.metricDiv} />}

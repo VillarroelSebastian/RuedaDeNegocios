@@ -154,6 +154,7 @@ export default function EmpresaMensajesScreen() {
 
           <FlatList
             ref={listRef}
+            style={{ flex: 1 }}
             data={mensajes}
             keyExtractor={(m: any) => String(m.id)}
             contentContainerStyle={{ padding: 14, gap: 8 }}

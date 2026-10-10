@@ -87,6 +87,7 @@ export default function ChatInternoScreen({ embedded = false }: { embedded?: boo
         <View style={{ alignItems: 'flex-end' }}><DeleteConversation canal="interno" otroEeId={0} onDeleted={cargar} /></View>
         <FlatList
           ref={listRef}
+          style={{ flex: 1 }}
           data={mensajes}
           keyExtractor={(m: any) => String(m.id)}
           contentContainerStyle={{ padding: 14, gap: 8, flexGrow: 1 }}

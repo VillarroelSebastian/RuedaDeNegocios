@@ -282,14 +282,14 @@ export default function LoginPage() {
                   <div className="w-px h-8 bg-white/20" />
                   
                   <div className="flex flex-col items-center flex-1">
-                    <span className="text-2xl font-extrabold text-white">1k+</span>
+                    <span className="text-2xl font-extrabold text-white">50+</span>
                     <span className="text-[9px] font-bold tracking-widest text-[#9CA3AF] uppercase mt-1">Reuniones</span>
                   </div>
-                  
+
                   <div className="w-px h-8 bg-white/20" />
-                  
+
                   <div className="flex flex-col items-center flex-1">
-                    <span className="text-2xl font-extrabold text-white">$5M+</span>
+                    <span className="text-2xl font-extrabold text-white">Bs 2M+</span>
                     <span className="text-[9px] font-bold tracking-widest text-[#9CA3AF] uppercase mt-1">En Negocios</span>
                   </div>
                 </div>

@@ -47,17 +47,22 @@ export default function TecnicosScreen() {
   const handlePickPhoto = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) { show({ type: 'warning', title: 'Permiso requerido', message: 'Necesitamos acceso a tus fotos.' }); return; }
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: 'images', quality: 0.8 });
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: 'images', allowsEditing: true, aspect: [1, 1], quality: 0.8 });
     if (!result.canceled && result.assets[0]) {
-      const uri = result.assets[0].uri;
+      const asset = result.assets[0];
+      if (asset.fileSize && asset.fileSize > 10 * 1024 * 1024) {
+        show({ type: 'error', title: 'Imagen muy grande', message: 'La imagen no puede superar 10 MB.' });
+        return;
+      }
       setUploading(true);
       try {
         const fd = new FormData();
-        fd.append('file', { uri, name: 'photo.jpg', type: 'image/jpeg' } as any);
+        fd.append('file', { uri: asset.uri, name: 'photo.jpg', type: asset.mimeType || 'image/jpeg' } as any);
         const res = await fetch(`${API_URL}/admin/imagenes/upload`, { method: 'POST', body: fd });
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.url) throw new Error(data?.message || 'No se pudo subir la foto.');
         setForm((f) => ({ ...f, urlFotoPerfil: data.url }));
-      } catch { show({ type: 'error', title: 'Error', message: 'No se pudo subir la foto.' }); }
+      } catch (e: any) { show({ type: 'error', title: 'Error', message: e.message || 'No se pudo subir la foto. Revisa tu conexión e intenta de nuevo.' }); }
       finally { setUploading(false); }
     }
   };

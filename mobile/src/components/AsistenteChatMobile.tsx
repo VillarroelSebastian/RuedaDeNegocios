@@ -182,6 +182,7 @@ export default function AsistenteChatModal({ visible, onClose }: { visible: bool
             {/* Messages */}
             <FlatList
               ref={listRef}
+              style={{ flex: 1 }}
               data={msgs}
               keyExtractor={(_, i) => String(i)}
               contentContainerStyle={s.msgList}

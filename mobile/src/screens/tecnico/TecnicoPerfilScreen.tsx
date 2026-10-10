@@ -1,9 +1,10 @@
 import React, { useRef, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, Image,
-  TextInput, Modal as RNModal, ActivityIndicator, KeyboardAvoidingView, Platform,
+  TextInput, Modal as RNModal, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import KeyboardSafeView from '../../components/KeyboardSafeView';
 import { UserCircle, Lock, LogOut, Eye, EyeOff, Shield, Camera } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { API_URL, userStore } from '../../utils/userStore';
@@ -106,11 +107,17 @@ export default function TecnicoPerfilScreen({ navigation }: any) {
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
       quality: 0.8,
     });
     if (result.canceled || !result.assets?.length) return;
 
     const asset = result.assets[0];
+    if (asset.fileSize && asset.fileSize > 10 * 1024 * 1024) {
+      setModal({ visible: true, type: 'error', title: 'Imagen muy grande', message: 'La imagen no puede superar 10 MB.' });
+      return;
+    }
     setUploadingPhoto(true);
     try {
       const formData = new FormData();
@@ -221,7 +228,7 @@ export default function TecnicoPerfilScreen({ navigation }: any) {
 
       {/* ── Password modal ── */}
       <RNModal visible={showPwModal} transparent animationType="slide" onRequestClose={() => setShowPwModal(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <KeyboardSafeView>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
           <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 }}>
             <Text style={{ fontSize: 18, fontWeight: '800', color: '#0f172a', marginBottom: 20 }}>Cambiar contraseña</Text>
@@ -273,7 +280,7 @@ export default function TecnicoPerfilScreen({ navigation }: any) {
             </View>
           </View>
         </View>
-        </KeyboardAvoidingView>
+        </KeyboardSafeView>
       </RNModal>
 
       {/* ── Header ── */}
@@ -284,7 +291,7 @@ export default function TecnicoPerfilScreen({ navigation }: any) {
         <Text style={{ fontSize: 22, fontWeight: '800', color: '#0f172a' }}>Mi Perfil</Text>
       </View>
 
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+      <KeyboardSafeView>
       <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets style={{ flex: 1 }} contentContainerStyle={{ padding: 20 }} showsVerticalScrollIndicator={false}>
 
         {/* ── Avatar con botón de cámara ── */}
@@ -434,7 +441,7 @@ export default function TecnicoPerfilScreen({ navigation }: any) {
 
         <View style={{ height: 30 }} />
       </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardSafeView>
     </SafeAreaView>
   );
 }

@@ -2,9 +2,9 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   ActivityIndicator, RefreshControl, StyleSheet, Modal, Image, Linking,
-  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import ImagenLightbox from '../../components/ImagenLightbox';
+import KeyboardSafeView from '../../components/KeyboardSafeView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
@@ -114,26 +114,31 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
     });
     if (result.canceled || !result.assets?.length) return;
     const asset = result.assets[0];
+    if (asset.fileSize && asset.fileSize > 10 * 1024 * 1024) {
+      setError('La imagen no puede superar 10 MB.');
+      return;
+    }
     subiendoFotoRef.current = true;
     setSubiendoFoto(true);
     setError('');
     try {
       const fd = new FormData();
-      fd.append('file', { uri: asset.uri, name: 'perfil.jpg', type: 'image/jpeg' } as any);
+      fd.append('file', { uri: asset.uri, name: 'perfil.jpg', type: asset.mimeType || 'image/jpeg' } as any);
       const up = await fetch(`${API_URL}/public/imagenes/upload`, { method: 'POST', body: fd });
-      const upData = await up.json();
-      if (!upData.url) throw new Error('No se pudo subir la imagen');
+      const upData = await up.json().catch(() => ({}));
+      if (!up.ok || !upData.url) throw new Error(upData?.message || 'No se pudo subir la imagen.');
 
       const res = await fetch(`${API_URL}/empresa/perfil`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ euId: perfil?.empresaUsuarioId, urlFotoPerfil: upData.url }),
       });
-      if (!res.ok) throw new Error('No se pudo guardar la foto');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || 'No se pudo guardar la foto.');
       await userStore.set({ ...userStore.get(), urlFotoPerfil: upData.url });
       fetchAll();
     } catch (e: any) {
-      setError(e.message || 'Error al cambiar la foto');
+      setError(e.message || 'Error al cambiar la foto. Revisa tu conexión e intenta de nuevo.');
     } finally {
       setSubiendoFoto(false);
       subiendoFotoRef.current = false;
@@ -147,15 +152,20 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
     if (!perm.granted) { setError('Se necesita permiso para acceder a la galería.'); return; }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: false,
+      allowsEditing: true,
+      aspect: [1, 1],
       quality: 0.85,
     });
     if (result.canceled || !result.assets?.length) return;
+    const asset = result.assets[0];
+    if (asset.fileSize && asset.fileSize > 10 * 1024 * 1024) {
+      setError('La imagen no puede superar 10 MB.');
+      return;
+    }
     subiendoLogoRef.current = true;
     setSubiendoLogo(true);
     setError('');
     try {
-      const asset = result.assets[0];
       const fd = new FormData();
       fd.append('file', { uri: asset.uri, name: 'empresa.jpg', type: asset.mimeType || 'image/jpeg' } as any);
       const up = await fetch(`${API_URL}/public/imagenes/upload`, { method: 'POST', body: fd });
@@ -846,7 +856,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
 
       {/* Edit profile modal */}
       <Modal visible={editModal} animationType="slide" transparent statusBarTranslucent>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <KeyboardSafeView>
         <View style={s.overlay}>
           <View style={s.modalCard}>
             <View style={s.modalHeader}>
@@ -879,12 +889,12 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
             )}
           </View>
         </View>
-        </KeyboardAvoidingView>
+        </KeyboardSafeView>
       </Modal>
 
       {/* Ficha comercial modal */}
       <Modal visible={comercialModal} animationType="slide" transparent statusBarTranslucent>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <KeyboardSafeView>
         <View style={s.overlay}>
           <View style={s.modalCard}>
             <View style={s.modalHeader}>
@@ -940,12 +950,12 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
             )}
           </View>
         </View>
-        </KeyboardAvoidingView>
+        </KeyboardSafeView>
       </Modal>
 
       {/* Add participant modal */}
       <Modal visible={addModal} animationType="slide" transparent statusBarTranslucent>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <KeyboardSafeView>
         <View style={s.overlay}>
           <View style={s.modalCard}>
             <View style={s.modalHeader}>
@@ -987,12 +997,12 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
             )}
           </View>
         </View>
-        </KeyboardAvoidingView>
+        </KeyboardSafeView>
       </Modal>
 
       {/* Additional payment modal */}
       <Modal visible={pagoModal} animationType="slide" transparent statusBarTranslucent>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <KeyboardSafeView>
         <View style={s.overlay}>
           <View style={s.modalCard}>
             <View style={s.modalHeader}>
@@ -1050,12 +1060,12 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
             )}
           </View>
         </View>
-        </KeyboardAvoidingView>
+        </KeyboardSafeView>
       </Modal>
 
       {/* Cambiar contraseña modal */}
       <Modal visible={passModal} animationType="slide" transparent statusBarTranslucent>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <KeyboardSafeView>
         <View style={s.overlay}>
           <View style={s.modalCard}>
             <View style={s.modalHeader}>
@@ -1119,7 +1129,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
             )}
           </View>
         </View>
-        </KeyboardAvoidingView>
+        </KeyboardSafeView>
       </Modal>
     </SafeAreaView>
   );

@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  Image, ActivityIndicator, KeyboardAvoidingView, Platform,
+  Image, ActivityIndicator,
 } from 'react-native';
 import { User, Camera, Save, LogOut, Lock, Eye, EyeOff } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { API_URL, userStore } from '../../utils/userStore';
 import { useModal } from '../../components/AppModal';
+import KeyboardSafeView from '../../components/KeyboardSafeView';
 import { validarNombrePersona, validarTelefono } from '../../utils/validaciones';
 
 const GREEN = '#449D3A';
@@ -34,17 +35,22 @@ export default function ConfiguracionScreen({ navigation }: any) {
   const handlePickPhoto = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) { show({ type: 'warning', title: 'Permiso requerido', message: 'Necesitamos acceso a tus fotos.' }); return; }
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: 'images', quality: 0.8 });
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: 'images', allowsEditing: true, aspect: [1, 1], quality: 0.8 });
     if (!result.canceled && result.assets[0]) {
-      const uri = result.assets[0].uri;
+      const asset = result.assets[0];
+      if (asset.fileSize && asset.fileSize > 10 * 1024 * 1024) {
+        show({ type: 'error', title: 'Imagen muy grande', message: 'La imagen no puede superar 10 MB.' });
+        return;
+      }
       setUploading(true);
       try {
         const fd = new FormData();
-        fd.append('file', { uri, name: 'photo.jpg', type: 'image/jpeg' } as any);
+        fd.append('file', { uri: asset.uri, name: 'photo.jpg', type: asset.mimeType || 'image/jpeg' } as any);
         const res = await fetch(`${API_URL}/admin/imagenes/upload`, { method: 'POST', body: fd });
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.url) throw new Error(data?.message || 'No se pudo subir la foto.');
         setForm((f) => ({ ...f, urlFotoPerfil: data.url }));
-      } catch { show({ type: 'error', title: 'Error', message: 'No se pudo subir la foto.' }); }
+      } catch (e: any) { show({ type: 'error', title: 'Error', message: e.message || 'No se pudo subir la foto. Revisa tu conexión e intenta de nuevo.' }); }
       finally { setUploading(false); }
     }
   };
@@ -130,7 +136,7 @@ export default function ConfiguracionScreen({ navigation }: any) {
   return (
     <>
     {modal}
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+    <KeyboardSafeView>
     <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets className="flex-1 bg-[#F9FAFB]">
       <View className="p-4 space-y-4">
         {/* Perfil header */}
@@ -258,7 +264,7 @@ export default function ConfiguracionScreen({ navigation }: any) {
         <View className="h-8" />
       </View>
     </ScrollView>
-    </KeyboardAvoidingView>
+    </KeyboardSafeView>
     </>
   );
 }
