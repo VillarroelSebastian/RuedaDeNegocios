@@ -1044,7 +1044,7 @@ export class AppController implements OnModuleInit {
   async credencialesImprimibles(@Query('euId') euId?: string) {
     const eventoId = await this.getPrincipalEventoId();
     if (!eventoId) return { evento: null, credenciales: [] };
-    const evento = await this.prisma.evento.findUnique({ where: { id: eventoId }, select: { nombre: true, edicion: true, urlLogoEvento: true } });
+    const evento = await this.prisma.evento.findUnique({ where: { id: eventoId }, select: { nombre: true, edicion: true, urlLogoEvento: true, urlLogoForo: true } });
     const participantes = await this.prisma.empresa_usuario.findMany({
       where: { ...(euId ? { id: Number(euId) } : {}), estaActivo: 1, empresaevento: { evento_id: eventoId, estaActivo: 1, estadoHabilitacionAcceso: 'HABILITADO' } },
       orderBy: [{ empresa: { nombre: 'asc' } }, { usuario: { apellidoPaterno: 'asc' } }],
@@ -1052,7 +1052,23 @@ export class AppController implements OnModuleInit {
     });
     for (const p of participantes) if (!p.urlCredencialQR) await this.generarCredencialQR(p.id, '', `${p.usuario.nombres} ${p.usuario.apellidoPaterno}`);
     const actualizados = await this.prisma.empresa_usuario.findMany({ where: { id: { in: participantes.map((p) => p.id) } }, include: { usuario: true, empresa: true }, orderBy: { id: 'asc' } });
-    return { evento, medidaMm: { ancho: 85.6, alto: 54 }, credenciales: actualizados.map((p) => ({ id: p.id, nombre: `${p.nombresEvento || p.usuario.nombres} ${p.apellidoPaternoEvento || p.usuario.apellidoPaterno}${(p.apellidoMaternoEvento ?? p.usuario.apellidoMaterno) ? ` ${p.apellidoMaternoEvento ?? p.usuario.apellidoMaterno}` : ''}`, empresa: p.empresa.nombre, cargo: p.cargo, foto: p.usuario.urlFotoPerfil || null, qr: p.urlCredencialQR })) };
+    // Tipo de participante para el color e logo de la credencial: foro y
+    // auspiciador no son "empresa" en el sentido comercial del evento.
+    const tipoDe = (p: (typeof actualizados)[number]) =>
+      p.usuario.rolEvento === 'FORO' ? 'FORO' : p.empresa.rubro === 'Auspiciador' ? 'AUSPICIADOR' : 'EMPRESA';
+    return {
+      evento,
+      medidaMm: { ancho: 90, alto: 130 },
+      credenciales: actualizados.map((p) => ({
+        id: p.id,
+        nombre: `${p.nombresEvento || p.usuario.nombres} ${p.apellidoPaternoEvento || p.usuario.apellidoPaterno}${(p.apellidoMaternoEvento ?? p.usuario.apellidoMaterno) ? ` ${p.apellidoMaternoEvento ?? p.usuario.apellidoMaterno}` : ''}`,
+        empresa: p.empresa.nombre,
+        cargo: p.cargo,
+        foto: p.usuario.urlFotoPerfil || null,
+        qr: p.urlCredencialQR,
+        tipo: tipoDe(p),
+      })),
+    };
   }
 
   @Post('tecnico/asistencias')
@@ -2137,6 +2153,7 @@ export class AppController implements OnModuleInit {
       urlImagenMapaRecinto: orNull(body.urlImagenMapaRecinto),
       urlImagenCronogramaCharlas: orNull(body.urlImagenCronogramaCharlas),
       urlLogoEvento: orNull(body.urlLogoEvento),
+      urlLogoForo: orNull(body.urlLogoForo),
       sobreElEvento: orNull(body.sobreElEvento),
       urlVideoEvento: orNull(body.urlVideoEvento),
       pilaresEvento: orNull(body.pilaresEvento),
@@ -9590,7 +9607,7 @@ export class AppController implements OnModuleInit {
       cargo: eu.cargo,
       esResponsable: eu.esResponsable === 1,
       urlCredencialQR: (eu as any).urlCredencialQR ?? null,
-      evento: evento ? { nombre: evento.nombre, edicion: evento.edicion, urlLogoEvento: evento.urlLogoEvento } : null,
+      evento: evento ? { nombre: evento.nombre, edicion: evento.edicion, urlLogoEvento: evento.urlLogoEvento, urlLogoForo: evento.urlLogoForo } : null,
     };
   }
 

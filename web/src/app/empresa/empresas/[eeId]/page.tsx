@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  Building2, MapPin, Hash, Star, Globe, Mail, Phone, FileText, Send,
+  Building2, MapPin, Star, Globe, Mail, Phone, FileText, Send,
   MessageSquare, ArrowLeft, Users, Sparkles, Target, Handshake, AlertCircle,
 } from "lucide-react";
 import { paisConBandera } from "@/lib/pais";
@@ -115,7 +115,6 @@ export default function PerfilEmpresaPage() {
           </div>
           {/* Meta */}
           <div className="relative flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-4 pt-4 border-t border-white/20">
-            {emp.codigo && <span className="inline-flex items-center gap-1 text-xs font-bold text-white/90"><Hash className="w-3.5 h-3.5" />{emp.codigo}</span>}
             {(emp.ciudad || emp.pais) && (
               <span className="text-xs text-white/80 flex items-center gap-1">
                 <MapPin className="w-3.5 h-3.5" />{[emp.ciudad, paisConBandera(emp.pais)].filter(Boolean).join(", ")}

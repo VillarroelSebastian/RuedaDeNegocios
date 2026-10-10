@@ -350,6 +350,9 @@ model evento {
   urlImagenMapaRecinto           String?                 @db.VarChar(505)
   urlImagenCronogramaCharlas     String?                 @db.VarChar(505)
   urlLogoEvento                  String?                 @db.VarChar(505)
+  // Logo del Foro (participación individual, sin paquete comercial): se usa en
+  // las credenciales del foro, su interfaz y la mención del foro en la landing.
+  urlLogoForo                    String?                 @db.VarChar(505)
   sobreElEvento                  String?                 @db.VarChar(2000)
   // Enlace al video "¿Qué es la rueda?" que se muestra sobre el logo en la landing.
   urlVideoEvento                 String?                 @db.VarChar(505)

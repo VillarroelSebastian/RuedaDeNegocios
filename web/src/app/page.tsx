@@ -50,6 +50,7 @@ interface EventoPublico {
   enlaceLinkedIn: string | null;
   enlaceTiktok: string | null;
   urlLogoEvento: string | null;
+  urlLogoForo: string | null;
   urlVideoEvento: string | null;
   pilaresEvento: string | null;
   urlImagenMapaRecinto: string | null;
@@ -218,6 +219,17 @@ export default function HomePage() {
               className="inline-flex items-center gap-2 text-white/80 hover:text-white text-sm font-semibold underline underline-offset-4 decoration-white/40 transition-colors"
             />
           </div>
+
+          {evento.urlLogoForo && (
+            <Link href="/registro" className="mt-8 inline-flex items-center gap-3 rounded-2xl bg-white/10 border border-white/20 backdrop-blur-sm px-5 py-3 hover:bg-white/15 transition-all">
+              <img src={evento.urlLogoForo} alt="Logo del Foro" className="h-10 object-contain" />
+              <span className="text-left">
+                <span className="block text-white font-bold text-sm">¿Vienes como participante individual?</span>
+                <span className="block text-white/75 text-xs">Participa en el Foro — sin paquete comercial</span>
+              </span>
+              <ChevronRight size={16} className="text-white/70" />
+            </Link>
+          )}
         </div>
       </section>
 

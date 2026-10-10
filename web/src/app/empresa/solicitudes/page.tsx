@@ -240,7 +240,6 @@ function DetalleSolicitudModal({ sol, tab, eeId, onClose, onAceptar, onRechazar,
                   {(empresa?.nombre ?? "E")[0].toUpperCase()}
                 </span>
                 {empresa?.nombre ?? "—"}
-                {empresa?.codigo && <span className="text-xs font-bold text-gray-400">{empresa.codigo}</span>}
               </span>
             </Row>
             <Row label="Fecha y hora">
@@ -639,7 +638,6 @@ function SolicitudesContent() {
 
                       <p className="font-bold text-gray-900 text-sm truncate">
                         {empresa?.nombre ?? "Empresa"}
-                        {empresa?.codigo && <span className="ml-1.5 text-[10px] font-bold text-gray-400">· {empresa.codigo}</span>}
                       </p>
 
                       {sol.inicio && (

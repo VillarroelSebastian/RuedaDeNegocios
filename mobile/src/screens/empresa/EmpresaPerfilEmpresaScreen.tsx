@@ -5,7 +5,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import {
-  Building2, MapPin, Hash, Star, Globe, Mail, Phone, FileText, Send,
+  Building2, MapPin, Star, Globe, Mail, Phone, FileText, Send,
   MessageSquare, ChevronLeft, Users, Sparkles, Target, Handshake, AlertCircle,
 } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
@@ -90,11 +90,6 @@ export default function EmpresaPerfilEmpresaScreen() {
           </View>
           {/* Meta */}
           <View style={s.heroMeta}>
-            {!!emp.codigo && (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                <Hash size={12} color="rgba(255,255,255,0.85)" /><Text style={s.metaText}>{emp.codigo}</Text>
-              </View>
-            )}
             {(!!emp.ciudad || !!emp.pais) && (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
                 <MapPin size={12} color="rgba(255,255,255,0.85)" /><Text style={s.metaText}>{[emp.ciudad, paisConBandera(emp.pais)].filter(Boolean).join(', ')}</Text>

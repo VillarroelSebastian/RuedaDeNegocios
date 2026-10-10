@@ -431,7 +431,6 @@ function DetalleReunionModal({ reunion, eeId, navigation, onClose, onCambiarHora
             <View style={dm.infoCard}>
               <Text style={dm.companyName}>
                 {reunion.contraparte?.nombre ?? '—'}
-                {reunion.contraparte?.codigo ? ` · ${reunion.contraparte.codigo}` : ''}
               </Text>
               {reunion.contraparte?.rubro && <Text style={dm.rubro}>{reunion.contraparte.rubro}</Text>}
 
@@ -855,7 +854,7 @@ export default function EmpresaReunionesScreen({ navigation, route, embedded = f
               <View style={s.cardBody}>
                 <View style={{ flex: 1 }}>
                   <Text style={s.counterpart} numberOfLines={1}>
-                    {item.contraparte?.nombre ?? '—'}{item.contraparte?.codigo ? ` · ${item.contraparte.codigo}` : ''}
+                    {item.contraparte?.nombre ?? '—'}
                   </Text>
                   <View style={s.timeRow}>
                     <CalendarDays size={12} color="#94a3b8" style={{ marginRight: 4 }} />

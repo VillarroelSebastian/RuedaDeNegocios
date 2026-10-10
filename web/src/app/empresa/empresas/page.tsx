@@ -115,7 +115,7 @@ export default function EmpresasPage() {
             <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Buscar por nombre, rubro o código..."
+              placeholder="Buscar por nombre o rubro..."
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
               className="pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A] w-full sm:w-64"
@@ -201,7 +201,6 @@ export default function EmpresasPage() {
                   )}
                   <div className="min-w-0 flex-1">
                     <h3 className="font-bold text-gray-900 text-sm leading-snug truncate">{em.nombre}</h3>
-                    {em.codigo && <p className="text-[10px] text-gray-400 font-semibold">{em.codigo}</p>}
                     {em.rubro && <p className="text-xs text-gray-500 mt-0.5 truncate">{em.rubro}</p>}
                   </div>
                 </div>

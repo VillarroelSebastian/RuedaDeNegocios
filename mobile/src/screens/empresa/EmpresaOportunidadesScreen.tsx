@@ -91,7 +91,6 @@ export default function EmpresaOportunidadesScreen() {
                 )}
                 <View style={{ flex: 1 }}>
                   <Text style={s.cardName} numberOfLines={2}>{item.nombre}</Text>
-                  {!!item.codigo && <Text style={s.codigoText}>{item.codigo}</Text>}
                   {!!item.rubro && <Text style={s.rubroText}>{item.rubro}</Text>}
                 </View>
               </View>

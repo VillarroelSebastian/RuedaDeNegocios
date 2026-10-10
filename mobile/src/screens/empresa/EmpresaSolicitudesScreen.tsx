@@ -112,7 +112,7 @@ function DetalleModal({ sol, tab, onClose, onAceptar, onRechazar, onCancelar }: 
                     <Text style={dm.avatarTxt}>{initial}</Text>
                   </View>
                   <Text style={dm.empresaNombre}>
-                    {empresa?.nombre ?? '—'}{empresa?.codigo ? ` · ${empresa.codigo}` : ''}
+                    {empresa?.nombre ?? '—'}
                   </Text>
                 </View>
               </View>
@@ -526,7 +526,7 @@ export default function EmpresaSolicitudesScreen({ route }: any) {
                   </View>
 
                   <Text style={s.cardNombre} numberOfLines={1}>
-                    {empresa?.nombre ?? '—'}{empresa?.codigo ? ` · ${empresa.codigo}` : ''}
+                    {empresa?.nombre ?? '—'}
                   </Text>
 
                   <View style={s.cardDate}>

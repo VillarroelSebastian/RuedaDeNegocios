@@ -7,6 +7,7 @@ import { User, Camera, Save, LogOut, Lock, Eye, EyeOff } from 'lucide-react-nati
 import * as ImagePicker from 'expo-image-picker';
 import { API_URL, userStore } from '../../utils/userStore';
 import { useModal } from '../../components/AppModal';
+import { validarNombrePersona, validarTelefono } from '../../utils/validaciones';
 
 const GREEN = '#449D3A';
 
@@ -50,6 +51,18 @@ export default function ConfiguracionScreen({ navigation }: any) {
 
   const handleSavePerfil = async () => {
     if (!user) return;
+    const errNom = validarNombrePersona(form.nombres, 'El nombre');
+    if (errNom) { show({ type: 'error', title: 'Datos inválidos', message: errNom }); return; }
+    const errApe = validarNombrePersona(form.apellidoPaterno, 'El apellido paterno');
+    if (errApe) { show({ type: 'error', title: 'Datos inválidos', message: errApe }); return; }
+    if (form.apellidoMaterno.trim()) {
+      const errApeM = validarNombrePersona(form.apellidoMaterno, 'El apellido materno');
+      if (errApeM) { show({ type: 'error', title: 'Datos inválidos', message: errApeM }); return; }
+    }
+    if (form.telefono.trim()) {
+      const errTel = validarTelefono(form.telefono);
+      if (errTel) { show({ type: 'error', title: 'Datos inválidos', message: errTel }); return; }
+    }
     if (guardandoPerfilRef.current) return;
     guardandoPerfilRef.current = true;
     setSaving(true);

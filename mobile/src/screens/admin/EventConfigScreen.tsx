@@ -131,6 +131,7 @@ export default function EventConfigScreen({ navigation }: any) {
     urlImagenMapaRecinto: '',
     urlImagenCronogramaCharlas: '',
     urlLogoEvento: '',
+    urlLogoForo: '',
     sobreElEvento: '',
     urlVideoEvento: '',
     pilaresEvento: '',
@@ -250,7 +251,7 @@ export default function EventConfigScreen({ navigation }: any) {
         capacidadPersonasPorMesa: '4', maxParticipantesPorEmpresa: '5',
         montoBaseIncripcionBolivianos: '500',
         cantidadParticipantesIncluidos: '2', costoParticipanteExtra: '100',
-        urlImagenMapaRecinto: '', urlImagenCronogramaCharlas: '', urlLogoEvento: '',
+        urlImagenMapaRecinto: '', urlImagenCronogramaCharlas: '', urlLogoEvento: '', urlLogoForo: '',
         sobreElEvento: '', urlVideoEvento: '', pilaresEvento: '',
         correoContacto: '', telefonoContacto: '',
         enlaceFacebook: '', enlaceInstagram: '', enlaceLinkedIn: '', enlaceTiktok: '',
@@ -294,6 +295,7 @@ export default function EventConfigScreen({ navigation }: any) {
           urlImagenMapaRecinto: data.urlImagenMapaRecinto || '',
           urlImagenCronogramaCharlas: data.urlImagenCronogramaCharlas || '',
           urlLogoEvento: data.urlLogoEvento || '',
+          urlLogoForo: data.urlLogoForo || '',
           sobreElEvento: data.sobreElEvento || '',
           urlVideoEvento: data.urlVideoEvento || '',
           pilaresEvento: data.pilaresEvento || '',
@@ -406,6 +408,7 @@ export default function EventConfigScreen({ navigation }: any) {
       urlImagenMapaRecinto: orNull(formData.urlImagenMapaRecinto),
       urlImagenCronogramaCharlas: orNull(formData.urlImagenCronogramaCharlas),
       urlLogoEvento: orNull(formData.urlLogoEvento),
+      urlLogoForo: orNull(formData.urlLogoForo),
       sobreElEvento: orNull(formData.sobreElEvento),
       urlVideoEvento: orNull(formData.urlVideoEvento),
       pilaresEvento: orNull(formData.pilaresEvento),
@@ -792,6 +795,10 @@ export default function EventConfigScreen({ navigation }: any) {
           {/* Logo */}
           <ImageField label="Logo del Evento" value={formData.urlLogoEvento}
             fieldKey="urlLogoEvento" uploading={uploadingField} onPick={handlePickImage} onPreview={setPreviewUrl} />
+
+          {/* Logo del foro: credenciales del foro, su interfaz y su mención en la landing */}
+          <ImageField label="Logo del Foro" value={formData.urlLogoForo}
+            fieldKey="urlLogoForo" uploading={uploadingField} onPick={handlePickImage} onPreview={setPreviewUrl} />
 
           <Text className="text-xs font-bold text-gray-700 mb-2">Correo de Contacto</Text>
           <TextInput value={formData.correoContacto} onChangeText={(t) => handleChange('correoContacto', t)}

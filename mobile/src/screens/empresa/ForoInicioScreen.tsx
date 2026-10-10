@@ -22,6 +22,7 @@ type Evento = {
   fechaInicioEvento: string;
   fechaFinEvento: string;
   urlImagenBannerEvento?: string | null;
+  urlLogoForo?: string | null;
   stats?: { empresasCount: number; actividadesCount: number; mesasCount: number; tecnicosCount: number };
 };
 
@@ -120,6 +121,9 @@ export default function ForoInicioScreen({ navigation }: any) {
             />
           )}
           <View style={{ padding: 20 }}>
+            {!!evento.urlLogoForo && (
+              <Image source={{ uri: evento.urlLogoForo }} style={{ height: 44, width: 140, marginBottom: 10 }} resizeMode="contain" />
+            )}
             {!!evento.edicion && (
               <View style={{ alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,.18)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>
                 <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800', textTransform: 'uppercase' }}>{evento.edicion}</Text>

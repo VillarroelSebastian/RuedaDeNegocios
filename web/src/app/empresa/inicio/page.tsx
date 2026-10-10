@@ -24,6 +24,7 @@ type Evento = {
   fechaInicioEvento: string;
   fechaFinEvento: string;
   urlImagenBannerEvento?: string | null;
+  urlLogoForo?: string | null;
   stats?: { empresasCount: number; actividadesCount: number; mesasCount: number; tecnicosCount: number };
 };
 
@@ -123,6 +124,9 @@ export default function ForoInicioPage() {
           />
         )}
         <div className="relative px-5 py-8 sm:px-8 sm:py-10">
+          {evento.urlLogoForo && (
+            <img src={evento.urlLogoForo} alt="Logo del Foro" className="h-12 object-contain mb-3" />
+          )}
           {evento.edicion && (
             <span className="inline-block rounded-full bg-white/15 px-3 py-1 text-xs font-bold uppercase tracking-wide">
               {evento.edicion}

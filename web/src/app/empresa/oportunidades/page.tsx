@@ -77,7 +77,7 @@ export default function OportunidadesPage() {
         <div className="bg-white rounded-2xl border border-gray-100 p-4 flex flex-col lg:flex-row gap-3">
           <label className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input value={busqueda} onChange={(e) => { setBusqueda(e.target.value); setPagina(1); }} placeholder="Buscar por empresa, código, rubro o coincidencia..." className="w-full border border-gray-200 rounded-xl py-2.5 pl-9 pr-3 text-sm outline-none focus:border-[#449D3A]" />
+            <input value={busqueda} onChange={(e) => { setBusqueda(e.target.value); setPagina(1); }} placeholder="Buscar por empresa, rubro o coincidencia..." className="w-full border border-gray-200 rounded-xl py-2.5 pl-9 pr-3 text-sm outline-none focus:border-[#449D3A]" />
           </label>
           <select value={rubro} onChange={(e) => { setRubro(e.target.value); setPagina(1); }} className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white outline-none focus:border-[#449D3A]">
             <option value="">Todos los rubros</option>
@@ -119,7 +119,6 @@ export default function OportunidadesPage() {
                   )}
                   <div className="min-w-0 flex-1">
                     <h3 className="font-bold text-gray-900 text-sm leading-snug truncate">{em.nombre}</h3>
-                    {em.codigo && <p className="text-[10px] text-gray-400 font-semibold">{em.codigo}</p>}
                     {em.rubro && <p className="text-xs text-gray-500 mt-0.5 truncate">{em.rubro}</p>}
                   </div>
                 </div>

@@ -11,7 +11,7 @@ import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/nativ
 import {
   Search, Building2, Send, X, MapPin, Video, Check,
   AlertCircle, ChevronLeft, Globe, Clock, RefreshCw, CheckCircle2, Star,
-  Filter, Mail, Phone, FileText, Hash,
+  Filter, Mail, Phone, FileText,
 } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
 import { fechaEvento, horaEvento, partesFechaEvento } from '../../utils/fechaEvento';
@@ -482,7 +482,6 @@ export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?:
               )}
               <View style={{ flex: 1 }}>
                 <Text style={s.cardName} numberOfLines={2}>{item.nombre}</Text>
-                {!!item.codigo && <Text style={s.codigoText}>{item.codigo}</Text>}
                 {!!item.rubro && (
                   <View style={s.rubroBadge}>
                     <Text style={s.rubroText}>{item.rubro}</Text>
@@ -556,12 +555,6 @@ export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?:
                     {(profileSelected?.nombre ?? 'E')[0].toUpperCase()}
                   </Text>
                 </View>
-                {!!profileSelected?.codigo && (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
-                    <Hash size={11} color="#9ca3af" />
-                    <Text style={{ fontSize: 10, fontWeight: '700', color: '#9ca3af', marginLeft: 3 }}>{profileSelected.codigo}</Text>
-                  </View>
-                )}
                 {!!profileSelected?.rubro && (
                   <View style={[s.rubroBadge, { marginTop: 10 }]}>
                     <Text style={s.rubroText}>{profileSelected.rubro}</Text>

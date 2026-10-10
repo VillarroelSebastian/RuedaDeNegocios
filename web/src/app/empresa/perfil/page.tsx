@@ -706,31 +706,39 @@ export default function EmpresaPerfilPage() {
           )}
         </div>
 
-        {/* Credencial digital — lo primero que se ve, con el mismo estilo de las credenciales imprimibles */}
-        {ctx.urlCredencialQR && (
-          <div className="relative bg-white border-2 border-[#449D3A] rounded-2xl overflow-hidden shadow-sm">
-            <div className="h-2 bg-gradient-to-r from-[#449D3A] to-emerald-500" />
-            <div className="p-6 flex flex-col items-center text-center">
-              {evento?.urlLogoEvento && (
-                <img src={evento.urlLogoEvento} alt="Logo del evento" className="h-10 object-contain mb-4" />
-              )}
-              <ImagenLightbox src={ctx.urlCredencialQR} className="w-56 h-56 rounded-xl border border-gray-100 overflow-hidden shrink-0" />
-              <h2 className="text-xl font-extrabold text-gray-900 mt-5">{usuario.nombres} {usuario.apellidoPaterno}</h2>
-              <p className="text-sm font-bold text-[#449D3A] mt-0.5">{empresa?.nombre}</p>
-              {cargo && <p className="text-xs text-gray-500 mt-0.5">{cargo}</p>}
-              {evento && <p className="text-[11px] text-gray-400 mt-3">{evento.nombre} {evento.edicion}</p>}
-              <a
-                href={ctx.urlCredencialQR}
-                download={`credencial-${empresa?.codigo ?? "rueda"}.png`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 rounded-xl bg-green-50 hover:bg-green-100 text-xs font-bold text-[#449D3A]"
-              >
-                <Download className="w-3.5 h-3.5" />Descargar credencial
-              </a>
+        {/* Credencial digital — lo primero que se ve, con el mismo estilo de las credenciales imprimibles (9 × 13 cm) */}
+        {ctx.urlCredencialQR && (() => {
+          const colorBorde = esForo ? "border-amber-400" : esAuspiciador ? "border-blue-500" : "border-[#449D3A]";
+          const colorFranja = esForo ? "from-amber-400 to-amber-300" : esAuspiciador ? "from-blue-500 to-blue-400" : "from-[#449D3A] to-emerald-500";
+          const colorTexto = esForo ? "text-amber-600" : esAuspiciador ? "text-blue-600" : "text-[#449D3A]";
+          const colorBoton = esForo ? "bg-amber-50 hover:bg-amber-100 text-amber-700" : esAuspiciador ? "bg-blue-50 hover:bg-blue-100 text-blue-700" : "bg-green-50 hover:bg-green-100 text-[#449D3A]";
+          const logo = esForo && evento?.urlLogoForo ? evento.urlLogoForo : evento?.urlLogoEvento;
+          return (
+            <div className={`relative bg-white border-2 ${colorBorde} rounded-2xl overflow-hidden shadow-sm mx-auto`} style={{ width: "100%", maxWidth: "360px", aspectRatio: "9 / 13" }}>
+              <div className={`h-2 bg-gradient-to-r ${colorFranja}`} />
+              <div className="h-[calc(100%-8px)] p-6 flex flex-col items-center text-center">
+                {logo && (
+                  <img src={logo} alt={esForo ? "Logo del foro" : "Logo del evento"} className="h-10 object-contain mb-4" />
+                )}
+                <h2 className="text-xl font-extrabold text-gray-900">{usuario.nombres} {usuario.apellidoPaterno}</h2>
+                <p className={`text-sm font-bold mt-0.5 ${colorTexto}`}>{empresa?.nombre}</p>
+                {cargo && <p className="text-xs text-gray-500 mt-0.5">{cargo}</p>}
+                <div className="flex-1" />
+                <ImagenLightbox src={ctx.urlCredencialQR} className="w-44 h-44 rounded-xl border border-gray-100 overflow-hidden shrink-0" />
+                {evento && <p className="text-[11px] text-gray-400 mt-3">{evento.nombre} {evento.edicion}</p>}
+                <a
+                  href={ctx.urlCredencialQR}
+                  download="credencial-rueda-de-negocios.png"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`inline-flex items-center gap-1.5 mt-4 px-4 py-2 rounded-xl text-xs font-bold ${colorBoton}`}
+                >
+                  <Download className="w-3.5 h-3.5" />Descargar credencial
+                </a>
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Avatar banner */}
         <div className="bg-gradient-to-r from-[#449D3A] to-emerald-500 rounded-2xl p-6 text-white flex items-center gap-5">
@@ -888,7 +896,6 @@ export default function EmpresaPerfilPage() {
             </div>
             <dl className="space-y-3 text-sm">
               {[
-                { k: "Código",       v: empresa?.codigo || "—" },
                 { k: "Nombre",       v: empresa?.nombre },
                 { k: "Rubro",        v: empresa?.rubro },
                 { k: "Correo corp.", v: empresa?.correoCorporativo || "—" },

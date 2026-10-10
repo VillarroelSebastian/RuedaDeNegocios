@@ -575,28 +575,33 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
           </View>
         )}
 
-        {/* Credencial digital — lo primero que se ve, con el mismo estilo de las credenciales imprimibles */}
-        {!!perfil?.urlCredencialQR && (
-          <View style={s.credCard}>
-            <View style={s.credAccent} />
-            <View style={s.credBody}>
-              {!!perfil?.evento?.urlLogoEvento && (
-                <Image source={{ uri: perfil.evento.urlLogoEvento }} style={s.credLogo} resizeMode="contain" />
-              )}
-              <ImagenLightbox uri={perfil.urlCredencialQR} style={s.credQr} />
-              <Text style={s.credNombre}>{perfil?.usuario?.nombres} {perfil?.usuario?.apellidoPaterno}</Text>
-              <Text style={s.credEmpresa}>{empresa?.empresa?.nombre}</Text>
-              {!!empresa?.cargo && <Text style={s.credCargo}>{empresa.cargo}</Text>}
-              {!!perfil?.evento && (
-                <Text style={s.credEvento}>{perfil.evento.nombre} {perfil.evento.edicion}</Text>
-              )}
-              <TouchableOpacity onPress={() => Linking.openURL(perfil.urlCredencialQR)} activeOpacity={0.75} style={s.credDownloadBtn}>
-                <ExternalLink size={13} color={GREEN} style={{ marginRight: 5 }} />
-                <Text style={s.credLink}>Descargar credencial</Text>
-              </TouchableOpacity>
+        {/* Credencial digital — lo primero que se ve, con el mismo estilo de las credenciales imprimibles (9 × 13 cm) */}
+        {!!perfil?.urlCredencialQR && (() => {
+          const colorCred = esForo ? '#f59e0b' : esAuspiciador ? '#2563eb' : GREEN;
+          const bgCred = esForo ? '#fffbeb' : esAuspiciador ? '#eff6ff' : '#f0fdf4';
+          const logoCred = esForo && perfil?.evento?.urlLogoForo ? perfil.evento.urlLogoForo : perfil?.evento?.urlLogoEvento;
+          return (
+            <View style={[s.credCard, { borderColor: colorCred }]}>
+              <View style={[s.credAccent, { backgroundColor: colorCred }]} />
+              <View style={s.credBody}>
+                {!!logoCred && (
+                  <Image source={{ uri: logoCred }} style={s.credLogo} resizeMode="contain" />
+                )}
+                <Text style={s.credNombre}>{perfil?.usuario?.nombres} {perfil?.usuario?.apellidoPaterno}</Text>
+                <Text style={[s.credEmpresa, { color: colorCred }]}>{empresa?.empresa?.nombre}</Text>
+                {!!empresa?.cargo && <Text style={s.credCargo}>{empresa.cargo}</Text>}
+                <ImagenLightbox uri={perfil.urlCredencialQR} style={[s.credQr, { marginTop: 16 }]} />
+                {!!perfil?.evento && (
+                  <Text style={s.credEvento}>{perfil.evento.nombre} {perfil.evento.edicion}</Text>
+                )}
+                <TouchableOpacity onPress={() => Linking.openURL(perfil.urlCredencialQR)} activeOpacity={0.75} style={[s.credDownloadBtn, { backgroundColor: bgCred }]}>
+                  <ExternalLink size={13} color={colorCred} style={{ marginRight: 5 }} />
+                  <Text style={[s.credLink, { color: colorCred }]}>Descargar credencial</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        )}
+          );
+        })()}
 
         {/* Empresa info */}
         {empresa && (
@@ -605,7 +610,6 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
               <Building2 size={16} color={GREEN} style={{ marginRight: 6 }} />
               <Text style={s.sectionTitle}>Empresa</Text>
             </View>
-            <InfoRow label="Código"  value={empresa?.empresa?.codigo ?? '—'} />
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14, padding: 10, borderRadius: 12, backgroundColor: '#f9fafb' }}>
               <View style={{ width: 64, height: 64, borderRadius: 12, overflow: 'hidden', backgroundColor: '#fff', borderWidth: 1, borderColor: '#e5e7eb', alignItems: 'center', justifyContent: 'center' }}>
                 {empresa?.empresa?.urlFotoPerfil

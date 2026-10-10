@@ -85,6 +85,7 @@ export default function ConfiguracionDeEventoPage() {
     urlImagenMapaRecinto: '',
     urlImagenCronogramaCharlas: '',
     urlLogoEvento: '',
+    urlLogoForo: '',
     sobreElEvento: '',
     urlVideoEvento: '',
     pilaresEvento: '',
@@ -138,6 +139,7 @@ export default function ConfiguracionDeEventoPage() {
             urlImagenMapaRecinto: data.urlImagenMapaRecinto || '',
             urlImagenCronogramaCharlas: data.urlImagenCronogramaCharlas || '',
             urlLogoEvento: data.urlLogoEvento || '',
+            urlLogoForo: data.urlLogoForo || '',
             sobreElEvento: data.sobreElEvento || '',
             urlVideoEvento: data.urlVideoEvento || '',
             pilaresEvento: data.pilaresEvento || '',
@@ -288,6 +290,7 @@ export default function ConfiguracionDeEventoPage() {
       urlImagenMapaRecinto: orNull(formData.urlImagenMapaRecinto),
       urlImagenCronogramaCharlas: orNull(formData.urlImagenCronogramaCharlas),
       urlLogoEvento: orNull(formData.urlLogoEvento),
+      urlLogoForo: orNull(formData.urlLogoForo),
       sobreElEvento: orNull(formData.sobreElEvento),
       urlVideoEvento: orNull(formData.urlVideoEvento),
       pilaresEvento: orNull(formData.pilaresEvento),
@@ -538,8 +541,27 @@ export default function ConfiguracionDeEventoPage() {
                 </div>
               )}
             </div>
+            <div>
+              <label className={styles.label}>Logo del Foro</label>
+              <p style={{fontSize: '0.7rem', color: '#9ca3af', margin: '0 0 0.25rem'}}>Se usa en las credenciales del foro, su interfaz y su mención en la landing.</p>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => handleImageUpload(e, 'urlLogoForo')}
+                style={{display: 'none'}}
+                id="upload-logo-foro"
+              />
+              <label htmlFor="upload-logo-foro" className={styles.uploadButton}>
+                <ImageIcon size={14} /> Subir Imagen
+              </label>
+              {formData.urlLogoForo && (
+                <div onClick={() => setPreviewImg(formData.urlLogoForo)} style={{marginTop: '0.5rem', width: '60px', height: '60px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #eee', cursor: 'pointer'}}>
+                  <img src={formData.urlLogoForo} alt="Logo del foro" style={{width: '100%', height: '100%', objectFit: 'contain'}} />
+                </div>
+              )}
+            </div>
           </div>
-          
+
           <div className={styles.grid + " " + styles.grid3Lg}>
             <div>
               <label className={styles.label}>Enlace Facebook</label>

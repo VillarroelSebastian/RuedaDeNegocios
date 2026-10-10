@@ -7,6 +7,7 @@ import { Mail, Plus, Pencil, Trash2, X, User } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { API_URL } from '../../utils/userStore';
 import { useModal } from '../../components/AppModal';
+import { correoValido, validarNombrePersona, validarTelefono } from '../../utils/validaciones';
 
 const GREEN = '#449D3A';
 
@@ -66,6 +67,17 @@ export default function TecnicosScreen() {
       show({ type: 'warning', title: 'Requerido', message: 'Completa nombre, apellido, correo y teléfono.' });
       return;
     }
+    const errNom = validarNombrePersona(form.nombres, 'El nombre');
+    if (errNom) { show({ type: 'error', title: 'Datos inválidos', message: errNom }); return; }
+    const errApe = validarNombrePersona(form.apellidoPaterno, 'El apellido paterno');
+    if (errApe) { show({ type: 'error', title: 'Datos inválidos', message: errApe }); return; }
+    if (form.apellidoMaterno?.trim()) {
+      const errApeM = validarNombrePersona(form.apellidoMaterno, 'El apellido materno');
+      if (errApeM) { show({ type: 'error', title: 'Datos inválidos', message: errApeM }); return; }
+    }
+    if (!correoValido(form.correo)) { show({ type: 'error', title: 'Datos inválidos', message: 'El correo electrónico no es válido.' }); return; }
+    const errTel = validarTelefono(form.telefono);
+    if (errTel) { show({ type: 'error', title: 'Datos inválidos', message: errTel }); return; }
     if (guardandoRef.current) return;
     guardandoRef.current = true;
     setSaving(true);

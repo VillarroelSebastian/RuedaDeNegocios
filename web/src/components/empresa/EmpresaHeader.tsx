@@ -162,7 +162,7 @@ export default function EmpresaHeader({ onMenuClick, eeId }: { onMenuClick?: () 
         <input value={search} onChange={(e) => { setSearch(e.target.value); setShowSearch(e.target.value.trim().length >= 2); }} placeholder="Buscar empresa…" className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2 pl-9 pr-3 text-sm outline-none focus:border-[#449D3A] focus:bg-white" />
         {showSearch && <div className="absolute top-full mt-1 w-full overflow-hidden rounded-xl border border-gray-100 bg-white shadow-xl">
           {empresas.filter((empresa) => `${empresa.nombre} ${empresa.codigo ?? ''} ${empresa.rubro ?? ''}`.toLowerCase().includes(search.toLowerCase())).slice(0, 5).map((empresa) => <button key={empresa.empresaeventoId} onClick={() => { setShowSearch(false); setSearch(''); router.push(`/empresa/empresas/${empresa.empresaeventoId}`); }} className="block w-full border-b border-gray-50 px-4 py-3 text-left hover:bg-gray-50">
-            <p className="truncate text-sm font-bold text-gray-900">{empresa.nombre}</p><p className="truncate text-xs text-gray-500">{empresa.codigo} · {empresa.rubro}</p>
+            <p className="truncate text-sm font-bold text-gray-900">{empresa.nombre}</p><p className="truncate text-xs text-gray-500">{empresa.rubro}</p>
           </button>)}
           {empresas.filter((empresa) => `${empresa.nombre} ${empresa.codigo ?? ''} ${empresa.rubro ?? ''}`.toLowerCase().includes(search.toLowerCase())).length === 0 && <p className="p-4 text-xs text-gray-400">Sin resultados</p>}
         </div>}

@@ -400,7 +400,6 @@ function DetalleReunionModal({ reunion, eeId, onClose, onCambiarHorario, onRefre
 
           <div className="bg-gray-50 rounded-2xl px-4 py-1 mb-4">
             <Row label="Empresa" value={reunion.contraparte?.nombre ?? "—"} />
-            {reunion.contraparte?.codigo && <Row label="Código" value={reunion.contraparte.codigo} />}
             {reunion.contraparte?.rubro && <Row label="Rubro" value={reunion.contraparte.rubro} />}
             <Row label="Fecha" value={fmtDate(reunion.inicio)} />
             <Row label="Horario" value={`${fmtTime(reunion.inicio)} – ${fmtTime(reunion.fin)}`} />
@@ -768,7 +767,6 @@ export function ReunionesSection({ embedded = false }: { embedded?: boolean } = 
 
                         <p className="font-bold text-gray-900 text-sm truncate">
                           {r.contraparte?.nombre ?? "Empresa"}
-                          {r.contraparte?.codigo && <span className="text-gray-400 font-semibold text-xs ml-1.5">· {r.contraparte.codigo}</span>}
                         </p>
                         {r.contraparte?.rubro && (
                           <p className="text-xs text-gray-400 truncate">{r.contraparte.rubro}</p>
