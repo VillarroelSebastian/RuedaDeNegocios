@@ -25,7 +25,12 @@ export default function NotificationBell() {
     update();
     const socket = io(`${API_URL.replace(/\/api\/?$/, '')}/notificaciones`, { transports: ['websocket'], auth: { token: userStore.get()?.token } });
     socket.on('connect', update); socket.onAny((event: string) => { if (!event.startsWith('mensaje') && !event.startsWith('chat-interno')) update(); });
-    const timer = setInterval(update, 15000);
+    // El socket + los listeners de abajo (reanudar app, volver a la pantalla)
+    // cubren los casos reales de actualización; este intervalo es solo un
+    // respaldo por si el socket se cae en silencio, así que no hace falta
+    // que sea tan frecuente como antes (15s) — eso duplicaba tráfico de red
+    // sin necesidad, pesando en conexiones lentas.
+    const timer = setInterval(update, 90000);
     const state = AppState.addEventListener('change', s => { if (s === 'active') update(); });
     const unsubscribe = subscribeNotifications(update);
     const focus = navigation.addListener('focus', update);

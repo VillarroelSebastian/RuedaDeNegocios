@@ -18,14 +18,47 @@ export function sessionExpiry(user: any): number {
 }
 
 const nativeFetch = global.fetch.bind(global);
+// Sin timeout, una petición puede quedar colgada indefinidamente con una
+// conexión mala — el usuario ve un spinner que nunca termina en vez de un
+// error claro para reintentar. Los uploads (FormData: fotos, comprobantes)
+// llevan más tiempo en conexión lenta, así que tienen más margen.
+const TIMEOUT_MS = 20000;
+const TIMEOUT_MS_UPLOAD = 60000;
 global.fetch = ((input: any, init: RequestInit = {}) => {
   const target = typeof input === 'string' ? input : input?.url;
   if (typeof target !== 'string' || !(target === API_URL || target.startsWith(API_URL.replace(/\/$/, '') + '/'))) return nativeFetch(input, init);
   const token = currentUser?.token;
-  if (!token) return nativeFetch(input, init);
   const headers = new Headers(init.headers || (typeof Request !== 'undefined' && input instanceof Request ? input.headers : undefined));
-  if (!headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`);
-  return nativeFetch(input, { ...init, headers });
+  if (token && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`);
+
+  // Si el caller ya trae su propia señal de cancelación, se respeta tal
+  // cual; si no, se agrega un timeout por defecto.
+  if (init.signal) return nativeFetch(input, { ...init, headers });
+  const esFormData = typeof FormData !== 'undefined' && init.body instanceof FormData;
+  const controller = new AbortController();
+  let agotado = false;
+  const timer = setTimeout(() => { agotado = true; controller.abort(); }, esFormData ? TIMEOUT_MS_UPLOAD : TIMEOUT_MS);
+  return nativeFetch(input, { ...init, headers, signal: controller.signal })
+    .catch(() => {
+      // fetch solo rechaza por fallas de red (nunca por un status HTTP como
+      // 404/500), así que cualquier rechazo acá es un problema de conexión;
+      // se reemplaza el error nativo en inglés ("Network request failed")
+      // por un mensaje claro en español.
+      throw new Error(agotado
+        ? 'La conexión tardó demasiado. Revisa tu internet e intenta de nuevo.'
+        : 'No se pudo conectar. Revisa tu conexión a internet e intenta de nuevo.');
+    })
+    .then((res) => {
+      // Si el servidor responde algo que no es JSON (p. ej. una página de
+      // error del proxy), que falle res.json() en pantalla con un
+      // "Unexpected token..." en inglés tampoco dice nada al usuario.
+      const parseoOriginal = res.json.bind(res);
+      res.json = () => parseoOriginal().catch(() => {
+        throw new Error('El servidor no respondió correctamente. Intenta de nuevo en unos minutos.');
+      });
+      return res;
+    })
+    .finally(() => clearTimeout(timer));
 }) as typeof fetch;
 
 export const userStore = {

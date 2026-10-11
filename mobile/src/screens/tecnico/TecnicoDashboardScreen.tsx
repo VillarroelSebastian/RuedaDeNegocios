@@ -182,18 +182,10 @@ export default function TecnicoDashboardScreen() {
   const [modal,      setModal]      = useState<{ visible:boolean; type:string; title:string; message:string }>
     ({ visible:false, type:'info', title:'', message:'' });
   const [mensajesNoLeidos, setMensajesNoLeidos] = useState(0);
-  const [notifNoLeidas, setNotifNoLeidas] = useState(0);
   const cambiandoEstadoRef = useRef(false);
 
   useEffect(() => {
     const cargar = () => fetch(`${API_URL}/staff/mensajes/no-leidos`).then((r) => r.json()).then((d) => setMensajesNoLeidos(d.count || 0)).catch(() => {});
-    cargar();
-    const iv = setInterval(cargar, 15000);
-    return () => clearInterval(iv);
-  }, []);
-
-  useEffect(() => {
-    const cargar = () => fetch(`${API_URL}/tecnico/notificaciones-reuniones`).then((r) => r.json()).then((d) => setNotifNoLeidas(d.noLeidas ?? 0)).catch(() => {});
     cargar();
     const iv = setInterval(cargar, 15000);
     return () => clearInterval(iv);

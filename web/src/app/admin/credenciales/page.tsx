@@ -33,22 +33,25 @@ export default function CredencialesPage() {
       /* Sin "size" fijo: así el tamaño de papel lo decide el diálogo de
          impresión (Carta, Oficio, A4...) y las credenciales se acomodan
          solas a lo que haya disponible — en una hoja más grande caben más.
-         Margen en 0: con un margen de página definido, Chrome usa ese
-         espacio para imprimir su encabezado/pie (fecha, título, URL,
-         "1/4"...) aunque el usuario no los pida explícitamente. Sin margen
-         de página no tiene dónde ponerlos y los omite solo; el espacio
-         respecto al borde del papel lo da el padding del contenedor. */
-      @page { margin: 0; }
+         El margen va en @page (no en el contenedor): un padding puesto en
+         el contenedor grande solo se respeta en el borde de arriba de la
+         página 1 y el de abajo de la última, así que de la 2da hoja en
+         adelante las tarjetas quedaban pegadas al borde. @page margin sí
+         se repite igual en cada hoja — por eso puede reaparecer el
+         encabezado/pie del navegador (fecha, URL, "1/4"); si molesta se
+         desactiva con "Más opciones" → "Encabezados y pies de página" en
+         el diálogo de impresión. */
+      @page { margin: 6mm; }
       @media print {
         aside, header, .no-print { display:none!important }
         main { margin:0!important; padding:0!important; max-width:none!important }
-        .contenedor-credenciales { display:flex!important; flex-wrap:wrap!important; align-items:flex-start!important; gap:3mm!important; padding:6mm!important }
+        .contenedor-credenciales { display:flex!important; flex-wrap:wrap!important; align-items:flex-start!important; gap:3mm!important }
         .credencial-print { break-inside:avoid!important; page-break-inside:avoid!important; box-sizing:border-box!important; flex:0 0 90mm!important; width:90mm!important; min-width:90mm!important; max-width:90mm!important; height:130mm!important; min-height:130mm!important; max-height:130mm!important; margin:0!important; box-shadow:none!important }
         .credencial-print.no-seleccionada { display:none!important }
       }
     `}</style>
     <div className="no-print flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between mb-6">
-      <div><h1 className="text-2xl font-extrabold">Credenciales QR</h1><p className="text-sm text-gray-500">Formato 9 × 13 cm, varias por hoja. Elige el tamaño de papel (Carta, Oficio, A4...) en el diálogo de impresión — mientras más grande la hoja, más entran. Filtra para imprimir una persona o deja vacío para imprimir todas.</p></div>
+      <div><h1 className="text-2xl font-extrabold">Credenciales QR</h1><p className="text-sm text-gray-500">Formato 9 × 13 cm, varias por hoja. Elige el tamaño de papel (Carta, Oficio, A4...) en el diálogo de impresión — mientras más grande la hoja, más entran. Si el navegador agrega fecha/URL arriba o abajo de la hoja, desactívalo en "Más opciones" → "Encabezados y pies de página". Filtra para imprimir una persona o deja vacío para imprimir todas.</p></div>
       <button onClick={() => imprimir(null)} className="w-full sm:w-auto bg-[#449D3A] text-white rounded-xl px-5 py-3 font-bold flex justify-center gap-2"><Printer className="w-5 h-5"/>Imprimir todas las visibles</button>
     </div>
     <label className="no-print mb-6 flex items-center gap-2 bg-white border rounded-xl px-3 max-w-lg"><Search className="w-5 h-5 text-gray-400"/><input value={buscar} onChange={(e) => setBuscar(e.target.value)} placeholder="Buscar por nombre o empresa" className="w-full py-3 outline-none"/></label>

@@ -47,9 +47,13 @@ export default function EmpresaDashboardScreen({ navigation }: any) {
       userStore.set({ ...user, empresaeventoId: ctxData.empresaeventoId, empresaUsuarioId: ctxData.empresaUsuarioId, esResponsable: ctxData.esResponsable, puedeVerPaquete: ctxData.puedeVerPaquete });
 
       if (ctxData.empresaeventoId) {
-        const statsRes = await fetch(`${API_URL}/empresa/dashboard-stats?eeId=${ctxData.empresaeventoId}`);
+        // Ninguna de las dos depende de la otra: se piden en paralelo en vez
+        // de una tras otra para no duplicar la latencia en conexiones lentas.
+        const [statsRes, pRes] = await Promise.all([
+          fetch(`${API_URL}/empresa/dashboard-stats?eeId=${ctxData.empresaeventoId}`),
+          ctxData.puedeVerPaquete ? fetch(`${API_URL}/empresa/mi-paquete?eeId=${ctxData.empresaeventoId}`) : Promise.resolve(null),
+        ]);
         if (statsRes.ok) setStats(await statsRes.json());
-        const pRes = ctxData.puedeVerPaquete ? await fetch(`${API_URL}/empresa/mi-paquete?eeId=${ctxData.empresaeventoId}`) : null;
         if (pRes?.ok) setPaquete(await pRes.json());
       }
     } catch (e: any) {

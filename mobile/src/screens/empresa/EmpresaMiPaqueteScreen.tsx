@@ -51,16 +51,16 @@ export default function EmpresaMiPaqueteScreen() {
       setCtx(ctxData);
       if (!ctxData?.empresaeventoId) return;
 
-      const pRes = await fetch(`${API_URL}/empresa/mi-paquete?eeId=${ctxData.empresaeventoId}`);
+      // Ninguna depende de la otra: en paralelo en vez de una tras otra.
+      const [pRes, mRes] = await Promise.all([
+        fetch(`${API_URL}/empresa/mi-paquete?eeId=${ctxData.empresaeventoId}`),
+        ctxData.esResponsable ? fetch(`${API_URL}/empresa/mi-paquete/mejoras?eeId=${ctxData.empresaeventoId}`) : Promise.resolve(null),
+      ]);
       if (pRes.ok) setDatos(await pRes.json());
-
-      if (ctxData.esResponsable) {
-        const mRes = await fetch(`${API_URL}/empresa/mi-paquete/mejoras?eeId=${ctxData.empresaeventoId}`);
-        if (mRes.ok) {
-          const m = await mRes.json();
-          setMejoras(m.mejoras ?? []);
-          setTienePendiente(!!m.tieneSolicitudPendiente);
-        }
+      if (mRes?.ok) {
+        const m = await mRes.json();
+        setMejoras(m.mejoras ?? []);
+        setTienePendiente(!!m.tieneSolicitudPendiente);
       }
     } catch (e: any) {
       setError(e.message || 'Error cargando datos');

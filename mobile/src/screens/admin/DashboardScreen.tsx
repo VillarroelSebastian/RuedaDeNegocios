@@ -55,20 +55,12 @@ export default function DashboardScreen() {
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [mensajesNoLeidos, setMensajesNoLeidos] = useState(0);
-  const [notifNoLeidas, setNotifNoLeidas] = useState(0);
 
   const user      = userStore.get();
   const firstName = user?.nombres?.split(' ')[0] ?? 'Administrador';
 
   useEffect(() => {
     const cargar = () => fetch(`${API_URL}/staff/mensajes/no-leidos`).then((r) => r.json()).then((d) => setMensajesNoLeidos(d.count || 0)).catch(() => {});
-    cargar();
-    const iv = setInterval(cargar, 15000);
-    return () => clearInterval(iv);
-  }, []);
-
-  useEffect(() => {
-    const cargar = () => fetch(`${API_URL}/admin/notificaciones`).then((r) => r.json()).then((d) => setNotifNoLeidas(d.totalNoLeidas || 0)).catch(() => {});
     cargar();
     const iv = setInterval(cargar, 15000);
     return () => clearInterval(iv);

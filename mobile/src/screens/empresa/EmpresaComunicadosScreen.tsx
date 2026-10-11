@@ -38,20 +38,20 @@ export default function EmpresaComunicadosScreen({ navigation }: any) {
   const fetchData = useCallback(async () => {
     setError('');
     try {
-      const res = await fetch(`${API_URL}/empresa/comunicados`);
+      // Comunicados y avisos no dependen entre sí: en paralelo.
+      const eeId = userStore.get()?.empresaeventoId;
+      const [res, nRes] = await Promise.all([
+        fetch(`${API_URL}/empresa/comunicados`),
+        eeId ? fetch(`${API_URL}/notificaciones`) : Promise.resolve(null),
+      ]);
       if (!res.ok) throw new Error('Error cargando comunicados');
       const data = await res.json();
       setItems(Array.isArray(data) ? data : []);
 
       // Mis avisos personales (notificaciones persistentes) + marcar como leídas
-      const eeId = userStore.get()?.empresaeventoId;
-      if (eeId) {
-        const nRes = await fetch(`${API_URL}/notificaciones`);
-        if (nRes.ok) {
-          const nData = await nRes.json();
-          setAvisos(nData.notificaciones ?? []);
-
-        }
+      if (nRes?.ok) {
+        const nData = await nRes.json();
+        setAvisos(nData.notificaciones ?? []);
       }
     } catch (e: any) {
       setError(e.message || 'Error de red');

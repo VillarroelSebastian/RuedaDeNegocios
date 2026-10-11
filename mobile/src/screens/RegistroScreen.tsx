@@ -362,9 +362,13 @@ function RegistroEmpresaScreen({ navigation, tipo = 'empresa' }: any) {
       if (e) { showModal('warning', 'Campos incompletos', e); return; }
       setVerificando(true);
       try {
-        const correoErr = await verificarCorreoEmpresa(correoEmpresa);
+        // Verifican campos distintos (correo vs. teléfono): en paralelo en
+        // vez de uno tras otro para no duplicar la espera en conexión lenta.
+        const [correoErr, telErr] = await Promise.all([
+          verificarCorreoEmpresa(correoEmpresa),
+          verificarTelefono(telefonoWA, 'empresa', 'la empresa'),
+        ]);
         if (correoErr) { showModal('warning', 'Correo ya registrado', correoErr); return; }
-        const telErr = await verificarTelefono(telefonoWA, 'empresa', 'la empresa');
         if (telErr) { showModal('warning', 'Teléfono ya registrado', telErr); return; }
       } finally { setVerificando(false); }
     }
@@ -374,12 +378,16 @@ function RegistroEmpresaScreen({ navigation, tipo = 'empresa' }: any) {
       if (e) { showModal('warning', 'Participantes incompletos', e); return; }
       setVerificando(true);
       try {
-        const respErr = await verificarTelefono(responsable.telefono, 'participante', 'el encargado', responsable.correo);
+        // Cada participante se verifica contra un teléfono distinto: en
+        // paralelo en vez de uno por uno, mostrando el primer error en el
+        // mismo orden que antes (encargado primero, luego cada adicional).
+        const [respErr, ...erroresAdicionales] = await Promise.all([
+          verificarTelefono(responsable.telefono, 'participante', 'el encargado', responsable.correo),
+          ...adicionales.map((p, i) => verificarTelefono(p.telefono, 'participante', `el participante ${i + 2}`, p.correo)),
+        ]);
         if (respErr) { showModal('warning', 'Teléfono ya registrado', respErr); return; }
-        for (const [i, p] of adicionales.entries()) {
-          const err = await verificarTelefono(p.telefono, 'participante', `el participante ${i + 2}`, p.correo);
-          if (err) { showModal('warning', 'Teléfono ya registrado', err); return; }
-        }
+        const primerErrorAdicional = erroresAdicionales.find(Boolean);
+        if (primerErrorAdicional) { showModal('warning', 'Teléfono ya registrado', primerErrorAdicional); return; }
       } finally { setVerificando(false); }
       submitRegistro();
       return;

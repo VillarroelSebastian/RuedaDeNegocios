@@ -8,10 +8,11 @@ import { ImagenesModule } from './imagenes/imagenes.module.js';
 import { ExtrasModule } from './extras/extras.module.js';
 import { NotificacionesGateway } from './notificaciones/notificaciones.gateway.js';
 import { JwtModule } from '@nestjs/jwt';
-import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { AuthGuard } from './auth/auth.guard.js';
 import { RateLimitGuard } from './auth/rate-limit.guard.js';
 import { AuditInterceptor } from './auth/audit.interceptor.js';
+import { AllExceptionsFilter } from './common/all-exceptions.filter.js';
 import { MensajeriaService } from './mensajeria/mensajeria.service.js';
 import { MensajeriaController } from './mensajeria/mensajeria.controller.js';
 import { NotificacionesController } from './notificaciones/notificaciones.controller.js';
@@ -33,6 +34,7 @@ import { NotificacionesController } from './notificaciones/notificaciones.contro
     { provide: APP_GUARD, useClass: RateLimitGuard },
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
+    { provide: APP_FILTER, useClass: AllExceptionsFilter },
   ],
 })
 export class AppModule {}
