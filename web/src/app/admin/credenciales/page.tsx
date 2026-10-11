@@ -68,7 +68,6 @@ export default function CredencialesPage() {
           {logo && <img src={logo} alt="Logo" className={`${esLogoForo ? "h-24" : "h-16"} w-full object-contain mb-1`}/>}
           <h2 className="font-extrabold text-xl leading-tight break-words">{c.nombre}</h2>
           <p className={`text-base font-bold break-words ${color.texto}`}>{c.empresa}</p>
-          <p className="text-sm text-gray-500">{c.cargo || "Participante"}</p>
           {c.qr && <img src={c.qr} alt={`QR de ${c.nombre}`} className="w-44 h-44 object-contain shrink-0 mt-2"/>}
           <p className="text-[11px] text-gray-400 mt-1">{data.evento?.nombre} {data.evento?.edicion}</p>
           <button onClick={() => imprimir(c.id)} className="no-print mt-2 w-full rounded-lg border border-[#449D3A] text-[#449D3A] px-3 py-2 text-xs font-bold flex items-center justify-center gap-1.5"><Printer className="w-4 h-4"/>Imprimir esta credencial</button>

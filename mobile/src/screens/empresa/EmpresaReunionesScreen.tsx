@@ -262,8 +262,10 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
 }
 
 const cm = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 16, paddingTop: 18, maxHeight: '94%', width: '100%' },
+  // Centrado y con margen lateral: pegado al borde inferior, la barra de
+  // navegación de Android tapaba los botones de la parte baja del modal.
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 24 },
+  sheet: { backgroundColor: '#fff', borderRadius: 24, paddingHorizontal: 16, paddingTop: 18, paddingBottom: 8, maxHeight: '88%', width: '100%' },
   header: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 16 },
   title:  { fontSize: 18, fontWeight: '800', color: '#0f172a' },
   sub:    { fontSize: 13, color: '#64748b', marginTop: 2 },

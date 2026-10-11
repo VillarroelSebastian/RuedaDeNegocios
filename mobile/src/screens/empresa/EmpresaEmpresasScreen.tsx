@@ -671,7 +671,7 @@ export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?:
               {/* Header */}
               <View style={s.sheetHeader}>
                 <View style={{ flex: 1 }}>
-                  <Text style={s.sheetTitle}>Solicitar reunión</Text>
+                  <Text style={s.sheetTitle}>{selected?.solicitudEdicion ? 'Editar solicitud' : 'Solicitar reunión'}</Text>
                   {selected && (
                     <Text style={s.sheetSub} numberOfLines={1}>{selected.nombre}</Text>
                   )}
@@ -938,7 +938,7 @@ export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?:
                         ) : (
                           <>
                             <Send size={16} color="#fff" style={{ marginRight: 8 }} />
-                            <Text style={s.btnText}>Enviar solicitud</Text>
+                            <Text style={s.btnText}>{selected?.solicitudEdicion ? 'Guardar cambios' : 'Enviar solicitud'}</Text>
                           </>
                         )}
                       </TouchableOpacity>
@@ -965,16 +965,37 @@ function HorarioPicker({ horarios, duracionMin, loadingH, fechaSel, horaSel, min
   onSelectMatch: (h: any) => void; onBack: () => void; totalSteps: number;
 }) {
   const GREEN = '#449D3A';
-  const fechasDisponibles = [...new Set(horarios.map((h: any) => fechaISO(h.inicio)))].sort() as string[];
-  const horariosDelDia = fechaSel ? horarios.filter((h: any) => fechaISO(h.inicio) === fechaSel) : [];
+  // Estas listas se derivan de toda la agenda del evento y antes se recalculaban
+  // en cada render (incluido cada toque), recorriendo cientos de franjas. Con
+  // useMemo solo se rehacen cuando cambian los horarios o el día elegido.
+  const fechasDisponibles = useMemo(
+    () => [...new Set(horarios.map((h: any) => fechaISO(h.inicio)))].sort() as string[],
+    [horarios],
+  );
+  const horariosDelDia = useMemo(
+    () => (fechaSel ? horarios.filter((h: any) => fechaISO(h.inicio) === fechaSel) : []),
+    [horarios, fechaSel],
+  );
   const estadoTexto: Record<string, string> = {
     DISPONIBLE: 'Disponible', PENDIENTE: 'Pendiente', OCUPADO: 'Ocupado',
     NO_DISPONIBLE: 'No disponible', PASADO: 'Finalizado',
   };
-  const horasDisponibles = [...new Set(horariosDelDia.map((h: any) => partesFechaEvento(h.inicio).hour))].sort((a: any, b: any) => a - b) as number[];
-  const minutosParaHora = horaSel !== null
-    ? horariosDelDia.filter((h: any) => partesFechaEvento(h.inicio).hour === horaSel).map((h: any) => partesFechaEvento(h.inicio).minute).sort((a: any, b: any) => a - b)
-    : [];
+  // Las partes de cada franja se calculan una sola vez por día, en vez de una
+  // vez por franja en cada una de las listas de abajo.
+  const partesDelDia = useMemo(
+    () => horariosDelDia.map((h: any) => ({ slot: h, ...partesFechaEvento(h.inicio) })),
+    [horariosDelDia],
+  );
+  const horasDisponibles = useMemo(
+    () => [...new Set(partesDelDia.map((p) => p.hour))].sort((a: any, b: any) => a - b) as number[],
+    [partesDelDia],
+  );
+  const minutosParaHora = useMemo(
+    () => (horaSel !== null
+      ? partesDelDia.filter((p) => p.hour === horaSel).map((p) => p.minute).sort((a: any, b: any) => a - b)
+      : []),
+    [partesDelDia, horaSel],
+  );
   const mins = parseInt(minutosStr) || 0;
   const horarioMatch = horaSel !== null && minutosStr !== ''
     ? horariosDelDia.find((h: any) => {

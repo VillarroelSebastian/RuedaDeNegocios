@@ -619,9 +619,11 @@ const s = StyleSheet.create({
   companySection: { flex: 1 },
 
   tabs: { flexDirection: 'row', backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
-  tab:  { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  // Las tres pestañas quedaban pegadas y era fácil pulsar la de al lado: se
+  // separan un poco y el texto baja de tamaño para que quepan holgadas.
+  tab:  { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 14, paddingHorizontal: 4, marginHorizontal: 3, borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabActive:     { borderBottomColor: GREEN },
-  tabText:       { fontSize: 13, fontWeight: '700', color: '#9ca3af' },
+  tabText:       { fontSize: 12, fontWeight: '700', color: '#9ca3af' },
   tabTextActive: { color: GREEN },
 
   errorBox:  { margin: 16, flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 12, backgroundColor: '#fef2f2', borderWidth: 1, borderColor: '#fca5a5' },

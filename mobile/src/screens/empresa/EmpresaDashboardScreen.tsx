@@ -154,12 +154,12 @@ export default function EmpresaDashboardScreen({ navigation }: any) {
           <View style={s.statsGrid}>
             {esEncargado && (
               <>
-                <StatCard icon={<Inbox size={20} color={GREEN} />} label="Recibidas" value={stats.pendientesRecibidas ?? 0} color="#f0fdf4" />
-                <StatCard icon={<Send size={20} color="#2563eb" />} label="Enviadas" value={stats.pendientesEnviadas ?? 0} color="#eff6ff" />
+                <StatCard icon={<Inbox size={20} color={GREEN} />} label="Recibidas" value={stats.pendientesRecibidas ?? 0} color="#f0fdf4" onPress={() => navigation.navigate('Solicitudes', { tab: 'recibidas' })} />
+                <StatCard icon={<Send size={20} color="#2563eb" />} label="Enviadas" value={stats.pendientesEnviadas ?? 0} color="#eff6ff" onPress={() => navigation.navigate('Solicitudes', { tab: 'enviadas' })} />
               </>
             )}
-            <StatCard icon={<Clock size={20} color="#2563eb" />} label="Próximas" value={stats.reunionesProximas ?? stats.reunionesTotal ?? 0} color="#eff6ff" />
-            <StatCard icon={<CalendarDays size={20} color="#7c3aed" />} label="Finalizadas" value={stats.reunionesFinalizadas ?? 0} color="#f5f3ff" />
+            <StatCard icon={<Clock size={20} color="#2563eb" />} label="Próximas" value={stats.reunionesProximas ?? stats.reunionesTotal ?? 0} color="#eff6ff" onPress={() => navigation.navigate('Reuniones')} />
+            <StatCard icon={<CalendarDays size={20} color="#7c3aed" />} label="Finalizadas" value={stats.reunionesFinalizadas ?? 0} color="#f5f3ff" onPress={() => navigation.navigate('Resultados')} />
             {estadoPago !== 'COMPLETADO' && (
               <StatCard icon={<Briefcase size={20} color="#059669" />} label="Estado" value={null} status={estadoPago} color="#ecfdf5" />
             )}
@@ -257,13 +257,22 @@ export default function EmpresaDashboardScreen({ navigation }: any) {
   );
 }
 
-function StatCard({ icon, label, value, status, color }: any) {
-  return (
-    <View style={[s.statCard, { backgroundColor: color }]}>
+// Las tarjetas con destino llevan a su sección al pulsarlas, igual que las
+// tarjetas de comunicados y actividades; las que no lo tienen siguen siendo
+// solo informativas.
+function StatCard({ icon, label, value, status, color, onPress }: any) {
+  const contenido = (
+    <>
       {icon}
       <Text style={s.statValue}>{value === null ? (status ?? '—') : String(value)}</Text>
       <Text style={s.statLabel}>{label}</Text>
-    </View>
+    </>
+  );
+  if (!onPress) return <View style={[s.statCard, { backgroundColor: color }]}>{contenido}</View>;
+  return (
+    <TouchableOpacity style={[s.statCard, { backgroundColor: color }]} onPress={onPress} activeOpacity={0.8}>
+      {contenido}
+    </TouchableOpacity>
   );
 }
 
