@@ -656,6 +656,35 @@ const dm = StyleSheet.create({
 
 export default function EmpresaReunionesScreen({ navigation, route, embedded = false, reunionIdProp }: any) {
   const [items,       setItems]       = useState<any[]>([]);
+
+  // La lista se muestra agrupada: primero las reuniones vigentes (pendientes,
+  // programadas y reprogramadas) ordenadas por fecha, y al final todas las
+  // finalizadas. Cada grupo lleva una cabecera con su día, así que la lista
+  // mezcla cabeceras y reuniones y renderItem distingue unas de otras.
+  const itemsAgrupados = useMemo(() => {
+    const ahoraMs = Date.now();
+    const esFinalizada = (r: any) => r.estado === 'FINALIZADA' || new Date(r.fin).getTime() <= ahoraMs;
+    const vigentes = items.filter((r) => !esFinalizada(r))
+      .sort((a, b) => new Date(a.inicio).getTime() - new Date(b.inicio).getTime());
+    const finalizadas = items.filter(esFinalizada)
+      .sort((a, b) => new Date(b.inicio).getTime() - new Date(a.inicio).getTime());
+
+    const salida: any[] = [];
+    let diaActual = '';
+    for (const r of vigentes) {
+      const dia = partesFechaEvento(r.inicio).dateKey;
+      if (dia !== diaActual) {
+        diaActual = dia;
+        salida.push({ __cabecera: true, id: `dia-${dia}`, titulo: fmtDate(r.inicio) });
+      }
+      salida.push(r);
+    }
+    if (finalizadas.length > 0) {
+      salida.push({ __cabecera: true, id: 'dia-finalizadas', titulo: `Finalizadas (${finalizadas.length})`, apagada: true });
+      salida.push(...finalizadas);
+    }
+    return salida;
+  }, [items]);
   const [loading,     setLoading]     = useState(true);
   const [refreshing,  setRefreshing]  = useState(false);
   const [error,       setError]       = useState('');
@@ -794,7 +823,7 @@ export default function EmpresaReunionesScreen({ navigation, route, embedded = f
       )}
 
       <FlatList
-        data={items}
+        data={itemsAgrupados}
         keyExtractor={(item) => String(item.id)}
         contentContainerStyle={s.list}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(); }} tintColor={GREEN} />}
@@ -827,6 +856,11 @@ export default function EmpresaReunionesScreen({ navigation, route, embedded = f
           </View>
         }
         renderItem={({ item }) => {
+          if (item.__cabecera) {
+            return (
+              <Text style={[s.grupoTitulo, item.apagada && s.grupoTituloApagado]}>{item.titulo}</Text>
+            );
+          }
           const st = STATUS_STYLE[item.estado] ?? { bg: '#f1f5f9', text: '#475569', label: item.estado };
           const isVirtual = item.tipo === 'VIRTUAL';
           const esFinalizada = item.estado === 'FINALIZADA' || new Date(item.fin) <= ahora;
@@ -888,6 +922,9 @@ export default function EmpresaReunionesScreen({ navigation, route, embedded = f
 }
 
 const s = StyleSheet.create({
+  // Cabeceras de la lista agrupada: un día, o el bloque de finalizadas.
+  grupoTitulo: { fontSize: 13, fontWeight: '800', color: '#0f172a', textTransform: 'capitalize', marginTop: 14, marginBottom: 8 },
+  grupoTituloApagado: { color: '#94a3b8', textTransform: 'none' },
   root:   { flex: 1, backgroundColor: '#f8fafc' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   changeCard: { backgroundColor: '#fffbeb', borderColor: '#fde68a', borderWidth: 1, borderRadius: 16, padding: 14, marginBottom: 12 },

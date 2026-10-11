@@ -1,7 +1,21 @@
 export const EVENT_TIME_ZONE = 'America/La_Paz';
 
+// toLocaleString construye un formateador nuevo en cada llamada, y estas
+// funciones se usan varias veces por fila en listas largas. Se guarda uno por
+// combinación de opciones.
+const formateadores = new Map<string, Intl.DateTimeFormat>();
+function formateadorCon(options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+  const clave = JSON.stringify(options);
+  let f = formateadores.get(clave);
+  if (!f) {
+    f = new Intl.DateTimeFormat('es-BO', { timeZone: EVENT_TIME_ZONE, ...options });
+    formateadores.set(clave, f);
+  }
+  return f;
+}
+
 export function fechaEvento(iso: string | Date, options: Intl.DateTimeFormatOptions): string {
-  return new Date(iso).toLocaleString('es-BO', { timeZone: EVENT_TIME_ZONE, ...options });
+  return formateadorCon(options).format(new Date(iso));
 }
 
 export function horaEvento(iso: string | Date, hour12 = true): string {

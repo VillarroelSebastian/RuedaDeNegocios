@@ -562,6 +562,16 @@ export default function EmpresaSolicitudesScreen({ route }: any) {
                       </Pressable>
                     </>
                   )}
+                  {item.estado === 'ACEPTADA' && (
+                    <Pressable
+                      style={s.quickBtnEdit}
+                      onPress={() => setTab('reuniones')}
+                      hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                      accessibilityLabel="Ver la reunión"
+                    >
+                      <CalendarDays size={14} color={GREEN} />
+                    </Pressable>
+                  )}
                   {tab === 'enviadas' && item.estado === 'PENDIENTE' && (
                     <>
                       <Pressable

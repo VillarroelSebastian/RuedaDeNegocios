@@ -16,6 +16,7 @@ import {
 import { API_URL, userStore } from '../../utils/userStore';
 import { fechaEvento, horaEvento, partesFechaEvento } from '../../utils/fechaEvento';
 import { paisConBandera } from '../../utils/pais';
+import { useAlturaTeclado } from '../../hooks/useAlturaTeclado';
 
 const GREEN = '#449D3A';
 const POLL_MS = 3000;
@@ -57,6 +58,8 @@ type Step = 'modalidad' | 'horario' | 'mesa' | 'mensaje';
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
 export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?: boolean }) {
+  // El teclado tapaba el formulario del modal de solicitud.
+  const alturaTeclado = useAlturaTeclado();
   // List state
   const [empresas,   setEmpresas]   = useState<any[]>([]);
   const [busqueda,   setBusqueda]   = useState('');
@@ -665,7 +668,7 @@ export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?:
           MEETING REQUEST MODAL
       ────────────────────────────────────────────────────────────────────── */}
       <Modal visible={modalVisible} animationType="slide" transparent statusBarTranslucent>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <View style={{ flex: 1, paddingBottom: alturaTeclado }}>
           <View style={s.overlay}>
             <View style={s.sheetCard}>
               {/* Header */}
@@ -949,7 +952,7 @@ export default function EmpresaEmpresasScreen({ embedded = false }: { embedded?:
               )}
             </View>
           </View>
-        </KeyboardAvoidingView>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -1337,7 +1340,7 @@ const s = StyleSheet.create({
   overlay:   { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
   sheetCard: {
     backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28,
-    padding: 24, maxHeight: '92%',
+    padding: 24, maxHeight: '92%', paddingBottom: 16,
   },
   sheetHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 20 },
   sheetTitle:  { fontSize: 19, fontWeight: '800', color: '#0f172a' },
