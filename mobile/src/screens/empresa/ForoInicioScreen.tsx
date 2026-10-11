@@ -122,7 +122,7 @@ export default function ForoInicioScreen({ navigation }: any) {
           )}
           <View style={{ padding: 20 }}>
             {!!evento.urlLogoForo && (
-              <Image source={{ uri: evento.urlLogoForo }} style={{ height: 44, width: 140, marginBottom: 10 }} resizeMode="contain" />
+              <Image source={{ uri: evento.urlLogoForo }} style={{ height: 68, width: 170, marginBottom: 10 }} resizeMode="contain" />
             )}
             {!!evento.edicion && (
               <View style={{ alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,.18)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>

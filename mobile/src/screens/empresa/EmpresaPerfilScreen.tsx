@@ -589,13 +589,17 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
         {!!perfil?.urlCredencialQR && (() => {
           const colorCred = esForo ? '#f59e0b' : esAuspiciador ? '#2563eb' : GREEN;
           const bgCred = esForo ? '#fffbeb' : esAuspiciador ? '#eff6ff' : '#f0fdf4';
-          const logoCred = esForo && perfil?.evento?.urlLogoForo ? perfil.evento.urlLogoForo : perfil?.evento?.urlLogoEvento;
+          const esLogoForo = esForo && !!perfil?.evento?.urlLogoForo;
+          const logoCred = esLogoForo ? perfil.evento.urlLogoForo : perfil?.evento?.urlLogoEvento;
           return (
             <View style={[s.credCard, { borderColor: colorCred }]}>
               <View style={[s.credAccent, { backgroundColor: colorCred }]} />
               <View style={s.credBody}>
+                {/* El logo del foro suele traer mas margen interno en el
+                    archivo: a la misma altura se ve mas chico que el del
+                    evento, asi que se agranda para emparejar el peso visual. */}
                 {!!logoCred && (
-                  <Image source={{ uri: logoCred }} style={s.credLogo} resizeMode="contain" />
+                  <Image source={{ uri: logoCred }} style={esLogoForo ? s.credLogoForo : s.credLogo} resizeMode="contain" />
                 )}
                 <Text style={s.credNombre}>{perfil?.usuario?.nombres} {perfil?.usuario?.apellidoPaterno}</Text>
                 <Text style={[s.credEmpresa, { color: colorCred }]}>{empresa?.empresa?.nombre}</Text>
@@ -1226,7 +1230,8 @@ const s = StyleSheet.create({
   },
   credAccent: { height: 6, backgroundColor: GREEN },
   credBody: { alignItems: 'center', padding: 20 },
-  credLogo: { height: 32, width: 110, marginBottom: 12 },
+  credLogo: { height: 44, width: 140, marginBottom: 10 },
+  credLogoForo: { height: 64, width: 160, marginBottom: 10 },
   credNombre: { fontSize: 17, fontWeight: '800', color: '#0f172a', marginTop: 16, textAlign: 'center' },
   credEmpresa: { fontSize: 13, fontWeight: '700', color: GREEN, marginTop: 2, textAlign: 'center' },
   credCargo: { fontSize: 12, color: '#6b7280', marginTop: 2, textAlign: 'center' },

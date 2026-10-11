@@ -712,26 +712,29 @@ export default function EmpresaPerfilPage() {
           const colorFranja = esForo ? "from-amber-400 to-amber-300" : esAuspiciador ? "from-blue-500 to-blue-400" : "from-[#449D3A] to-emerald-500";
           const colorTexto = esForo ? "text-amber-600" : esAuspiciador ? "text-blue-600" : "text-[#449D3A]";
           const colorBoton = esForo ? "bg-amber-50 hover:bg-amber-100 text-amber-700" : esAuspiciador ? "bg-blue-50 hover:bg-blue-100 text-blue-700" : "bg-green-50 hover:bg-green-100 text-[#449D3A]";
-          const logo = esForo && evento?.urlLogoForo ? evento.urlLogoForo : evento?.urlLogoEvento;
+          const esLogoForo = esForo && !!evento?.urlLogoForo;
+          const logo = esLogoForo ? evento.urlLogoForo : evento?.urlLogoEvento;
           return (
             <div className={`relative bg-white border-2 ${colorBorde} rounded-2xl overflow-hidden shadow-sm mx-auto`} style={{ width: "100%", maxWidth: "360px", aspectRatio: "9 / 13" }}>
               <div className={`h-2 bg-gradient-to-r ${colorFranja}`} />
-              <div className="h-[calc(100%-8px)] p-6 flex flex-col items-center text-center">
+              <div className="h-[calc(100%-8px)] p-6 flex flex-col items-center justify-center text-center gap-1.5">
+                {/* El logo del foro suele traer más margen interno en el
+                    archivo, así que a la misma altura se ve más chico que
+                    el del evento: se le da más alto para emparejar el peso visual. */}
                 {logo && (
-                  <img src={logo} alt={esForo ? "Logo del foro" : "Logo del evento"} className="h-10 object-contain mb-4" />
+                  <img src={logo} alt={esForo ? "Logo del foro" : "Logo del evento"} className={`${esLogoForo ? "h-20" : "h-14"} object-contain mb-1`} />
                 )}
                 <h2 className="text-xl font-extrabold text-gray-900">{usuario.nombres} {usuario.apellidoPaterno}</h2>
-                <p className={`text-sm font-bold mt-0.5 ${colorTexto}`}>{empresa?.nombre}</p>
-                {cargo && <p className="text-xs text-gray-500 mt-0.5">{cargo}</p>}
-                <div className="flex-1" />
-                <ImagenLightbox src={ctx.urlCredencialQR} className="w-44 h-44 rounded-xl border border-gray-100 overflow-hidden shrink-0" />
-                {evento && <p className="text-[11px] text-gray-400 mt-3">{evento.nombre} {evento.edicion}</p>}
+                <p className={`text-base font-bold ${colorTexto}`}>{empresa?.nombre}</p>
+                {cargo && <p className="text-sm text-gray-500">{cargo}</p>}
+                <ImagenLightbox src={ctx.urlCredencialQR} className="w-44 h-44 rounded-xl border border-gray-100 overflow-hidden shrink-0 mt-2" />
+                {evento && <p className="text-[11px] text-gray-400 mt-1">{evento.nombre} {evento.edicion}</p>}
                 <a
                   href={ctx.urlCredencialQR}
                   download="credencial-rueda-de-negocios.png"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className={`inline-flex items-center gap-1.5 mt-4 px-4 py-2 rounded-xl text-xs font-bold ${colorBoton}`}
+                  className={`inline-flex items-center gap-1.5 mt-2 px-4 py-2 rounded-xl text-xs font-bold ${colorBoton}`}
                 >
                   <Download className="w-3.5 h-3.5" />Descargar credencial
                 </a>

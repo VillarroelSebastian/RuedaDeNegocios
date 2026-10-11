@@ -222,7 +222,7 @@ export default function HomePage() {
 
           {evento.urlLogoForo && (
             <Link href="/registro" className="mt-8 inline-flex items-center gap-3 rounded-2xl bg-white/10 border border-white/20 backdrop-blur-sm px-5 py-3 hover:bg-white/15 transition-all">
-              <img src={evento.urlLogoForo} alt="Logo del Foro" className="h-10 object-contain" />
+              <img src={evento.urlLogoForo} alt="Logo del Foro" className="h-16 object-contain" />
               <span className="text-left">
                 <span className="block text-white font-bold text-sm">¿Vienes como participante individual?</span>
                 <span className="block text-white/75 text-xs">Participa en el Foro — sin paquete comercial</span>
