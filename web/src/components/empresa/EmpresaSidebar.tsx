@@ -15,19 +15,22 @@ const allMenuItems = [
   { name: 'Inicio',         icon: Home,            href: '/empresa/inicio',        soloEncargado: false, soloForo: true },
   { name: 'Dashboard',      icon: LayoutDashboard, href: '/empresa/dashboard',     soloEncargado: false, ocultoParaForo: true  },
   { name: 'Comunicados',    icon: Newspaper,       href: '/empresa/comunicados',   soloEncargado: false, ocultoParaForo: false },
-  { name: 'Empresas',       icon: Building2,       href: '/empresa/empresas',      soloEncargado: false, ocultoParaForo: true  },
-  { name: 'Mensajes',       icon: MessageSquare,   href: '/empresa/mensajes',      soloEncargado: false, ocultoParaForo: true  },
-  { name: 'Oportunidades',  icon: Sparkles,        href: '/empresa/oportunidades', soloEncargado: false, ocultoParaForo: true  },
+  { name: 'Empresas',       icon: Building2,       href: '/empresa/empresas',      soloEncargado: true,  ocultoParaForo: true  },
+  { name: 'Mensajes',       icon: MessageSquare,   href: '/empresa/mensajes',      soloEncargado: true,  ocultoParaForo: true  },
+  { name: 'Oportunidades',  icon: Sparkles,        href: '/empresa/oportunidades', soloEncargado: true,  ocultoParaForo: true  },
   { name: 'Cronograma en Vivo', icon: Radio,       href: '/empresa/cronograma-vivo', soloEncargado: false, ocultoParaForo: false },
   { name: 'Galería',        icon: Images,          href: '/empresa/galeria',       soloEncargado: false, ocultoParaForo: false },
+  // Un participante (no encargado) solo puede ver sus próximas reuniones, no
+  // gestionar solicitudes; el label/href se ajusta en el render más abajo.
   { name: 'Solicitudes y Reuniones', icon: Send,   href: '/empresa/solicitudes',   soloEncargado: false, ocultoParaForo: true  },
   { name: 'Mis Horarios',   icon: Clock,           href: '/empresa/horarios',      soloEncargado: true,  ocultoParaForo: true  },
-  { name: 'Resultados',     icon: Star,            href: '/empresa/resultados',    soloEncargado: false, ocultoParaForo: true  },
-  { name: 'Mi Paquete',     icon: Package,         href: '/empresa/mi-paquete',    soloEncargado: false, ocultoParaForo: true  },
+  { name: 'Resultados',     icon: Star,            href: '/empresa/resultados',    soloEncargado: true,  ocultoParaForo: true  },
+  { name: 'Mi Paquete',     icon: Package,         href: '/empresa/mi-paquete',    soloEncargado: true,  ocultoParaForo: true  },
   { name: 'Mi Perfil',      icon: User,            href: '/empresa/perfil',        soloEncargado: false, ocultoParaForo: false },
 ];
 
 export const RUTAS_OCULTAS_PARA_FORO = allMenuItems.filter((i) => i.ocultoParaForo).map((i) => i.href);
+export const RUTAS_SOLO_ENCARGADO = allMenuItems.filter((i) => i.soloEncargado).map((i) => i.href);
 
 interface EmpresaSidebarProps {
   canPackage?: boolean;
@@ -122,11 +125,16 @@ export default function EmpresaSidebar({ canPackage = false, esEncargado = false
       )}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
         {allMenuItems.filter(item => (item.href !== '/empresa/mi-paquete' || canPackage) && (esEncargado || !item.soloEncargado) && !(esForo && item.ocultoParaForo) && !(!esForo && item.soloForo)).map((item) => {
+          // El participante (no encargado) solo ve el listado de reuniones ya
+          // agendadas, no la gestión de solicitudes: mismo link, otro destino.
+          const esEntradaReuniones = item.href === '/empresa/solicitudes';
+          const nombre = esEntradaReuniones && !esEncargado ? 'Mis Reuniones' : item.name;
+          const href = esEntradaReuniones && !esEncargado ? '/empresa/solicitudes?tab=reuniones' : item.href;
           const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
           return (
             <Link
               key={item.name}
-              href={item.href}
+              href={href}
               onClick={onClose}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${
                 isActive
@@ -135,7 +143,7 @@ export default function EmpresaSidebar({ canPackage = false, esEncargado = false
               }`}
             >
               <item.icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#449D3A]' : 'text-gray-400'}`} />
-              <span className="flex-1">{item.name}</span>
+              <span className="flex-1">{nombre}</span>
               {item.href === '/empresa/mensajes' && mensajesNoLeidos > 0 && (
                 <span className="min-w-5 h-5 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
                   {mensajesNoLeidos > 99 ? '99+' : mensajesNoLeidos}

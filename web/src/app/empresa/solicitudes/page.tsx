@@ -368,6 +368,10 @@ function SolicitudesContent() {
       .then((r) => r.json())
       .then((c) => {
         setCtx(c);
+        // Un participante (no encargado) no gestiona solicitudes ni ve el
+        // directorio de empresas: solo le interesa su listado de reuniones,
+        // que ReunionesSection carga por su cuenta.
+        if (!c.esResponsable) { setTab("reuniones"); return; }
         return Promise.all([
           cargarSolicitudes(c.empresaeventoId),
           cargarEmpresas(c.empresaeventoId),
@@ -378,7 +382,7 @@ function SolicitudesContent() {
   }, [router, cargarSolicitudes]);
 
   useEffect(() => {
-    if (!ctx?.empresaeventoId) return;
+    if (!ctx?.empresaeventoId || !ctx?.esResponsable) return;
     const refrescar = () => cargarSolicitudes(ctx.empresaeventoId).catch(() => {});
     const alNotificar = (event: Event) => {
       const tipo = (event as CustomEvent)?.detail?.evento ?? "";
@@ -398,6 +402,7 @@ function SolicitudesContent() {
   }, [ctx?.empresaeventoId, cargarSolicitudes]);
 
   useEffect(() => {
+    if (ctx && !ctx.esResponsable) return;
     const tabSolicitada = searchParams.get("tab");
     if (tabSolicitada === "recibidas" || tabSolicitada === "enviadas" || tabSolicitada === "reuniones") {
       setTab(tabSolicitada);
@@ -409,10 +414,10 @@ function SolicitudesContent() {
       setModalNueva({ id: Number(rid), nombre: decodeURIComponent(rnom) });
       setTab("enviadas");
     }
-  }, [searchParams]);
+  }, [searchParams, ctx]);
 
   const recargar = () => {
-    if (ctx) cargarSolicitudes(ctx.empresaeventoId).catch(() => {});
+    if (ctx?.esResponsable) cargarSolicitudes(ctx.empresaeventoId).catch(() => {});
     // La campana consulta el historial persistente. Al responder una solicitud,
     // fuerza su recarga para retirar de inmediato la notificacion pendiente.
     window.dispatchEvent(new CustomEvent("rueda:notificacion", {
@@ -451,6 +456,7 @@ function SolicitudesContent() {
     </div>
   );
 
+  const esEncargado = !!ctx?.esResponsable;
   const enviadas  = solicitudes.filter((s) => s.esMiSolicitud);
   const recibidas = solicitudes.filter((s) => !s.esMiSolicitud);
   const lista     = tab === "enviadas" ? enviadas : recibidas;
@@ -499,8 +505,10 @@ function SolicitudesContent() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-extrabold text-gray-900">Solicitudes y reuniones</h1>
-            <p className="text-sm text-gray-400 mt-0.5">{solicitudes.length} solicitudes en total</p>
+            <h1 className="text-2xl font-extrabold text-gray-900">{esEncargado ? "Solicitudes y reuniones" : "Mis reuniones"}</h1>
+            <p className="text-sm text-gray-400 mt-0.5">
+              {esEncargado ? `${solicitudes.length} solicitudes en total` : "Próximas reuniones programadas con tu empresa"}
+            </p>
           </div>
           <button onClick={recargar}
             className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-600 hover:bg-gray-50">
@@ -519,25 +527,27 @@ function SolicitudesContent() {
         )}
 
         {/* Tabs */}
-        <div className="flex flex-wrap bg-gray-100 rounded-xl p-1 w-fit max-w-full overflow-x-auto">
-          {(["empresas", "enviadas", "recibidas", "reuniones"] as const).map((t) => (
-            <button key={t} onClick={() => setTab(t)}
-              className={`px-5 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${
-                tab === t ? "bg-white shadow text-gray-900" : "text-gray-500 hover:text-gray-700"
-              }`}>
-              {t === "empresas"
-                ? `Empresas (${empresas.length})`
-                : t === "enviadas"
-                  ? `Enviadas (${enviadas.length})`
-                  : t === "recibidas"
-                    ? `Recibidas (${recibidas.length})`
-                    : "Reuniones"}
-            </button>
-          ))}
-        </div>
+        {esEncargado && (
+          <div className="flex flex-wrap bg-gray-100 rounded-xl p-1 w-fit max-w-full overflow-x-auto">
+            {(["empresas", "enviadas", "recibidas", "reuniones"] as const).map((t) => (
+              <button key={t} onClick={() => setTab(t)}
+                className={`px-5 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${
+                  tab === t ? "bg-white shadow text-gray-900" : "text-gray-500 hover:text-gray-700"
+                }`}>
+                {t === "empresas"
+                  ? `Empresas (${empresas.length})`
+                  : t === "enviadas"
+                    ? `Enviadas (${enviadas.length})`
+                    : t === "recibidas"
+                      ? `Recibidas (${recibidas.length})`
+                      : "Reuniones"}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Reuniones confirmadas */}
-        {tab === "reuniones" ? (
+        {!esEncargado || tab === "reuniones" ? (
           <ReunionesSection embedded />
         ) : tab === "empresas" ? (
           <div className="space-y-4">

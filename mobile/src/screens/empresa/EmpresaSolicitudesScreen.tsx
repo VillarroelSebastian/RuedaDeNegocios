@@ -388,15 +388,21 @@ export default function EmpresaSolicitudesScreen({ route }: any) {
   const [actionModal,  setActionModal]  = useState<{ sol: any; type: 'cancelar' | 'aceptar' | 'rechazar' } | null>(null);
 
   const user = userStore.get();
+  // Un participante (no encargado) no gestiona solicitudes ni ve el
+  // directorio de empresas: solo le queda el sub-tab de reuniones, que
+  // EmpresaReunionesScreen carga por su cuenta.
+  const [esEncargado, setEsEncargado] = useState(!!userStore.get()?.esResponsable);
+  useEffect(() => userStore.subscribe(() => setEsEncargado(!!userStore.get()?.esResponsable)), []);
 
   useEffect(() => {
+    if (!esEncargado) { setTab('reuniones'); return; }
     const solicitada = route?.params?.tab;
     if (solicitada === 'recibidas' || solicitada === 'enviadas' || solicitada === 'reuniones') setTab(solicitada);
-  }, [route?.params?.tab]);
+  }, [route?.params?.tab, esEncargado]);
 
   const fetchData = useCallback(async () => {
     const eeId = user?.empresaeventoId;
-    if (!eeId) { setLoading(false); return; }
+    if (!eeId || !esEncargado) { setLoading(false); return; }
     setError('');
     try {
       const res = await fetch(`${API_URL}/empresa/solicitudes?eeId=${eeId}`);
@@ -415,7 +421,7 @@ export default function EmpresaSolicitudesScreen({ route }: any) {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [user?.empresaeventoId]);
+  }, [user?.empresaeventoId, esEncargado]);
 
   useFocusEffect(useCallback(() => {
     fetchData();
@@ -432,28 +438,30 @@ export default function EmpresaSolicitudesScreen({ route }: any) {
   return (
     <SafeAreaView style={s.root} edges={['top']}>
       {/* Tabs */}
-      <View style={s.tabs}>
-        <TouchableOpacity style={[s.tab, tab === 'empresas' && s.tabActive]} onPress={() => setTab('empresas')}>
-          <Building2 size={15} color={tab === 'empresas' ? GREEN : '#9ca3af'} />
-          <Text style={[s.tabText, tab === 'empresas' && s.tabTextActive]}>Empresas</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[s.tab, tab === 'recibidas' && s.tabActive]} onPress={() => { setTab('recibidas'); fetchData(); }}>
-          <Inbox size={15} color={tab === 'recibidas' ? GREEN : '#9ca3af'} />
-          <Text style={[s.tabText, tab === 'recibidas' && s.tabTextActive]}>
-            Recibidas{recibidas.length > 0 ? ` (${recibidas.length})` : ''}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[s.tab, tab === 'enviadas' && s.tabActive]} onPress={() => { setTab('enviadas'); fetchData(); }}>
-          <Send size={15} color={tab === 'enviadas' ? GREEN : '#9ca3af'} />
-          <Text style={[s.tabText, tab === 'enviadas' && s.tabTextActive]}>
-            Enviadas{enviadas.length > 0 ? ` (${enviadas.length})` : ''}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[s.tab, tab === 'reuniones' && s.tabActive]} onPress={() => setTab('reuniones')}>
-          <CalendarDays size={15} color={tab === 'reuniones' ? GREEN : '#9ca3af'} />
-          <Text style={[s.tabText, tab === 'reuniones' && s.tabTextActive]}>Reuniones</Text>
-        </TouchableOpacity>
-      </View>
+      {esEncargado && (
+        <View style={s.tabs}>
+          <TouchableOpacity style={[s.tab, tab === 'empresas' && s.tabActive]} onPress={() => setTab('empresas')}>
+            <Building2 size={15} color={tab === 'empresas' ? GREEN : '#9ca3af'} />
+            <Text style={[s.tabText, tab === 'empresas' && s.tabTextActive]}>Empresas</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.tab, tab === 'recibidas' && s.tabActive]} onPress={() => { setTab('recibidas'); fetchData(); }}>
+            <Inbox size={15} color={tab === 'recibidas' ? GREEN : '#9ca3af'} />
+            <Text style={[s.tabText, tab === 'recibidas' && s.tabTextActive]}>
+              Recibidas{recibidas.length > 0 ? ` (${recibidas.length})` : ''}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.tab, tab === 'enviadas' && s.tabActive]} onPress={() => { setTab('enviadas'); fetchData(); }}>
+            <Send size={15} color={tab === 'enviadas' ? GREEN : '#9ca3af'} />
+            <Text style={[s.tabText, tab === 'enviadas' && s.tabTextActive]}>
+              Enviadas{enviadas.length > 0 ? ` (${enviadas.length})` : ''}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.tab, tab === 'reuniones' && s.tabActive]} onPress={() => setTab('reuniones')}>
+            <CalendarDays size={15} color={tab === 'reuniones' ? GREEN : '#9ca3af'} />
+            <Text style={[s.tabText, tab === 'reuniones' && s.tabTextActive]}>Reuniones</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {(tab === 'enviadas' || tab === 'recibidas') && !!error && (
         <View style={s.errorBox}>

@@ -280,8 +280,8 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
 
 // ── Detail Modal ──────────────────────────────────────────────────────────────
 
-function DetalleReunionModal({ reunion, eeId, onClose, onCambiarHorario, onRefresh }: {
-  reunion: any; eeId: number;
+function DetalleReunionModal({ reunion, eeId, esEncargado, onClose, onCambiarHorario, onRefresh }: {
+  reunion: any; eeId: number; esEncargado: boolean;
   onClose: () => void; onCambiarHorario: () => void; onRefresh: () => void;
 }) {
   const [reloj, setReloj] = useState(() => Date.now());
@@ -290,10 +290,11 @@ function DetalleReunionModal({ reunion, eeId, onClose, onCambiarHorario, onRefre
   const minutosRestantes = Math.max(0, Math.ceil((new Date(reunion.fin).getTime() - reloj) / 60_000));
   const esProgramada = (reunion.estado === "PROGRAMADA" || reunion.estado === "REPROGRAMADA") && new Date(reunion.fin) > ahora;
   const esFinalizada = reunion.estado === "FINALIZADA" || new Date(reunion.fin) <= ahora;
-  // Cualquier participante presente puede cerrar una reunión en curso; después
-  // cada empresa conserva una única evaluación de la contraparte.
-  const puedeFinalizarEncargado = reunion.estado === "EN_CURSO";
-  const puedeIniciar = ["PROGRAMADA", "REPROGRAMADA"].includes(reunion.estado);
+  // Gestionar la reunión (iniciar, finalizar, cancelar, proponer cambios,
+  // registrar evaluación) es tarea exclusiva del encargado de la empresa; un
+  // participante solo puede ver el detalle de sus próximas reuniones.
+  const puedeFinalizarEncargado = esEncargado && reunion.estado === "EN_CURSO";
+  const puedeIniciar = esEncargado && ["PROGRAMADA", "REPROGRAMADA"].includes(reunion.estado);
   const otraPidioIniciar = reunion.inicioAnticipadoPor && reunion.inicioAnticipadoPor !== eeId;
   const yoPediIniciar = reunion.inicioAnticipadoPor && reunion.inicioAnticipadoPor === eeId;
   const [finalizando, setFinalizando] = useState(false);
@@ -457,14 +458,14 @@ function DetalleReunionModal({ reunion, eeId, onClose, onCambiarHorario, onRefre
                 )}
               </>
             )}
-            {esProgramada && (
+            {esEncargado && esProgramada && (
               <button onClick={onCambiarHorario}
                 className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50">
                 <Edit2 className="w-4 h-4" />
                 Solicitar cambios
               </button>
             )}
-            {esProgramada && (confirmandoCancelacion ? (
+            {esEncargado && esProgramada && (confirmandoCancelacion ? (
               <div className="rounded-xl border border-red-200 bg-red-50 p-4 space-y-3">
                 <p className="text-sm text-red-800 font-semibold">La otra empresa y el equipo técnico verán esta cancelación.</p>
                 <textarea value={motivoCancelacion} onChange={(e) => setMotivoCancelacion(e.target.value)} maxLength={300} rows={2}
@@ -516,7 +517,7 @@ function DetalleReunionModal({ reunion, eeId, onClose, onCambiarHorario, onRefre
                 )}
               </>
             )}
-            {esFinalizada && !reunion.miResultado && (
+            {esEncargado && esFinalizada && !reunion.miResultado && (
               <Link href={`/empresa/resultados?reunionId=${reunion.id}`}
                 className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#449D3A] text-white text-sm font-bold hover:bg-[#3a8531]">
                 <Star className="w-4 h-4" />
@@ -542,6 +543,7 @@ export function ReunionesSection({ embedded = false }: { embedded?: boolean } = 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [eeId, setEeId] = useState<number | null>(null);
+  const [esEncargado, setEsEncargado] = useState(false);
   const [filtro, setFiltro] = useState<"todas" | "proximas" | "finalizadas">("todas");
   const [detalleModal, setDetalleModal] = useState<any>(null);
   const [cambiarModal, setCambiarModal] = useState<any>(null);
@@ -578,6 +580,7 @@ export function ReunionesSection({ embedded = false }: { embedded?: boolean } = 
       .then((r) => r.json())
       .then((ctx) => {
         setEeId(ctx.empresaeventoId);
+        setEsEncargado(!!ctx.esResponsable);
         cargarReuniones(ctx.empresaeventoId);
       })
       .catch(() => setError("No se pudo cargar el contexto."));
@@ -650,6 +653,7 @@ export function ReunionesSection({ embedded = false }: { embedded?: boolean } = 
         <DetalleReunionModal
           reunion={detalleModal}
           eeId={eeId}
+          esEncargado={esEncargado}
           onClose={() => setDetalleModal(null)}
           onCambiarHorario={() => { setCambiarModal(detalleModal); setDetalleModal(null); }}
           onRefresh={() => { setDetalleModal(null); if (eeId) { setLoading(true); cargarReuniones(eeId); } }}
@@ -693,7 +697,7 @@ export function ReunionesSection({ embedded = false }: { embedded?: boolean } = 
           </div>
         </div>
 
-        {filtradas.filter((r) => r.cambioPendiente && r.cambioPendiente.solicitadoPorEe_id !== eeId).map((r) => (
+        {esEncargado && filtradas.filter((r) => r.cambioPendiente && r.cambioPendiente.solicitadoPorEe_id !== eeId).map((r) => (
           <div key={`cambio-${r.cambioPendiente.id}`} className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -728,9 +732,11 @@ export function ReunionesSection({ embedded = false }: { embedded?: boolean } = 
                filtro === "finalizadas" ? "No tienes reuniones finalizadas." :
                "No tienes reuniones confirmadas aún."}
             </p>
-            <Link href="/empresa/empresas" className="text-sm text-[#449D3A] font-bold hover:underline">
-                Ver empresas y solicitar reunión →
-            </Link>
+            {esEncargado && (
+              <Link href="/empresa/empresas" className="text-sm text-[#449D3A] font-bold hover:underline">
+                  Ver empresas y solicitar reunión →
+              </Link>
+            )}
           </div>
         ) : (
           <div className="space-y-4">

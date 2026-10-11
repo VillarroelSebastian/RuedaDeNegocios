@@ -60,7 +60,7 @@ export default function EmpresaDashboardPage() {
         // Cargar estadísticas reales
         const sRes = await fetch(`${API}/empresa/dashboard-stats?eeId=${data.empresaeventoId}`);
         if (sRes.ok) setStats(await sRes.json());
-        const pRes = data.puedeVerPaquete ? await fetch(`${API}/empresa/mi-paquete?eeId=${data.empresaeventoId}`) : null;
+        const pRes = (data.puedeVerPaquete && data.esResponsable) ? await fetch(`${API}/empresa/mi-paquete?eeId=${data.empresaeventoId}`) : null;
         if (pRes?.ok) setPaquete(await pRes.json());
       })
       .catch((e) => setError(e.message))
@@ -137,7 +137,7 @@ export default function EmpresaDashboardPage() {
         </Link>
       )}
 
-      {stats?.pendientesEvaluar > 0 && (
+      {esResponsable && stats?.pendientesEvaluar > 0 && (
         <Link href="/empresa/resultados" className="block">
           <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3 hover:border-green-300 transition-colors">
             <Star className="w-5 h-5 text-[#449D3A] shrink-0" />
@@ -320,35 +320,37 @@ export default function EmpresaDashboardPage() {
       </div>
 
       {/* Evento y mi paquete */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Package className="w-5 h-5 text-[#449D3A]" />
-              <h2 className="font-bold text-gray-900">Mi paquete</h2>
+      <div className={`grid grid-cols-1 gap-6 ${esResponsable ? "lg:grid-cols-2" : ""}`}>
+        {esResponsable && (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Package className="w-5 h-5 text-[#449D3A]" />
+                <h2 className="font-bold text-gray-900">Mi paquete</h2>
+              </div>
+              <Link href="/empresa/mi-paquete" className="text-xs text-[#449D3A] font-bold hover:underline">
+                Ver detalles
+              </Link>
             </div>
-            <Link href="/empresa/mi-paquete" className="text-xs text-[#449D3A] font-bold hover:underline">
-              Ver detalles
-            </Link>
-          </div>
-          {paquete ? (
-            <div>
-              <p className="text-lg font-extrabold text-gray-900">{paquete.paqueteNombre ?? "—"}</p>
-              <div className="mt-4 grid grid-cols-2 gap-4">
-                <div className="bg-green-50 rounded-xl p-3">
-                  <p className="text-2xl font-extrabold text-[#449D3A]">{paquete.participantesUsados}<span className="text-sm text-gray-400">/{paquete.maxParticipantes}</span></p>
-                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mt-0.5">Participantes</p>
-                </div>
-                <div className="bg-blue-50 rounded-xl p-3">
-                  <p className="text-2xl font-extrabold text-blue-600">{tipoParticipacion ?? "—"}</p>
-                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mt-0.5">Participación</p>
+            {paquete ? (
+              <div>
+                <p className="text-lg font-extrabold text-gray-900">{paquete.paqueteNombre ?? "—"}</p>
+                <div className="mt-4 grid grid-cols-2 gap-4">
+                  <div className="bg-green-50 rounded-xl p-3">
+                    <p className="text-2xl font-extrabold text-[#449D3A]">{paquete.participantesUsados}<span className="text-sm text-gray-400">/{paquete.maxParticipantes}</span></p>
+                    <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mt-0.5">Participantes</p>
+                  </div>
+                  <div className="bg-blue-50 rounded-xl p-3">
+                    <p className="text-2xl font-extrabold text-blue-600">{tipoParticipacion ?? "—"}</p>
+                    <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mt-0.5">Participación</p>
+                  </div>
                 </div>
               </div>
-            </div>
-          ) : (
-            <p className="text-sm text-gray-400">Sin información de paquete.</p>
-          )}
-        </div>
+            ) : (
+              <p className="text-sm text-gray-400">Sin información de paquete.</p>
+            )}
+          </div>
+        )}
 
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
           <div className="flex items-center gap-2 mb-4">
@@ -387,9 +389,11 @@ export default function EmpresaDashboardPage() {
           <h2 className="font-bold text-gray-900 mb-4">Acceso rápido</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {[
-              { href: "/empresa/empresas",   Icon: Building2,   label: "Ver empresas",  desc: "Perfiles de participantes",   soloEncargado: false },
-              { href: "/empresa/solicitudes",Icon: Send,        label: "Solicitudes y reuniones", desc: "Gestión de reuniones",soloEncargado: false },
-              { href: "/empresa/resultados", Icon: Star,        label: "Resultados",    desc: "Registra acuerdos",           soloEncargado: false },
+              { href: "/empresa/empresas",   Icon: Building2,   label: "Ver empresas",  desc: "Perfiles de participantes",   soloEncargado: true },
+              esResponsable
+                ? { href: "/empresa/solicitudes",Icon: Send,  label: "Solicitudes y reuniones", desc: "Gestión de reuniones", soloEncargado: false }
+                : { href: "/empresa/solicitudes?tab=reuniones",Icon: Send, label: "Mis reuniones", desc: "Próximas reuniones programadas", soloEncargado: false },
+              { href: "/empresa/resultados", Icon: Star,        label: "Resultados",    desc: "Registra acuerdos",           soloEncargado: true },
               { href: "/empresa/cronograma-vivo", Icon: Radio,  label: "Programa",      desc: "Actividades del evento",      soloEncargado: false },
               { href: "/empresa/comunicados",Icon: Megaphone,   label: "Comunicados",   desc: "Noticias y anuncios",         soloEncargado: false },
             ].filter((item) => esResponsable || !item.soloEncargado).map(({ href, Icon, label, desc }) => (

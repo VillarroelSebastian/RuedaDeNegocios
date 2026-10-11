@@ -51,7 +51,7 @@ export default function EmpresaDashboardScreen({ navigation }: any) {
         // de una tras otra para no duplicar la latencia en conexiones lentas.
         const [statsRes, pRes] = await Promise.all([
           fetch(`${API_URL}/empresa/dashboard-stats?eeId=${ctxData.empresaeventoId}`),
-          ctxData.puedeVerPaquete ? fetch(`${API_URL}/empresa/mi-paquete?eeId=${ctxData.empresaeventoId}`) : Promise.resolve(null),
+          (ctxData.puedeVerPaquete && ctxData.esResponsable) ? fetch(`${API_URL}/empresa/mi-paquete?eeId=${ctxData.empresaeventoId}`) : Promise.resolve(null),
         ]);
         if (statsRes.ok) setStats(await statsRes.json());
         if (pRes?.ok) setPaquete(await pRes.json());
@@ -141,7 +141,7 @@ export default function EmpresaDashboardScreen({ navigation }: any) {
           </TouchableOpacity>
         )}
 
-        {stats?.pendientesEvaluar > 0 && (
+        {esEncargado && stats?.pendientesEvaluar > 0 && (
           <TouchableOpacity style={[s.alertBox, { backgroundColor:'#f0fdf4', borderColor:'#86efac' }]} onPress={() => navigation.navigate('Resultados')} activeOpacity={0.8}>
             <Star size={17} color={GREEN} style={{ marginRight:8 }} />
             <Text style={[s.alertText, { color:'#166534' }]}>Tienes {stats.pendientesEvaluar} reunión(es) pendiente(s) de calificar. Registra el acuerdo y tus observaciones.</Text>
@@ -159,7 +159,7 @@ export default function EmpresaDashboardScreen({ navigation }: any) {
               </>
             )}
             <StatCard icon={<Clock size={20} color="#2563eb" />} label="Próximas" value={stats.reunionesProximas ?? stats.reunionesTotal ?? 0} color="#eff6ff" onPress={() => navigation.navigate('Reuniones')} />
-            <StatCard icon={<CalendarDays size={20} color="#7c3aed" />} label="Finalizadas" value={stats.reunionesFinalizadas ?? 0} color="#f5f3ff" onPress={() => navigation.navigate('Resultados')} />
+            <StatCard icon={<CalendarDays size={20} color="#7c3aed" />} label="Finalizadas" value={stats.reunionesFinalizadas ?? 0} color="#f5f3ff" onPress={() => esEncargado ? navigation.navigate('Resultados') : navigation.navigate('Solicitudes', { tab: 'reuniones' })} />
             {estadoPago !== 'COMPLETADO' && (
               <StatCard icon={<Briefcase size={20} color="#059669" />} label="Estado" value={null} status={estadoPago} color="#ecfdf5" />
             )}
@@ -231,18 +231,18 @@ export default function EmpresaDashboardScreen({ navigation }: any) {
             {[
               { label: 'Comunicados',    screen: 'Comunicados',    color: '#f0fdf4', soloEncargado: false },
               { label: 'Cronograma',     screen: 'Eventos',        color: '#eff6ff', soloEncargado: false },
-              { label: 'Mi paquete',     screen: 'MiPaquete',      color: '#ecfdf5', soloEncargado: false },
-              { label: 'Empresas',       screen: 'Empresas',       color: '#fdf4ff', soloEncargado: false },
-              { label: 'Mensajes',       screen: 'Mensajes',       color: '#f0f9ff', soloEncargado: false },
-              { label: 'Oportunidades',  screen: 'Oportunidades',  color: '#fefce8', soloEncargado: false },
-              { label: 'Resultados',     screen: 'Resultados',     color: '#f5f3ff', soloEncargado: false },
-              { label: 'Solicitudes',    screen: 'Solicitudes',    color: '#fff7ed', soloEncargado: false },
+              { label: 'Mi paquete',     screen: 'MiPaquete',      color: '#ecfdf5', soloEncargado: true  },
+              { label: 'Empresas',       screen: 'Empresas',       color: '#fdf4ff', soloEncargado: true  },
+              { label: 'Mensajes',       screen: 'Mensajes',       color: '#f0f9ff', soloEncargado: true  },
+              { label: 'Oportunidades',  screen: 'Oportunidades',  color: '#fefce8', soloEncargado: true  },
+              { label: 'Resultados',     screen: 'Resultados',     color: '#f5f3ff', soloEncargado: true  },
+              { label: esEncargado ? 'Solicitudes' : 'Mis reuniones', screen: 'Solicitudes', params: esEncargado ? undefined : { tab: 'reuniones' }, color: '#fff7ed', soloEncargado: false },
               { label: 'Horarios',       screen: 'Horarios',       color: '#ecfdf5', soloEncargado: true  },
             ].filter(q => (esEncargado || !q.soloEncargado) && (q.screen !== 'MiPaquete' || ctx?.puedeVerPaquete === true)).map((q) => (
               <TouchableOpacity
                 key={q.screen}
                 style={[s.quickCard, { backgroundColor: q.color }]}
-                onPress={() => navigation.navigate(q.screen)}
+                onPress={() => navigation.navigate(q.screen, q.params)}
                 activeOpacity={0.75}
               >
                 <Text style={s.quickLabel}>{q.label}</Text>

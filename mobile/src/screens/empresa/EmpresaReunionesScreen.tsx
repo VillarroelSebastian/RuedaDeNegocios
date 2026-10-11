@@ -129,7 +129,12 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
   return (
     <Modal visible animationType="slide" transparent statusBarTranslucent>
       {appModal && (
-        <View style={[cm.overlay, { zIndex: 100 }]}>
+        // position: absolute + inset 0: sin esto, al ser hermano del overlay
+        // de abajo (ambos con flex:1 dentro del mismo <Modal>) React Native
+        // repartía el alto entre los dos en vez de superponerlos — por eso
+        // el aviso aparecía arriba, aplastando "Proponer cambios" debajo en
+        // vez de taparlo del todo.
+        <View style={[cm.overlay, { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 100 }]}>
           <View style={cm.modalBox}>
             <Text style={[cm.modalMsg, { color: '#dc2626' }]}>{appModal.msg}</Text>
             <Pressable onPress={() => setAppModal(null)} style={[cm.modalBtn, { backgroundColor: '#ef4444' }]}>
@@ -310,8 +315,8 @@ const cm = StyleSheet.create({
 
 // ── Detail Modal ──────────────────────────────────────────────────────────────
 
-function DetalleReunionModal({ reunion, eeId, navigation, onClose, onCambiarHorario, onFinalizado }: {
-  reunion: any; eeId: number;
+function DetalleReunionModal({ reunion, eeId, esEncargado, navigation, onClose, onCambiarHorario, onFinalizado }: {
+  reunion: any; eeId: number; esEncargado: boolean;
   navigation: any; onClose: () => void; onCambiarHorario: () => void; onFinalizado: () => void;
 }) {
   const [reloj, setReloj] = useState(Date.now());
@@ -320,8 +325,11 @@ function DetalleReunionModal({ reunion, eeId, navigation, onClose, onCambiarHora
   const minutosRestantes = Math.max(0, Math.ceil((new Date(reunion.fin).getTime() - reloj) / 60000));
   const esProgramada = (reunion.estado === 'PROGRAMADA' || reunion.estado === 'REPROGRAMADA') && new Date(reunion.fin) > ahora;
   const esFinalizada = reunion.estado === 'FINALIZADA' || new Date(reunion.fin) <= ahora;
-  const puedeFinalizarEncargado = reunion.estado === 'EN_CURSO';
-  const puedeIniciar = ['PROGRAMADA', 'REPROGRAMADA'].includes(reunion.estado);
+  // Gestionar la reunión (iniciar, finalizar, cancelar, proponer cambios,
+  // registrar evaluación) es tarea exclusiva del encargado de la empresa; un
+  // participante solo puede ver el detalle de sus próximas reuniones.
+  const puedeFinalizarEncargado = esEncargado && reunion.estado === 'EN_CURSO';
+  const puedeIniciar = esEncargado && ['PROGRAMADA', 'REPROGRAMADA'].includes(reunion.estado);
   const otraPidioIniciar = reunion.inicioAnticipadoPor && reunion.inicioAnticipadoPor !== eeId;
   const yoPediIniciar = reunion.inicioAnticipadoPor && reunion.inicioAnticipadoPor === eeId;
   const st = STATUS_STYLE[reunion.estado] ?? { bg: '#f1f5f9', text: '#475569', label: reunion.estado };
@@ -513,13 +521,13 @@ function DetalleReunionModal({ reunion, eeId, navigation, onClose, onCambiarHora
                   )}
                 </>
               )}
-              {esProgramada && (
+              {esEncargado && esProgramada && (
                 <TouchableOpacity onPress={onCambiarHorario} style={dm.secondaryBtn} activeOpacity={0.8}>
                   <Edit2 size={14} color="#374151" style={{ marginRight: 8 }} />
                   <Text style={dm.secondaryBtnText}>Cambiar horario</Text>
                 </TouchableOpacity>
               )}
-              {esProgramada && (confirmandoCancelacion ? (
+              {esEncargado && esProgramada && (confirmandoCancelacion ? (
                 <View style={dm.cancelMeetingBox}>
                   <Text style={dm.cancelMeetingText}>La otra empresa y el equipo técnico verán esta cancelación.</Text>
                   <TextInput
@@ -582,7 +590,7 @@ function DetalleReunionModal({ reunion, eeId, navigation, onClose, onCambiarHora
                   )}
                 </>
               )}
-              {esFinalizada && !reunion.miResultado && (
+              {esEncargado && esFinalizada && !reunion.miResultado && (
                 <TouchableOpacity
                   onPress={() => { onClose(); navigation.navigate('Resultados', { reunionId: reunion.id, contraparte: reunion.contraparte?.nombre }); }}
                   style={dm.primaryBtn} activeOpacity={0.8}
@@ -696,6 +704,8 @@ export default function EmpresaReunionesScreen({ navigation, route, embedded = f
   const respondiendoCambioRef = useRef<number | null>(null);
 
   const user = userStore.get();
+  const [esEncargado, setEsEncargado] = useState(!!userStore.get()?.esResponsable);
+  useEffect(() => userStore.subscribe(() => setEsEncargado(!!userStore.get()?.esResponsable)), []);
 
   const fetchData = useCallback(async () => {
     const id = user?.empresaeventoId;
@@ -786,6 +796,7 @@ export default function EmpresaReunionesScreen({ navigation, route, embedded = f
         <DetalleReunionModal
           reunion={detalleModal}
           eeId={eeId}
+          esEncargado={esEncargado}
           navigation={navigation}
           onClose={() => setDetalleModal(null)}
           onCambiarHorario={() => { setCambiarModal(detalleModal); setDetalleModal(null); }}
@@ -829,7 +840,7 @@ export default function EmpresaReunionesScreen({ navigation, route, embedded = f
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(); }} tintColor={GREEN} />}
         ListHeaderComponent={
           <View>
-            {items.filter((r) => r.cambioPendiente && r.cambioPendiente.solicitadoPorEe_id !== eeId).map((r) => (
+            {esEncargado && items.filter((r) => r.cambioPendiente && r.cambioPendiente.solicitadoPorEe_id !== eeId).map((r) => (
               <View key={`cambio-${r.cambioPendiente.id}`} style={s.changeCard}>
                 <Text style={s.changeTitle}>Cambio solicitado por {r.contraparte?.nombre}</Text>
                 <Text style={s.changeText}>

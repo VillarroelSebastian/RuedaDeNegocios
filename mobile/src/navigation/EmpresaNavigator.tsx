@@ -41,18 +41,21 @@ function EmpresaMenuScreen({ navigation }: any) {
   const esEncargado = !!userStore.get()?.esResponsable;
   const [canPackage, setCanPackage] = useState(userStore.get()?.puedeVerPaquete === true);
   useEffect(() => userStore.subscribe(() => setCanPackage(userStore.get()?.puedeVerPaquete === true)), []);
+  // Un participante (no encargado) solo consulta información general del
+  // evento: pierde oportunidades, mensajería, resultados y el paquete de la
+  // empresa, que son gestión exclusiva del encargado.
   const opciones = [
     { nombre: 'Perfil', pantalla: 'Perfil', icono: User },
     { nombre: 'Cronograma en vivo', pantalla: 'Eventos', icono: CalendarDays },
     { nombre: 'Comunicados', pantalla: 'Comunicados', icono: Newspaper },
-    { nombre: 'Oportunidades', pantalla: 'Oportunidades', icono: Lightbulb },
-    { nombre: 'Mensajes', pantalla: 'Mensajes', icono: MessageCircle },
     { nombre: 'Galería', pantalla: 'Galeria', icono: Images },
-    { nombre: 'Resultados', pantalla: 'Resultados', icono: Star },
-    ...(canPackage ? [{ nombre: 'Mi paquete', pantalla: 'MiPaquete', icono: Package }] : []),
     ...(esEncargado ? [
+      { nombre: 'Oportunidades', pantalla: 'Oportunidades', icono: Lightbulb },
+      { nombre: 'Mensajes', pantalla: 'Mensajes', icono: MessageCircle },
+      { nombre: 'Resultados', pantalla: 'Resultados', icono: Star },
       { nombre: 'Mis horarios', pantalla: 'Horarios', icono: Clock },
     ] : []),
+    ...(canPackage && esEncargado ? [{ nombre: 'Mi paquete', pantalla: 'MiPaquete', icono: Package }] : []),
   ];
   return (
     <ScrollView style={{ flex:1, backgroundColor:'#f8fafc' }} contentContainerStyle={{ padding:16 }}>
@@ -251,7 +254,10 @@ function EncargadoTabs() {
   );
 }
 
-// Participante: también puede consultar empresas y agendar reuniones.
+// Participante (no encargado): solo consulta información general del evento
+// y sus próximas reuniones ya agendadas; pierde el directorio de empresas,
+// la gestión de solicitudes, oportunidades, mensajería y resultados, que son
+// tarea exclusiva del encargado de la empresa.
 function ParticipanteTabs() {
   const { modal, handleLogout } = useLogoutTab();
   const tabBarStyle = useTabBarStyle();
@@ -265,14 +271,9 @@ function ParticipanteTabs() {
           options={{ title: 'Inicio', tabBarIcon: ({ color }) => <LayoutDashboard color={color} size={22} /> }}
         />
         <Tab.Screen
-          name="Empresas"
-          component={EmpresaEmpresasScreen}
-          options={{ title: 'Empresas', tabBarIcon: ({ color }) => <Building2 color={color} size={22} /> }}
-        />
-        <Tab.Screen
           name="Solicitudes"
           component={EmpresaSolicitudesScreen}
-          options={{ title: 'Agenda', tabBarIcon: ({ color }) => <Send color={color} size={22} /> }}
+          options={{ title: 'Mis reuniones', tabBarIcon: ({ color }) => <CalendarDays color={color} size={22} /> }}
         />
         <Tab.Screen
           name="Mas"
@@ -396,7 +397,7 @@ export default function EmpresaNavigator() {
               <View style={{ flexDirection: 'row', alignItems: 'center', paddingRight: 4 }}>
                 <AvatarButton />
                 <BellButton />
-                {!esForo && <MessagesButton eeId={eeId} />}
+                {esEncargado && !esForo && <MessagesButton eeId={eeId} />}
                 {esEncargado && !esForo && <AsistenteChatButton onOpen={() => setChatOpen(true)} />}
               </View>
             ),
@@ -404,16 +405,19 @@ export default function EmpresaNavigator() {
         />
       <Stack.Screen name="Comunicados"   component={EmpresaComunicadosScreen}   options={{ title: 'Comunicados' }} />
       <Stack.Screen name="Eventos"       component={EmpresaEventosScreen}       options={{ title: 'Cronograma en vivo' }} />
-      <Stack.Screen name="Oportunidades" component={EmpresaOportunidadesScreen} options={{ title: 'Oportunidades' }} />
-      <Stack.Screen name="Mensajes"      component={EmpresaMensajesScreen}      options={{ title: 'Mensajes' }} />
       <Stack.Screen name="Galeria"       component={TecnicoGaleriaScreen}       options={{ title: 'Galería del evento' }} />
       <Stack.Screen name="Perfil"        component={EmpresaPerfilScreen}        options={{ title: 'Perfil' }} />
       <Stack.Screen name="PerfilEmpresa" component={EmpresaPerfilEmpresaScreen} options={{ title: 'Perfil de empresa', headerShown: false }} />
-      <Stack.Screen name="Resultados"  component={EmpresaResultadosScreen}  options={{ title: 'Resultados' }} />
-      {canPackage && <Stack.Screen name="MiPaquete" component={EmpresaMiPaqueteScreen} options={{ title: 'Mi paquete' }} />}
+      {/* Gestión exclusiva del encargado: un participante pierde estas pantallas. */}
       {esEncargado && (
-        <Stack.Screen name="Horarios"    component={EmpresaHorariosScreen}    options={{ title: 'Mis horarios disponibles' }} />
+        <>
+          <Stack.Screen name="Oportunidades" component={EmpresaOportunidadesScreen} options={{ title: 'Oportunidades' }} />
+          <Stack.Screen name="Mensajes"       component={EmpresaMensajesScreen}      options={{ title: 'Mensajes' }} />
+          <Stack.Screen name="Resultados"     component={EmpresaResultadosScreen}    options={{ title: 'Resultados' }} />
+          <Stack.Screen name="Horarios"       component={EmpresaHorariosScreen}      options={{ title: 'Mis horarios disponibles' }} />
+        </>
       )}
+      {canPackage && esEncargado && <Stack.Screen name="MiPaquete" component={EmpresaMiPaqueteScreen} options={{ title: 'Mi paquete' }} />}
       </Stack.Navigator>
       {notifActual && (
         <View style={{ position: 'absolute', top: insetsBanner.top + 8, left: 12, right: 12, zIndex: 100, backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#bbf7d0', padding: 14, shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 12, elevation: 10 }}>

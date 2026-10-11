@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import EmpresaSidebar, { RUTAS_OCULTAS_PARA_FORO } from '@/components/empresa/EmpresaSidebar';
+import EmpresaSidebar, { RUTAS_OCULTAS_PARA_FORO, RUTAS_SOLO_ENCARGADO } from '@/components/empresa/EmpresaSidebar';
 import EmpresaHeader from '@/components/empresa/EmpresaHeader';
 import AsistenteChat from '@/components/empresa/AsistenteChat';
 import NotificacionToast from '@/components/empresa/NotificacionToast';
@@ -45,7 +45,8 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
         return r.json();
       })
       .then((ctx) => {
-        setEsEncargado(Boolean(ctx?.esResponsable));
+        const encargado = Boolean(ctx?.esResponsable);
+        setEsEncargado(encargado);
         setCanPackage(ctx.puedeVerPaquete === true);
         if (!ctx.puedeVerPaquete && pathname.startsWith('/empresa/mi-paquete')) router.replace('/empresa/comunicados');
         if (ctx?.empresaeventoId) setEeId(ctx.empresaeventoId);
@@ -57,6 +58,12 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
           esResponsable: Boolean(ctx.esResponsable),
           puedeVerPaquete: ctx.puedeVerPaquete,
         }));
+        // Un participante (no encargado) solo puede ver sus próximas reuniones:
+        // si cae en una pantalla de gestión exclusiva del encargado, lo
+        // redirige a la vista de solo lectura en vez de dejarlo ver un error.
+        if (!encargado && user.rolEvento !== 'FORO' && RUTAS_SOLO_ENCARGADO.some((r) => pathname === r || pathname.startsWith(r + '/'))) {
+          router.replace('/empresa/solicitudes?tab=reuniones');
+        }
       })
       .catch(() => {
         router.replace('/auth/login');

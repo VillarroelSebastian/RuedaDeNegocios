@@ -41,13 +41,14 @@ export class AuthGuard implements CanActivate {
               estadoVerificacionPago: 'COMPLETADO',
             },
           },
-          select: { id: true, empresaevento_id: true },
+          select: { id: true, empresaevento_id: true, esResponsable: true },
         },
       },
     });
     if (!dbUser || dbUser.rolEvento !== payload.role) throw new UnauthorizedException('La cuenta ya no está habilitada.');
     const eeIds = dbUser.empresa_usuario.map((x) => x.empresaevento_id);
     const euIds = dbUser.empresa_usuario.map((x) => x.id);
+    const esEncargado = dbUser.empresa_usuario.some((x) => x.esResponsable === 1);
     let eventoId = dbUser.evento_id;
     if (['TECNICO', 'TECNICO_EVENTOS'].includes(dbUser.rolEvento)) {
       const principal = await this.prisma.evento.findFirst({
@@ -75,11 +76,26 @@ export class AuthGuard implements CanActivate {
       '/empresa/oportunidades', '/empresa/solicitudes', '/empresa/horarios', '/empresa/resultados',
       '/empresa/participantes',
     ];
+    // Un participante (no encargado) de una empresa solo asiste a las
+    // reuniones que ya se agendaron: no gestiona el paquete, resultados,
+    // solicitudes/agenda de reuniones, el directorio de empresas, las
+    // oportunidades ni la mensajería — eso es responsabilidad exclusiva del
+    // encargado. Las rutas de abajo son las de gestión; la lista en sí
+    // (GET /empresa/reuniones) queda fuera a propósito para que sí puedan
+    // ver sus próximas reuniones.
+    const EMPRESA_BLOQUEADO_PARA_PARTICIPANTE = [
+      '/empresa/mi-paquete', '/empresa/resultados', '/empresa/solicitudes',
+      '/empresa/directorio', '/empresa/empresas', '/empresa/oportunidades',
+      '/empresa/mensajes', '/empresa/asistente', '/empresa/horarios',
+      '/empresa/mesas-disponibles', '/empresa/reuniones/',
+    ];
     if (path.startsWith('/empresa/')) {
       if (!['EMPRESA', 'FORO'].includes(dbUser.rolEvento))
         throw new ForbiddenException('Se requiere una cuenta de empresa.');
       if (dbUser.rolEvento === 'FORO' && EMPRESA_BLOQUEADO_PARA_FORO.some((p) => path.startsWith(p)))
         throw new ForbiddenException('La inscripción al foro no incluye funciones de negocios.');
+      if (dbUser.rolEvento === 'EMPRESA' && !esEncargado && EMPRESA_BLOQUEADO_PARA_PARTICIPANTE.some((p) => path.startsWith(p)))
+        throw new ForbiddenException('Esta función solo está disponible para el encargado de la empresa.');
       if (path.startsWith('/empresa/mi-paquete')) {
         if (dbUser.rolEvento === 'FORO') throw new ForbiddenException('Los paquetes no están disponibles para esta inscripción.');
         const member = await this.prisma.empresa_usuario.findFirst({
