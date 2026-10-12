@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import webpush from 'web-push';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { enlaceReuniones } from '../notificaciones/destino-notificacion.js';
 
 @Injectable()
 export class PushService implements OnModuleInit, OnModuleDestroy {
@@ -40,13 +41,17 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
         const role=roles.get(destino.usuarioId);
         const base=role==='FORO'||role==='EMPRESA'?'/empresa':role==='ADMINISTRADOR'?'/admin':'/tecnico';
         const article = tipo.startsWith('comunicado') || tipo.startsWith('noticia');
+        // Solicitudes y reuniones abren su subopción exacta dentro de Reuniones.
+        const enlaceEmpresa = base === '/empresa'
+          ? enlaceReuniones(base, tipo, Number(payload.referenciaId), tipo.startsWith('solicitud:') && tipo !== 'solicitud:aceptada' ? 'solicitudreunion' : 'reunion')
+          : null;
         const url=article ? `/contenido/noticias/${Number(payload.referenciaId)}`
           : tipo.startsWith('chat-interno') ? base+'/equipo'
           : tipo.startsWith('mensaje') || tipo.startsWith('ticket') ? base+'/mensajes'
           : tipo.startsWith('mesa') ? base+'/mesas'
           : tipo.startsWith('evento') ? base+'/cronograma-vivo'
-          : tipo.startsWith('reunion:cambio') && base === '/empresa' ? `${base}/solicitudes?tab=reuniones&filtro=cambios`
-          : tipo.startsWith('reunion') || tipo.startsWith('staff:reunion') ? base === '/empresa' ? `${base}/solicitudes?tab=reuniones&reunionId=${Number(payload.referenciaId)}` : base+'/virtuales'
+          : enlaceEmpresa ? enlaceEmpresa
+          : tipo.startsWith('reunion') || tipo.startsWith('staff:reunion') ? base+'/virtuales'
           // Las solicitudes ya no tienen pestañas propias: se gestionan
           // dentro de "Reuniones", que filtra las pendientes por aceptar.
           : tipo==='solicitud:nueva' ? base+'/solicitudes?tab=reuniones&filtro=pendientes'

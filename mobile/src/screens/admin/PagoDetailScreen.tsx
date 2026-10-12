@@ -73,15 +73,17 @@ export default function PagoDetailScreen({ route, navigation }: any) {
       onConfirm: async () => {
         setSubmitting(true);
         try {
-          await fetch(`${API_URL}/admin/pagos/${id}/rechazar`, {
+          const res = await fetch(`${API_URL}/admin/pagos/${id}/rechazar`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ motivo: observacion.trim() }),
           });
-          show({ type: 'success', title: 'Rechazado', message: 'El pago fue marcado como rechazado.' });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data?.message || 'No se pudo rechazar el pago.');
+          show({ type: 'success', title: 'Rechazado', message: 'El pago fue rechazado y se avisó a la persona. Sus correos quedan libres para volver a registrarse.' });
           setObservacion('');
           fetchPago();
-        } catch { show({ type: 'error', title: 'Error', message: 'No se pudo rechazar el pago.' }); }
+        } catch (e: any) { show({ type: 'error', title: 'Error', message: e?.message || 'No se pudo rechazar el pago.' }); }
         finally { setSubmitting(false); }
       },
     });
@@ -117,6 +119,12 @@ export default function PagoDetailScreen({ route, navigation }: any) {
   }
 
   const comprobante = pago.empresaeventocomprobantes?.[0];
+  // Solo se puede gestionar un pago que aún está en revisión: ya aprobado o
+  // rechazado no admite más acciones (igual que en la web).
+  const estadoPago = pago.estadoVerificacionPago;
+  const puedeGestionar = estadoPago !== 'COMPLETADO' && estadoPago !== 'RECHAZADO';
+  const esForo = pago.empresa?.rubro === 'Foro';
+  const persona = pago.empresa_usuario?.[0]?.usuario;
   const estadoColors: Record<string, string> = {
     COMPLETADO: '#dcfce7', PENDIENTE: '#ffedd5', OBSERVADO: '#fef9c3', RECHAZADO: '#fee2e2'
   };
@@ -138,8 +146,16 @@ export default function PagoDetailScreen({ route, navigation }: any) {
             <Text className="font-bold text-gray-900">Resumen del Registro</Text>
           </View>
           {[
-            { label: 'Empresa', value: pago.empresa?.nombre },
-            { label: 'Ciudad', value: pago.empresa?.ciudad?.nombre },
+            ...(esForo
+              ? [
+                  { label: 'Tipo', value: 'Foro · Personal' },
+                  { label: 'Persona', value: persona ? `${persona.nombres} ${persona.apellidoPaterno}`.trim() : '—' },
+                  { label: 'Institución', value: pago.empresa?.nombre },
+                ]
+              : [
+                  { label: 'Empresa', value: pago.empresa?.nombre },
+                  { label: 'Ciudad', value: pago.empresa?.ciudad?.nombre },
+                ]),
             { label: 'Participantes', value: String(pago.numeroParticipantes) },
             { label: 'Monto pagado', value: pago.montoPagado ? `${Number(pago.montoPagado).toLocaleString()} BOB` : 'No especificado' },
             { label: 'Fecha de envío', value: pago.fechaHoraEnvioComprobante ? new Date(pago.fechaHoraEnvioComprobante).toLocaleDateString('es-BO') : '—' },
@@ -199,7 +215,16 @@ export default function PagoDetailScreen({ route, navigation }: any) {
           )}
         </View>
 
+        {estadoPago === 'RECHAZADO' && (
+          <View style={{ backgroundColor: '#fef2f2', borderColor: '#fecaca', borderWidth: 1, borderRadius: 16, padding: 16 }}>
+            <Text style={{ fontSize: 11, fontWeight: '800', color: '#b91c1c', textTransform: 'uppercase', marginBottom: 4 }}>Motivo de rechazo</Text>
+            <Text style={{ fontSize: 14, color: '#7f1d1d' }}>{pago.motivoRechazoAcceso || pago.observacionSobreComprobante || 'Sin motivo registrado.'}</Text>
+            <Text style={{ fontSize: 12, color: '#991b1b', marginTop: 8 }}>Este pago ya no admite acciones. Quien se registró puede volver a inscribirse con los mismos datos.</Text>
+          </View>
+        )}
+
         {/* Observación */}
+        {puedeGestionar && (
         <View className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
           <Text className="font-bold text-gray-900 mb-1">Solicitar nueva evidencia</Text>
           <Text className="text-sm text-gray-500 mb-3">Escribe por qué necesitas que la empresa reenvíe su comprobante.</Text>
@@ -214,9 +239,10 @@ export default function PagoDetailScreen({ route, navigation }: any) {
             placeholderTextColor="#9ca3af"
           />
         </View>
+        )}
 
         {/* Botones */}
-        {pago.estadoVerificacionPago !== 'COMPLETADO' && (
+        {puedeGestionar && (
           <View className="space-y-3">
             <TouchableOpacity
               onPress={handleAprobar}

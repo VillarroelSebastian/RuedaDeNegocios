@@ -3,6 +3,8 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Mail, Plus, Pencil, Trash2, User, X, Upload } from 'lucide-react';
 import { useModal } from '@/components/ui/Modal';
 import { correoValido, validarNombrePersona, validarTelefono } from '@/lib/validaciones';
+import TelefonoInput from "@/components/TelefonoInput";
+import { soloNombre, sinEspacios } from "@/lib/validaciones";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
@@ -240,27 +242,27 @@ export default function TecnicosPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">Nombres *</label>
-                  <input value={form.nombres} onChange={(e) => set('nombres', e.target.value)}
+                  <input value={form.nombres} onChange={(e) => set('nombres', soloNombre(e.target.value))} maxLength={105}
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">Apellido paterno *</label>
-                  <input value={form.apellidoPaterno} onChange={(e) => set('apellidoPaterno', e.target.value)}
+                  <input value={form.apellidoPaterno} onChange={(e) => set('apellidoPaterno', soloNombre(e.target.value))} maxLength={65}
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">Apellido materno</label>
-                  <input value={form.apellidoMaterno} onChange={(e) => set('apellidoMaterno', e.target.value)}
+                  <input value={form.apellidoMaterno} onChange={(e) => set('apellidoMaterno', soloNombre(e.target.value))} maxLength={65}
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">Teléfono *</label>
-                  <input value={form.telefono} onChange={(e) => set('telefono', e.target.value)}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
+                  <TelefonoInput value={form.telefono} onChange={(v) => set('telefono', v)}
+                    className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
                 </div>
                 <div className="col-span-2">
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">Correo electrónico *</label>
-                  <input type="email" value={form.correo} onChange={(e) => set('correo', e.target.value)}
+                  <input type="email" value={form.correo} onChange={(e) => set('correo', sinEspacios(e.target.value).toLowerCase())} maxLength={105}
                     disabled={!!editId}
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A] disabled:bg-gray-50 disabled:text-gray-400" />
                 </div>

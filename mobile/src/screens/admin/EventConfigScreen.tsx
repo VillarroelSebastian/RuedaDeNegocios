@@ -14,6 +14,7 @@ import { permisoGaleria } from '../../utils/permisosMedia';
 import { API_URL } from '../../utils/userStore';
 import { useModal } from '../../components/AppModal';
 import FechaHoraInput from '../../components/FechaHoraInput';
+import TelefonoInput from '../../components/TelefonoInput';
 
 const GREEN = '#449D3A';
 type DiaReunion = { fecha: string; rangos: Array<{ desde: string; hasta: string }> };
@@ -802,14 +803,12 @@ export default function EventConfigScreen({ navigation }: any) {
             fieldKey="urlLogoForo" uploading={uploadingField} onPick={handlePickImage} onPreview={setPreviewUrl} />
 
           <Text className="text-xs font-bold text-gray-700 mb-2">Correo de Contacto</Text>
-          <TextInput value={formData.correoContacto} onChangeText={(t) => handleChange('correoContacto', t)}
+          <TextInput value={formData.correoContacto} onChangeText={(t) => handleChange('correoContacto', t.replace(/\s/g, '').toLowerCase())} autoCapitalize="none"
             keyboardType="email-address"
             className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm mb-4" placeholder="info@ejemplo.com" />
 
           <Text className="text-xs font-bold text-gray-700 mb-2">Teléfono / WhatsApp</Text>
-          <TextInput value={formData.telefonoContacto} onChangeText={(t) => handleChange('telefonoContacto', t)}
-            keyboardType="phone-pad"
-            className="bg-[#FAFAFA] border border-gray-200 rounded-lg px-4 py-3 text-sm mb-4" placeholder="+591 70000000" />
+          <View className="mb-4"><TelefonoInput value={formData.telefonoContacto} onChange={(t) => handleChange('telefonoContacto', t)} /></View>
 
           <Text className="text-xs font-bold text-gray-700 mb-2">Facebook</Text>
           <TextInput value={formData.enlaceFacebook} onChangeText={(t) => handleChange('enlaceFacebook', t)}

@@ -977,8 +977,21 @@ export default function EmpresaReunionesScreen({ navigation, route, embedded = f
   const [actionSolicitud, setActionSolicitud] = useState<{ sol: any; type: 'cancelar' | 'aceptar' | 'rechazar' } | null>(null);
 
   const recibidasPendientes = useMemo(() => solicitudes.filter((s) => !s.esMiSolicitud), [solicitudes]);
-  const cambiosPorResponder = useMemo(() => cambios.filter((c) => c.estado === 'PENDIENTE' && c.direccion === 'recibida').length, [cambios]);
   const enviadasPendientes  = useMemo(() => solicitudes.filter((s) => s.esMiSolicitud), [solicitudes]);
+  const cambiosPorResponder = useMemo(() => cambios.filter((c) => c.estado === 'PENDIENTE' && c.direccion === 'recibida').length, [cambios]);
+  // Contador de cada subopción, para llevar el control de un vistazo.
+  const conteos = useMemo(() => {
+    const ahoraMs = Date.now();
+    const terminadas = items.filter((r) => r.estado === 'FINALIZADA' || new Date(r.fin).getTime() <= ahoraMs).length;
+    return {
+      todas: recibidasPendientes.length + enviadasPendientes.length + items.length,
+      pendientes: recibidasPendientes.length,
+      enviadas: enviadasPendientes.length,
+      proximas: items.length - terminadas,
+      cambios: cambios.filter((c) => c.estado === 'PENDIENTE').length,
+      finalizadas: terminadas,
+    } as Record<string, number>;
+  }, [items, recibidasPendientes, enviadasPendientes, cambios]);
 
   // La lista se muestra agrupada: primero las solicitudes recibidas que
   // esperan mi respuesta (como una bandeja de entrada, sin importar fecha),
@@ -1172,19 +1185,24 @@ export default function EmpresaReunionesScreen({ navigation, route, embedded = f
         <View style={s.filterRow}>
           {([
             ['todas', 'Todas'],
-            ['pendientes', `Pendientes${recibidasPendientes.length > 0 ? ` (${recibidasPendientes.length})` : ''}`],
+            ['pendientes', 'Pendientes'],
             ['enviadas', 'Enviadas'],
             ['proximas', 'Próximas'],
             ['cambios', 'Cambios'],
             ['finalizadas', 'Finalizadas'],
-          ] as const).map(([key, label]) => (
-            <TouchableOpacity key={key} onPress={() => setFiltro(key)} style={[s.filterChip, { flexDirection: 'row', alignItems: 'center', gap: 5 }, filtro === key && s.filterChipActive]}>
-              <Text style={[s.filterChipText, filtro === key && s.filterChipTextActive]}>{label}</Text>
-              {key === 'cambios' && cambiosPorResponder > 0 && (
-                <View style={s.redBadge}><Text style={s.redBadgeText}>{cambiosPorResponder}</Text></View>
-              )}
-            </TouchableOpacity>
-          ))}
+          ] as const).map(([key, label]) => {
+            // Contador de cada subopción; en rojo cuando hay algo que responder.
+            const total = conteos[key] ?? 0;
+            const urgente = (key === 'pendientes' && recibidasPendientes.length > 0) || (key === 'cambios' && cambiosPorResponder > 0);
+            return (
+              <TouchableOpacity key={key} onPress={() => setFiltro(key)} style={[s.filterChip, { flexDirection: 'row', alignItems: 'center', gap: 5 }, filtro === key && s.filterChipActive]}>
+                <Text style={[s.filterChipText, filtro === key && s.filterChipTextActive]}>{label}</Text>
+                <View style={[s.countBadge, urgente ? s.redBadge : filtro === key ? { backgroundColor: 'rgba(255,255,255,0.25)' } : { backgroundColor: '#e2e8f0' }]}>
+                  <Text style={[s.redBadgeText, !urgente && { color: filtro === key ? '#fff' : '#64748b' }]}>{total}</Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
         </View>
       )}
 
@@ -1356,6 +1374,7 @@ const s = StyleSheet.create({
   filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4, backgroundColor: '#f8fafc' },
   filterChip: { paddingHorizontal: 11, paddingVertical: 6, borderRadius: 20, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e2e8f0' },
   filterChipActive: { backgroundColor: GREEN, borderColor: GREEN },
+  countBadge: { minWidth: 16, height: 16, borderRadius: 8, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center' },
   redBadge: { minWidth: 16, height: 16, borderRadius: 8, paddingHorizontal: 4, backgroundColor: '#ef4444', alignItems: 'center', justifyContent: 'center' },
   redBadgeText: { color: '#fff', fontSize: 9, fontWeight: '800' },
   filterChipText: { fontSize: 11, fontWeight: '700', color: '#64748b' },

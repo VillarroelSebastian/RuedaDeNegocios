@@ -298,6 +298,18 @@ export class AppController implements OnModuleInit {
     return ee?.evento?.maxParticipantesPorEmpresa ?? 5;
   }
 
+  // Cuántos cupos extra se pueden comprar en UNA sola tanda: el mayor de los
+  // QR de pago adicional que el administrador configuró en el evento (si puso
+  // QR hasta 3 cupos, cada compra llega a 3). No hay tope sobre el total de
+  // participantes: la empresa puede repetir compras. Sin QR no se puede comprar.
+  private async maxCuposPorCompra(eventoId: number): Promise<number> {
+    const reglas = await this.prisma.eventoreglaqr.findMany({
+      where: { evento_id: eventoId, estadoActivo: 1 },
+      select: { rangoHasta: true, urlQR: true },
+    });
+    return reglas.filter((r) => String(r.urlQR ?? '').trim()).reduce((max, r) => Math.max(max, Number(r.rangoHasta) || 0), 0);
+  }
+
   // Capacidades efectivas de una inscripción. El paquete manda; si la empresa
   // se inscribió antes de que existieran los paquetes, se cae a los valores
   // generales del evento para no romper inscripciones antiguas.
@@ -444,6 +456,9 @@ export class AppController implements OnModuleInit {
       data: { estaActivo: 0 },
     });
     await this.ensureMesasExist();
+    // Pagos que ya estaban rechazados antes de esta regla: liberan sus correos y
+    // teléfonos una sola vez (idempotente: los ya liberados se omiten).
+    await this.liberarRechazadosPrevios().catch(() => {});
 
     // Recordatorio de reuniones próximas: cada 60s busca reuniones que comienzan
     // dentro de los próximos 15 minutos y avisa a ambas empresas (una sola vez,
@@ -2023,19 +2038,28 @@ export class AppController implements OnModuleInit {
     const eventoId = await this.getPrincipalEventoId();
     const eventoFilter = eventoId ? { evento_id: eventoId } : {};
 
+    // Foro y empresa comparten el mismo mecanismo de pago, pero son cosas distintas:
+    // cada aviso dice de cuál se trata y se cuentan por separado.
+    const incluirPersona = { empresa: true, empresa_usuario: { where: { esResponsable: 1 }, take: 1, include: { usuario: { select: { nombres: true, apellidoPaterno: true } } } } };
     const pagosPendientes = await this.prisma.empresaevento.findMany({
       where: { ...eventoFilter, estadoVerificacionPago: 'PENDIENTE', estaActivo: 1 },
-      take: 10,
+      take: 15,
       orderBy: { fechaCreacion: 'desc' },
-      include: { empresa: true },
+      include: incluirPersona,
     });
 
     const pagosObservados = await this.prisma.empresaevento.findMany({
       where: { ...eventoFilter, estadoVerificacionPago: 'OBSERVADO', estaActivo: 1 },
       take: 5,
       orderBy: { fechaCreacion: 'desc' },
-      include: { empresa: true },
+      include: incluirPersona,
     });
+    const quien = (ee: any) => {
+      const u = ee.empresa_usuario?.[0]?.usuario;
+      const persona = u ? `${u.nombres} ${u.apellidoPaterno}`.trim() : ee.empresa.nombre;
+      const foro = ee.empresa.rubro === 'Foro';
+      return { foro, persona, institucion: ee.empresa.nombre };
+    };
 
     const pagosAdicionalesPendientes = eventoId
       ? await this.prisma.empresaeventocomprobantes.findMany({
@@ -2075,9 +2099,11 @@ export class AppController implements OnModuleInit {
     const notificaciones = [
       ...pagosPendientes.map((ee) => ({
         id: `pago-${ee.id}`,
-        tipo: 'pago_pendiente',
-        titulo: 'Pago pendiente de verificación',
-        mensaje: `${ee.empresa.nombre} envió un comprobante de pago`,
+        tipo: quien(ee).foro ? 'pago_foro_pendiente' : 'pago_pendiente',
+        titulo: quien(ee).foro ? 'Pago de Foro pendiente' : 'Pago de empresa pendiente',
+        mensaje: quien(ee).foro
+          ? `${quien(ee).persona} (${quien(ee).institucion}) envió su comprobante de inscripción al Foro`
+          : `${ee.empresa.nombre} envió su comprobante de inscripción`,
         fecha: ee.fechaHoraEnvioComprobante?.toISOString() ?? ee.fechaCreacion.toISOString(),
         enlace: `/admin/pagos/${ee.id}`,
         leida: false,
@@ -2085,8 +2111,8 @@ export class AppController implements OnModuleInit {
       ...pagosObservados.map((ee) => ({
         id: `obs-${ee.id}`,
         tipo: 'pago_observado',
-        titulo: 'Pago con observación',
-        mensaje: `${ee.empresa.nombre} tiene un pago con observaciones`,
+        titulo: quien(ee).foro ? 'Pago de Foro con observación' : 'Pago de empresa con observación',
+        mensaje: quien(ee).foro ? `${quien(ee).persona} tiene un pago de Foro con observaciones` : `${ee.empresa.nombre} tiene un pago con observaciones`,
         fecha: ee.fechaCreacion.toISOString(),
         enlace: `/admin/pagos/${ee.id}`,
         leida: false,
@@ -2778,6 +2804,8 @@ export class AppController implements OnModuleInit {
         empresa: { include: { ciudad: true } },
         evento: true,
         empresaeventocomprobantes: { where: { estaActivo: 1 } },
+        // Para el foro, la "empresa" es solo un cascarón: lo que importa es la persona.
+        empresa_usuario: { where: { esResponsable: 1 }, take: 1, include: { usuario: { select: { id: true, nombres: true, apellidoPaterno: true, apellidoMaterno: true, correo: true } } } },
       },
     });
     const total = await this.prisma.empresaevento.count({ where });
@@ -3027,7 +3055,58 @@ export class AppController implements OnModuleInit {
 
     await this.notificar((ee as any).id, 'pago:rechazado', 'Pago rechazado',
       `Tu comprobante de pago fue rechazado. Motivo: ${(body as any).motivo}`);
+    // Con el pago rechazado esos correos y teléfonos quedan libres para volver a
+    // registrarse (el aviso de arriba ya salió con los datos originales).
+    await this.liberarIdentificadoresRechazo(Number((ee as any).id));
     return ee;
+  }
+
+  private async liberarRechazadosPrevios() {
+    const rechazados = await this.prisma.empresaevento.findMany({
+      where: { estadoVerificacionPago: 'RECHAZADO', estaActivo: 1, empresa: { NOT: { correoCorporativo: { endsWith: '@correo-liberado.invalid' } } } },
+      select: { id: true },
+    });
+    for (const r of rechazados) await this.liberarIdentificadoresRechazo(r.id);
+  }
+
+  // Un pago rechazado deja la inscripción en el historial, pero sus personas y
+  // su empresa dejan de "ocupar" correo y teléfono: se reemplazan por valores
+  // generados e irrepetibles, sin borrar nada. Así esas personas pueden volver
+  // a registrarse con los mismos datos y el sistema sigue sin admitir repetidos.
+  // Si una persona tiene otra inscripción activa, su cuenta no se toca.
+  private async liberarIdentificadoresRechazo(eeId: number) {
+    const sufijo = `${Date.now().toString(36)}${randomBytes(2).toString('hex')}`;
+    const vinculos = await this.prisma.empresa_usuario.findMany({
+      where: { empresaevento_id: eeId },
+      select: { id: true, usuario_id: true, empresa_id: true },
+    });
+    await this.prisma.$transaction(async (tx) => {
+      for (const v of vinculos) {
+        await tx.empresa_usuario.update({ where: { id: v.id }, data: { telefonoEvento: null } });
+        const otras = await tx.empresa_usuario.count({
+          where: { usuario_id: v.usuario_id, estaActivo: 1, empresaevento_id: { not: eeId }, empresaevento: { estaActivo: 1 } },
+        });
+        if (otras > 0) continue;
+        await tx.usuario.update({
+          where: { id: v.usuario_id },
+          data: {
+            correo: `rechazado-${v.usuario_id}-${sufijo}@correo-liberado.invalid`,
+            telefono: `LIBERADO-${v.usuario_id}`,
+            estaActivo: 0, creadoModificadoFecha: new Date(),
+          },
+        });
+      }
+      const empresaIds = [...new Set(vinculos.map((v) => v.empresa_id))];
+      for (const empresaId of empresaIds) {
+        await tx.empresa.update({
+          where: { id: empresaId },
+          data: {
+            correoCorporativo: `rechazado-${empresaId}-${sufijo}@correo-liberado.invalid`,
+            telefonoWhatsapp: `LIBERADO-${empresaId}`,
+          },
+        });
+      }
+    });
   }
 
   // ─── ACTIVIDADES DEL PROGRAMA ────────────────────────────────────────────────
@@ -9476,7 +9555,12 @@ export class AppController implements OnModuleInit {
     const slotsUsados = activos.length;
     const slotsPagados = ee.numeroParticipantes;
     const slotsDisponibles = Math.max(0, slotsPagados - slotsUsados);
-    const maxPermitidos = this.maxParticipantesDe(ee);
+    // Ya no hay tope de personas por empresa: lo único que limita es cuántos
+    // cupos extra se pueden comprar por tanda (QR configurados por el admin).
+    const maxPorCompra = await this.maxCuposPorCompra(ee.evento_id);
+    // `maxPermitidos` se mantiene (= pagados + una tanda) para las apps ya
+    // instaladas, que lo usan para calcular cuántos cupos se pueden pedir.
+    const maxPermitidos = slotsPagados + maxPorCompra;
 
     const pagos = (ee as any).empresaeventocomprobantes.map((c: any) => ({
       id: c.id, tipoPago: c.tipoPago, cantidadParticipantes: c.cantidadParticipantes,
@@ -9488,7 +9572,7 @@ export class AppController implements OnModuleInit {
     );
 
     return {
-      slotsUsados, slotsPagados, slotsDisponibles, maxPermitidos, pagoAdicionalPendiente,
+      slotsUsados, slotsPagados, slotsDisponibles, maxPermitidos, maxPorCompra, pagoAdicionalPendiente,
       participantes: (ee as any).empresa_usuario.map((eu: any) => ({
         id: eu.id, esResponsable: eu.esResponsable === 1, cargo: eu.cargo, estaActivo: eu.estaActivo === 1,
         usuario: this.datosUsuarioDeInscripcion(eu),
@@ -9527,17 +9611,9 @@ export class AppController implements OnModuleInit {
 
     const slotsUsados = (ee as any).empresa_usuario.length;
     const slotsPagados = ee.numeroParticipantes;
-    const maxPermitidos = this.maxParticipantesDe(ee);
 
+    // Solo cuentan los cupos pagados: no hay otro tope de participantes.
     if (slotsUsados >= slotsPagados) throw new BadRequestException('No hay cupos pagados disponibles. Solicita cupos adicionales.');
-    if (slotsUsados >= maxPermitidos) {
-      const paq = (ee as any).paquete?.nombre;
-      throw new BadRequestException(
-        paq
-          ? `Tu ${paq} permite hasta ${maxPermitidos} participantes y ya los tienes registrados. Cambia de paquete para sumar más personas.`
-          : `No puedes agregar más participantes porque superarías el máximo permitido (${maxPermitidos}) por las reglas del evento.`,
-      );
-    }
 
     const correoNorm = correo.trim().toLowerCase();
     const existeUser = await this.prisma.usuario.findFirst({
@@ -9574,7 +9650,7 @@ export class AppController implements OnModuleInit {
 
     const { nuevoUsuario, nuevoEu } = await this.prisma.$transaction(async (tx) => {
       const usadosActuales = await tx.empresa_usuario.count({ where: { empresaevento_id: Number(eeId), estaActivo: 1 } });
-      if (usadosActuales >= slotsPagados || usadosActuales >= maxPermitidos)
+      if (usadosActuales >= slotsPagados)
         throw new BadRequestException('No quedan cupos disponibles para agregar otro participante.');
       const nuevoUsuario = existeUser
         ? await tx.usuario.update({
@@ -9724,14 +9800,7 @@ export class AppController implements OnModuleInit {
 
     const slotsUsados = (ee as any).empresa_usuario.length;
     const slotsPagados = ee.numeroParticipantes;
-    const maxPermitidos = this.maxParticipantesDe(ee);
     if (slotsUsados >= slotsPagados) throw new BadRequestException('No hay cupos pagados disponibles para reactivar a este participante.');
-    if (slotsUsados >= maxPermitidos) {
-      const paq = (ee as any).paquete?.nombre;
-      throw new BadRequestException(
-        paq ? `Tu ${paq} permite hasta ${maxPermitidos} participantes y ya los tienes activos.` : `Superarías el máximo permitido (${maxPermitidos}) de participantes.`,
-      );
-    }
 
     await this.prisma.empresa_usuario.update({ where: { id: Number(euId) }, data: { estaActivo: 1 } });
     await this.prisma.usuario.update({ where: { id: eu.usuario_id }, data: { estaActivo: 1 } });
@@ -9748,6 +9817,9 @@ export class AppController implements OnModuleInit {
     });
     if (!ee) throw new BadRequestException('Empresa no encontrada.');
     const nuevos = Math.max(1, Number(cantidad));
+    const maxPorCompra = await this.maxCuposPorCompra(ee.evento_id);
+    if (maxPorCompra < 1 || nuevos > maxPorCompra)
+      throw new BadRequestException(maxPorCompra < 1 ? 'El organizador todavía no habilitó la compra de cupos adicionales.' : `Puedes pedir hasta ${maxPorCompra} cupo(s) adicional(es) por compra.`);
     const total = ee.numeroParticipantes + nuevos;
     // Un QR por cantidad de cupos adicionales (ya no por el total resultante
     // de participantes): se busca el que coincide exactamente con lo pedido.
@@ -9789,11 +9861,16 @@ export class AppController implements OnModuleInit {
     });
     if (!ee) throw new BadRequestException('EmpresaEvento no encontrada');
 
-    const maxPermitidos = this.maxParticipantesDe(ee);
-    const slotsTotalesConNuevos = ee.numeroParticipantes + Number(cantidadParticipantes);
-
-    if (slotsTotalesConNuevos > maxPermitidos)
-      throw new BadRequestException(`No puedes solicitar ${cantidadParticipantes} cupos adicionales porque superarías el máximo permitido de ${maxPermitidos} participantes por empresa.`);
+    // El límite es por compra: hasta el mayor QR de cupos adicionales que el
+    // administrador configuró; no hay tope sobre el total de participantes.
+    const maxPorCompra = await this.maxCuposPorCompra(ee.evento_id);
+    const cantidad = Number(cantidadParticipantes);
+    if (!Number.isInteger(cantidad) || cantidad < 1)
+      throw new BadRequestException('Indica cuántos cupos adicionales necesitas.');
+    if (maxPorCompra < 1)
+      throw new BadRequestException('El organizador todavía no habilitó la compra de cupos adicionales.');
+    if (cantidad > maxPorCompra)
+      throw new BadRequestException(`Puedes pedir hasta ${maxPorCompra} cupo(s) adicional(es) por compra. Si necesitas más, haz otra compra después de que se apruebe esta.`);
 
     const costo = ((ee as any).evento?.costoParticipanteExtra ?? 0) * Number(cantidadParticipantes);
 
@@ -9887,10 +9964,7 @@ export class AppController implements OnModuleInit {
     if (!comp) throw new BadRequestException('Comprobante adicional no encontrado o ya procesado');
 
     const ee = (comp as any).empresaevento;
-    const maxPermitidos = this.maxParticipantesDe(ee);
     const nuevoTotal = ee.numeroParticipantes + (comp as any).cantidadParticipantes;
-    if (nuevoTotal > maxPermitidos)
-      throw new BadRequestException(`Aprobar este pago superaría el máximo de ${maxPermitidos} participantes por empresa`);
 
     await this.prisma.$transaction(async (tx) => {
       const claimed = await tx.empresaeventocomprobantes.updateMany({
@@ -9938,16 +10012,24 @@ export class AppController implements OnModuleInit {
   @Get('admin/pagos-resumen')
   async getPagosResumenAdmin() {
     const eventoId = await this.getPrincipalEventoId();
-    if (!eventoId) return { iniciales: 0, adicionales: 0, mejoras: 0, total: 0 };
+    if (!eventoId) return { iniciales: 0, foro: 0, adicionales: 0, mejoras: 0, total: 0 };
     const comprobantes = (tipoPago: string) => this.prisma.empresaeventocomprobantes.count({
       where: { tipoPago, estadoPago: 'PENDIENTE', estaActivo: 1, empresaevento: { evento_id: eventoId, estaActivo: 1 } },
     });
-    const [iniciales, adicionales, mejoras] = await Promise.all([
-      this.prisma.empresaevento.count({ where: { evento_id: eventoId, estaActivo: 1, estadoVerificacionPago: 'PENDIENTE' } }),
+    // Los pagos de Foro se cuentan aparte: se gestionan en Foro · Personal.
+    const pendientesIniciales = (esForo: boolean) => this.prisma.empresaevento.count({
+      where: {
+        evento_id: eventoId, estaActivo: 1, estadoVerificacionPago: 'PENDIENTE',
+        empresa_usuario: { some: { usuario: { rolEvento: esForo ? 'FORO' : { not: 'FORO' } } } },
+      },
+    });
+    const [iniciales, foro, adicionales, mejoras] = await Promise.all([
+      pendientesIniciales(false),
+      pendientesIniciales(true),
       comprobantes('ADICIONAL'),
       comprobantes('MEJORA'),
     ]);
-    return { iniciales, adicionales, mejoras, total: iniciales + adicionales + mejoras };
+    return { iniciales, foro, adicionales, mejoras, total: iniciales + adicionales + mejoras };
   }
 
   // ─── Admin: mejoras de paquete ─────────────────────────────────────────────

@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { CreditCard, ChevronRight, Clock, CheckCircle, AlertCircle } from 'lucide-react-native';
 import { API_URL } from '../../utils/userStore';
+import { usePagosPendientes } from '../../hooks/usePagosPendientes';
 
 const GREEN = '#449D3A';
 
@@ -18,6 +19,9 @@ const TABS = [
 
 export default function PagosScreen({ navigation, embedded = false }: any) {
   const [tab, setTab] = useState('');
+  // Inscripciones de empresa o de Foro: usan el mismo pago, pero se gestionan por separado.
+  const [tipo, setTipo] = useState<'EMPRESA' | 'FORO'>('EMPRESA');
+  const pendientes = usePagosPendientes();
   const [pagos, setPagos] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -25,14 +29,14 @@ export default function PagosScreen({ navigation, embedded = false }: any) {
 
   const fetchPagos = useCallback(async () => {
     try {
-      const params = new URLSearchParams({ page: '1', limit: '30', ...(tab && { estado: tab }) });
+      const params = new URLSearchParams({ page: '1', limit: '30', ...(tab && { estado: tab }), ...(tipo === 'FORO' && { tipo: 'FORO' }) });
       const res = await fetch(`${API_URL}/admin/pagos?${params}`);
       const data = await res.json();
       setPagos(data.data || []);
       setTotal(data.total || 0);
     } catch {}
     finally { setLoading(false); setRefreshing(false); }
-  }, [tab]);
+  }, [tab, tipo]);
 
   useEffect(() => { setLoading(true); fetchPagos(); }, [fetchPagos]);
 
@@ -60,6 +64,16 @@ export default function PagosScreen({ navigation, embedded = false }: any) {
             <Text className="text-sm text-gray-500 mt-1">Verifica y aprueba comprobantes de pago</Text>
           </>
         )}
+        {/* Empresa / Foro */}
+        <View className={embedded ? 'flex-row gap-2 mb-2' : 'flex-row gap-2 mt-3 mb-1'}>
+          {([['EMPRESA', 'Empresas', pendientes.iniciales], ['FORO', 'Foro · Personal', pendientes.foro]] as const).map(([val, label, n]) => (
+            <TouchableOpacity key={val} onPress={() => setTipo(val)} activeOpacity={0.8}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12, borderWidth: 1.5, borderColor: tipo === val ? GREEN : '#e5e7eb', backgroundColor: tipo === val ? '#f0fdf4' : '#fff' }}>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: tipo === val ? '#166534' : '#6b7280' }}>{label}</Text>
+              {n > 0 && <View style={{ minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 5, backgroundColor: '#ef4444', alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: '#fff', fontSize: 10, fontWeight: '800' }}>{n}</Text></View>}
+            </TouchableOpacity>
+          ))}
+        </View>
         {/* Tabs */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} className={embedded ? "-mx-4 px-4" : "mt-3 -mx-4 px-4"}>
           <View className="flex-row gap-2">
@@ -103,8 +117,8 @@ export default function PagosScreen({ navigation, embedded = false }: any) {
               >
                 <View className="flex-row items-start justify-between">
                   <View className="flex-1">
-                    <Text className="font-bold text-gray-900 text-sm">{pago.empresa?.nombre}</Text>
-                    <Text className="text-xs text-gray-500 mt-0.5">{pago.empresa?.ciudad?.nombre} · {pago.empresa?.rubro}</Text>
+                    <Text className="font-bold text-gray-900 text-sm">{tipo === 'FORO' && pago.empresa_usuario?.[0]?.usuario ? `${pago.empresa_usuario[0].usuario.nombres} ${pago.empresa_usuario[0].usuario.apellidoPaterno}` : pago.empresa?.nombre}</Text>
+                    <Text className="text-xs text-gray-500 mt-0.5">{tipo === 'FORO' ? `Foro · ${pago.empresa?.nombre ?? ''}` : `${pago.empresa?.ciudad?.nombre} · ${pago.empresa?.rubro}`}</Text>
                   </View>
                   {badgeEstado(pago.estadoVerificacionPago)}
                 </View>

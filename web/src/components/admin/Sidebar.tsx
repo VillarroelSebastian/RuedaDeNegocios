@@ -127,6 +127,11 @@ export default function Sidebar() {
                   {pagosPendientes.total > 99 ? '99+' : pagosPendientes.total}
                 </span>
               )}
+              {item.href === '/admin/foro' && pagosPendientes.foro > 0 && (
+                <span className="min-w-5 h-5 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                  {pagosPendientes.foro > 99 ? '99+' : pagosPendientes.foro}
+                </span>
+              )}
             </Link>
           );
         })}

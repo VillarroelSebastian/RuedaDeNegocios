@@ -10,7 +10,19 @@ import { StatusBar } from 'expo-status-bar';
 // y el encabezado quedaba bajo la barra de estado.
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { API_URL } from '../utils/userStore';
-import { LIMITES, correoValido, validarNombreEmpresa, limpiarEspacios, validarNombrePersona } from '../utils/validaciones';
+import { LIMITES, correoValido, validarNombreEmpresa, limpiarEspacios, validarNombrePersona, sinEspacios, soloNombre, textoLibre, REGEX_TEXTO_LIBRE } from '../utils/validaciones';
+import { dialDePais, validarTelefonoCompleto } from '../utils/telefono';
+import TelefonoInput from '../components/TelefonoInput';
+import { Building2, User, Check, FileText, ChevronLeft, CheckCircle2, XCircle, AlertTriangle, HelpCircle, Map as MapIcon, QrCode, Paperclip } from 'lucide-react-native';
+
+// Filtro al escribir según el campo de un participante: nombres sin dígitos ni
+// símbolos, cargo con texto básico y correo sin espacios en minúsculas.
+function filtrarCampoPersona(campo: string, v: string): string {
+  if (campo === 'nombre' || campo === 'apellido') return soloNombre(v);
+  if (campo === 'cargo') return textoLibre(v);
+  if (campo === 'correo') return sinEspacios(v).toLowerCase();
+  return v;
+}
 
 // Los rubros viven en ../constants/rubros para no repetirlos entre pantallas.
 
@@ -59,18 +71,18 @@ function AppModal({ visible, type, title, message, onClose, onConfirm }: {
   visible: boolean; type: ModalType; title: string; message: string;
   onClose: () => void; onConfirm?: () => void;
 }) {
-  const colors: Record<ModalType, { bg: string; border: string; icon: string }> = {
-    success: { bg: '#f0fdf4', border: '#86efac', icon: '✅' },
-    error:   { bg: '#fef2f2', border: '#fca5a5', icon: '❌' },
-    warning: { bg: '#fffbeb', border: '#fcd34d', icon: '⚠️' },
-    confirm: { bg: '#f0f9ff', border: '#7dd3fc', icon: '❓' },
+  const colors: Record<ModalType, { bg: string; border: string; Icon: any; color: string }> = {
+    success: { bg: '#f0fdf4', border: '#86efac', Icon: CheckCircle2, color: '#16a34a' },
+    error:   { bg: '#fef2f2', border: '#fca5a5', Icon: XCircle, color: '#dc2626' },
+    warning: { bg: '#fffbeb', border: '#fcd34d', Icon: AlertTriangle, color: '#d97706' },
+    confirm: { bg: '#f0f9ff', border: '#7dd3fc', Icon: HelpCircle, color: '#0284c7' },
   };
   const c = colors[type];
   return (
     <RNModal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
         <View style={{ backgroundColor: c.bg, borderWidth: 1, borderColor: c.border, borderRadius: 20, padding: 24, width: '100%', maxWidth: 360 }}>
-          <Text style={{ fontSize: 32, textAlign: 'center', marginBottom: 8 }}>{c.icon}</Text>
+          <View style={{ alignItems: 'center', marginBottom: 10 }}><c.Icon size={36} color={c.color} /></View>
           <Text style={{ fontSize: 18, fontWeight: '700', color: '#111827', textAlign: 'center', marginBottom: 8 }}>{title}</Text>
           <Text style={{ fontSize: 14, color: '#4b5563', textAlign: 'center', lineHeight: 20, marginBottom: 20 }}>{message}</Text>
           <View style={{ flexDirection: 'row', gap: 12 }}>
@@ -124,7 +136,7 @@ function PickerModal({ visible, title, items, selected, onSelect, onClose }: {
                 onPress={() => { onSelect(item); onClose(); }}
               >
                 <Text style={{ fontSize: 14, color: '#111827' }}>{item}</Text>
-                {selected === item && <Text style={{ color: '#5B9A27' }}>✓</Text>}
+                {selected === item && <Check size={16} color='#5B9A27' strokeWidth={3} />}
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -144,7 +156,7 @@ function StepBar({ step }: { step: number }) {
           <React.Fragment key={label}>
             <View style={{ alignItems: 'center' }}>
               <View style={{ width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: i <= step ? '#5B9A27' : '#e5e7eb' }}>
-                <Text style={{ color: i <= step ? '#fff' : '#9ca3af', fontWeight: '700', fontSize: 12 }}>{i < step ? '✓' : String(i + 1)}</Text>
+                {i < step ? <Check size={14} color='#fff' strokeWidth={3} /> : <Text style={{ color: i <= step ? '#fff' : '#9ca3af', fontWeight: '700', fontSize: 12 }}>{String(i + 1)}</Text>}
               </View>
               <Text style={{ fontSize: 9, color: i <= step ? '#5B9A27' : '#9ca3af', marginTop: 3, fontWeight: i === step ? '700' : '400' }}>{label}</Text>
             </View>
@@ -484,7 +496,7 @@ function RegistroEmpresaScreen({ navigation, tipo = 'empresa' }: any) {
         <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets contentContainerStyle={{ padding: 20 }}>
           <View style={{ alignItems: 'center', marginBottom: 24 }}>
             <View style={{ width: 72, height: 72, backgroundColor: '#dcfce7', borderRadius: 36, alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
-              <Text style={{ fontSize: 36 }}>✅</Text>
+              <CheckCircle2 size={40} color='#16a34a' />
             </View>
             <Text style={{ fontSize: 22, fontWeight: '800', color: '#111827', textAlign: 'center' }}>¡Registro completado!</Text>
             <Text style={{ fontSize: 14, color: '#6b7280', textAlign: 'center', marginTop: 8, lineHeight: 20 }}>
@@ -552,7 +564,7 @@ function RegistroEmpresaScreen({ navigation, tipo = 'empresa' }: any) {
                 </TouchableOpacity>
               ) : (
                 <View style={{ height: 80, backgroundColor: '#1f2937', alignItems: 'center', justifyContent: 'center' }}>
-                  <Text style={{ fontSize: 28 }}>🗺️</Text>
+                  <MapIcon size={30} color='#9ca3af' />
                 </View>
               )}
               <View style={{ padding: 16 }}>
@@ -648,7 +660,7 @@ function RegistroEmpresaScreen({ navigation, tipo = 'empresa' }: any) {
               </Field>
 
               <Field label="Teléfono / WhatsApp *">
-                <TextInput style={inp} value={telefonoWA} onChangeText={setTelefonoWA} placeholder="+591 7XXXXXXX" placeholderTextColor="#9ca3af" keyboardType="phone-pad" />
+                <TelefonoInput value={telefonoWA} onChange={setTelefonoWA} dialDefecto={dialDePais(paisFinal)} />
               </Field>
 
               <Field label="Sitio web">
@@ -740,7 +752,7 @@ function RegistroEmpresaScreen({ navigation, tipo = 'empresa' }: any) {
                 </View>
               ) : (
                 <View style={{ backgroundColor: '#f9fafb', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 16, padding: 24, alignItems: 'center', marginBottom: 16 }}>
-                  <Text style={{ fontSize: 32, marginBottom: 8 }}>📷</Text>
+                  <View style={{ marginBottom: 8 }}><QrCode size={34} color='#9ca3af' /></View>
                   <Text style={{ color: '#6b7280', textAlign: 'center', fontSize: 13 }}>No hay QR configurado. Contacta al administrador.</Text>
                 </View>
               )}
@@ -755,7 +767,7 @@ function RegistroEmpresaScreen({ navigation, tipo = 'empresa' }: any) {
                         onPress={() => abrirEnlace(comprobanteUrl)}
                         style={{ width: '100%', minHeight: 150, borderRadius: 12, backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center', padding: 20 }}
                       >
-                        <Text style={{ fontSize: 38, marginBottom: 8 }}>📄</Text>
+                        <View style={{ marginBottom: 8 }}><FileText size={40} color='#64748b' /></View>
                         <Text style={{ fontSize: 13, fontWeight: '700', color: '#334155', textAlign: 'center' }}>{comprobanteNombre || 'Comprobante PDF'}</Text>
                         <Text style={{ fontSize: 11, color: '#64748b', marginTop: 6 }}>Toca para abrir el documento completo</Text>
                       </TouchableOpacity>
@@ -777,7 +789,7 @@ function RegistroEmpresaScreen({ navigation, tipo = 'empresa' }: any) {
                   >
                     {uploadingFile ? <ActivityIndicator color="#5B9A27" /> : (
                       <>
-                        <Text style={{ fontSize: 28, marginBottom: 8 }}>📎</Text>
+                        <View style={{ marginBottom: 8 }}><Paperclip size={30} color='#9ca3af' /></View>
                         <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151' }}>Seleccionar comprobante</Text>
                         <Text style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>JPG, PNG, WEBP o PDF · Máximo 10 MB</Text>
                       </>
@@ -789,7 +801,7 @@ function RegistroEmpresaScreen({ navigation, tipo = 'empresa' }: any) {
               {/* Confirmación */}
               <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 }} onPress={() => setConfirmadoPago(!confirmadoPago)}>
                 <View style={{ width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: confirmadoPago ? '#5B9A27' : '#d1d5db', backgroundColor: confirmadoPago ? '#5B9A27' : '#fff', alignItems: 'center', justifyContent: 'center' }}>
-                  {confirmadoPago && <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>✓</Text>}
+                  {confirmadoPago && <Check size={14} color='#fff' strokeWidth={3} />}
                 </View>
                 <Text style={{ fontSize: 13, color: '#374151', flex: 1 }}>
                   Confirmo que he realizado el pago y adjunto el comprobante correctamente.
@@ -811,15 +823,20 @@ function RegistroEmpresaScreen({ navigation, tipo = 'empresa' }: any) {
                 <Text style={{ fontSize: 14, fontWeight: '700', color: '#111827', marginBottom: 12 }}>Responsable principal *</Text>
                 {(['nombre', 'apellido', 'cargo', 'correo', 'telefono'] as const).map(field => (
                   <Field key={field} label={`${field.charAt(0).toUpperCase() + field.slice(1)} *`}>
-                    <TextInput
-                      style={inp}
-                      value={responsable[field]}
-                      onChangeText={v => setResponsable(r => ({ ...r, [field]: v }))}
-                      placeholder={field === 'correo' ? 'correo@ejemplo.com' : field === 'telefono' ? '+591 7XXXXXXX' : field.charAt(0).toUpperCase() + field.slice(1)}
-                      placeholderTextColor="#9ca3af"
-                      keyboardType={field === 'correo' ? 'email-address' : field === 'telefono' ? 'phone-pad' : 'default'}
-                      autoCapitalize={field === 'correo' ? 'none' : 'words'}
-                    />
+                    {field === 'telefono' ? (
+                      <TelefonoInput value={responsable.telefono} dialDefecto={dialDePais(paisFinal)} onChange={v => setResponsable(r => ({ ...r, telefono: v }))} />
+                    ) : (
+                      <TextInput
+                        style={inp}
+                        value={responsable[field]}
+                        onChangeText={v => setResponsable(r => ({ ...r, [field]: filtrarCampoPersona(field, v) }))}
+                        placeholder={field === 'correo' ? 'correo@ejemplo.com' : field.charAt(0).toUpperCase() + field.slice(1)}
+                        placeholderTextColor="#9ca3af"
+                        keyboardType={field === 'correo' ? 'email-address' : 'default'}
+                        autoCapitalize={field === 'correo' ? 'none' : 'words'}
+                        maxLength={field === 'correo' ? 105 : 65}
+                      />
+                    )}
                   </Field>
                 ))}
               </View>
@@ -835,15 +852,20 @@ function RegistroEmpresaScreen({ navigation, tipo = 'empresa' }: any) {
                   </View>
                   {(['nombre', 'apellido', 'cargo', 'correo', 'telefono'] as const).map(field => (
                     <Field key={field} label={`${field.charAt(0).toUpperCase() + field.slice(1)} *`}>
-                      <TextInput
-                        style={inp}
-                        value={p[field]}
-                        onChangeText={v => setAdicionales(arr => arr.map((x, j) => j === i ? { ...x, [field]: v } : x))}
-                        placeholder={field === 'correo' ? 'correo@ejemplo.com' : field === 'telefono' ? '+591 7XXXXXXX' : field.charAt(0).toUpperCase() + field.slice(1)}
-                        placeholderTextColor="#9ca3af"
-                        keyboardType={field === 'correo' ? 'email-address' : field === 'telefono' ? 'phone-pad' : 'default'}
-                        autoCapitalize={field === 'correo' ? 'none' : 'words'}
-                      />
+                      {field === 'telefono' ? (
+                        <TelefonoInput value={p.telefono} dialDefecto={dialDePais(paisFinal)} onChange={v => setAdicionales(arr => arr.map((x, j) => j === i ? { ...x, telefono: v } : x))} />
+                      ) : (
+                        <TextInput
+                          style={inp}
+                          value={p[field]}
+                          onChangeText={v => setAdicionales(arr => arr.map((x, j) => j === i ? { ...x, [field]: filtrarCampoPersona(field, v) } : x))}
+                          placeholder={field === 'correo' ? 'correo@ejemplo.com' : field.charAt(0).toUpperCase() + field.slice(1)}
+                          placeholderTextColor="#9ca3af"
+                          keyboardType={field === 'correo' ? 'email-address' : 'default'}
+                          autoCapitalize={field === 'correo' ? 'none' : 'words'}
+                          maxLength={field === 'correo' ? 105 : 65}
+                        />
+                      )}
                     </Field>
                   ))}
                 </View>
@@ -956,8 +978,10 @@ function RegistroForoScreen({ navigation }: any) {
     const errApellidos = validarNombrePersona(apellidos, 'Tus apellidos');
     if (errApellidos) return showModal('warning', 'Revisa tus datos', errApellidos);
     if (!correoValido(correo)) return showModal('warning', 'Falta un dato', 'Escribe un correo válido.');
-    if (telefono.trim().length < 6) return showModal('warning', 'Falta un dato', 'Escribe un teléfono válido.');
-    if (institucion.trim().length < 2) return showModal('warning', 'Falta un dato', 'Escribe tu institución u organización.');
+    const errTel = validarTelefonoCompleto(telefono, 'Tu teléfono');
+    if (errTel) return showModal('warning', 'Falta un dato', errTel);
+    if (profesion.trim() && !REGEX_TEXTO_LIBRE.test(profesion.trim())) return showModal('warning', 'Revisa tus datos', 'La profesión solo puede contener letras, números y . , - / ( ).');
+    if (institucion.trim().length < 2 || !REGEX_TEXTO_LIBRE.test(institucion.trim())) return showModal('warning', 'Falta un dato', 'Escribe tu institución u organización (letras, números y . , & - / ( )).');
     if (!comprobanteUrl) return showModal('warning', 'Falta el comprobante', 'Sube tu comprobante de pago para completar el registro.');
     if (submittingRef.current) return;
     submittingRef.current = true;
@@ -988,7 +1012,7 @@ function RegistroForoScreen({ navigation }: any) {
       <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
           <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#f0fdf4', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
-            <Text style={{ fontSize: 32 }}>✓</Text>
+            <Check size={36} color="#449D3A" strokeWidth={3} />
           </View>
           <Text style={{ fontSize: 20, fontWeight: '800', color: '#111827', marginBottom: 8, textAlign: 'center' }}>¡Registro recibido!</Text>
           <Text style={{ fontSize: 14, color: '#6b7280', textAlign: 'center', marginBottom: 24, lineHeight: 20 }}>
@@ -1009,31 +1033,28 @@ function RegistroForoScreen({ navigation }: any) {
       <AppModal {...modal} onClose={closeModal} />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={{ padding: 20 }} keyboardShouldPersistTaps="handled">
-          <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginBottom: 16 }}>
-            <Text style={{ fontSize: 14, fontWeight: '700', color: '#6b7280' }}>← Volver</Text>
-          </TouchableOpacity>
           <Text style={{ fontSize: 22, fontWeight: '800', color: '#111827', marginBottom: 4 }}>Registro · Foro Personal</Text>
           <Text style={{ fontSize: 13, color: '#6b7280', marginBottom: 24 }}>
             Inscripción individual: comunicados, cronograma en vivo, galería y tu credencial de acceso.
           </Text>
 
           <Field label="Nombres *">
-            <TextInput style={inp} value={nombres} onChangeText={setNombres} maxLength={105} placeholder="Tus nombres" placeholderTextColor="#9ca3af" />
+            <TextInput style={inp} value={nombres} onChangeText={(v) => setNombres(soloNombre(v))} autoCapitalize="words" maxLength={105} placeholder="Tus nombres" placeholderTextColor="#9ca3af" />
           </Field>
           <Field label="Apellidos *">
-            <TextInput style={inp} value={apellidos} onChangeText={setApellidos} maxLength={65} placeholder="Tus apellidos" placeholderTextColor="#9ca3af" />
+            <TextInput style={inp} value={apellidos} onChangeText={(v) => setApellidos(soloNombre(v))} autoCapitalize="words" maxLength={65} placeholder="Tus apellidos" placeholderTextColor="#9ca3af" />
           </Field>
           <Field label="Correo electrónico *">
-            <TextInput style={inp} value={correo} onChangeText={setCorreo} maxLength={105} keyboardType="email-address" autoCapitalize="none" placeholder="correo@ejemplo.com" placeholderTextColor="#9ca3af" />
+            <TextInput style={inp} value={correo} onChangeText={(v) => setCorreo(sinEspacios(v).toLowerCase())} maxLength={105} keyboardType="email-address" autoCapitalize="none" placeholder="correo@ejemplo.com" placeholderTextColor="#9ca3af" />
           </Field>
           <Field label="Teléfono *">
-            <TextInput style={inp} value={telefono} onChangeText={setTelefono} maxLength={45} keyboardType="phone-pad" placeholder="+591 ..." placeholderTextColor="#9ca3af" />
+            <TelefonoInput value={telefono} onChange={setTelefono} />
           </Field>
           <Field label="Profesión / Ocupación">
-            <TextInput style={inp} value={profesion} onChangeText={setProfesion} maxLength={100} placeholder="Ej: Ingeniero comercial" placeholderTextColor="#9ca3af" />
+            <TextInput style={inp} value={profesion} onChangeText={(v) => setProfesion(textoLibre(v))} maxLength={100} placeholder="Ej: Ingeniero comercial" placeholderTextColor="#9ca3af" />
           </Field>
           <Field label="Institución *">
-            <TextInput style={inp} value={institucion} onChangeText={setInstitucion} maxLength={105} placeholder="Empresa, universidad u organización" placeholderTextColor="#9ca3af" />
+            <TextInput style={inp} value={institucion} onChangeText={(v) => setInstitucion(textoLibre(v))} maxLength={105} placeholder="Empresa, universidad u organización" placeholderTextColor="#9ca3af" />
           </Field>
 
           <View style={{ marginTop: 10, paddingTop: 18, borderTopWidth: 1, borderTopColor: '#f3f4f6' }}>
@@ -1050,7 +1071,7 @@ function RegistroForoScreen({ navigation }: any) {
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#f0fdf4', borderWidth: 1, borderColor: '#bbf7d0', borderRadius: 12, padding: 12 }}>
                 {comprobanteUrl.toLowerCase().includes('.pdf') ? (
                   <View style={{ width: 40, height: 40, borderRadius: 8, backgroundColor: '#fff', borderWidth: 1, borderColor: '#bbf7d0', alignItems: 'center', justifyContent: 'center' }}>
-                    <Text style={{ fontSize: 16 }}>📄</Text>
+                    <FileText size={20} color="#449D3A" />
                   </View>
                 ) : (
                   <TouchableOpacity onPress={() => setLightboxUrl(comprobanteUrl)}>
@@ -1072,13 +1093,20 @@ function RegistroForoScreen({ navigation }: any) {
             )}
           </View>
 
-          <TouchableOpacity
-            onPress={enviar}
-            disabled={submitting}
-            style={{ backgroundColor: '#449D3A', borderRadius: 12, paddingVertical: 15, alignItems: 'center', marginTop: 20, opacity: submitting ? 0.7 : 1 }}
-          >
-            {submitting ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Completar registro</Text>}
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
+            <TouchableOpacity onPress={() => navigation.goBack()} disabled={submitting}
+              style={{ flex: 1, borderWidth: 1.5, borderColor: '#5B9A27', borderRadius: 12, paddingVertical: 15, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 4, opacity: submitting ? 0.5 : 1 }}>
+              <ChevronLeft size={16} color="#5B9A27" />
+              <Text style={{ color: '#5B9A27', fontWeight: '700', fontSize: 15 }}>Volver</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={enviar}
+              disabled={submitting}
+              style={{ flex: 2, backgroundColor: '#449D3A', borderRadius: 12, paddingVertical: 15, alignItems: 'center', justifyContent: 'center', opacity: submitting ? 0.7 : 1 }}
+            >
+              {submitting ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Completar registro</Text>}
+            </TouchableOpacity>
+          </View>
           <Text style={{ fontSize: 11, color: '#9ca3af', textAlign: 'center', marginTop: 14 }}>
             Tu registro quedará pendiente de verificación de pago; te avisaremos por correo cuando esté habilitado.
           </Text>
@@ -1090,7 +1118,7 @@ function RegistroForoScreen({ navigation }: any) {
 }
 
 // ─── Selector inicial ──────────────────────────────────────────────────────────
-function SelectorTipoRegistro({ onElegir }: { onElegir: (tipo: 'empresa' | 'foro') => void }) {
+function SelectorTipoRegistro({ onElegir, onLogin }: { onElegir: (tipo: 'empresa' | 'foro') => void; onLogin: () => void }) {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
       <StatusBar style="dark" />
@@ -1104,7 +1132,7 @@ function SelectorTipoRegistro({ onElegir }: { onElegir: (tipo: 'empresa' | 'foro
         <TouchableOpacity onPress={() => onElegir('empresa')}
           style={{ backgroundColor: '#fff', borderWidth: 2, borderColor: '#f3f4f6', borderRadius: 18, padding: 20, marginBottom: 14 }}>
           <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: '#f0fdf4', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
-            <Text style={{ fontSize: 22 }}>🏢</Text>
+            <Building2 size={24} color="#449D3A" />
           </View>
           <Text style={{ fontSize: 16, fontWeight: '800', color: '#111827', marginBottom: 4 }}>Empresa</Text>
           <Text style={{ fontSize: 13, color: '#6b7280', lineHeight: 18 }}>
@@ -1114,12 +1142,16 @@ function SelectorTipoRegistro({ onElegir }: { onElegir: (tipo: 'empresa' | 'foro
         <TouchableOpacity onPress={() => onElegir('foro')}
           style={{ backgroundColor: '#fff', borderWidth: 2, borderColor: '#f3f4f6', borderRadius: 18, padding: 20 }}>
           <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: '#f0fdf4', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
-            <Text style={{ fontSize: 22 }}>👤</Text>
+            <User size={24} color="#449D3A" />
           </View>
           <Text style={{ fontSize: 16, fontWeight: '800', color: '#111827', marginBottom: 4 }}>Foro · Personal</Text>
           <Text style={{ fontSize: 13, color: '#6b7280', lineHeight: 18 }}>
             Inscripción individual: comunicados, cronograma en vivo, galería del evento y tu credencial de acceso.
           </Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={onLogin} style={{ marginTop: 26, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 8, paddingHorizontal: 12 }}>
+          <ChevronLeft size={16} color="#6b7280" />
+          <Text style={{ fontSize: 14, fontWeight: '700', color: '#6b7280' }}>Volver a iniciar sesión</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -1130,5 +1162,5 @@ export default function RegistroScreen({ navigation }: any) {
   const [tipo, setTipo] = useState<'empresa' | 'foro' | null>(null);
   if (tipo === 'empresa') return <RegistroEmpresaScreen navigation={navigation} />;
   if (tipo === 'foro') return <RegistroForoScreen navigation={{ ...navigation, goBack: () => setTipo(null) }} />;
-  return <SelectorTipoRegistro onElegir={setTipo} />;
+  return <SelectorTipoRegistro onElegir={setTipo} onLogin={() => navigation.replace('Login')} />;
 }

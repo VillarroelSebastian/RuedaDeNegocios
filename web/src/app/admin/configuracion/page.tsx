@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useModal } from '@/components/ui/Modal';
 import { validarNombrePersona, validarTelefono } from '@/lib/validaciones';
 import EliminarCuenta from "@/components/EliminarCuenta";
+import TelefonoInput from "@/components/TelefonoInput";
+import { soloNombre } from "@/lib/validaciones";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
@@ -321,8 +323,13 @@ export default function ConfiguracionPage() {
               ].map(({ label, key }) => (
                 <div key={key}>
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">{label}</label>
-                  <input value={form[key as keyof typeof form]} onChange={(e) => setF(key, e.target.value)}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
+                  {key === 'telefono' ? (
+                    <TelefonoInput value={form[key as keyof typeof form] as string} onChange={(v) => setF(key, v)}
+                      className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
+                  ) : (
+                    <input value={form[key as keyof typeof form]} onChange={(e) => setF(key, soloNombre(e.target.value))} maxLength={105}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
+                  )}
                 </div>
               ))}
               <div className="col-span-2">

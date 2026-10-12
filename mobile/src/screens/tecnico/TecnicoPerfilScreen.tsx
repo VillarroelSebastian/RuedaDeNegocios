@@ -9,7 +9,8 @@ import { UserCircle, Lock, LogOut, Eye, EyeOff, Shield, Camera } from 'lucide-re
 import * as ImagePicker from 'expo-image-picker';
 import { permisoGaleria } from '../../utils/permisosMedia';
 import { API_URL, userStore } from '../../utils/userStore';
-import { validarNombrePersona, validarTelefono } from '../../utils/validaciones';
+import { validarNombrePersona, validarTelefono, soloNombre } from '../../utils/validaciones';
+import TelefonoInput from '../../components/TelefonoInput';
 import CuentaLegal from '../../components/CuentaLegal';
 import { cerrarSesion } from '../../utils/cerrarSesion';
 
@@ -376,18 +377,23 @@ export default function TecnicoPerfilScreen({ navigation }: any) {
               <Text style={{ fontSize: 12, fontWeight: '600', color: '#374151', marginBottom: 6 }}>
                 {f.label}{f.required ? '' : ' (opcional)'}
               </Text>
-              <TextInput
-                value={f.value}
-                onChangeText={f.set}
-                keyboardType={f.keyboard as any}
-                style={{
-                  backgroundColor: '#f8fafc', borderRadius: 12, borderWidth: 1,
-                  borderColor: '#e5e7eb', paddingHorizontal: 14, paddingVertical: 12,
-                  fontSize: 14, color: '#111827',
-                }}
-                placeholder={f.label}
-                placeholderTextColor="#9ca3af"
-              />
+              {f.label === 'Teléfono' ? (
+                <TelefonoInput value={f.value} onChange={f.set} />
+              ) : (
+                <TextInput
+                  value={f.value}
+                  onChangeText={(v) => f.set(soloNombre(v))}
+                  keyboardType={f.keyboard as any}
+                  autoCapitalize="words"
+                  style={{
+                    backgroundColor: '#f8fafc', borderRadius: 12, borderWidth: 1,
+                    borderColor: '#e5e7eb', paddingHorizontal: 14, paddingVertical: 12,
+                    fontSize: 14, color: '#111827',
+                  }}
+                  placeholder={f.label}
+                  placeholderTextColor="#9ca3af"
+                />
+              )}
             </View>
           ))}
 

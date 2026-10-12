@@ -85,3 +85,15 @@ export function validarTelefono(valor: string, etiqueta = 'El teléfono'): strin
   if (digitos.length > 15) return `${etiqueta} no debe superar los 15 dígitos.`;
   return null;
 }
+
+// Texto libre de formularios (profesión, institución, cargo...): letras con tilde,
+// dígitos, espacios y puntuación básica. Sin emojis ni símbolos raros.
+export const REGEX_TEXTO_LIBRE = /^[a-zA-ZÀ-ÿñÑ0-9\s.,&\-'()/]+$/;
+
+// Filtros para aplicar MIENTRAS se escribe: descartan lo que el campo no admite.
+export function soloNombre(v: string): string {
+  return (v || '').replace(/[^a-zA-ZÀ-ÿñÑ\s'-]/g, '').replace(/\s{2,}/g, ' ').replace(/^\s+/, '');
+}
+export function textoLibre(v: string): string {
+  return (v || '').replace(/[^a-zA-ZÀ-ÿñÑ0-9\s.,&\-'()/]/g, '').replace(/\s{2,}/g, ' ').replace(/^\s+/, '');
+}

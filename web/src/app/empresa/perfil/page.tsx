@@ -11,6 +11,8 @@ import ImagenLightbox from "@/components/ui/ImagenLightbox";
 import { LIMITES, validarNombreEmpresa, validarNombrePersona, validarTelefono } from "@/lib/validaciones";
 import { RUBROS } from "@/lib/rubros";
 import EliminarCuenta from "@/components/EliminarCuenta";
+import TelefonoInput from "@/components/TelefonoInput";
+import { soloNombre, sinEspacios, textoLibre } from "@/lib/validaciones";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
@@ -73,7 +75,7 @@ function AgregarParticipanteModal({ eeId, euEncargadoId, slotsDisponibles, maxPe
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
         <h3 className="font-extrabold text-gray-900">Agregar participante</h3>
         <p className="text-xs text-gray-500">
-          Cupos disponibles: <span className="font-bold text-[#449D3A]">{slotsDisponibles}</span> de {slotsUsados} usados / {maxPermitidos} máximo
+          Cupos disponibles: <span className="font-bold text-[#449D3A]">{slotsDisponibles}</span> · {slotsUsados} en uso de {slotsUsados + slotsDisponibles} pagados
         </p>
         {[
           { label: "Nombres *",             key: "nombres",         type: "text", required: true },
@@ -84,13 +86,24 @@ function AgregarParticipanteModal({ eeId, euEncargadoId, slotsDisponibles, maxPe
         ].map(({ label, key, type, required }) => (
           <div key={key}>
             <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">{label}</label>
-            <input
-              type={type}
-              required={required}
-              value={(form as any)[key]}
-              onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A]"
-            />
+            {key === "telefono" ? (
+              <TelefonoInput value={(form as any)[key]} onChange={(v) => setForm((f) => ({ ...f, telefono: v }))}
+                className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A]" />
+            ) : (
+              <input
+                type={type}
+                required={required}
+                value={(form as any)[key]}
+                maxLength={key === "correo" ? 105 : key === "cargo" ? 55 : 105}
+                onChange={(e) => setForm((f) => ({
+                  ...f,
+                  [key]: key === "nombres" || key === "apellidoPaterno" ? soloNombre(e.target.value)
+                    : key === "correo" ? sinEspacios(e.target.value).toLowerCase()
+                    : key === "cargo" ? textoLibre(e.target.value) : e.target.value,
+                }))}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A]"
+              />
+            )}
           </div>
         ))}
         {err && (
@@ -182,15 +195,15 @@ function PagoAdicionalModal({ eeId, euEncargadoId, maxPermitidos, slotsPagados, 
         {maxAdicionales <= 0 ? (
           <>
             <div className="bg-amber-50 text-amber-700 rounded-xl p-4 text-sm">
-              Has alcanzado el máximo de {maxPermitidos} participantes permitidos. No puedes solicitar más cupos.
+              El organizador todavía no habilitó la compra de cupos adicionales. Escríbele al equipo del evento si necesitas más participantes.
             </div>
             <button onClick={onClose} className="w-full py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50">Cerrar</button>
           </>
         ) : (
           <>
             <p className="text-xs text-gray-500">
-              Cupos actuales: {slotsPagados} pagados. Máximo: {maxPermitidos}. Puedes agregar hasta{" "}
-              <span className="font-bold text-[#449D3A]">{maxAdicionales}</span> cupos más.
+              Cupos actuales: {slotsPagados} pagados. Puedes pedir hasta{" "}
+              <span className="font-bold text-[#449D3A]">{maxAdicionales}</span> cupos por compra; si necesitas más, haz otra compra cuando se apruebe esta.
             </p>
             <div>
               <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Cantidad de cupos adicionales</label>
@@ -842,7 +855,7 @@ export default function EmpresaPerfilPage() {
                       Nombres <span className="text-red-400">*</span>
                     </label>
                     <input type="text" value={form.nombres}
-                      onChange={(e) => setForm((f) => ({ ...f, nombres: e.target.value }))}
+                      onChange={(e) => setForm((f) => ({ ...f, nombres: soloNombre(e.target.value) }))} maxLength={105}
                       className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A]" />
                   </div>
                   <div>
@@ -850,7 +863,7 @@ export default function EmpresaPerfilPage() {
                       Apellido paterno <span className="text-red-400">*</span>
                     </label>
                     <input type="text" value={form.apellidoPaterno}
-                      onChange={(e) => setForm((f) => ({ ...f, apellidoPaterno: e.target.value }))}
+                      onChange={(e) => setForm((f) => ({ ...f, apellidoPaterno: soloNombre(e.target.value) }))} maxLength={65}
                       className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A]" />
                   </div>
                   <div>
@@ -858,16 +871,15 @@ export default function EmpresaPerfilPage() {
                       Apellido materno
                     </label>
                     <input type="text" value={form.apellidoMaterno}
-                      onChange={(e) => setForm((f) => ({ ...f, apellidoMaterno: e.target.value }))}
+                      onChange={(e) => setForm((f) => ({ ...f, apellidoMaterno: soloNombre(e.target.value) }))} maxLength={65}
                       className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A]" />
                   </div>
                   <div>
                     <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">
                       Teléfono
                     </label>
-                    <input type="tel" value={form.telefono}
-                      onChange={(e) => setForm((f) => ({ ...f, telefono: e.target.value }))}
-                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A]" />
+                    <TelefonoInput value={form.telefono} onChange={(v) => setForm((f) => ({ ...f, telefono: v }))}
+                      className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A]" />
                   </div>
                 </div>
                 <div>
@@ -1178,7 +1190,7 @@ export default function EmpresaPerfilPage() {
                 {/* Slot summary cards */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   {[
-                    { label: "Máx. permitidos",  value: maxPermitidos,   color: "text-gray-700" },
+                    { label: "Máx. por compra",  value: Math.max(0, maxPermitidos - slotsPagados), color: "text-gray-700" },
                     { label: "Cupos pagados",     value: slotsPagados,    color: "text-blue-700" },
                     { label: "Cupos usados",      value: slotsUsados,     color: "text-amber-700" },
                     {
@@ -1208,7 +1220,7 @@ export default function EmpresaPerfilPage() {
                   <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-xl p-4">
                     <AlertCircle className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
                     <p className="text-sm text-blue-700">
-                      Has alcanzado el límite máximo de <strong>{maxPermitidos}</strong> participantes permitidos por el evento.
+                      La compra de cupos adicionales no está habilitada por el momento. Consulta con el equipo del evento.
                     </p>
                   </div>
                 )}

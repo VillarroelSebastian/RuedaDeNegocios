@@ -8,6 +8,8 @@ import {
 import { createPortal } from "react-dom";
 import { validarAuspiciador } from "@/lib/validarAuspiciador";
 import { useModal } from "@/components/ui/Modal";
+import TelefonoInput from "@/components/TelefonoInput";
+import { soloNombre, textoLibre, sinEspacios } from "@/lib/validaciones";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
@@ -470,31 +472,30 @@ export default function AuspiciadoresPage() {
                       <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-2">Persona {i + 1}</p>
                       <div className="grid min-w-0 grid-cols-1 md:grid-cols-3 gap-2">
                         <input value={p.nombres || ""} maxLength={105}
-                          onChange={(e) => setPersonas(personas.map((x, j) => j === i ? { ...x, nombres: e.target.value } : x))}
+                          onChange={(e) => setPersonas(personas.map((x, j) => j === i ? { ...x, nombres: soloNombre(e.target.value) } : x))}
                           className="w-full min-w-0 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#449D3A]"
                           placeholder="Nombres *" />
                         <input value={p.apellidoPaterno || ""} maxLength={105}
-                          onChange={(e) => setPersonas(personas.map((x, j) => j === i ? { ...x, apellidoPaterno: e.target.value } : x))}
+                          onChange={(e) => setPersonas(personas.map((x, j) => j === i ? { ...x, apellidoPaterno: soloNombre(e.target.value) } : x))}
                           className="w-full min-w-0 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#449D3A]"
                           placeholder="Apellido paterno *" />
                         <input value={p.apellidoMaterno || ""} maxLength={105}
-                          onChange={(e) => setPersonas(personas.map((x, j) => j === i ? { ...x, apellidoMaterno: e.target.value } : x))}
+                          onChange={(e) => setPersonas(personas.map((x, j) => j === i ? { ...x, apellidoMaterno: soloNombre(e.target.value) } : x))}
                           className="w-full min-w-0 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#449D3A]"
                           placeholder="Apellido materno" />
                       </div>
                       <div className="grid min-w-0 grid-cols-1 md:grid-cols-3 gap-2 mt-2">
                         <input value={p.cargo} maxLength={105}
-                          onChange={(e) => setPersonas(personas.map((x, j) => j === i ? { ...x, cargo: e.target.value } : x))}
+                          onChange={(e) => setPersonas(personas.map((x, j) => j === i ? { ...x, cargo: textoLibre(e.target.value) } : x))}
                           className="w-full min-w-0 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#449D3A]"
                           placeholder="Cargo *" />
                         <input value={p.correo} maxLength={105} type="email"
-                          onChange={(e) => setPersonas(personas.map((x, j) => j === i ? { ...x, correo: e.target.value } : x))}
+                          onChange={(e) => setPersonas(personas.map((x, j) => j === i ? { ...x, correo: sinEspacios(e.target.value).toLowerCase() } : x))}
                           className="w-full min-w-0 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#449D3A]"
                           placeholder="Correo para enviar credencial *" />
-                        <input value={p.telefono} maxLength={45} type="tel"
-                          onChange={(e) => setPersonas(personas.map((x, j) => j === i ? { ...x, telefono: e.target.value } : x))}
-                          className="w-full min-w-0 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#449D3A]"
-                          placeholder="Teléfono *" />
+                        <TelefonoInput value={p.telefono}
+                          onChange={(v) => setPersonas(personas.map((x, j) => j === i ? { ...x, telefono: v } : x))}
+                          className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#449D3A]" />
                       </div>
                     </div>
                   ))}

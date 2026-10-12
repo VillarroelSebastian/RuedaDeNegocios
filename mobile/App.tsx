@@ -18,6 +18,7 @@ import EmpresaNavigator from './src/navigation/EmpresaNavigator';
 import { userStore, sessionExpiry } from './src/utils/userStore';
 import { reportarError, instalarManejadorGlobal } from './src/utils/errorLog';
 import { rutaDeNotifMobile } from './src/hooks/useNotificaciones';
+import { paramsReuniones } from './src/utils/destinoNotificacion';
 
 const Stack = createNativeStackNavigator();
 const VALID_ROLES = ['ADMINISTRADOR', 'TECNICO', 'TECNICO_EVENTOS', 'EMPRESA', 'FORO'];
@@ -49,9 +50,8 @@ export function abrirNotificacion(data: any): boolean {
     const ruta = rutaDeNotifMobile(tipo) || 'Comunicados';
     const esTab = ['Solicitudes', 'Reuniones'].includes(ruta);
     const subParams = ruta === 'Solicitudes'
-      ? tipo.startsWith('reunion:cambio') ? { tab: 'reuniones', filtro: 'cambios' }
-        : tipo.startsWith('reunion') ? { tab: 'reuniones', reunionId: Number(data?.referenciaId) || undefined }
-        : { tab: ['solicitud:nueva', 'solicitud:editada', 'solicitud:cancelada'].includes(tipo) ? 'recibidas' : 'enviadas' }
+      // Cada tipo abre su subopción exacta dentro de Reuniones (pendientes, próximas, cambios...).
+      ? (paramsReuniones(tipo, Number(data?.referenciaId)) ?? { tab: 'reuniones' })
       : ruta === 'Reuniones' && data?.referenciaId ? { reunionId: Number(data.referenciaId) }
       : undefined;
     params = esTab ? { screen: 'EmpresaTabs', params: { screen: ruta, params: subParams } } : { screen: ruta, params: subParams };

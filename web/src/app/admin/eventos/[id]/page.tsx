@@ -5,6 +5,7 @@ import { Info, LayoutGrid, CreditCard, QrCode, Plus, Trash2, Save, Image as Imag
 import { useRouter, useParams } from 'next/navigation';
 import styles from './ConfiguracionEvento.module.css';
 import Modal, { useModal } from '@/components/ui/Modal';
+import TelefonoInput from "@/components/TelefonoInput";
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
 type DiaReunion = { fecha: string; habilitado: boolean; rangos: { desde: string; hasta: string }[] };
@@ -521,7 +522,7 @@ export default function ConfiguracionDeEventoPage() {
             </div>
             <div>
               <label className={styles.label}>Teléfono/WhatsApp</label>
-              <input type="text" name="telefonoContacto" value={formData.telefonoContacto} onChange={handleChange} className={styles.input} placeholder="+591 70000000" />
+              <TelefonoInput value={formData.telefonoContacto} onChange={(v) => setFormData((f: any) => ({ ...f, telefonoContacto: v }))} className={styles.input} />
             </div>
             <div>
               <label className={styles.label}>Logo del Evento</label>

@@ -31,6 +31,7 @@ import EmpresaMiPaqueteScreen from '../screens/empresa/EmpresaMiPaqueteScreen';
 import TecnicoGaleriaScreen from '../screens/tecnico/TecnicoGaleriaScreen';
 import { userStore, API_URL }   from '../utils/userStore';
 import { cerrarSesion } from '../utils/cerrarSesion';
+import { paramsReuniones } from '../utils/destinoNotificacion';
 
 const Tab   = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -444,13 +445,9 @@ export default function EmpresaNavigator() {
                 }
                 if (ruta && navigationRef.isReady()) {
                   const esTabPrincipal = ['Inicio', 'Empresas', 'Solicitudes', 'Mas'].includes(ruta);
-                  const params = notifActual.evento.startsWith('reunion:cambio') ? { tab: 'reuniones', filtro: 'cambios' }
-                    : notifActual.evento === 'solicitud:nueva' || notifActual.evento === 'solicitud:editada' || notifActual.evento === 'solicitud:cancelada'
-                    ? { tab: 'recibidas' }
-                    : notifActual.evento.startsWith('solicitud') ? { tab: 'enviadas' }
-                    : notifActual.evento.startsWith('reunion') || notifActual.evento === 'mensaje:tecnico'
-                      ? (notifActual.referenciaId ? { tab: 'reuniones', reunionId: notifActual.referenciaId } : { tab: 'reuniones' })
-                      : undefined;
+                  // Cada tipo abre su subopción exacta dentro de Reuniones.
+                  const params = paramsReuniones(notifActual.evento, notifActual.referenciaId)
+                    ?? (notifActual.evento === 'mensaje:tecnico' ? { tab: 'reuniones' } : undefined);
                   if (esTabPrincipal) {
                     (navigationRef.navigate as any)('EmpresaRoot', { screen: 'EmpresaTabs', params: { screen: ruta, params } });
                   } else {

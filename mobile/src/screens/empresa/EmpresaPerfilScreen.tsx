@@ -21,6 +21,8 @@ import { useModal } from '../../components/AppModal';
 import { abrirEnlace } from '../../utils/abrirEnlace';
 import CuentaLegal from '../../components/CuentaLegal';
 import { cerrarSesion } from '../../utils/cerrarSesion';
+import { soloNombre, textoLibre, sinEspacios } from '../../utils/validaciones';
+import TelefonoInput from '../../components/TelefonoInput';
 
 const GREEN = '#449D3A';
 
@@ -588,9 +590,10 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
   const esEncargado = !!empresa?.esResponsable;
   const slots = participantes ?? {};
   const canAdd = esEncargado && (slots.slotsDisponibles ?? 0) > 0;
-  const canRequestMore = esEncargado &&
-    (slots.slotsPagados ?? 0) < (slots.maxPermitidos ?? 5) &&
-    !slots.pagoAdicionalPendiente;
+  // Sin tope de participantes: el límite es cuántos cupos se pueden comprar por
+  // tanda (QR de cupos adicionales que configuró el administrador).
+  const maxPorCompra = Number(slots.maxPorCompra ?? Math.max(0, (slots.maxPermitidos ?? 0) - (slots.slotsPagados ?? 0)));
+  const canRequestMore = esEncargado && maxPorCompra > 0 && !slots.pagoAdicionalPendiente;
 
   return (
     <SafeAreaView style={s.root} edges={['top']}>
@@ -763,7 +766,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
                 <Text style={s.sectionTitle}>Cupos de participantes</Text>
               </View>
               <View style={s.slotGrid}>
-                <SlotCard label="Máx. permitidos" value={slots.maxPermitidos ?? '—'} color="#dbeafe" textColor="#1e40af" />
+                <SlotCard label="Máx. por compra" value={maxPorCompra} color="#dbeafe" textColor="#1e40af" />
                 <SlotCard label="Cupos pagados"   value={slots.slotsPagados  ?? '—'} color="#dcfce7" textColor="#166534" />
                 <SlotCard label="Cupos usados"    value={slots.slotsUsados   ?? '—'} color="#fef3c7" textColor="#92400e" />
                 <SlotCard label="Disponibles"     value={slots.slotsDisponibles ?? '—'} color="#f3e8ff" textColor="#6b21a8" />
@@ -947,11 +950,11 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
               <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
                 {!!saveError && <View style={s.errorBox}><Text style={s.errorText}>{saveError}</Text></View>}
                 <Text style={s.label}>Nombre</Text>
-                <TextInput style={s.input} value={editNombre} onChangeText={setEditNombre} placeholder="Tu nombre completo" placeholderTextColor="#9ca3af" />
+                <TextInput style={s.input} value={editNombre} onChangeText={(v) => setEditNombre(soloNombre(v))} autoCapitalize="words" maxLength={105} placeholder="Tu nombre completo" placeholderTextColor="#9ca3af" />
                 <Text style={s.label}>Teléfono</Text>
-                <TextInput style={s.input} value={editTel} onChangeText={setEditTel} placeholder="Teléfono" placeholderTextColor="#9ca3af" keyboardType="phone-pad" />
+                <TelefonoInput value={editTel} onChange={setEditTel} />
                 <Text style={s.label}>Cargo</Text>
-                <TextInput style={s.input} value={editCargo} onChangeText={setEditCargo} placeholder="Tu cargo en la empresa" placeholderTextColor="#9ca3af" />
+                <TextInput style={s.input} value={editCargo} onChangeText={(v) => setEditCargo(textoLibre(v))} maxLength={55} placeholder="Tu cargo en la empresa" placeholderTextColor="#9ca3af" />
                 <TouchableOpacity style={[s.btnPrimary, saving && { opacity: 0.7 }]} onPress={handleSavePerfil} disabled={saving}>
                   {saving ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Guardar</Text>}
                 </TouchableOpacity>
@@ -1091,15 +1094,15 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
               <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
                 {!!addError && <View style={s.errorBox}><Text style={s.errorText}>{addError}</Text></View>}
                 <Text style={s.label}>Nombre *</Text>
-                <TextInput style={s.input} value={addNombre} onChangeText={setAddNombre} placeholder="Nombre" placeholderTextColor="#9ca3af" />
+                <TextInput style={s.input} value={addNombre} onChangeText={(v) => setAddNombre(soloNombre(v))} autoCapitalize="words" maxLength={105} placeholder="Nombre" placeholderTextColor="#9ca3af" />
                 <Text style={s.label}>Apellido *</Text>
-                <TextInput style={s.input} value={addApellido} onChangeText={setAddApellido} placeholder="Apellido" placeholderTextColor="#9ca3af" />
+                <TextInput style={s.input} value={addApellido} onChangeText={(v) => setAddApellido(soloNombre(v))} autoCapitalize="words" maxLength={65} placeholder="Apellido" placeholderTextColor="#9ca3af" />
                 <Text style={s.label}>Correo electrónico *</Text>
-                <TextInput style={s.input} value={addCorreo} onChangeText={setAddCorreo} placeholder="correo@ejemplo.com" placeholderTextColor="#9ca3af" keyboardType="email-address" autoCapitalize="none" />
+                <TextInput style={s.input} value={addCorreo} onChangeText={(v) => setAddCorreo(sinEspacios(v).toLowerCase())} maxLength={105} placeholder="correo@ejemplo.com" placeholderTextColor="#9ca3af" keyboardType="email-address" autoCapitalize="none" />
                 <Text style={s.label}>Teléfono *</Text>
-                <TextInput style={s.input} value={addTel} onChangeText={setAddTel} placeholder="Teléfono" placeholderTextColor="#9ca3af" keyboardType="phone-pad" />
+                <TelefonoInput value={addTel} onChange={setAddTel} />
                 <Text style={s.label}>Cargo</Text>
-                <TextInput style={s.input} value={addCargo} onChangeText={setAddCargo} placeholder="Cargo en la empresa" placeholderTextColor="#9ca3af" />
+                <TextInput style={s.input} value={addCargo} onChangeText={(v) => setAddCargo(textoLibre(v))} maxLength={55} placeholder="Cargo en la empresa" placeholderTextColor="#9ca3af" />
                 <TouchableOpacity style={[s.btnPrimary, adding && { opacity: 0.7 }]} onPress={handleAddParticipant} disabled={adding}>
                   {adding ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Agregar participante</Text>}
                 </TouchableOpacity>
@@ -1134,7 +1137,16 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
               <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets showsVerticalScrollIndicator={false}>
                 {!!pagoError && <View style={s.errorBox}><Text style={s.errorText}>{pagoError}</Text></View>}
                 <Text style={s.label}>Cantidad de cupos a solicitar</Text>
-                <TextInput style={s.input} value={pagoCant} onChangeText={setPagoCant} keyboardType="number-pad" placeholder="1" placeholderTextColor="#9ca3af" />
+                <Text style={{ fontSize: 11, color: '#94a3b8', marginBottom: 6 }}>
+                  Puedes pedir hasta {maxPorCompra} cupo(s) por compra; si necesitas más, haz otra compra cuando se apruebe esta.
+                </Text>
+                <TextInput style={s.input} value={pagoCant}
+                  onChangeText={(v) => {
+                    const digitos = v.replace(/\D/g, '');
+                    if (!digitos) { setPagoCant(''); return; }
+                    setPagoCant(String(Math.min(maxPorCompra || 1, Math.max(1, parseInt(digitos, 10)))));
+                  }}
+                  keyboardType="number-pad" maxLength={3} placeholder="1" placeholderTextColor="#9ca3af" />
                 <Text style={s.label}>Comprobante de pago *</Text>
                 {!!pagoQr && <View style={{ backgroundColor:'#f0fdf4', borderRadius:12, padding:10, marginBottom:12 }}><Text style={{ color:'#166534', textAlign:'center', fontSize:12, fontWeight:'700', marginBottom:7 }}>QR para {pagoCant || '1'} participante(s) adicional(es)</Text><ImagenLightbox uri={pagoQr} style={{ width:'100%', height:190 }} imgStyle={{ resizeMode:'contain' }} /><Text style={{ color:'#15803d', textAlign:'center', fontSize:10, marginTop:5 }}>Toca para ampliar</Text></View>}
                 {pagoPreview && (

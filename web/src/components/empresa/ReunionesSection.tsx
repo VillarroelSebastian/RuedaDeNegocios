@@ -941,6 +941,18 @@ export function ReunionesSection({ embedded = false, onEditarSolicitud }: { embe
   const cambiosPorResponder = cambios.filter((c) => c.estado === "PENDIENTE" && c.direccion === "recibida").length;
   const recibidasPendientes = solicitudes.filter((s) => !s.esMiSolicitud);
   const enviadasPendientes = solicitudes.filter((s) => s.esMiSolicitud);
+  // Contador de cada subopción, para llevar el control de un vistazo.
+  const reunionTerminada = (r: any) => r.estado === "FINALIZADA" || new Date(r.fin) <= new Date();
+  const nFinalizadas = reuniones.filter(reunionTerminada).length;
+  const nVigentes = reuniones.length - nFinalizadas;
+  const conteos: Record<string, number> = {
+    todas: recibidasPendientes.length + enviadasPendientes.length + reuniones.length,
+    pendientes: recibidasPendientes.length,
+    enviadas: enviadasPendientes.length,
+    proximas: nVigentes,
+    cambios: cambios.filter((c) => c.estado === "PENDIENTE").length,
+    finalizadas: nFinalizadas,
+  };
 
   // La lista se agrupa igual que en móvil: primero las solicitudes recibidas
   // que esperan mi respuesta (como una bandeja de entrada, sin importar
@@ -1072,13 +1084,19 @@ export function ReunionesSection({ embedded = false, onEditarSolicitud }: { embe
                     filtro === f ? "bg-white shadow text-gray-900" : "text-gray-500 hover:text-gray-700"
                   }`}>
                   {f === "todas" ? "Todas"
-                    : f === "pendientes" ? `Pendientes${recibidasPendientes.length > 0 ? ` (${recibidasPendientes.length})` : ""}`
+                    : f === "pendientes" ? "Pendientes"
                     : f === "enviadas" ? "Enviadas"
                     : f === "cambios" ? "Cambios"
                     : f === "proximas" ? "Próximas" : "Finalizadas"}
-                  {f === "cambios" && cambiosPorResponder > 0 && (
-                    <span className="ml-1.5 inline-flex min-w-5 h-5 px-1 items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold">{cambiosPorResponder}</span>
-                  )}
+                  {(() => {
+                    // Rojo cuando hay algo que responder (pendientes recibidas / cambios por responder).
+                    const urgente = (f === "pendientes" && conteos.pendientes > 0) || (f === "cambios" && cambiosPorResponder > 0);
+                    return (
+                      <span className={`ml-1.5 inline-flex min-w-5 h-5 px-1.5 items-center justify-center rounded-full text-[10px] font-bold ${
+                        urgente ? "bg-red-500 text-white" : filtro === f ? "bg-gray-100 text-gray-700" : "bg-gray-200 text-gray-500"
+                      }`}>{conteos[f] ?? 0}</span>
+                    );
+                  })()}
                 </button>
               ))}
             </div>

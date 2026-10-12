@@ -5,6 +5,8 @@ import Link from "next/link";
 import { UserPlus, Plus, Pencil, Trash2, X, Mail, Phone, Package, Eye, Clock, CheckCircle, AlertCircle, XCircle, CreditCard, Users } from "lucide-react";
 import { useModal } from "@/components/ui/Modal";
 import ImagenLightbox from "@/components/ui/ImagenLightbox";
+import TelefonoInput from "@/components/TelefonoInput";
+import { soloNombre, sinEspacios, textoLibre } from "@/lib/validaciones";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
@@ -144,7 +146,7 @@ function PagosForoPanel({ paquetes }: { paquetes: Paquete[] }) {
                     <tr key={pago.id} className="hover:bg-gray-50/50 transition-colors">
                       <td className="py-4 px-5">
                         <p className="text-sm font-semibold text-gray-900">{persona ? `${persona.nombres} ${persona.apellidoPaterno}` : '—'}</p>
-                        <p className="text-[11px] text-gray-400">{persona?.correo}</p>
+                        <p className="text-[11px] text-gray-400">{persona?.correo?.endsWith("@correo-liberado.invalid") ? "Correo liberado (pago rechazado)" : persona?.correo}</p>
                       </td>
                       <td className="py-4 px-5 text-sm text-gray-600">{pago.empresa?.nombre}</td>
                       <td className="py-4 px-5 text-sm font-semibold text-gray-900">
@@ -368,13 +370,13 @@ export default function ForoPage() {
                 <div>
                   <label className="block text-xs font-bold text-gray-700 mb-1.5">Nombres <span className="text-red-500">*</span></label>
                   <input value={form.nombres} maxLength={105}
-                    onChange={(e) => setForm({ ...form, nombres: e.target.value })}
+                    onChange={(e) => setForm({ ...form, nombres: soloNombre(e.target.value) })}
                     className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#449D3A]" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-700 mb-1.5">Apellido paterno <span className="text-red-500">*</span></label>
                   <input value={form.apellidoPaterno} maxLength={65}
-                    onChange={(e) => setForm({ ...form, apellidoPaterno: e.target.value })}
+                    onChange={(e) => setForm({ ...form, apellidoPaterno: soloNombre(e.target.value) })}
                     className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#449D3A]" />
                 </div>
               </div>
@@ -383,13 +385,13 @@ export default function ForoPage() {
                 <div>
                   <label className="block text-xs font-bold text-gray-700 mb-1.5">Apellido materno</label>
                   <input value={form.apellidoMaterno} maxLength={65}
-                    onChange={(e) => setForm({ ...form, apellidoMaterno: e.target.value })}
+                    onChange={(e) => setForm({ ...form, apellidoMaterno: soloNombre(e.target.value) })}
                     className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#449D3A]" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-700 mb-1.5">Cargo</label>
                   <input value={form.cargo} maxLength={100}
-                    onChange={(e) => setForm({ ...form, cargo: e.target.value })}
+                    onChange={(e) => setForm({ ...form, cargo: textoLibre(e.target.value) })}
                     className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#449D3A]" />
                 </div>
               </div>
@@ -399,15 +401,14 @@ export default function ForoPage() {
                   Correo <span className="text-red-500">*</span>{editandoId && <span className="text-gray-400 font-normal"> (no se puede cambiar)</span>}
                 </label>
                 <input value={form.correo} type="email" disabled={!!editandoId} maxLength={105}
-                  onChange={(e) => setForm({ ...form, correo: e.target.value })}
+                  onChange={(e) => setForm({ ...form, correo: sinEspacios(e.target.value).toLowerCase() })}
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#449D3A] disabled:bg-gray-50 disabled:text-gray-400" />
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-gray-700 mb-1.5">Teléfono <span className="text-red-500">*</span></label>
-                <input value={form.telefono} maxLength={45}
-                  onChange={(e) => setForm({ ...form, telefono: e.target.value })}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#449D3A]" />
+                <TelefonoInput value={form.telefono} onChange={(v) => setForm({ ...form, telefono: v })}
+                  className="px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#449D3A]" />
               </div>
 
               {!editandoId && (

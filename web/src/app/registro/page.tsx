@@ -10,7 +10,9 @@ import {
   AlertCircle, X, Check, RefreshCw, UserPlus, Briefcase, Mail, Phone, GraduationCap,
 } from "lucide-react";
 
-import { LIMITES, correoValido, validarNombreEmpresa, limpiarEspacios, validarNombrePersona } from "@/lib/validaciones";
+import { LIMITES, correoValido, validarNombreEmpresa, limpiarEspacios, validarNombrePersona, sinEspacios, soloNombre, textoLibre, REGEX_TEXTO_LIBRE } from "@/lib/validaciones";
+import { dialDePais, validarTelefonoCompleto } from "@/lib/telefono";
+import TelefonoInput from "@/components/TelefonoInput";
 import { RUBROS, RUBROS_CON_OTRO, OTRO } from "@/lib/rubros";
 import ImagenLightbox from "@/components/ui/ImagenLightbox";
 
@@ -632,11 +634,10 @@ function RegistroEmpresaPage({ tipo = "empresa" }: { tipo?: "empresa" | "foro" }
                   )}
                 </Field>
                 <Field label="Teléfono / WhatsApp" required>
-                  <input
-                    value={empresa.telefonoWhatsapp}
-                    onChange={(e) => setEmpresa((f) => ({ ...f, telefonoWhatsapp: sanitizeTel(e.target.value) }))}
-                    className={inputCls} placeholder="+591 70000000"
-                    inputMode="tel" maxLength={20}
+                  <TelefonoInput
+                    value={empresa.telefonoWhatsapp} dialDefecto={dialDePais(paisFinal)}
+                    onChange={(v) => setEmpresa((f) => ({ ...f, telefonoWhatsapp: v }))}
+                    className={inputCls}
                   />
                 </Field>
                 <div className="sm:col-span-2">
@@ -934,11 +935,10 @@ function RegistroEmpresaPage({ tipo = "empresa" }: { tipo?: "empresa" | "foro" }
                     className={inputCls} placeholder="carlos.mendoza@empresa.com" />
                 </Field>
                 <Field label="Teléfono" required>
-                  <input
-                    value={responsable.telefono}
-                    onChange={(e) => setResponsable((r) => ({ ...r, telefono: sanitizeTel(e.target.value) }))}
-                    className={inputCls} placeholder="+591 789 45612"
-                    inputMode="tel" maxLength={20}
+                  <TelefonoInput
+                    value={responsable.telefono} dialDefecto={dialDePais(paisFinal)}
+                    onChange={(v) => setResponsable((r) => ({ ...r, telefono: v }))}
+                    className={inputCls}
                   />
                 </Field>
               </div>
@@ -979,11 +979,10 @@ function RegistroEmpresaPage({ tipo = "empresa" }: { tipo?: "empresa" | "foro" }
                           className={inputCls} placeholder="maria.lopez@empresa.com" />
                       </Field>
                       <Field label="Teléfono" required>
-                        <input
-                          value={p.telefono}
-                          onChange={(e) => setAdicionales((a) => a.map((x, j) => j === i ? { ...x, telefono: sanitizeTel(e.target.value) } : x))}
-                          className={inputCls} placeholder="+591 7XX XXXXX"
-                          inputMode="tel" maxLength={20}
+                        <TelefonoInput
+                          value={p.telefono} dialDefecto={dialDePais(paisFinal)}
+                          onChange={(v) => setAdicionales((a) => a.map((x, j) => j === i ? { ...x, telefono: v } : x))}
+                          className={inputCls}
                         />
                       </Field>
                     </div>
@@ -1192,11 +1191,15 @@ function RegistroForoPage({ onVolver }: { onVolver: () => void }) {
   };
 
   const enviar = async () => {
-    if (nombres.trim().length < 2) return showModal("error", "Falta un dato", "Escribe tus nombres.");
-    if (apellidos.trim().length < 2) return showModal("error", "Falta un dato", "Escribe tus apellidos.");
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) return showModal("error", "Falta un dato", "Escribe un correo válido.");
-    if (telefono.trim().length < 6) return showModal("error", "Falta un dato", "Escribe un teléfono válido.");
-    if (institucion.trim().length < 2) return showModal("error", "Falta un dato", "Escribe tu institución u organización.");
+    const errNombres = validarNombrePersona(nombres, "Tus nombres");
+    if (errNombres) return showModal("error", "Revisa tus datos", errNombres);
+    const errApellidos = validarNombrePersona(apellidos, "Tus apellidos");
+    if (errApellidos) return showModal("error", "Revisa tus datos", errApellidos);
+    if (!correoValido(correo)) return showModal("error", "Falta un dato", "Escribe un correo válido (por ejemplo nombre@dominio.com).");
+    const errTel = validarTelefonoCompleto(telefono, "Tu teléfono");
+    if (errTel) return showModal("error", "Falta un dato", errTel);
+    if (profesion.trim() && !REGEX_TEXTO_LIBRE.test(profesion.trim())) return showModal("error", "Revisa tus datos", "La profesión solo puede contener letras, números y . , - / ( ).");
+    if (institucion.trim().length < 2 || !REGEX_TEXTO_LIBRE.test(institucion.trim())) return showModal("error", "Falta un dato", "Escribe tu institución u organización (letras, números y . , & - / ( )).");
     if (!urlComprobante) return showModal("error", "Falta el comprobante", "Sube tu comprobante de pago para completar el registro.");
     if (submittingRef.current) return;
     submittingRef.current = true;
@@ -1242,9 +1245,6 @@ function RegistroForoPage({ onVolver }: { onVolver: () => void }) {
   return (
     <div className="mx-auto w-full max-w-lg px-4 py-8">
       <Modal {...modal} onClose={() => setModal((m) => ({ ...m, open: false }))} />
-      <button onClick={onVolver} className="flex items-center gap-1.5 text-sm font-semibold text-gray-500 hover:text-gray-700 mb-6">
-        <ChevronLeft className="w-4 h-4" /> Volver
-      </button>
       <h1 className="text-2xl font-extrabold text-gray-900 mb-1">Registro · Foro Personal</h1>
       <p className="text-sm text-gray-500 mb-8">Inscripción individual: comunicados, cronograma en vivo, galería y tu credencial de acceso.</p>
 
@@ -1254,7 +1254,7 @@ function RegistroForoPage({ onVolver }: { onVolver: () => void }) {
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">Nombres *</label>
             <div className="relative">
               <User className="absolute left-3.5 top-3.5 w-4 h-4 text-gray-400" />
-              <input value={nombres} onChange={(e) => setNombres(e.target.value)} maxLength={105}
+              <input value={nombres} onChange={(e) => setNombres(soloNombre(e.target.value))} maxLength={105} autoComplete="given-name"
                 className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#449D3A]"
                 placeholder="Tus nombres" />
             </div>
@@ -1263,7 +1263,7 @@ function RegistroForoPage({ onVolver }: { onVolver: () => void }) {
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">Apellidos *</label>
             <div className="relative">
               <User className="absolute left-3.5 top-3.5 w-4 h-4 text-gray-400" />
-              <input value={apellidos} onChange={(e) => setApellidos(e.target.value)} maxLength={65}
+              <input value={apellidos} onChange={(e) => setApellidos(soloNombre(e.target.value))} maxLength={65} autoComplete="family-name"
                 className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#449D3A]"
                 placeholder="Tus apellidos" />
             </div>
@@ -1273,7 +1273,7 @@ function RegistroForoPage({ onVolver }: { onVolver: () => void }) {
           <label className="block text-sm font-semibold text-gray-700 mb-1.5">Correo electrónico *</label>
           <div className="relative">
             <Mail className="absolute left-3.5 top-3.5 w-4 h-4 text-gray-400" />
-            <input value={correo} onChange={(e) => setCorreo(e.target.value)} type="email" maxLength={105}
+            <input value={correo} onChange={(e) => setCorreo(sinEspacios(e.target.value).toLowerCase())} type="email" maxLength={105} autoComplete="email"
               className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#449D3A]"
               placeholder="correo@ejemplo.com" />
           </div>
@@ -1281,17 +1281,15 @@ function RegistroForoPage({ onVolver }: { onVolver: () => void }) {
         <div>
           <label className="block text-sm font-semibold text-gray-700 mb-1.5">Teléfono *</label>
           <div className="relative">
-            <Phone className="absolute left-3.5 top-3.5 w-4 h-4 text-gray-400" />
-            <input value={telefono} onChange={(e) => setTelefono(e.target.value)} maxLength={45}
-              className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#449D3A]"
-              placeholder="+591 ..." />
           </div>
+          <TelefonoInput value={telefono} onChange={setTelefono}
+            className="px-3 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#449D3A]" />
         </div>
         <div>
           <label className="block text-sm font-semibold text-gray-700 mb-1.5">Profesión / Ocupación</label>
           <div className="relative">
             <Briefcase className="absolute left-3.5 top-3.5 w-4 h-4 text-gray-400" />
-            <input value={profesion} onChange={(e) => setProfesion(e.target.value)} maxLength={100}
+            <input value={profesion} onChange={(e) => setProfesion(textoLibre(e.target.value))} maxLength={100}
               className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#449D3A]"
               placeholder="Ej: Ingeniero comercial" />
           </div>
@@ -1300,7 +1298,7 @@ function RegistroForoPage({ onVolver }: { onVolver: () => void }) {
           <label className="block text-sm font-semibold text-gray-700 mb-1.5">Institución *</label>
           <div className="relative">
             <GraduationCap className="absolute left-3.5 top-3.5 w-4 h-4 text-gray-400" />
-            <input value={institucion} onChange={(e) => setInstitucion(e.target.value)} maxLength={105}
+            <input value={institucion} onChange={(e) => setInstitucion(textoLibre(e.target.value))} maxLength={105}
               className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#449D3A]"
               placeholder="Empresa, universidad u organización" />
           </div>
@@ -1347,10 +1345,16 @@ function RegistroForoPage({ onVolver }: { onVolver: () => void }) {
         )}
       </div>
 
-      <button onClick={enviar} disabled={submitting}
-        className="mt-8 w-full bg-[#449D3A] text-white font-semibold py-3.5 rounded-xl hover:bg-[#367d2e] disabled:opacity-60 transition-colors">
-        {submitting ? "Registrando..." : "Completar registro"}
-      </button>
+      <div className="mt-8 flex gap-3">
+        <button onClick={onVolver} disabled={submitting}
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-gray-200 py-3.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-60 transition-colors">
+          <ChevronLeft className="w-4 h-4" /> Volver
+        </button>
+        <button onClick={enviar} disabled={submitting}
+          className="flex-[2] bg-[#449D3A] text-white font-semibold py-3.5 rounded-xl hover:bg-[#367d2e] disabled:opacity-60 transition-colors">
+          {submitting ? "Registrando..." : "Completar registro"}
+        </button>
+      </div>
       <p className="text-xs text-gray-400 mt-4 text-center">
         Tu registro quedará pendiente de verificación de pago; te avisaremos por correo cuando esté habilitado.
       </p>
@@ -1381,6 +1385,11 @@ function SelectorTipoRegistro({ onElegir }: { onElegir: (tipo: "empresa" | "foro
           <h3 className="font-extrabold text-gray-900 mb-1.5">Foro · Personal</h3>
           <p className="text-sm text-gray-500">Inscripción individual: comunicados, cronograma en vivo, galería del evento y tu credencial de acceso.</p>
         </button>
+      </div>
+      <div className="mt-8 text-center">
+        <Link href="/auth/login" className="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-500 hover:text-[#449D3A]">
+          <ChevronLeft className="w-4 h-4" /> Volver a iniciar sesión
+        </Link>
       </div>
     </div>
   );

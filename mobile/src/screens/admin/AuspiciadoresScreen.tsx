@@ -4,6 +4,8 @@ import { Handshake, Plus, X } from 'lucide-react-native';
 import { useModal } from '../../components/AppModal';
 import { validarAuspiciador } from '../../utils/validarAuspiciador';
 import { API_URL } from '../../utils/userStore';
+import { soloNombre, textoLibre, sinEspacios } from '../../utils/validaciones';
+import TelefonoInput from '../../components/TelefonoInput';
 
 const GREEN = '#449D3A';
 type Persona = { nombreCompleto: string; cargo: string; correo: string; telefono: string; nombres: string; apellidoPaterno: string; apellidoMaterno: string };
@@ -150,12 +152,12 @@ export default function AuspiciadoresScreen() {
         <View className="flex-row items-center justify-between my-3"><Text className="text-xs font-bold">Cantidad de credenciales *</Text><View className="flex-row items-center gap-4"><TouchableOpacity onPress={() => cambiarCantidad(form.cantidadIngresos - 1)}><Text className="text-2xl">−</Text></TouchableOpacity><Text className="text-lg font-extrabold">{form.cantidadIngresos}</Text><TouchableOpacity onPress={() => cambiarCantidad(form.cantidadIngresos + 1)}><Text className="text-2xl">+</Text></TouchableOpacity></View></View>
         {personas.map((p,i) => <View key={i} className="bg-gray-50 rounded-xl p-3 mb-2">
           <Text className="font-bold text-xs mb-2">Persona {i+1}</Text>
-          <TextInput maxLength={105} value={p.nombres} onChangeText={(v) => setPersona(i,'nombres',v)} placeholder="Nombres *" className="bg-white border border-gray-200 rounded-lg px-3 py-2 mb-2"/>
-          <TextInput maxLength={105} value={p.apellidoPaterno} onChangeText={(v) => setPersona(i,'apellidoPaterno',v)} placeholder="Apellido paterno *" className="bg-white border border-gray-200 rounded-lg px-3 py-2 mb-2"/>
-          <TextInput maxLength={105} value={p.apellidoMaterno} onChangeText={(v) => setPersona(i,'apellidoMaterno',v)} placeholder="Apellido materno" className="bg-white border border-gray-200 rounded-lg px-3 py-2 mb-2"/>
-          <TextInput maxLength={105} value={p.cargo} onChangeText={(v) => setPersona(i,'cargo',v)} placeholder="Cargo *" className="bg-white border border-gray-200 rounded-lg px-3 py-2 mb-2"/>
-          <TextInput maxLength={105} value={p.correo} onChangeText={(v) => setPersona(i,'correo',v)} placeholder="Correo para enviar credencial *" keyboardType="email-address" autoCapitalize="none" className="bg-white border border-gray-200 rounded-lg px-3 py-2 mb-2"/>
-          <TextInput maxLength={45} value={p.telefono} onChangeText={(v) => setPersona(i,'telefono',v)} placeholder="Teléfono *" keyboardType="phone-pad" className="bg-white border border-gray-200 rounded-lg px-3 py-2"/>
+          <TextInput maxLength={105} value={p.nombres} onChangeText={(v) => setPersona(i,'nombres',soloNombre(v))} placeholder="Nombres *" className="bg-white border border-gray-200 rounded-lg px-3 py-2 mb-2"/>
+          <TextInput maxLength={105} value={p.apellidoPaterno} onChangeText={(v) => setPersona(i,'apellidoPaterno',soloNombre(v))} placeholder="Apellido paterno *" className="bg-white border border-gray-200 rounded-lg px-3 py-2 mb-2"/>
+          <TextInput maxLength={105} value={p.apellidoMaterno} onChangeText={(v) => setPersona(i,'apellidoMaterno',soloNombre(v))} placeholder="Apellido materno" className="bg-white border border-gray-200 rounded-lg px-3 py-2 mb-2"/>
+          <TextInput maxLength={105} value={p.cargo} onChangeText={(v) => setPersona(i,'cargo',textoLibre(v))} placeholder="Cargo *" className="bg-white border border-gray-200 rounded-lg px-3 py-2 mb-2"/>
+          <TextInput maxLength={105} value={p.correo} onChangeText={(v) => setPersona(i,'correo',sinEspacios(v).toLowerCase())} placeholder="Correo para enviar credencial *" keyboardType="email-address" autoCapitalize="none" className="bg-white border border-gray-200 rounded-lg px-3 py-2 mb-2"/>
+          <TelefonoInput value={p.telefono} onChange={(v) => setPersona(i,'telefono',v)} />
         </View>)}
       </ScrollView>
       <TouchableOpacity onPress={guardar} disabled={saving} style={{ backgroundColor: GREEN, opacity: saving ? .6 : 1 }} className="py-3.5 rounded-2xl items-center mt-4"><Text className="text-white font-extrabold">{saving ? 'Guardando…' : 'Guardar'}</Text></TouchableOpacity>

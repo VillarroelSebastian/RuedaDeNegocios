@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { LogOut, ChevronDown, Bell, Menu, Clock, Newspaper, UserCircle, Search } from 'lucide-react';
 
 import NotificationBell from '@/components/NotificationBell';
+import { enlaceReuniones } from '@/lib/destinoNotificacion';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
@@ -15,18 +16,10 @@ function fmtNotifFecha(f: string) {
 // Ruta destino según el tipo de notificación, para llevar directo a su sección.
 function rutaDeNotif(notificacion: any): string {
   const t = notificacion?.tipo || '';
-  // Las solicitudes ya no tienen pestañas propias: se gestionan dentro de
-  // "Reuniones", que filtra las pendientes por aceptar o enviadas.
-  if (['solicitud:nueva', 'solicitud:editada', 'solicitud:cancelada'].includes(t))
-    return '/empresa/solicitudes?tab=reuniones&filtro=pendientes';
-  if (t.startsWith('solicitud')) return '/empresa/solicitudes?tab=reuniones';
   if (t === 'reunion:calificar') return '/empresa/resultados';
-  if (t.startsWith('reunion')) {
-    const id = Number(notificacion?.referenciaId);
-    return notificacion?.referenciaTipo === 'reunion' && Number.isFinite(id) && id > 0
-      ? `/empresa/solicitudes?tab=reuniones&reunionId=${id}`
-      : '/empresa/solicitudes?tab=reuniones';
-  }
+  // Solicitudes, reuniones y cambios abren su subopción exacta dentro de Reuniones.
+  const enlaceReunion = enlaceReuniones(t, Number(notificacion?.referenciaId), notificacion?.referenciaTipo);
+  if (enlaceReunion) return enlaceReunion;
   if (t.startsWith('mensaje')) return '/empresa/mensajes';
   if (t.startsWith('pago')) return '/empresa/perfil';
   if (t.startsWith('comunicado')) return '/empresa/comunicados';

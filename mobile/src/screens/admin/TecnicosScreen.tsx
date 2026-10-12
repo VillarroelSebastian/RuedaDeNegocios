@@ -9,6 +9,8 @@ import { permisoGaleria } from '../../utils/permisosMedia';
 import { API_URL } from '../../utils/userStore';
 import { useModal } from '../../components/AppModal';
 import { correoValido, validarNombrePersona, validarTelefono } from '../../utils/validaciones';
+import { sinEspacios, soloNombre } from '../../utils/validaciones';
+import TelefonoInput from '../../components/TelefonoInput';
 
 const GREEN = '#449D3A';
 
@@ -257,14 +259,19 @@ export default function TecnicosScreen() {
               ].map(({ label, key, keyboardType }: any) => (
                 <View key={key} className="mb-3">
                   <Text className="text-sm font-semibold text-gray-700 mb-1">{label}</Text>
-                  <TextInput
-                    value={(form as any)[key]}
-                    onChangeText={(v) => set(key, v)}
-                    keyboardType={keyboardType || 'default'}
-                    editable={key !== 'correo' || !editId}
-                    placeholderTextColor="#9ca3af"
-                    className={`border border-gray-200 rounded-xl px-3 py-2.5 text-sm ${key === 'correo' && editId ? 'bg-gray-50 text-gray-400' : ''}`}
-                  />
+                  {key === 'telefono' ? (
+                    <TelefonoInput value={(form as any)[key]} onChange={(v) => set(key, v)} />
+                  ) : (
+                    <TextInput
+                      value={(form as any)[key]}
+                      onChangeText={(v) => set(key, key === 'correo' ? sinEspacios(v).toLowerCase() : key.startsWith('nombre') || key.startsWith('apellido') ? soloNombre(v) : v)}
+                      keyboardType={keyboardType || 'default'}
+                      editable={key !== 'correo' || !editId}
+                      placeholderTextColor="#9ca3af"
+                      autoCapitalize={key === 'correo' ? 'none' : 'words'}
+                      className={`border border-gray-200 rounded-xl px-3 py-2.5 text-sm ${key === 'correo' && editId ? 'bg-gray-50 text-gray-400' : ''}`}
+                    />
+                  )}
                 </View>
               ))}
               {!editId && (

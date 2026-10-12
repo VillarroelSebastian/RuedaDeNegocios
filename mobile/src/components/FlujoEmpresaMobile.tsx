@@ -14,6 +14,8 @@ const bs = (n: number | string) => `Bs. ${Number(n).toLocaleString('es-BO')}`;
 // para configurar la mejora (costo + QR de pago).
 export default function FlujoEmpresaMobile({ paquetes, eventoId, tarjeta }: { paquetes: any[]; eventoId: number | null; tarjeta: (p: any) => React.ReactNode }) {
   const { show, modal } = useModal();
+  // Avisos del formulario: se muestran dentro del Modal nativo para que no queden tapados.
+  const { show: showEnForm, modal: modalEnForm } = useModal();
   const guardandoRef = useRef(false);
   const empresa = paquetes.filter((p) => p.tipoPaquete === 'EMPRESA').sort((a, b) => Number(a.costo) - Number(b.costo));
 
@@ -42,7 +44,7 @@ export default function FlujoEmpresaMobile({ paquetes, eventoId, tarjeta }: { pa
 
   const elegirQR = async () => {
     const permiso = await permisoGaleria();
-    if (!permiso.granted) return show({ type: 'warning', title: 'Permiso requerido', message: 'Se necesita acceso a las fotos para seleccionar el QR.' });
+    if (!permiso.granted) return showEnForm({ type: 'warning', title: 'Permiso requerido', message: 'Se necesita acceso a las fotos para seleccionar el QR.' });
     const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: 'images', quality: 0.9 });
     if (r.canceled) return;
     setGuardando(true);
@@ -53,14 +55,14 @@ export default function FlujoEmpresaMobile({ paquetes, eventoId, tarjeta }: { pa
       const d = await res.json();
       if (!res.ok || !d.url) throw new Error(d.message || 'No se pudo subir.');
       setUrlQR(d.url);
-    } catch (e: any) { show({ type: 'error', title: 'Error al subir', message: e.message }); }
+    } catch (e: any) { showEnForm({ type: 'error', title: 'Error al subir', message: e.message }); }
     finally { setGuardando(false); }
   };
 
   const guardar = async () => {
     if (!par) return;
     if (costo.trim() === '' || !(Number(costo) >= 0) || !urlQR)
-      return show({ type: 'warning', title: 'Datos incompletos', message: 'Indica el costo de la mejora y sube su QR de pago.' });
+      return showEnForm({ type: 'warning', title: 'Datos incompletos', message: 'Indica el costo de la mejora y sube su QR de pago.' });
     if (guardandoRef.current) return;
     guardandoRef.current = true;
     setGuardando(true);
@@ -75,7 +77,7 @@ export default function FlujoEmpresaMobile({ paquetes, eventoId, tarjeta }: { pa
       setPar(null);
       await cargar();
       show({ type: 'success', title: 'Mejora guardada', message: 'Las empresas ya pueden pedir esta mejora.' });
-    } catch (e: any) { show({ type: 'error', title: 'No se pudo guardar', message: e.message }); }
+    } catch (e: any) { showEnForm({ type: 'error', title: 'No se pudo guardar', message: e.message }); }
     finally { setGuardando(false); guardandoRef.current = false; }
   };
 
@@ -154,6 +156,7 @@ export default function FlujoEmpresaMobile({ paquetes, eventoId, tarjeta }: { pa
               </ScrollView>
             </View>
           </View>
+          {modalEnForm}
         </KeyboardAvoidingView>
       </Modal>
     </View>

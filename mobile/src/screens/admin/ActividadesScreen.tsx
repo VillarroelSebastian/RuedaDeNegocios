@@ -38,6 +38,9 @@ const defaultForm = {
 
 export default function ActividadesScreen({ mostrarCronograma = true }: { mostrarCronograma?: boolean }) {
   const { show, modal } = useModal();
+  // Los avisos de validación del formulario se muestran DENTRO del Modal nativo: el
+  // aviso normal vive en la pantalla de atrás y quedaría tapado por el formulario.
+  const { show: showEnForm, modal: modalEnForm } = useModal();
   const [actividades, setActividades] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -79,7 +82,7 @@ export default function ActividadesScreen({ mostrarCronograma = true }: { mostra
     if (guardandoRef.current) return;
     if (!form.nombreActividad.trim() || !form.descripcionActividad.trim() || !form.nombreSalaEspacio.trim() ||
         !(Number(form.capacidadPersonasSala) > 0) || !form.fechaActividad || !form.horaInicioActividad || !form.horaFinActividad) {
-      show({ type: 'warning', title: 'Campos requeridos', message: 'Completa nombre, descripción, sala, capacidad, fecha y horario.' });
+      showEnForm({ type: 'warning', title: 'Campos requeridos', message: 'Completa nombre, descripción, sala, capacidad, fecha y horario.' });
       return;
     }
     guardandoRef.current = true;
@@ -92,13 +95,13 @@ export default function ActividadesScreen({ mostrarCronograma = true }: { mostra
       const res = await fetch(url, { method: editId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
       if (!res.ok) {
         const detalle = await res.json().catch(() => null);
-        show({ type: 'error', title: 'No se pudo guardar', message: detalle?.message || 'Revisa los datos e intenta nuevamente.' });
+        showEnForm({ type: 'error', title: 'No se pudo guardar', message: detalle?.message || 'Revisa los datos e intenta nuevamente.' });
         return;
       }
       show({ type: 'success', title: '¡Listo!', message: editId ? 'Actividad actualizada correctamente.' : 'Actividad creada correctamente.' });
       setShowForm(false);
       fetchActividades();
-    } catch { show({ type: 'error', title: 'Error', message: 'No se pudo guardar la actividad.' }); }
+    } catch { showEnForm({ type: 'error', title: 'Error', message: 'No se pudo guardar la actividad.' }); }
     finally { setSaving(false); guardandoRef.current = false; }
   };
 
@@ -274,6 +277,7 @@ export default function ActividadesScreen({ mostrarCronograma = true }: { mostra
             </View>
           </View>
         </View>
+        {modalEnForm}
         </KeyboardAvoidingView>
       </Modal>
     </KeyboardAvoidingView>

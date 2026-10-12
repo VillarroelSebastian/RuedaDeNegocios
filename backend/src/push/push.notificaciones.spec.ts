@@ -32,7 +32,7 @@ describe('Notificaciones del dispositivo', () => {
   it('mantiene la entrega de los avisos normales de reuniones', async () => {
     const { service, prisma } = fixture();
     await service.enviar(100, 'reunion:recordatorio', { titulo: 'Reunión próxima', mensaje: 'Comienza en quince minutos', referenciaId: 30 });
-    expect(prisma.pushdelivery.createMany.mock.calls[0][0].data[0].contenido.data.url).toBe('/empresa/solicitudes?tab=reuniones&reunionId=30');
+    expect(prisma.pushdelivery.createMany.mock.calls[0][0].data[0].contenido.data.url).toBe('/empresa/solicitudes?tab=reuniones&filtro=proximas&reunionId=30');
   });
   it('no entrega publicaciones de un evento que dejó de estar activo', async () => {
     const { service, prisma } = fixture(); prisma.evento.findFirst.mockResolvedValueOnce({ id: 2, esPrincipal: 0 });

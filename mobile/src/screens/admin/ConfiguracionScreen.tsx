@@ -12,6 +12,8 @@ import KeyboardSafeView from '../../components/KeyboardSafeView';
 import { validarNombrePersona, validarTelefono } from '../../utils/validaciones';
 import CuentaLegal from '../../components/CuentaLegal';
 import { cerrarSesion } from '../../utils/cerrarSesion';
+import { soloNombre } from '../../utils/validaciones';
+import TelefonoInput from '../../components/TelefonoInput';
 
 const GREEN = '#449D3A';
 
@@ -189,13 +191,17 @@ export default function ConfiguracionScreen({ navigation }: any) {
             ].map(({ label, key, keyboardType }: any) => (
               <View key={key} className="mb-3">
                 <Text className="text-sm font-semibold text-gray-700 mb-1.5">{label}</Text>
-                <TextInput
-                  value={(form as any)[key]}
-                  onChangeText={(v) => setF(key, v)}
-                  keyboardType={keyboardType || 'default'}
-                  placeholderTextColor="#9ca3af"
-                  className="border border-gray-200 rounded-xl px-4 py-3 text-sm"
-                />
+                {key === 'telefono' ? (
+                  <TelefonoInput value={(form as any)[key]} onChange={(v) => setF(key, v)} />
+                ) : (
+                  <TextInput
+                    value={(form as any)[key]}
+                    onChangeText={(v) => setF(key, key.startsWith('nombre') || key.startsWith('apellido') ? soloNombre(v) : v)}
+                    keyboardType={keyboardType || 'default'}
+                    placeholderTextColor="#9ca3af"
+                    className="border border-gray-200 rounded-xl px-4 py-3 text-sm"
+                  />
+                )}
               </View>
             ))}
             <View className="mb-3">

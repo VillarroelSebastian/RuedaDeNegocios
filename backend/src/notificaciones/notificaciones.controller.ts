@@ -1,6 +1,7 @@
 import { BadRequestException, Body, Controller, ForbiddenException, Get, Param, Put, Req } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { NotificacionesGateway } from './notificaciones.gateway.js';
+import { enlaceReuniones } from './destino-notificacion.js';
 
 @Controller('notificaciones')
 export class NotificacionesController {
@@ -39,13 +40,10 @@ export class NotificacionesController {
       enlace: n.referenciaNombreTabla === 'actividadprograma' ? `${base}/cronograma-vivo`
         : n.tipoNotificacion.startsWith('ticket') ? `${base}/mensajes`
         : n.referenciaNombreTabla === 'mesa' ? `${base}/mesas` : n.tipoNotificacion.startsWith('pago') ? `${base}/perfil`
-        // Las solicitudes ya no tienen pestañas propias: se gestionan dentro
-        // de "Reuniones", que filtra las pendientes por aceptar.
-        : n.tipoNotificacion === 'solicitud:nueva' ? `${base}/solicitudes?tab=reuniones&filtro=pendientes`
-        : n.tipoNotificacion.startsWith('solicitud') ? `${base}/solicitudes?tab=reuniones`
-        // Las propuestas de cambio de horario se gestionan en Reuniones › Cambios.
-        : company && n.tipoNotificacion.startsWith('reunion:cambio') ? `${base}/solicitudes?tab=reuniones&filtro=cambios`
-        : company ? `${base}/solicitudes?tab=reuniones&reunionId=${n.referenciaId}` : `${base}/virtuales`,
+        // Solicitudes, reuniones y cambios se gestionan dentro de "Reuniones": cada
+        // tipo abre su propia subopción (pendientes, próximas, cambios...).
+        : (company && enlaceReuniones(base, n.tipoNotificacion, n.referenciaId, n.referenciaNombreTabla))
+          || (company ? `${base}/solicitudes?tab=reuniones` : `${base}/virtuales`),
     });
     // Personal notifications outside this event are never included.
     const personalForEvent = personal.filter(n => n.referenciaNombreTabla === 'noticia' ? noticiasIds.has(n.referenciaId) : false);
@@ -67,8 +65,25 @@ export class NotificacionesController {
       ...personalForEvent.map(n => normalize(n, 'personal')),
     ];
     if (req.user.role === 'ADMINISTRADOR') {
-      const pending = await this.prisma.empresaevento.findMany({ where: { evento_id: eventoId, estaActivo: 1, estadoVerificacionPago: { in: ['PENDIENTE', 'OBSERVADO'] } }, include: { empresa: true } });
-      items.push(...pending.map(e => ({ id: `pago-${e.id}`, titulo: 'Pago pendiente de revisión', mensaje: `${e.empresa.nombre}: ${e.estadoVerificacionPago.toLowerCase()}`, tipo: 'pago:pendiente', fecha: e.fechaHoraEnvioComprobante ?? e.fechaCreacion, enlace: `/admin/pagos/${e.id}` })));
+      const pending = await this.prisma.empresaevento.findMany({
+        where: { evento_id: eventoId, estaActivo: 1, estadoVerificacionPago: { in: ['PENDIENTE', 'OBSERVADO'] } },
+        include: { empresa: true, empresa_usuario: { where: { esResponsable: 1 }, take: 1, include: { usuario: { select: { nombres: true, apellidoPaterno: true } } } } },
+      });
+      // Foro y empresa comparten el mecanismo de pago pero se avisan por separado.
+      items.push(...pending.map(e => {
+        const foro = e.empresa.rubro === 'Foro';
+        const u = e.empresa_usuario?.[0]?.usuario;
+        const persona = u ? `${u.nombres} ${u.apellidoPaterno}`.trim() : e.empresa.nombre;
+        const estado = e.estadoVerificacionPago === 'OBSERVADO' ? 'con observaciones' : 'pendiente de revisión';
+        return {
+          id: `pago-${e.id}`,
+          titulo: foro ? 'Pago de Foro pendiente' : 'Pago de empresa pendiente',
+          mensaje: foro ? `${persona} (${e.empresa.nombre}): pago ${estado}` : `${e.empresa.nombre}: pago ${estado}`,
+          tipo: foro ? 'pago:foro' : 'pago:pendiente',
+          fecha: e.fechaHoraEnvioComprobante ?? e.fechaCreacion,
+          enlace: `/admin/pagos/${e.id}`,
+        };
+      }));
       const adicionales = await this.prisma.empresaeventocomprobantes.findMany({ where: { tipoPago: 'ADICIONAL', estadoPago: 'PENDIENTE', estaActivo: 1, empresaevento: { evento_id: eventoId } }, include: { empresaevento: { include: { empresa: true } } } });
       items.push(...adicionales.map(p => ({ id: `adicional-${p.id}`, titulo: 'Pago adicional pendiente', mensaje: p.empresaevento.empresa.nombre, tipo: 'pago:adicional', fecha: p.fechaCreacion, enlace: '/admin/pagos-adicionales' })));
       const mejoras = await this.prisma.empresaeventocomprobantes.findMany({ where: { tipoPago: 'MEJORA', estadoPago: 'PENDIENTE', estaActivo: 1, empresaevento: { evento_id: eventoId } }, include: { empresaevento: { include: { empresa: true } }, paqueteDestino: { select: { nombre: true } } } });
