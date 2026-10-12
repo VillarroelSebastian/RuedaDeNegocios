@@ -8,7 +8,7 @@ Textos listos para pegar en Play Console (Presencia en Google Play › Ficha de 
 - **Categoría:** Negocios
 - **Etiquetas sugeridas:** Eventos, Negocios, Networking
 - **Desarrollador / organización:** UMA – Univalle (Universidad Privada del Valle)
-- **Correo de contacto:** el correo de contacto del evento (Admin › Evento).
+- **Correo de contacto:** ruedadenegociosdelbeni@gmail.com (teléfono 78328273)
 - **Sitio web:** https://app.ruedadenegocios.univalle.edu
 - **Política de privacidad:** https://app.ruedadenegocios.univalle.edu/privacidad
 - **Eliminación de cuenta (URL):** https://app.ruedadenegocios.univalle.edu/eliminar-cuenta

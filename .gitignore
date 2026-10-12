@@ -33,3 +33,6 @@ backend/secrets/
 
 # APKs compilados localmente (cientos de MB, no van al repo)
 mobile/apk/
+
+# Credenciales demo para revisores de Google Play (solo local)
+mobile/play-store/ACCESO_REVISORES.md

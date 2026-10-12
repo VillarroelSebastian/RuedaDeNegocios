@@ -16,7 +16,7 @@ Requisitos en EAS: variable de archivo secreta `GOOGLE_SERVICES_JSON` (el `googl
 
 ## 3. Contenido de la app (Play Console › Política › Contenido de la app)
 - **Política de privacidad:** https://app.ruedadenegocios.univalle.edu/privacidad
-- **Acceso a la app:** ver `ACCESO_REVISORES.md`.
+- **Acceso a la app:** ver `ACCESO_REVISORES.md` (archivo local con las credenciales; no está en git). Correo de contacto para revisión: ruedadenegociosdelbeni@gmail.com.
 - **Anuncios:** No contiene anuncios.
 - **Público objetivo:** 18 años o más. No está dirigida a niños.
 - **Clasificación de contenido (cuestionario IARC), categoría "Utilidad / Productividad / Comunicación u otra":**
