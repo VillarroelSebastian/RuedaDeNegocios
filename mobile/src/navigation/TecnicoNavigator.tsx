@@ -25,6 +25,7 @@ import { userStore, API_URL } from '../utils/userStore';
 import { navigationRef } from '../../App';
 
 import ChatInternoScreen from '../screens/shared/ChatInternoScreen';
+import { cerrarSesion } from '../utils/cerrarSesion';
 const Tab          = createBottomTabNavigator();
 const TecnicoStack = createNativeStackNavigator();
 
@@ -78,7 +79,7 @@ function TecnicoTabs() {
       message: '¿Estás seguro que quieres cerrar sesión?',
       confirmText: 'Cerrar sesión',
       cancelText: 'Cancelar',
-      onConfirm: async () => { try { await userStore.clear(); navigation.replace('Login'); } catch { show({ type: 'error', title: 'Cerrar sesi\u00f3n', message: 'No se pudo desactivar este dispositivo. Revisa tu conexi\u00f3n y vuelve a cerrar sesi\u00f3n.' }); } },
+      onConfirm: async () => { try { await cerrarSesion(); } catch { show({ type: 'error', title: 'Cerrar sesi\u00f3n', message: 'No se pudo desactivar este dispositivo. Revisa tu conexi\u00f3n y vuelve a cerrar sesi\u00f3n.' }); } },
     });
   };
   return (

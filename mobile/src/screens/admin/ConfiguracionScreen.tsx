@@ -11,6 +11,7 @@ import { useModal } from '../../components/AppModal';
 import KeyboardSafeView from '../../components/KeyboardSafeView';
 import { validarNombrePersona, validarTelefono } from '../../utils/validaciones';
 import CuentaLegal from '../../components/CuentaLegal';
+import { cerrarSesion } from '../../utils/cerrarSesion';
 
 const GREEN = '#449D3A';
 
@@ -128,7 +129,7 @@ export default function ConfiguracionScreen({ navigation }: any) {
       message: '¿Estás seguro que quieres cerrar sesión?',
       confirmText: 'Cerrar sesión',
       cancelText: 'Cancelar',
-      onConfirm: async () => { try { await userStore.clear(); navigation.replace('Login'); } catch { show({ type: 'error', title: 'Cerrar sesi\u00f3n', message: 'No se pudo desactivar este dispositivo. Revisa tu conexi\u00f3n y vuelve a cerrar sesi\u00f3n.' }); } },
+      onConfirm: async () => { try { await cerrarSesion(); } catch { show({ type: 'error', title: 'Cerrar sesi\u00f3n', message: 'No se pudo desactivar este dispositivo. Revisa tu conexi\u00f3n y vuelve a cerrar sesi\u00f3n.' }); } },
     });
   };
 

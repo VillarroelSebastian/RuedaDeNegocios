@@ -95,7 +95,15 @@ export const userStore = {
     loggingOut = true;
     const user = currentUser;
     logoutTask = (async () => {
-      if (user?.token) await import('./push').then(m => m.desactivarPush(API_URL, user.token, true));
+      // Revocar las notificaciones del dispositivo es "lo mejor posible": si no
+      // hay red, el servidor tarda o falla, el cierre de sesión debe completarse
+      // igual (las notificaciones de otra cuenta ya se ocultan en el dispositivo).
+      if (user?.token) {
+        await Promise.race([
+          import('./push').then(m => m.desactivarPush(API_URL, user.token, true)),
+          new Promise<void>((resolve) => setTimeout(resolve, 6000)),
+        ]).catch(() => {});
+      }
       currentUser = null;
       notify();
       await AsyncStorage.removeItem(STORAGE_KEY);

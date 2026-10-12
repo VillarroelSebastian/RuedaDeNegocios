@@ -79,11 +79,15 @@ export async function desactivarPush(api: string, token: string, cerrarSesion = 
   return serializeDevice(async () => {
   const stored = await AsyncStorage.getItem(KEY);
   if (stored) {
+    // AbortSignal.timeout no existe en React Native (lanzaba TypeError y
+    // dejaba el cierre de sesión sin completarse): se arma a mano.
+    const controlador = new AbortController();
+    const limite = setTimeout(() => controlador.abort(), 5000);
     const res = await fetch(api + '/push/suscripcion', {
-      method: 'DELETE', signal: AbortSignal.timeout(5000),
+      method: 'DELETE', signal: controlador.signal,
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
       body: JSON.stringify({ token: stored }),
-    });
+    }).finally(() => clearTimeout(limite));
     if (!res.ok) throw new Error('No se pudo desactivar push. Intenta de nuevo.');
     await AsyncStorage.removeItem(KEY);
   }

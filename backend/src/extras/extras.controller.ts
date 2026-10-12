@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Put, Delete, Param, Body, Query, BadRequestException, ForbiddenException, Req, Res,
+  Controller, Get, Post, Put, Delete, Param, Body, Query, BadRequestException, ForbiddenException, Req, Res, OnModuleInit,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { writeFileSync, mkdirSync, existsSync } from 'fs';
@@ -11,6 +11,7 @@ import * as bcrypt from 'bcrypt';
 import { ZipArchive } from 'archiver';
 import { PushService } from '../push/push.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { accionCronograma, ventanaActividad } from './horario-actividad.js';
 
 const EVENT_TIME_ZONE = 'America/La_Paz';
 const EMAIL_LOGO_CID = 'rueda-logo@ruedadenegocios';
@@ -31,8 +32,63 @@ function claveFechaUtc(fecha: Date): string {
 // Paquetes de inscripción, auspiciadores, repositorio de fotos y cronograma en
 // vivo. Van en su propio controlador para no seguir engrosando app.controller.
 @Controller()
-export class ExtrasController {
+export class ExtrasController implements OnModuleInit {
   constructor(private readonly prisma: PrismaService, private readonly push: PushService) {}
+
+  // El cronograma en vivo se mueve solo según la hora de Bolivia: cada 15 s pone
+  // en vivo las actividades que llegaron a su hora, avisa a los suscritos antes
+  // de que empiecen y finaliza las que cumplieron su horario de cierre.
+  onModuleInit() {
+    void this.sincronizarCronogramaVivo().catch(() => {});
+    const timer = setInterval(() => { this.sincronizarCronogramaVivo().catch(() => {}); }, 15_000);
+    timer.unref?.();
+  }
+
+  private async avisarSuscritos(actividad: { id: number; nombreActividad: string }, tipo: string, titulo: string, mensaje: string, unaVez: boolean) {
+    const subs = await this.prisma.suscripcionactividad.findMany({ where: { actividad_id: actividad.id, estaActivo: 1 }, select: { empresaevento_id: true } });
+    const payload = { titulo, mensaje, referenciaId: actividad.id };
+    for (const s of subs) {
+      if (unaVez) {
+        const previa = await this.prisma.notificacion.findFirst({
+          where: { empresaevento_id: s.empresaevento_id, tipoNotificacion: tipo, referenciaId: actividad.id, estaActivo: 1 }, select: { id: true },
+        });
+        if (previa) continue;
+      }
+      await this.prisma.notificacion.create({ data: {
+        empresaevento_id: s.empresaevento_id, tituloNotificacion: titulo, mensajeNotificacion: mensaje,
+        tipoNotificacion: tipo, referenciaId: actividad.id, referenciaNombreTabla: 'actividadprograma', haSidoLeida: 0, estaActivo: 1,
+      } }).catch(() => {});
+      await this.push.enviar(s.empresaevento_id, tipo, payload).catch(() => {});
+    }
+    if (tipo === 'evento:inicio') await this.push.enviar('foro', tipo, payload).catch(() => {});
+  }
+
+  private async sincronizarCronogramaVivo() {
+    const evento = await this.prisma.evento.findFirst({ where: { esPrincipal: 1, estaActivo: { not: 0 } }, select: { id: true } });
+    if (!evento) return;
+    const actividades = await this.prisma.actividadprograma.findMany({
+      where: { evento_id: evento.id, estaActivo: 1, estadoActividad: { not: 'Inactivo' }, estadoEnVivo: { in: ['PENDIENTE', 'EN_VIVO'] } },
+    });
+    const ahora = Date.now();
+    for (const a of actividades) {
+      const ventana = ventanaActividad(a.fechaActividad, a.horaInicioActividad, a.horaFinActividad);
+      const accion = accionCronograma(a.estadoEnVivo, a.enVivoManual === 1, ventana, ahora);
+      if (accion === 'INICIAR') {
+        const claim = await this.prisma.actividadprograma.updateMany({
+          where: { id: a.id, estadoEnVivo: 'PENDIENTE', enVivoManual: 0 },
+          data: { estadoEnVivo: 'EN_VIVO', horaInicioReal: a.horaInicioReal ?? new Date(), creadoModificadoFecha: new Date() },
+        });
+        if (claim.count) await this.avisarSuscritos(a, 'evento:inicio', 'Ya inició: ' + a.nombreActividad, 'La actividad a la que te suscribiste acaba de comenzar.', false);
+      } else if (accion === 'FINALIZAR') {
+        await this.prisma.actividadprograma.updateMany({
+          where: { id: a.id, estadoEnVivo: { in: ['PENDIENTE', 'EN_VIVO'] } },
+          data: { estadoEnVivo: 'FINALIZADA', horaFinReal: a.horaFinReal ?? new Date(), creadoModificadoFecha: new Date() },
+        });
+      } else if (accion === 'RECORDAR') {
+        await this.avisarSuscritos(a, 'evento:recordatorio', 'Empieza pronto: ' + a.nombreActividad, 'La actividad a la que te suscribiste empieza en unos minutos.', true);
+      }
+    }
+  }
 
   private cabeceraCorreo(): string {
     return `<div style="text-align:center;margin-bottom:18px"><img src="cid:${EMAIL_LOGO_CID}" alt="Rueda de Negocios" width="190" style="display:inline-block;max-width:190px;max-height:90px;object-fit:contain" /></div>`;
@@ -1386,6 +1442,8 @@ export class ExtrasController {
     const data: any = {
       estadoEnVivo: estado,
       notaEnVivo: this.texto(body.notaEnVivo, 305, 'Nota', false),
+      // El staff tomó el control: el sistema ya no la pone en vivo por horario.
+      enVivoManual: 1,
       creadoModificadoFecha: ahora,
     };
     // Se sella la hora real solo la primera vez que entra/sale de vivo.
@@ -1393,22 +1451,8 @@ export class ExtrasController {
     if (estado === 'FINALIZADA' && !actividad.horaFinReal) data.horaFinReal = ahora;
 
     await this.prisma.actividadprograma.update({ where: { id: actividadId }, data });
-    if (estado === 'EN_VIVO' && actividad.estadoEnVivo !== 'EN_VIVO') {
-      const subs = await this.prisma.suscripcionactividad.findMany({ where: { actividad_id: actividadId, estaActivo: 1 }, select: { empresaevento_id: true } });
-      if (subs.length) await this.prisma.notificacion.createMany({ data: subs.map((s) => ({
-        empresaevento_id: s.empresaevento_id,
-        tituloNotificacion: `Ya inició: ${actividad.nombreActividad}`,
-        mensajeNotificacion: 'La actividad a la que te suscribiste acaba de comenzar.',
-        tipoNotificacion: 'evento:inicio', referenciaId: actividadId,
-        referenciaNombreTabla: 'actividadprograma', haSidoLeida: 0, estaActivo: 1,
-      })) });
-    }
-    if(estado === 'EN_VIVO' && actividad.estadoEnVivo !== 'EN_VIVO'){
-      const subs=await this.prisma.suscripcionactividad.findMany({where:{actividad_id:actividadId,estaActivo:1},select:{empresaevento_id:true}});
-      const payload={titulo:'Ya inició: '+actividad.nombreActividad,mensaje:'La actividad acaba de comenzar.',referenciaId:actividadId};
-      await Promise.all(subs.map(s=>this.push.enviar(s.empresaevento_id,'evento:inicio',payload)));
-      await this.push.enviar('foro','evento:inicio',payload);
-    }
+    if (estado === 'EN_VIVO' && actividad.estadoEnVivo !== 'EN_VIVO')
+      await this.avisarSuscritos(actividad, 'evento:inicio', 'Ya inició: ' + actividad.nombreActividad, 'La actividad a la que te suscribiste acaba de comenzar.', false);
     return this.cronogramaVivo();
   }
 }

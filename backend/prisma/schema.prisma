@@ -34,6 +34,9 @@ model actividadprograma {
   estadoEnVivo                  String                 @default("PENDIENTE") @db.VarChar(20)
   // Aviso puntual del staff ("empieza 10 min tarde", "cambio de sala").
   notaEnVivo                    String?                @db.VarChar(305)
+  // 1 = el staff movió el estado a mano: el cronograma deja de ponerla en vivo
+  // solo (el cierre automático al terminar su horario sí sigue aplicando).
+  enVivoManual                  Int                    @default(0) @db.SmallInt
   horaInicioReal                DateTime?              @db.Timestamp(6)
   horaFinReal                   DateTime?              @db.Timestamp(6)
   estaActivo                    Int                    @default(1) @db.SmallInt

@@ -11,6 +11,7 @@ import { permisoGaleria } from '../../utils/permisosMedia';
 import { API_URL, userStore } from '../../utils/userStore';
 import { validarNombrePersona, validarTelefono } from '../../utils/validaciones';
 import CuentaLegal from '../../components/CuentaLegal';
+import { cerrarSesion } from '../../utils/cerrarSesion';
 
 const GREEN = '#449D3A';
 
@@ -96,7 +97,7 @@ export default function TecnicoPerfilScreen({ navigation }: any) {
 
   const handleLogout = async () => {
     setConfirmLogout(false);
-    try { await userStore.clear(); navigation.replace('Login'); }
+    try { await cerrarSesion(); }
     catch { setModal({ visible: true, type: 'error', title: 'Cerrar sesi\u00f3n', message: 'No se pudo desactivar este dispositivo. Revisa tu conexi\u00f3n y vuelve a cerrar sesi\u00f3n.' }); }
   };
 

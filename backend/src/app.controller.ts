@@ -3109,17 +3109,27 @@ export class AppController implements OnModuleInit {
         return new Date(Date.UTC(1970, 0, 1, Number(h), Number(m), 0));
       };
 
+      const nuevaFecha = new Date(body.fechaActividad);
+      const nuevoInicio = parseTime(body.horaInicioActividad);
+      const nuevoFin = parseTime(body.horaFinActividad);
+      // Si se reprograma la actividad, el cronograma en vivo vuelve a seguir su
+      // nuevo horario automáticamente (y se limpian las horas reales anteriores).
+      const horarioCambio = existente.fechaActividad?.getTime() !== nuevaFecha.getTime()
+        || existente.horaInicioActividad?.getTime() !== nuevoInicio.getTime()
+        || existente.horaFinActividad?.getTime() !== nuevoFin.getTime();
+
       return await this.prisma.actividadprograma.update({
         where: { id: Number(id) },
         data: {
+          ...(horarioCambio ? { estadoEnVivo: 'PENDIENTE', enVivoManual: 0, horaInicioReal: null, horaFinReal: null } : {}),
           tipoActividad: body.tipoActividad,
           nombreActividad: body.nombreActividad,
           descripcionActividad: body.descripcionActividad,
           nombreSalaEspacio: body.nombreSalaEspacio,
           capacidadPersonasSala: Number(body.capacidadPersonasSala) || 0,
-          fechaActividad: new Date(body.fechaActividad),
-          horaInicioActividad: parseTime(body.horaInicioActividad),
-          horaFinActividad: parseTime(body.horaFinActividad),
+          fechaActividad: nuevaFecha,
+          horaInicioActividad: nuevoInicio,
+          horaFinActividad: nuevoFin,
           nombreCompletoPilaExpositor: body.nombreCompletoPilaExpositor || null,
           organizacionDelExpositor: body.organizacionDelExpositor || null,
           urlImagenBannerActividad: body.urlImagenBannerActividad || null,
