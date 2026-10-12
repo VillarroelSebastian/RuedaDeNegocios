@@ -23,6 +23,13 @@ function Tarjeta({ c, ocupado, onAceptar, onRechazar, onCancelar, onReintentar }
   const est = ESTADO[c.estado] ?? ESTADO.PENDIENTE;
   const recibida = c.direccion === "recibida";
   const cambiaModalidad = c.actual.tipo !== c.propuesto.tipo;
+  const cambiaMesa = c.propuesto.tipo === "PRESENCIAL" && c.actual.tipo === "PRESENCIAL" && c.actual.mesa !== c.propuesto.mesa;
+  // El estado define qué significan los dos bloques: la reunión se modifica al aceptar,
+  // por eso en el historial el primero es el "antes" y el segundo el "ahora".
+  const aplicado = c.estado === "ACEPTADA";
+  const etiquetaActual = c.estado === "PENDIENTE" ? "Actual" : aplicado ? "Antes" : "Se mantiene";
+  const etiquetaPropuesto = c.estado === "PENDIENTE" ? "Propuesto" : aplicado ? "Ahora" : "Propuesto (no se aplicó)";
+  const lugar = (x: any) => `${fmtTipo(x.tipo)}${x.tipo === "PRESENCIAL" && x.mesa ? ` · Mesa ${x.mesa}` : ""}`;
   return (
     <div className={`rounded-2xl border bg-white p-4 shadow-sm ${c.estado === "PENDIENTE" && recibida ? "border-amber-300 bg-amber-50/50" : "border-gray-100"}`}>
       <div className="flex flex-wrap items-center gap-2 mb-2">
@@ -36,15 +43,15 @@ function Tarjeta({ c, ocupado, onAceptar, onRechazar, onCancelar, onReintentar }
 
       <div className="mt-3 grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] items-center gap-2 text-xs">
         <div className="rounded-xl bg-gray-50 p-3">
-          <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-1">Actual</p>
+          <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-1">{etiquetaActual}</p>
           <p className="flex items-center gap-1 font-semibold text-gray-700"><CalendarDays className="w-3.5 h-3.5" />{fmtDia(c.actual.inicio)} · {fmtHora(c.actual.inicio)}</p>
-          <p className="text-gray-500 mt-0.5">{fmtTipo(c.actual.tipo)}{c.actual.mesa ? ` · Mesa ${c.actual.mesa}` : ""}</p>
+          <p className="text-gray-500 mt-0.5">{lugar(c.actual)}</p>
         </div>
         <ArrowRight className="hidden sm:block w-4 h-4 text-[#449D3A]" />
-        <div className="rounded-xl bg-green-50 p-3">
-          <p className="text-[10px] font-bold uppercase tracking-wide text-green-700 mb-1">Propuesto</p>
+        <div className={`rounded-xl p-3 ${aplicado || c.estado === "PENDIENTE" ? "bg-green-50" : "bg-gray-50"}`}>
+          <p className={`text-[10px] font-bold uppercase tracking-wide mb-1 ${aplicado || c.estado === "PENDIENTE" ? "text-green-700" : "text-gray-400"}`}>{etiquetaPropuesto}</p>
           <p className="flex items-center gap-1 font-semibold text-gray-900"><CalendarDays className="w-3.5 h-3.5" />{fmtDia(c.propuesto.inicio)} · {fmtHora(c.propuesto.inicio)}</p>
-          <p className="text-gray-600 mt-0.5">{fmtTipo(c.propuesto.tipo)}{cambiaModalidad ? " (cambia la modalidad)" : ""}</p>
+          <p className="text-gray-600 mt-0.5">{lugar(c.propuesto)}{cambiaModalidad ? " (cambia la modalidad)" : cambiaMesa ? " (cambia la mesa)" : ""}</p>
         </div>
       </div>
 

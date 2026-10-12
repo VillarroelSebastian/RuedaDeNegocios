@@ -691,6 +691,12 @@ model cambioreunion {
   mesa_id               Int?
   enlaceReunionVirtual  String?   @db.VarChar(500)
   mensaje               String?   @db.VarChar(505)
+  // Cómo estaba la reunión cuando se propuso el cambio: la reunión se modifica al
+  // aceptar, así que sin esto el historial perdería el horario y la mesa anteriores.
+  inicioAnterior        DateTime? @db.Timestamp(6)
+  finAnterior           DateTime? @db.Timestamp(6)
+  tipoAnterior          String?   @db.VarChar(45)
+  mesaAnterior_id       Int?
   estado                String    @default("PENDIENTE") @db.VarChar(45)
   motivoRechazo         String?   @db.VarChar(505)
   estaActivo            Int       @default(1) @db.SmallInt

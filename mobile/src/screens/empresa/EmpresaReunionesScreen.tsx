@@ -66,6 +66,10 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
   const [guardando, setGuardando] = useState(false);
   const guardandoRef = useRef(false);
   const [appModal, setAppModal] = useState<AppModal | null>(null);
+  // Mesas libres en el nuevo horario (solo presencial). null = automática: el
+  // sistema conserva la mesa actual si sigue libre o asigna otra.
+  const [mesas, setMesas] = useState<any[]>([]);
+  const [mesaSelec, setMesaSelec] = useState<number | null>(null);
 
   const fechasDisponibles = useMemo(() =>
     [...new Set(agenda.map((h: any) => partesFechaEvento(h.inicio).dateKey))] as string[],
@@ -119,6 +123,17 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
       .finally(() => setCargando(false));
   }, [reunion, eeId]);
 
+  useEffect(() => {
+    setMesaSelec(null);
+    if (tipoReunion !== 'PRESENCIAL' || !horarioMatch?.inicio || !horarioMatch?.fin) { setMesas([]); return; }
+    let vigente = true;
+    fetch(`${API_URL}/empresa/mesas-disponibles?inicio=${encodeURIComponent(horarioMatch.inicio)}&fin=${encodeURIComponent(horarioMatch.fin)}`)
+      .then((r) => r.json())
+      .then((d) => { if (vigente) setMesas(Array.isArray(d) ? d : []); })
+      .catch(() => { if (vigente) setMesas([]); });
+    return () => { vigente = false; };
+  }, [tipoReunion, horarioMatch?.inicio, horarioMatch?.fin]);
+
   const handleGuardar = async () => {
     if (guardandoRef.current) return;
     guardandoRef.current = true;
@@ -128,7 +143,7 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
       const res = await fetch(`${API_URL}/empresa/reuniones/${reunion.id}/cambiar-horario`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eeId, inicio: horarioMatch.inicio, tipoReunion, mensaje }),
+        body: JSON.stringify({ eeId, inicio: horarioMatch.inicio, tipoReunion, mensaje, ...(tipoReunion === 'PRESENCIAL' && mesaSelec ? { mesaId: mesaSelec } : {}) }),
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
       onOk();
@@ -253,6 +268,28 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
                   </View>
                 )}
               </>
+            )}
+
+            {tipoReunion === 'PRESENCIAL' && !!horarioMatch && (
+              <View style={{ marginTop: 14 }}>
+                <Text style={cm.sectionLabel}>Mesa</Text>
+                <Text style={{ fontSize: 11, color: '#94a3b8', marginBottom: 8 }}>
+                  {reunion?.mesa?.numeroMesa ? `Mesa actual: ${reunion.mesa.numeroMesa}. ` : ''}Elige una mesa libre en el nuevo horario o deja que el sistema asigne la mejor.
+                </Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  <TouchableOpacity onPress={() => setMesaSelec(null)}
+                    style={{ width: '100%', paddingVertical: 10, borderRadius: 12, alignItems: 'center', borderWidth: 1.5, borderColor: mesaSelec === null ? GREEN : '#e2e8f0', backgroundColor: mesaSelec === null ? '#f0fdf4' : '#fff' }}>
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: mesaSelec === null ? '#166534' : '#64748b' }}>Automática (recomendada)</Text>
+                  </TouchableOpacity>
+                  {mesas.map((m: any) => (
+                    <TouchableOpacity key={m.id} onPress={() => setMesaSelec(m.id)}
+                      style={{ minWidth: 72, paddingVertical: 9, paddingHorizontal: 10, borderRadius: 12, alignItems: 'center', borderWidth: 1.5, borderColor: mesaSelec === m.id ? GREEN : '#e2e8f0', backgroundColor: mesaSelec === m.id ? '#f0fdf4' : '#fff' }}>
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: mesaSelec === m.id ? '#166534' : '#475569' }}>Mesa {m.numeroMesa}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                {mesas.length === 0 && <Text style={{ fontSize: 11, color: '#d97706', marginTop: 6 }}>No hay mesas libres en ese horario.</Text>}
+              </View>
             )}
 
             <View style={cm.btnRow}>

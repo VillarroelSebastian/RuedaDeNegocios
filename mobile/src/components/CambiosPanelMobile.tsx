@@ -21,6 +21,14 @@ function Tarjeta({ c, ocupado, onAceptar, onRechazar, onCancelar, onReintentar }
   const est = ESTADO[c.estado] ?? ESTADO.PENDIENTE;
   const recibida = c.direccion === 'recibida';
   const pendRecibida = c.estado === 'PENDIENTE' && recibida;
+  const aplicado = c.estado === 'ACEPTADA';
+  const cambiaMesa = c.propuesto.tipo === 'PRESENCIAL' && c.actual.tipo === 'PRESENCIAL' && c.actual.mesa !== c.propuesto.mesa;
+  // La reunión se modifica al aceptar: en el historial el primer bloque es el
+  // "antes" y el segundo el "ahora".
+  const etiquetaActual = c.estado === 'PENDIENTE' ? 'ACTUAL' : aplicado ? 'ANTES' : 'SE MANTIENE';
+  const etiquetaPropuesto = c.estado === 'PENDIENTE' ? 'PROPUESTO' : aplicado ? 'AHORA' : 'PROPUESTO (NO SE APLICÓ)';
+  const lugar = (x: any) => `${fmtTipo(x.tipo)}${x.tipo === 'PRESENCIAL' && x.mesa ? ` · Mesa ${x.mesa}` : ''}`;
+  const colorPropuesto = aplicado || c.estado === 'PENDIENTE';
   return (
     <View style={{ backgroundColor: pendRecibida ? '#fffbeb' : '#fff', borderRadius: 16, borderWidth: 1, borderColor: pendRecibida ? '#fcd34d' : '#e2e8f0', padding: 14, marginBottom: 12 }}>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
@@ -37,19 +45,19 @@ function Tarjeta({ c, ocupado, onAceptar, onRechazar, onCancelar, onReintentar }
 
       <View style={{ marginTop: 10, gap: 6 }}>
         <View style={{ backgroundColor: '#f8fafc', borderRadius: 12, padding: 10 }}>
-          <Text style={{ fontSize: 10, fontWeight: '800', color: '#94a3b8' }}>ACTUAL</Text>
+          <Text style={{ fontSize: 10, fontWeight: '800', color: '#94a3b8' }}>{etiquetaActual}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 }}>
             <CalendarDays size={13} color="#475569" /><Text style={{ fontSize: 13, fontWeight: '700', color: '#334155' }}>{fmtDia(c.actual.inicio)} · {fmtHora(c.actual.inicio)}</Text>
           </View>
-          <Text style={{ fontSize: 11, color: '#64748b' }}>{fmtTipo(c.actual.tipo)}{c.actual.mesa ? ` · Mesa ${c.actual.mesa}` : ''}</Text>
+          <Text style={{ fontSize: 11, color: '#64748b' }}>{lugar(c.actual)}</Text>
         </View>
         <View style={{ alignItems: 'center' }}><ArrowDown size={14} color={GREEN} /></View>
-        <View style={{ backgroundColor: '#f0fdf4', borderRadius: 12, padding: 10 }}>
-          <Text style={{ fontSize: 10, fontWeight: '800', color: '#15803d' }}>PROPUESTO</Text>
+        <View style={{ backgroundColor: colorPropuesto ? '#f0fdf4' : '#f8fafc', borderRadius: 12, padding: 10 }}>
+          <Text style={{ fontSize: 10, fontWeight: '800', color: colorPropuesto ? '#15803d' : '#94a3b8' }}>{etiquetaPropuesto}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 }}>
             <CalendarDays size={13} color="#166534" /><Text style={{ fontSize: 13, fontWeight: '800', color: '#0f172a' }}>{fmtDia(c.propuesto.inicio)} · {fmtHora(c.propuesto.inicio)}</Text>
           </View>
-          <Text style={{ fontSize: 11, color: '#475569' }}>{fmtTipo(c.propuesto.tipo)}{c.actual.tipo !== c.propuesto.tipo ? ' (cambia la modalidad)' : ''}</Text>
+          <Text style={{ fontSize: 11, color: '#475569' }}>{lugar(c.propuesto)}{c.actual.tipo !== c.propuesto.tipo ? ' (cambia la modalidad)' : cambiaMesa ? ' (cambia la mesa)' : ''}</Text>
         </View>
       </View>
 

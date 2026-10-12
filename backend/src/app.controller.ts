@@ -8719,7 +8719,7 @@ export class AppController implements OnModuleInit {
   @Put('empresa/reuniones/:id/cambiar-horario')
   async cambiarHorarioReunion(
     @Param('id') id: string,
-    @Body() body: { eeId: number; inicio: string; tipoReunion?: string; mensaje?: string },
+    @Body() body: { eeId: number; inicio: string; tipoReunion?: string; mensaje?: string; mesaId?: number },
   ) {
     const { eeId, inicio } = body;
     if (!eeId || !inicio) throw new BadRequestException('eeId e inicio requeridos');
@@ -8785,7 +8785,26 @@ export class AppController implements OnModuleInit {
     // Para PRESENCIAL se conserva la mesa solo si sigue disponible; para
     // VIRTUAL no se reserva ninguna mesa fisica.
     let mesaId = tipoPropuesto === 'PRESENCIAL' ? reunion.mesa_id : null;
-    if (tipoPropuesto === 'PRESENCIAL') {
+    // Mesa elegida por quien propone: debe existir, estar habilitada y libre
+    // en el nuevo horario (con el tiempo de limpieza entre reuniones).
+    if (tipoPropuesto === 'PRESENCIAL' && body.mesaId) {
+      const elegida = Number(body.mesaId);
+      const mesa = await this.prisma.mesa.findFirst({ where: { id: elegida, evento_id: eventoId!, estaActivo: 1, estaHabilitada: 1 } });
+      if (!mesa) throw new BadRequestException('La mesa elegida no existe o no está habilitada.');
+      const bufMs = (evento.tiempoEntreReuniones ?? 0) * 60000;
+      const [choque, solicitudChoque] = await Promise.all([
+        this.prisma.reunion.findFirst({ where: {
+          id: { not: reunion.id }, mesa_id: elegida, estaActivo: 1, estadoReunion: { not: 'CANCELADA' },
+          fechaHoraInicioReunion: { lt: new Date(finDate.getTime() + bufMs) }, fechaHoraFinReunion: { gt: new Date(iniDate.getTime() - bufMs) },
+        } }),
+        this.prisma.solicitudreunion.findFirst({ where: {
+          mesa_id: elegida, estaActivo: 1, estadoSolicitud: 'PENDIENTE', tipoReunion: 'PRESENCIAL',
+          fechaHoraInicioPropuesta: { lt: new Date(finDate.getTime() + bufMs) }, fechaHoraFinPropuesta: { gt: new Date(iniDate.getTime() - bufMs) },
+        } }),
+      ]);
+      if (choque || solicitudChoque) throw new BadRequestException('Esa mesa ya no está disponible en el nuevo horario. Elige otra.');
+      mesaId = elegida;
+    } else if (tipoPropuesto === 'PRESENCIAL') {
       const [reunionOcupada, solicitudOcupada] = mesaId ? await Promise.all([
         this.prisma.reunion.findFirst({ where: {
           id: { not: reunion.id }, mesa_id: mesaId, estaActivo: 1, estadoReunion: { not: 'CANCELADA' },
@@ -8813,6 +8832,9 @@ export class AppController implements OnModuleInit {
         tipoReunion: tipoPropuesto, fechaHoraInicio: iniDate, fechaHoraFin: finDate,
         mesa_id: mesaId, enlaceReunionVirtual: sol.enlaceReunionVirtual,
         mensaje: mensajePropuesto, estado: 'PENDIENTE',
+        // Cómo está hoy la reunión, para poder mostrar "antes" aunque luego cambie.
+        inicioAnterior: reunion.fechaHoraInicioReunion, finAnterior: reunion.fechaHoraFinReunion,
+        tipoAnterior: reunion.tipoReunion, mesaAnterior_id: reunion.mesa_id,
       },
     });
     const contraparte = Number(eeId) === eeA ? eeB : eeA;
@@ -8856,6 +8878,10 @@ export class AppController implements OnModuleInit {
     });
     const ahora = new Date();
     const resultado: any[] = [];
+    // Número visible de cada mesa mencionada (la anterior y la propuesta).
+    const idsMesa = [...new Set(cambios.flatMap((c) => [c.mesa_id, c.mesaAnterior_id]).filter((m): m is number => typeof m === 'number'))];
+    const mesasPorId = idsMesa.length ? await this.prisma.mesa.findMany({ where: { id: { in: idsMesa } }, select: { id: true, numeroMesa: true } }) : [];
+    const numeroMesa = new Map(mesasPorId.map((m) => [m.id, m.numeroMesa]));
     // Por reunión: la propuesta más reciente y si hay una pendiente, para
     // ofrecer "Proponer otro horario" a ambas empresas tras cualquier respuesta.
     const ultimaPorReunion = new Map<number, number>();
@@ -8885,8 +8911,15 @@ export class AppController implements OnModuleInit {
       resultado.push({
         id: c.id, reunionId: c.reunion_id, estado, direccion: esMia ? 'enviada' : 'recibida',
         contraparte, proponente: proponente.nombre,
-        actual: { inicio: r.fechaHoraInicioReunion, fin: r.fechaHoraFinReunion, tipo: r.tipoReunion, mesa: r.mesa?.numeroMesa ?? null },
-        propuesto: { inicio: c.fechaHoraInicio, fin: c.fechaHoraFin, tipo: c.tipoReunion },
+        // "actual" es cómo estaba la reunión al proponer el cambio (se conserva
+        // aunque luego se acepte); en propuestas antiguas sin instantánea se usa
+        // el estado vigente de la reunión.
+        actual: {
+          inicio: c.inicioAnterior ?? r.fechaHoraInicioReunion, fin: c.finAnterior ?? r.fechaHoraFinReunion,
+          tipo: c.tipoAnterior ?? r.tipoReunion,
+          mesa: c.inicioAnterior ? (numeroMesa.get(c.mesaAnterior_id ?? -1) ?? null) : (r.mesa?.numeroMesa ?? null),
+        },
+        propuesto: { inicio: c.fechaHoraInicio, fin: c.fechaHoraFin, tipo: c.tipoReunion, mesa: numeroMesa.get(c.mesa_id ?? -1) ?? null },
         mensaje: c.mensaje, motivoRechazo: c.motivoRechazo,
         fechaCreacion: c.fechaCreacion, fechaRespuesta: estado === 'PENDIENTE' ? null : c.creadoModificadoFecha,
         // Tras aceptar, rechazar o cancelar, ambas empresas pueden proponer otro

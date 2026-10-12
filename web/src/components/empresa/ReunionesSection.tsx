@@ -58,6 +58,10 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
   // Guard sincrónico: evita que un doble clic en "Enviar propuesta" dispare
   // la petición dos veces antes de que `guardando` se re-renderice.
   const guardandoRef = useRef(false);
+  // Mesas libres en el nuevo horario (solo presencial). null = que el sistema
+  // conserve la mesa actual si sigue libre o asigne otra.
+  const [mesas, setMesas] = useState<any[]>([]);
+  const [mesaSelec, setMesaSelec] = useState<number | null>(null);
 
   const fechasDisponibles = useMemo(() =>
     [...new Set(horarios.map((h: any) => partesFechaEvento(h.inicio).dateKey))],
@@ -111,6 +115,17 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
       .finally(() => setCargando(false));
   }, [reunion, eeId]);
 
+  useEffect(() => {
+    setMesaSelec(null);
+    if (tipoReunion !== "PRESENCIAL" || !seleccionado?.inicio || !seleccionado?.fin) { setMesas([]); return; }
+    let vigente = true;
+    fetch(`${API}/empresa/mesas-disponibles?inicio=${encodeURIComponent(seleccionado.inicio)}&fin=${encodeURIComponent(seleccionado.fin)}`)
+      .then((r) => r.json())
+      .then((d) => { if (vigente) setMesas(Array.isArray(d) ? d : []); })
+      .catch(() => { if (vigente) setMesas([]); });
+    return () => { vigente = false; };
+  }, [tipoReunion, seleccionado?.inicio, seleccionado?.fin]);
+
   const handleGuardar = async () => {
     if (!seleccionado) { setErr("Selecciona un horario válido."); return; }
     if (guardandoRef.current) return;
@@ -120,7 +135,7 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
       const res = await fetch(`${API}/empresa/reuniones/${reunion.id}/cambiar-horario`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eeId, inicio: seleccionado.inicio, tipoReunion, mensaje }),
+        body: JSON.stringify({ eeId, inicio: seleccionado.inicio, tipoReunion, mensaje, ...(tipoReunion === "PRESENCIAL" && mesaSelec ? { mesaId: mesaSelec } : {}) }),
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
       onOk();
@@ -258,6 +273,28 @@ function CambiarHorarioModal({ reunion, eeId, onClose, onOk }: {
               </>
             )}
           </div>
+
+          {tipoReunion === "PRESENCIAL" && seleccionado && (
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Mesa</label>
+              <p className="text-[11px] text-gray-400 mb-2">
+                {reunion?.mesa?.numeroMesa ? `Mesa actual: ${reunion.mesa.numeroMesa}. ` : ""}Elige una mesa libre en el nuevo horario o deja que el sistema asigne la mejor.
+              </p>
+              <div className="grid grid-cols-4 gap-2">
+                <button type="button" onClick={() => setMesaSelec(null)}
+                  className={`col-span-4 rounded-xl border px-3 py-2 text-xs font-bold ${mesaSelec === null ? "border-[#449D3A] bg-green-50 text-[#449D3A]" : "border-gray-200 text-gray-600"}`}>
+                  Automática (recomendada)
+                </button>
+                {mesas.map((m: any) => (
+                  <button key={m.id} type="button" onClick={() => setMesaSelec(m.id)}
+                    className={`rounded-xl border px-2 py-2 text-xs font-bold ${mesaSelec === m.id ? "border-[#449D3A] bg-green-50 text-[#449D3A]" : "border-gray-200 text-gray-600 hover:border-green-300"}`}>
+                    Mesa {m.numeroMesa}
+                  </button>
+                ))}
+              </div>
+              {mesas.length === 0 && <p className="mt-2 text-[11px] text-amber-600">No hay mesas libres en ese horario.</p>}
+            </div>
+          )}
 
           {err && (
             <div className="flex items-center gap-2 bg-red-50 text-red-700 rounded-xl p-3 text-sm">
