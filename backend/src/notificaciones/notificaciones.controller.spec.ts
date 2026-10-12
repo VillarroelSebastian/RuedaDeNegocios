@@ -30,6 +30,22 @@ describe('Campanita del evento', () => {
     expect(feed.notificaciones[0]).toMatchObject({ titulo: 'Noticia', mensaje: 'Vista previa', referenciaId: 9, urlImagen: '/imagen.png', enlace: '/contenido/noticias/9', leida: false });
     expect(prisma.noticia.findMany.mock.calls[0][0].where).toMatchObject({ evento_id: 1, estaActivo: 1, estadoPublicacion: 'PUBLICADO' });
   });
+  it('excluye los comunicados para el equipo del evento (TECNICO), que son quienes los publican', async () => {
+    const { service, req, prisma } = fixture('TECNICO');
+    prisma.noticia.findMany.mockResolvedValueOnce([
+      { id: 9, evento_id: 1, tituloNoticia: 'Comunicado', contenidoNoticia: 'Texto', tipoNoticia: 'COMUNICADO', urlImagenNoticia: null, fechaHoraPublicacion: new Date('2026-10-07T12:00:00Z') },
+    ]);
+    const feed = await service.historial(req);
+    expect(feed.notificaciones).toHaveLength(0);
+  });
+  it('sí incluye los comunicados para empresa/foro, que son quienes los leen', async () => {
+    const { service, req, prisma } = fixture('EMPRESA');
+    prisma.noticia.findMany.mockResolvedValueOnce([
+      { id: 9, evento_id: 1, tituloNoticia: 'Comunicado', contenidoNoticia: 'Texto', tipoNoticia: 'COMUNICADO', urlImagenNoticia: null, fechaHoraPublicacion: new Date('2026-10-07T12:00:00Z') },
+    ]);
+    const feed = await service.historial(req);
+    expect(feed.notificaciones[0]).toMatchObject({ titulo: 'Comunicado', tipo: 'comunicado:nuevo' });
+  });
   it('guarda la lectura solo para el usuario y evento actuales', async () => {
     const { service, req } = fixture(); await service.leer(req, { ids: ['noticia-9'] });
     expect((await service.historial(req)).noLeidas).toBe(0);

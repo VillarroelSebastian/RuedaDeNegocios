@@ -8,7 +8,7 @@ import {
   KeyRound, Shield, X, Upload, FileText, Download, Camera, Eye, EyeOff,
 } from "lucide-react";
 import ImagenLightbox from "@/components/ui/ImagenLightbox";
-import { LIMITES, validarNombrePersona, validarTelefono } from "@/lib/validaciones";
+import { LIMITES, validarNombreEmpresa, validarNombrePersona, validarTelefono } from "@/lib/validaciones";
 import { RUBROS } from "@/lib/rubros";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
@@ -355,6 +355,42 @@ export default function EmpresaPerfilPage() {
   const [mensajeP, setMensajeP] = useState<string | null>(null);
   const [mensajeErrP, setMensajeErrP] = useState<string | null>(null);
 
+  // Datos generales de la empresa (nombre/sitio web/descripción) — solo
+  // encargado edita; rubro y correo corporativo los gestiona el equipo del evento.
+  const [editandoEmpresa, setEditandoEmpresa] = useState(false);
+  const [formEmpresa, setFormEmpresa] = useState({ nombre: "", sitioWeb: "", descripcion: "" });
+  const [guardandoEmpresa, setGuardandoEmpresa] = useState(false);
+  const guardandoEmpresaRef = useRef(false);
+  const [errEmpresa, setErrEmpresa] = useState<string | null>(null);
+  const [exitoEmpresa, setExitoEmpresa] = useState<string | null>(null);
+
+  const handleGuardarEmpresa = async () => {
+    if (!ctx || guardandoEmpresaRef.current) return;
+    setErrEmpresa(null);
+    const errNom = validarNombreEmpresa(formEmpresa.nombre);
+    if (errNom) { setErrEmpresa(errNom); return; }
+    guardandoEmpresaRef.current = true;
+    setGuardandoEmpresa(true);
+    try {
+      const res = await fetch(`${API}/empresa/ficha`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ euId: ctx.empresaUsuarioId, ...formEmpresa }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.message || "No se pudo guardar");
+      setCtx((c: any) => ({ ...c, empresa: { ...c.empresa, ...d } }));
+      setEditandoEmpresa(false);
+      setExitoEmpresa("Datos de la empresa actualizados.");
+      setTimeout(() => setExitoEmpresa(null), 4000);
+    } catch (e: any) {
+      setErrEmpresa(e.message);
+    } finally {
+      guardandoEmpresaRef.current = false;
+      setGuardandoEmpresa(false);
+    }
+  };
+
   // Ficha comercial (oferta/demanda/intereses) — solo encargado edita
   const [editandoComercial, setEditandoComercial] = useState(false);
   const [formComercial, setFormComercial] = useState({ oferta: "", demanda: "", interesesBusqueda: "" });
@@ -484,6 +520,11 @@ export default function EmpresaPerfilPage() {
           oferta:            data.empresa?.oferta ?? "",
           demanda:           data.empresa?.demanda ?? "",
           interesesBusqueda: data.empresa?.interesesBusqueda ?? "",
+        });
+        setFormEmpresa({
+          nombre:      data.empresa?.nombre ?? "",
+          sitioWeb:    data.empresa?.sitioWeb ?? "",
+          descripcion: data.empresa?.descripcion ?? "",
         });
         if (data.esResponsable && data.empresaeventoId) {
           cargarParticipantes(data.empresaeventoId);
@@ -695,15 +736,6 @@ export default function EmpresaPerfilPage() {
         {/* Page header */}
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-extrabold text-gray-900">Mi Perfil</h1>
-          {!editando && (
-            <button
-              onClick={() => { setEditando(true); setExito(null); }}
-              className="flex items-center gap-2 text-sm font-bold text-[#449D3A] hover:bg-green-50 px-4 py-2 rounded-xl transition-colors border border-[#449D3A]/30"
-            >
-              <Edit3 className="w-4 h-4" />
-              Editar datos personales
-            </button>
-          )}
         </div>
 
         {/* Credencial digital — lo primero que se ve, con el mismo estilo de las credenciales imprimibles (9 × 13 cm) */}
@@ -786,9 +818,19 @@ export default function EmpresaPerfilPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Personal data */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-            <div className="flex items-center gap-2 mb-5">
-              <User className="w-5 h-5 text-[#449D3A]" />
-              <h2 className="font-bold text-gray-900">Datos personales</h2>
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-2">
+                <User className="w-5 h-5 text-[#449D3A]" />
+                <h2 className="font-bold text-gray-900">Datos personales</h2>
+              </div>
+              {!editando && (
+                <button
+                  onClick={() => { setEditando(true); setExito(null); }}
+                  className="flex items-center gap-2 text-xs font-bold text-[#449D3A] hover:bg-green-50 px-3 py-1.5 rounded-lg transition-colors border border-[#449D3A]/30"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />Editar
+                </button>
+              )}
             </div>
 
             {editando ? (
@@ -876,9 +918,19 @@ export default function EmpresaPerfilPage() {
 
           {/* Company info */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-            <div className="flex items-center gap-2 mb-5">
-              <Building2 className="w-5 h-5 text-[#449D3A]" />
-              <h2 className="font-bold text-gray-900">Mi empresa</h2>
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-[#449D3A]" />
+                <h2 className="font-bold text-gray-900">Mi empresa</h2>
+              </div>
+              {esResponsable && !editandoEmpresa && (
+                <button
+                  onClick={() => { setEditandoEmpresa(true); setExitoEmpresa(null); }}
+                  className="flex items-center gap-2 text-xs font-bold text-[#449D3A] hover:bg-green-50 px-3 py-1.5 rounded-lg transition-colors border border-[#449D3A]/30"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />Editar
+                </button>
+              )}
             </div>
             <div className="flex items-center gap-4 mb-5 rounded-xl bg-gray-50 p-3">
               <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-gray-200 bg-white flex items-center justify-center">
@@ -897,22 +949,75 @@ export default function EmpresaPerfilPage() {
                 )}
               </div>
             </div>
-            <dl className="space-y-3 text-sm">
-              {[
-                { k: "Nombre",       v: empresa?.nombre },
-                { k: "Rubro",        v: empresa?.rubro },
-                { k: "Correo corp.", v: empresa?.correoCorporativo || "—" },
-                { k: "Sitio web",    v: empresa?.sitioWeb || "—" },
-                { k: "Descripción",  v: empresa?.descripcion || "—" },
-              ].map(({ k, v }) => (
-                <div key={k} className="flex gap-2">
-                  <dt className="w-36 shrink-0 text-gray-400 font-medium">{k}</dt>
-                  <dd className="font-semibold text-gray-800 break-all">{v}</dd>
+
+            {exitoEmpresa && (
+              <div className="flex items-center gap-2 bg-green-50 text-green-700 rounded-xl p-3 text-sm mb-4">
+                <CheckCircle2 className="w-4 h-4 shrink-0" />{exitoEmpresa}
+              </div>
+            )}
+
+            {editandoEmpresa ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">
+                    Nombre <span className="text-red-400">*</span>
+                  </label>
+                  <input type="text" value={formEmpresa.nombre} maxLength={LIMITES.nombreEmpresa}
+                    onChange={(e) => setFormEmpresa((f) => ({ ...f, nombre: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A]" />
                 </div>
-              ))}
-            </dl>
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">Sitio web</label>
+                  <input type="text" value={formEmpresa.sitioWeb} placeholder="https://..."
+                    onChange={(e) => setFormEmpresa((f) => ({ ...f, sitioWeb: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A]" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">Descripción</label>
+                  <textarea value={formEmpresa.descripcion} maxLength={LIMITES.descripcion} rows={3}
+                    onChange={(e) => setFormEmpresa((f) => ({ ...f, descripcion: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A] resize-none" />
+                </div>
+                <div className="flex gap-2 text-xs">
+                  <dt className="w-36 shrink-0 text-gray-400 font-medium">Rubro</dt>
+                  <dd className="font-semibold text-gray-500">{empresa?.rubro} <span className="text-gray-400 font-normal">(lo gestiona el equipo organizador)</span></dd>
+                </div>
+                {errEmpresa && (
+                  <div className="flex items-center gap-2 bg-red-50 text-red-700 rounded-xl p-3 text-sm">
+                    <AlertCircle className="w-4 h-4 shrink-0" />{errEmpresa}
+                  </div>
+                )}
+                <div className="flex gap-3">
+                  <button onClick={() => { setEditandoEmpresa(false); setErrEmpresa(null); setFormEmpresa({ nombre: empresa?.nombre ?? "", sitioWeb: empresa?.sitioWeb ?? "", descripcion: empresa?.descripcion ?? "" }); }}
+                    className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50">
+                    Cancelar
+                  </button>
+                  <button onClick={handleGuardarEmpresa} disabled={guardandoEmpresa}
+                    className="flex-1 py-2.5 rounded-xl bg-[#449D3A] hover:bg-[#3a8531] text-white text-sm font-bold disabled:opacity-50">
+                    {guardandoEmpresa ? "Guardando..." : "Guardar"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <dl className="space-y-3 text-sm">
+                {[
+                  { k: "Nombre",       v: empresa?.nombre },
+                  { k: "Rubro",        v: empresa?.rubro },
+                  { k: "Correo corp.", v: empresa?.correoCorporativo || "—" },
+                  { k: "Sitio web",    v: empresa?.sitioWeb || "—" },
+                  { k: "Descripción",  v: empresa?.descripcion || "—" },
+                ].map(({ k, v }) => (
+                  <div key={k} className="flex gap-2">
+                    <dt className="w-36 shrink-0 text-gray-400 font-medium">{k}</dt>
+                    <dd className="font-semibold text-gray-800 break-all">{v}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
             <p className="mt-4 text-xs text-gray-400 bg-gray-50 rounded-xl px-3 py-2">
-              Los datos de la empresa son gestionados por el equipo organizador.
+              {esResponsable
+                ? "El rubro y el correo corporativo son gestionados por el equipo organizador."
+                : "Los datos de la empresa son gestionados por el encargado y el equipo organizador."}
             </p>
           </div>
         </div>

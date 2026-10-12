@@ -169,6 +169,27 @@ const bell = StyleSheet.create({
   badgeTxt: { color: '#fff', fontSize: 9, fontWeight: '800' },
 });
 
+// ── Contador de solicitudes pendientes (badge en la pestaña, como las
+//    notificaciones) ──────────────────────────────────────────────────────────
+
+function useSolicitudesPendientesCount() {
+  const [count, setCount] = useState(0);
+  const refresh = useCallback(async () => {
+    const eeId = userStore.get()?.empresaeventoId;
+    if (!eeId) return;
+    try {
+      const res = await fetch(`${API_URL}/empresa/solicitudes?eeId=${eeId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const lista = Array.isArray(data) ? data : [];
+      setCount(lista.filter((s: any) => s.estado === 'PENDIENTE' && !s.esMiSolicitud).length);
+    } catch {}
+  }, []);
+  useEffect(() => { refresh(); const iv = setInterval(refresh, 15_000); return () => clearInterval(iv); }, [refresh]);
+  useEffect(() => subscribeNotifications(() => { void refresh(); }), [refresh]);
+  return count;
+}
+
 // ── Tab options ──────────────────────────────────────────────────────────────
 
 const baseTabOptions = {
@@ -217,6 +238,7 @@ function useLogoutTab() {
 function EncargadoTabs() {
   const { modal, handleLogout } = useLogoutTab();
   const tabBarStyle = useTabBarStyle();
+  const pendientes = useSolicitudesPendientesCount();
   return (
     <>
       {modal}
@@ -234,7 +256,7 @@ function EncargadoTabs() {
         <Tab.Screen
           name="Solicitudes"
           component={EmpresaSolicitudesScreen}
-          options={{ title: 'Agenda', tabBarIcon: ({ color }) => <Send color={color} size={22} /> }}
+          options={{ title: 'Agenda', tabBarIcon: ({ color }) => <Send color={color} size={22} />, tabBarBadge: pendientes > 0 ? pendientes : undefined }}
         />
         <Tab.Screen
           name="Mas"
@@ -398,7 +420,10 @@ export default function EmpresaNavigator() {
                 <AvatarButton />
                 <BellButton />
                 {esEncargado && !esForo && <MessagesButton eeId={eeId} />}
-                {esEncargado && !esForo && <AsistenteChatButton onOpen={() => setChatOpen(true)} />}
+                {/* El asistente ya existe también para participantes (con
+                    opciones restringidas de solo lectura, aplicado en el
+                    backend); solo el foro no lo usa. */}
+                {!esForo && <AsistenteChatButton onOpen={() => setChatOpen(true)} />}
               </View>
             ),
           }}

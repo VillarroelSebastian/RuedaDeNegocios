@@ -13,7 +13,6 @@ import { PushService } from '../push/push.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 const EVENT_TIME_ZONE = 'America/La_Paz';
-const LIMITE_ASISTENCIAS_DIARIAS = 2;
 const EMAIL_LOGO_CID = 'rueda-logo@ruedadenegocios';
 
 function claveFechaBolivia(fecha: Date): string {
@@ -90,7 +89,11 @@ export class ExtrasController {
     const ultimoDia = heredadoUnDia ? primerDia : claveFechaBolivia(finAjustado);
     if (hoy < primerDia || hoy > ultimoDia)
       throw new BadRequestException(`La asistencia solo puede registrarse durante el evento (${primerDia} al ${ultimoDia}).`);
-    return { fechaAsistencia: new Date(`${hoy}T00:00:00.000Z`) };
+    // El límite de usos de una credencial es uno por cada día que dura el
+    // evento (un evento de 2 días habilita 2 usos en total, uno de 3 días
+    // habilita 3, etc.), no un cupo que se reinicia cada día.
+    const diasEvento = Math.round((new Date(`${ultimoDia}T00:00:00.000Z`).getTime() - new Date(`${primerDia}T00:00:00.000Z`).getTime()) / 86_400_000) + 1;
+    return { fechaAsistencia: new Date(`${hoy}T00:00:00.000Z`), diasEvento: Math.max(1, diasEvento) };
   }
 
   private uploadsBaseUrl(): string {
@@ -958,13 +961,13 @@ export class ExtrasController {
     });
     if (!persona || (req.user?.eventoId && persona.auspiciador.evento_id !== req.user.eventoId))
       throw new BadRequestException('La credencial no corresponde al evento del técnico autenticado.');
-    const { fechaAsistencia } = this.contextoAsistenciaEvento(persona.auspiciador.evento);
-    const [usosHoy, ultima] = await Promise.all([
+    const { diasEvento } = this.contextoAsistenciaEvento(persona.auspiciador.evento);
+    const [usosTotal, ultima] = await Promise.all([
       this.prisma.asistenciaauspiciador.count({
-        where: { evento_id: persona.auspiciador.evento_id, auspiciadorpersona_id: id, fechaAsistencia, estaActivo: 1 },
+        where: { evento_id: persona.auspiciador.evento_id, auspiciadorpersona_id: id, estaActivo: 1 },
       }),
       this.prisma.asistenciaauspiciador.findFirst({
-        where: { evento_id: persona.auspiciador.evento_id, auspiciadorpersona_id: id, fechaAsistencia, estaActivo: 1 },
+        where: { evento_id: persona.auspiciador.evento_id, auspiciadorpersona_id: id, estaActivo: 1 },
         orderBy: { fechaHoraAsistencia: 'desc' }, select: { id: true, fechaHoraAsistencia: true },
       }),
     ]);
@@ -972,10 +975,10 @@ export class ExtrasController {
       ...data,
       personaId: id,
       asistencia: {
-        registrada: usosHoy >= LIMITE_ASISTENCIAS_DIARIAS,
-        usosHoy,
-        usosRestantes: Math.max(0, LIMITE_ASISTENCIAS_DIARIAS - usosHoy),
-        limiteDiario: LIMITE_ASISTENCIAS_DIARIAS,
+        registrada: usosTotal >= diasEvento,
+        usosTotal,
+        usosRestantes: Math.max(0, diasEvento - usosTotal),
+        limiteEvento: diasEvento,
         ...(ultima ?? {}),
       },
     };
@@ -996,40 +999,45 @@ export class ExtrasController {
     if (!persona) throw new BadRequestException('La credencial del auspiciador no está vigente.');
     if (req.user?.eventoId && persona.auspiciador.evento_id !== req.user.eventoId)
       throw new BadRequestException('La credencial pertenece a otro evento.');
-    const { fechaAsistencia } = this.contextoAsistenciaEvento(persona.auspiciador.evento);
+    const { fechaAsistencia, diasEvento } = this.contextoAsistenciaEvento(persona.auspiciador.evento);
     const resultado = await this.prisma.$transaction(async (tx) => {
       await tx.$queryRawUnsafe('SELECT 1 AS locked FROM pg_advisory_xact_lock($1, $2)', persona.auspiciador.evento_id, -personaId);
+      // Ventana corta: solo absorbe un lector QR disparando el mismo
+      // resultado dos veces en la misma pulsación, no un segundo escaneo
+      // legítimo minutos u horas después (p. ej. al día siguiente).
       const registroReciente = await tx.asistenciaauspiciador.findFirst({
         where: {
           evento_id: persona.auspiciador.evento_id, auspiciadorpersona_id: personaId,
-          fechaAsistencia, estaActivo: 1, fechaHoraAsistencia: { gte: new Date(Date.now() - 60_000) },
+          estaActivo: 1, fechaHoraAsistencia: { gte: new Date(Date.now() - 5_000) },
         },
         orderBy: [{ fechaHoraAsistencia: 'desc' }, { id: 'desc' }],
       });
       if (registroReciente) {
-        const usosHoy = await tx.asistenciaauspiciador.count({
-          where: { evento_id: persona.auspiciador.evento_id, auspiciadorpersona_id: personaId, fechaAsistencia, estaActivo: 1 },
+        const usosTotal = await tx.asistenciaauspiciador.count({
+          where: { evento_id: persona.auspiciador.evento_id, auspiciadorpersona_id: personaId, estaActivo: 1 },
         });
-        return { asistencia: registroReciente, usosHoy, duplicada: true };
+        return { asistencia: registroReciente, usosTotal, duplicada: true };
       }
-      const usosHoy = await tx.asistenciaauspiciador.count({
-        where: { evento_id: persona.auspiciador.evento_id, auspiciadorpersona_id: personaId, fechaAsistencia, estaActivo: 1 },
+      // El límite es el total de usos para todo el evento (uno por cada día
+      // que dura), no un cupo que se reinicia cada día.
+      const usosTotal = await tx.asistenciaauspiciador.count({
+        where: { evento_id: persona.auspiciador.evento_id, auspiciadorpersona_id: personaId, estaActivo: 1 },
       });
-      if (usosHoy >= LIMITE_ASISTENCIAS_DIARIAS)
-        throw new BadRequestException('Esta credencial ya utilizó sus 2 registros de asistencia de hoy.');
+      if (usosTotal >= diasEvento)
+        throw new BadRequestException(`Esta credencial ya utilizó sus ${diasEvento} registro(s) de asistencia para este evento.`);
       const asistencia = await tx.asistenciaauspiciador.create({
         data: {
           evento_id: persona.auspiciador.evento_id, auspiciadorpersona_id: personaId,
-          tecnico_id: tecnicoId, fechaAsistencia, numeroUso: usosHoy + 1,
+          tecnico_id: tecnicoId, fechaAsistencia, numeroUso: usosTotal + 1,
         },
       });
-      return { asistencia, usosHoy: usosHoy + 1, duplicada: false };
+      return { asistencia, usosTotal: usosTotal + 1, duplicada: false };
     });
     return {
       ok: true, yaRegistrada: resultado.duplicada, fechaHoraAsistencia: resultado.asistencia.fechaHoraAsistencia,
-      usosHoy: resultado.usosHoy,
-      usosRestantes: LIMITE_ASISTENCIAS_DIARIAS - resultado.usosHoy,
-      limiteDiario: LIMITE_ASISTENCIAS_DIARIAS,
+      usosTotal: resultado.usosTotal,
+      usosRestantes: Math.max(0, diasEvento - resultado.usosTotal),
+      limiteEvento: diasEvento,
       participante: { nombre: persona.nombreCompleto, empresa: persona.auspiciador.nombreEmpresa, cargo: persona.cargo },
       lugar: [persona.auspiciador.evento.ciudadEvento, persona.auspiciador.evento.paisEvento].filter(Boolean).join(', '),
     };

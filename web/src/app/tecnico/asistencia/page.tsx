@@ -114,9 +114,9 @@ export default function TecnicoAsistenciaPage() {
         asistencia: {
           registrada: data.usosRestantes === 0,
           fechaHoraAsistencia: data.fechaHoraAsistencia,
-          usosHoy: data.usosHoy,
+          usosTotal: data.usosTotal,
           usosRestantes: data.usosRestantes,
-          limiteDiario: data.limiteDiario,
+          limiteEvento: data.limiteEvento,
         },
       }));
       setValor("");
@@ -125,7 +125,7 @@ export default function TecnicoAsistenciaPage() {
         titulo: data.yaRegistrada ? "Asistencia ya procesada" : "Asistencia registrada",
         mensaje: data.yaRegistrada
           ? `${data.participante.nombre}: este escaneo ya había sido procesado y no consumió otro uso.`
-          : `${data.participante.nombre} · uso ${data.usosHoy} de ${data.limiteDiario}. ${data.usosRestantes ? `Queda ${data.usosRestantes} registro hoy; para usarlo se debe escanear nuevamente la credencial.` : "Se alcanzó el límite diario."}`,
+          : `${data.participante.nombre} · uso ${data.usosTotal} de ${data.limiteEvento}. ${data.usosRestantes ? `Queda ${data.usosRestantes} registro para este evento; para usarlo se debe escanear nuevamente la credencial.` : "Se alcanzó el límite de registros para este evento."}`,
       });
     } catch (e: any) {
       setModal({ titulo: "No se pudo registrar", mensaje: e.message });
@@ -229,8 +229,8 @@ export default function TecnicoAsistenciaPage() {
               {pendiente.registroCompletado
                 ? "Registro completado"
                 : pendiente.asistencia?.registrada
-                  ? "Límite diario alcanzado"
-                  : `Credencial válida · ${pendiente.asistencia?.usosHoy || 0} de ${pendiente.asistencia?.limiteDiario || 2} usos`}
+                  ? "Límite del evento alcanzado"
+                  : `Credencial válida · ${pendiente.asistencia?.usosTotal || 0} de ${pendiente.asistencia?.limiteEvento || 2} usos`}
             </p>
             <h2 className="font-extrabold text-xl sm:text-2xl mt-1 text-center break-words">
               {pendiente.participante?.nombre || pendiente.nombreCompleto}
@@ -242,7 +242,7 @@ export default function TecnicoAsistenciaPage() {
               <div className="rounded-xl bg-gray-50 p-3"><p className="text-xs text-gray-400">Ciudad y país de la empresa</p><p className="font-bold break-words">{pendiente.tipo === "AUSPICIADOR" ? (pendiente.lugar || "No indicado") : ([pendiente.empresa?.ciudad, pendiente.empresa?.pais].filter(Boolean).join(", ") || "No indicado")}</p></div>
               {(pendiente.evento?.nombre || pendiente.evento) && <div className="rounded-xl bg-gray-50 p-3 sm:col-span-2"><p className="text-xs text-gray-400">Evento</p><p className="font-bold break-words">{pendiente.evento?.nombre || pendiente.evento} {pendiente.edicion || pendiente.evento?.edicion || ""}</p></div>}
             </div>
-            {pendiente.asistencia?.fechaHoraAsistencia && <div className="mt-4 rounded-xl bg-green-50 border border-green-200 p-3 text-center text-sm font-semibold text-green-800">Último registro: {new Date(pendiente.asistencia.fechaHoraAsistencia).toLocaleString("es-BO", { timeZone: "America/La_Paz" })}. Usos de hoy: {pendiente.asistencia.usosHoy} de {pendiente.asistencia.limiteDiario || 2}. Cada participante tiene su propio límite.</div>}
+            {pendiente.asistencia?.fechaHoraAsistencia && <div className="mt-4 rounded-xl bg-green-50 border border-green-200 p-3 text-center text-sm font-semibold text-green-800">Último registro: {new Date(pendiente.asistencia.fechaHoraAsistencia).toLocaleString("es-BO", { timeZone: "America/La_Paz" })}. Usos del evento: {pendiente.asistencia.usosTotal} de {pendiente.asistencia.limiteEvento || 2}. Cada participante tiene su propio límite.</div>}
             <div className="flex flex-col-reverse sm:grid sm:grid-cols-2 gap-2 mt-5">
               <button
                 onClick={() => { setPendiente(null); setValor(""); escaneoBloqueadoRef.current = false; }}

@@ -39,7 +39,10 @@ export class NotificacionesController {
       enlace: n.referenciaNombreTabla === 'actividadprograma' ? `${base}/cronograma-vivo`
         : n.tipoNotificacion.startsWith('ticket') ? `${base}/mensajes`
         : n.referenciaNombreTabla === 'mesa' ? `${base}/mesas` : n.tipoNotificacion.startsWith('pago') ? `${base}/perfil`
-        : n.tipoNotificacion.startsWith('solicitud') ? `${base}/solicitudes`
+        // Las solicitudes ya no tienen pestañas propias: se gestionan dentro
+        // de "Reuniones", que filtra las pendientes por aceptar.
+        : n.tipoNotificacion === 'solicitud:nueva' ? `${base}/solicitudes?tab=reuniones&filtro=pendientes`
+        : n.tipoNotificacion.startsWith('solicitud') ? `${base}/solicitudes?tab=reuniones`
         : company ? `${base}/solicitudes?tab=reuniones&reunionId=${n.referenciaId}` : `${base}/virtuales`,
     });
     // Personal notifications outside this event are never included.
@@ -51,7 +54,11 @@ export class NotificacionesController {
       personalForEvent.push(...personal.filter(n => n.referenciaNombreTabla === 'mesa' ? mesaIds.has(n.referenciaId) : n.referenciaNombreTabla === 'reunion' && reunionIds.has(n.referenciaId)));
     }
     const items: any[] = [
-      ...news.map(n => ({ id: `noticia-${n.id}`, titulo: n.tituloNoticia, mensaje: n.contenidoNoticia, urlImagen: n.urlImagenNoticia,
+      // Los comunicados los publica el propio equipo del evento
+      // (administrador/técnico), así que no tiene sentido notificárselos a
+      // ellos mismos: solo llegan a empresa/foro, que son quienes los leen.
+      // Las noticias generales sí les llegan a todos (igual que antes).
+      ...news.filter(n => company || n.tipoNoticia !== 'COMUNICADO').map(n => ({ id: `noticia-${n.id}`, titulo: n.tituloNoticia, mensaje: n.contenidoNoticia, urlImagen: n.urlImagenNoticia,
         tipo: n.tipoNoticia === 'COMUNICADO' ? 'comunicado:nuevo' : 'noticia:nueva', referenciaId: n.id, referenciaTipo: 'noticia',
         fecha: n.fechaHoraPublicacion, enlace: `/contenido/noticias/${n.id}` })),
       ...ordinary.map(n => normalize(n, company ? 'empresa' : 'staff')),

@@ -1,7 +1,8 @@
 "use client";
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { Search, Building2, Armchair, CalendarCheck, Video, MapPin, X, MessageSquare, CalendarClock } from 'lucide-react';
+import { Search, Building2, Armchair, CalendarCheck, Video, MapPin, X, MessageSquare, CalendarClock, Star } from 'lucide-react';
 import { EnviarMensajeEmpresaModal } from '@/components/EnviarMensajeEmpresaModal';
+import ImagenLightbox from '@/components/ui/ImagenLightbox';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
@@ -41,6 +42,99 @@ function getMapsUrl(sol: any): string | null {
   if (sol?.direccionTexto)
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(sol.direccionTexto)}`;
   return null;
+}
+
+function StarRow({ value }: { value: number }) {
+  return (
+    <div className="flex gap-0.5">
+      {[1, 2, 3, 4, 5].map((s) => (
+        <Star key={s} className={`w-3 h-3 ${s <= value ? 'fill-amber-400 text-amber-400' : 'text-gray-200'}`} />
+      ))}
+    </div>
+  );
+}
+
+function EvalBlock({ empresa, resultado, side }: { empresa: any; resultado: any; side: 'A' | 'B' }) {
+  const bg = side === 'A' ? 'bg-green-50 border-green-100' : 'bg-blue-50 border-blue-100';
+  const ic = side === 'A' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700';
+  return (
+    <div className={`rounded-xl border p-3 space-y-2 ${bg}`}>
+      <div className="flex items-center gap-2">
+        {empresa?.urlFotoPerfil
+          ? <ImagenLightbox src={empresa.urlFotoPerfil} alt={empresa.nombre ?? 'Empresa'} className="w-6 h-6 rounded-full border border-white shrink-0" />
+          : <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${ic}`}><Building2 className="w-3 h-3" /></div>}
+        <p className="text-xs font-bold text-gray-800 truncate">{empresa?.nombre ?? '—'}</p>
+      </div>
+      {resultado ? (
+        <>
+          <div className="flex items-center gap-2 flex-wrap">
+            <StarRow value={resultado.calificacionReunion} />
+            <span className="text-[10px] text-gray-500 font-semibold">{resultado.calificacionReunion}/5</span>
+            {resultado.rangoAcuerdoComercial && (
+              <span className="ml-auto text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-100 truncate max-w-[120px]">
+                {resultado.rangoAcuerdoComercial}
+              </span>
+            )}
+          </div>
+          {resultado.observacionesPuntosTratados && (
+            <p className="text-[10px] text-gray-500 italic leading-relaxed">"{resultado.observacionesPuntosTratados}"</p>
+          )}
+        </>
+      ) : (
+        <p className="text-[10px] text-gray-400 italic">Evaluación pendiente</p>
+      )}
+    </div>
+  );
+}
+
+function AgendaItem({ r, empresaId }: { r: any; empresaId: number }) {
+  const sol = r.solicitudreunion;
+  const eeA = sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento;
+  const eeB = sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento;
+  const a = eeA?.empresa;
+  const b = eeB?.empresa;
+  const otra = sol?.empresaEvento_id === empresaId ? b : a;
+  const est = ESTADO_CFG[r.estadoReunion] ?? ESTADO_CFG.PROGRAMADA;
+  const tip = TIPO_CFG[r.tipoReunion] ?? TIPO_CFG.PRESENCIAL;
+  const link = sol?.enlaceReunionVirtual;
+  const mapsUrl = getMapsUrl(sol);
+  const esFinalizada = r.estadoReunion === 'FINALIZADA';
+  const resultados: any[] = r.resultadoreunion ?? [];
+  const resA = resultados.find((res: any) => res.empresaeventoCalificadora_id === eeA?.id);
+  const resB = resultados.find((res: any) => res.empresaeventoCalificadora_id === eeB?.id);
+
+  return (
+    <div className="rounded-xl border p-3">
+      <div className="flex justify-between gap-2 items-start">
+        <b className="text-sm">{otra?.nombre ?? 'Empresa'}</b>
+        <div className="flex gap-1.5 shrink-0">
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${tip.badge}`}>{tip.label}</span>
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${est.badge}`}>{est.label}</span>
+        </div>
+      </div>
+      <p className="mt-1 text-xs text-gray-500">
+        {new Date(r.fechaHoraInicioReunion).toLocaleString('es-BO', { timeZone: 'America/La_Paz' })} · {r.mesa ? `Mesa ${r.mesa.numeroMesa}` : r.tipoReunion}
+      </p>
+      {(link || mapsUrl) && (
+        <div className="flex gap-2 mt-2">
+          {link && <a href={link} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-bold hover:bg-blue-700"><Video className="w-3 h-3" /> Virtual</a>}
+          {mapsUrl && <a href={mapsUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700"><MapPin className="w-3 h-3" /> Maps</a>}
+        </div>
+      )}
+      {esFinalizada && (
+        <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
+          {r.observacionesReunion && (
+            <p className="text-xs text-gray-500 italic border-l-2 border-gray-200 pl-2">"{r.observacionesReunion}"</p>
+          )}
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Evaluaciones de encargados</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <EvalBlock empresa={a} resultado={resA} side="A" />
+            <EvalBlock empresa={b} resultado={resB} side="B" />
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function TecnicoBuscarPage() {
@@ -116,7 +210,19 @@ export default function TecnicoBuscarPage() {
           onClose={() => setMensajeEmpresa(null)}
         />
       )}
-      {agendaEmpresa && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setAgendaEmpresa(null)}><div className="max-h-[85vh] w-full max-w-xl overflow-y-auto rounded-2xl bg-white p-6" onClick={(e) => e.stopPropagation()}><div className="mb-4 flex justify-between"><div><h2 className="text-lg font-bold">Agenda de {agendaEmpresa.nombre}</h2><p className="text-sm text-gray-500">Reuniones del evento activo</p></div><button onClick={() => setAgendaEmpresa(null)}><X /></button></div>{!agenda ? <p className="py-10 text-center text-gray-400">Cargando…</p> : !agenda.reuniones?.length ? <p className="py-10 text-center text-gray-400">Sin reuniones registradas.</p> : <div className="space-y-3">{agenda.reuniones.map((r:any) => { const sol=r.solicitudreunion; const a=sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa; const b=sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento?.empresa; const otra=sol?.empresaEvento_id===agendaEmpresa.empresaeventoId?b:a; return <div key={r.id} className="rounded-xl border p-3"><div className="flex justify-between gap-2"><b>{otra?.nombre ?? 'Empresa'}</b><span className="text-xs font-bold text-green-700">{r.estadoReunion}</span></div><p className="mt-1 text-xs text-gray-500">{new Date(r.fechaHoraInicioReunion).toLocaleString('es-BO',{timeZone:'America/La_Paz'})} · {r.mesa?`Mesa ${r.mesa.numeroMesa}`:r.tipoReunion}</p></div>; })}</div>}</div></div>}
+      {agendaEmpresa && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setAgendaEmpresa(null)}>
+          <div className="max-h-[85vh] w-full max-w-xl overflow-y-auto rounded-2xl bg-white p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-4 flex justify-between">
+              <div><h2 className="text-lg font-bold">Agenda de {agendaEmpresa.nombre}</h2><p className="text-sm text-gray-500">Reuniones del evento activo</p></div>
+              <button onClick={() => setAgendaEmpresa(null)}><X /></button>
+            </div>
+            {!agenda ? <p className="py-10 text-center text-gray-400">Cargando…</p>
+              : !agenda.reuniones?.length ? <p className="py-10 text-center text-gray-400">Sin reuniones registradas.</p>
+              : <div className="space-y-3">{agenda.reuniones.map((r: any) => <AgendaItem key={r.id} r={r} empresaId={agendaEmpresa.empresaeventoId} />)}</div>}
+          </div>
+        </div>
+      )}
       <h1 className="text-2xl font-extrabold text-gray-900 mb-1">Buscador y mensajes</h1>
       <p className="text-sm text-gray-500 mb-6">Empresas, reuniones y mesas del evento</p>
 

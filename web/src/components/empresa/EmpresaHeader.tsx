@@ -15,9 +15,11 @@ function fmtNotifFecha(f: string) {
 // Ruta destino según el tipo de notificación, para llevar directo a su sección.
 function rutaDeNotif(notificacion: any): string {
   const t = notificacion?.tipo || '';
+  // Las solicitudes ya no tienen pestañas propias: se gestionan dentro de
+  // "Reuniones", que filtra las pendientes por aceptar o enviadas.
   if (['solicitud:nueva', 'solicitud:editada', 'solicitud:cancelada'].includes(t))
-    return '/empresa/solicitudes?tab=recibidas';
-  if (t.startsWith('solicitud')) return '/empresa/solicitudes?tab=enviadas';
+    return '/empresa/solicitudes?tab=reuniones&filtro=pendientes';
+  if (t.startsWith('solicitud')) return '/empresa/solicitudes?tab=reuniones';
   if (t === 'reunion:calificar') return '/empresa/resultados';
   if (t.startsWith('reunion')) {
     const id = Number(notificacion?.referenciaId);

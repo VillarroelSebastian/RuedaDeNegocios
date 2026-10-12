@@ -6,24 +6,22 @@ import {
 import {
   Armchair, Building2, Clock, Video, MapPin, ChevronDown,
   ChevronUp, Timer, Star, History, Mail, Link2, Send, X,
+  Play, Check, XCircle, UserCheck, Lock, Unlock, Pencil, Trash2, Calendar,
 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { API_URL } from '../../utils/userStore';
 import { useModal } from '../../components/AppModal';
+import FechaHoraInput from '../../components/FechaHoraInput';
 
 const GREEN = '#449D3A';
 
 const ESTADO_MESA: Record<string, { label: string; color: string; bg: string; dot: string }> = {
-  LIBRE:         { label: 'Libre',       color: '#166534', bg: '#dcfce7', dot: '#22c55e' },
-  RESERVADA:     { label: 'Programada',  color: '#1e40af', bg: '#dbeafe', dot: '#60a5fa' },
-  EN_USO:        { label: 'En uso',      color: '#9a3412', bg: '#ffedd5', dot: '#f97316' },
-  PRE_RESERVADA: { label: 'Pendiente',   color: '#92400e', bg: '#fef3c7', dot: '#f59e0b' },
+  LIBRE:         { label: 'Libre',      color: '#166534', bg: '#dcfce7', dot: '#22c55e' },
+  RESERVADA:     { label: 'Reservada',  color: '#1e40af', bg: '#dbeafe', dot: '#60a5fa' },
+  EN_USO:        { label: 'En uso',     color: '#9a3412', bg: '#ffedd5', dot: '#f97316' },
+  PRE_RESERVADA: { label: 'Pendiente',  color: '#92400e', bg: '#fef3c7', dot: '#f59e0b' },
 };
-
-const GRID_COLOR: Record<string, string> = {
-  LIBRE: GREEN, RESERVADA: '#3b82f6', EN_USO: '#f97316', PRE_RESERVADA: '#f59e0b',
-};
-
+const GRID_COLOR: Record<string, string> = { LIBRE: GREEN, RESERVADA: '#3b82f6', EN_USO: '#f97316', PRE_RESERVADA: '#f59e0b' };
 const ESTADO_REUNION: Record<string, { color: string; bg: string; label: string }> = {
   PROGRAMADA: { color: '#1d4ed8', bg: '#dbeafe', label: 'Programada' },
   EN_CURSO:   { color: '#c2410c', bg: '#ffedd5', label: 'En curso' },
@@ -42,11 +40,18 @@ function fmtTime(iso: string) {
 function fmtDT(iso: string) {
   return new Date(iso).toLocaleString('es-BO', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
 }
+const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+function fmtDay(dateKey: string) {
+  const [y, m, d] = dateKey.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  return `${DIAS[dt.getDay()]}, ${d} de ${MESES[m - 1]} de ${y}`;
+}
 
 function StarRow({ value }: { value: number }) {
   return (
     <View style={{ flexDirection: 'row', gap: 2 }}>
-      {[1,2,3,4,5].map((s) => (
+      {[1, 2, 3, 4, 5].map((s) => (
         <Star key={s} size={11} color={s <= value ? '#fbbf24' : '#e5e7eb'} fill={s <= value ? '#fbbf24' : 'transparent'} />
       ))}
     </View>
@@ -157,13 +162,16 @@ function CompanyChip({ empresa }: { empresa: any }) {
 }
 
 function ReunionRow({
-  r,
-  onMessage,
-  onChangeLink,
+  r, mesa, mesaNumero, acting, onMessage, onChangeLink, onCambiarEstado, onEditarHorario, onEliminar, onAsignarTecnico, mostrarMesa,
 }: {
-  r: any;
+  r: any; mesa?: any; mesaNumero: number; acting: boolean;
   onMessage: (reunionId: number, empresa: 'A' | 'B', empresaNombre: string, encargadoNombre: string) => void;
   onChangeLink: (reunion: any) => void;
+  onCambiarEstado: (reunion: any, estado: string, asistentes?: number) => void;
+  onEditarHorario: (reunion: any) => void;
+  onEliminar: (reunion: any) => void;
+  onAsignarTecnico: (mesa: any) => void;
+  mostrarMesa?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const sol = r.solicitudreunion;
@@ -185,6 +193,8 @@ function ReunionRow({
         : null);
   const esVirtual    = r.tipoReunion === 'VIRTUAL'    || r.tipoReunion === 'MIXTA';
   const esPresencial = r.tipoReunion === 'PRESENCIAL' || r.tipoReunion === 'MIXTA';
+  const esProgramada = r.estadoReunion === 'PROGRAMADA' || r.estadoReunion === 'REPROGRAMADA';
+  const esEnCurso     = r.estadoReunion === 'EN_CURSO';
 
   const nombreEncA = encA ? `${encA.nombres} ${encA.apellidoPaterno}` : 'Encargado';
   const nombreEncB = encB ? `${encB.nombres} ${encB.apellidoPaterno}` : 'Encargado';
@@ -206,6 +216,9 @@ function ReunionRow({
               {fmtTime(r.fechaHoraInicioReunion)} – {fmtTime(r.fechaHoraFinReunion)}
             </Text>
           </View>
+          {mostrarMesa && (
+            <Text style={{ fontSize: 10, color: '#6b7280', fontWeight: '600' }}>Mesa {mesaNumero}</Text>
+          )}
           <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999, backgroundColor: tip.bg }}>
             <Text style={{ fontSize: 8, fontWeight: '700', color: tip.color }}>{tip.label}</Text>
           </View>
@@ -217,30 +230,86 @@ function ReunionRow({
 
       {expanded && (
         <View style={{ paddingHorizontal: 12, paddingBottom: 12, gap: 8 }}>
-          {esVirtual && link && (
-            <TouchableOpacity onPress={() => Linking.openURL(link)}
-              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-                paddingVertical: 10, borderRadius: 12, backgroundColor: '#2563eb' }}>
-              <Video color="#fff" size={14} />
-              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>Entrar a reunión virtual</Text>
+          {mesa && (esProgramada || esEnCurso) && (
+            <TouchableOpacity onPress={() => onAsignarTecnico(mesa)}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, paddingVertical: 9,
+                borderRadius: 10, borderWidth: 1, borderColor: '#e5e7eb', backgroundColor: '#fff' }}>
+              <UserCheck color={mesa.tecnicoasignado ? GREEN : '#d1d5db'} size={15} />
+              {mesa.tecnicoasignado ? (
+                <Text style={{ fontSize: 12, color: '#4b5563', flex: 1 }} numberOfLines={1}>
+                  Técnico de esta mesa: <Text style={{ fontWeight: '700', color: '#1f2937' }}>{mesa.tecnicoasignado.nombres} {mesa.tecnicoasignado.apellidoPaterno}</Text>
+                </Text>
+              ) : (
+                <Text style={{ fontSize: 12, color: '#6b7280', flex: 1 }}>Asignar técnico a esta mesa</Text>
+              )}
+              <Text style={{ fontSize: 10, fontWeight: '700', color: GREEN }}>Cambiar</Text>
             </TouchableOpacity>
           )}
-          {esPresencial && mapsUrl && (
-            <TouchableOpacity onPress={() => Linking.openURL(mapsUrl)}
-              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-                paddingVertical: 10, borderRadius: 12, backgroundColor: '#059669' }}>
-              <MapPin color="#fff" size={14} />
-              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>Ver en Google Maps</Text>
+          {/* Todas las acciones de la reunión en una sola barra que envuelve */}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+            {esProgramada && (
+              <TouchableOpacity disabled={acting} onPress={() => onCambiarEstado(r, 'EN_CURSO')}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6,
+                  paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, backgroundColor: acting ? '#9ca3af' : GREEN }}>
+                <Play color="#fff" size={12} />
+                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 11 }}>Iniciar</Text>
+              </TouchableOpacity>
+            )}
+            {esProgramada && (
+              <TouchableOpacity disabled={acting} onPress={() => onCambiarEstado(r, 'CANCELADA')}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6,
+                  paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, borderWidth: 1, borderColor: '#fecaca', backgroundColor: '#fff' }}>
+                <XCircle color="#dc2626" size={12} />
+                <Text style={{ color: '#dc2626', fontWeight: '700', fontSize: 11 }}>Cancelar</Text>
+              </TouchableOpacity>
+            )}
+            {esEnCurso && (
+              <TouchableOpacity disabled={acting} onPress={() => onCambiarEstado(r, 'FINALIZADA')}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6,
+                  paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, backgroundColor: acting ? '#9ca3af' : GREEN }}>
+                <Check color="#fff" size={12} />
+                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 11 }}>Finalizar reunión</Text>
+              </TouchableOpacity>
+            )}
+            {esVirtual && link && (
+              <TouchableOpacity onPress={() => Linking.openURL(link)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6,
+                  paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, backgroundColor: '#2563eb' }}>
+                <Video color="#fff" size={12} />
+                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 11 }}>Entrar</Text>
+              </TouchableOpacity>
+            )}
+            {esPresencial && mapsUrl && (
+              <TouchableOpacity onPress={() => Linking.openURL(mapsUrl)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6,
+                  paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, backgroundColor: '#059669' }}>
+                <MapPin color="#fff" size={12} />
+                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 11 }}>Maps</Text>
+              </TouchableOpacity>
+            )}
+            {esVirtual && (
+              <TouchableOpacity onPress={() => onChangeLink(r)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6,
+                  paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, borderWidth: 1, borderColor: '#e5e7eb', backgroundColor: '#fff' }}>
+                <Link2 color="#374151" size={12} />
+                <Text style={{ color: '#374151', fontWeight: '600', fontSize: 11 }}>{link ? 'Cambiar link' : 'Agregar link'}</Text>
+              </TouchableOpacity>
+            )}
+            {esProgramada && (
+              <TouchableOpacity onPress={() => onEditarHorario(r)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6,
+                  paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, borderWidth: 1, borderColor: '#e5e7eb', backgroundColor: '#fff' }}>
+                <Pencil color="#374151" size={12} />
+                <Text style={{ color: '#374151', fontWeight: '600', fontSize: 11 }}>Editar horario</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity onPress={() => onEliminar(r)}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6,
+                paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, borderWidth: 1, borderColor: '#fecaca', backgroundColor: '#fff' }}>
+              <Trash2 color="#dc2626" size={12} />
+              <Text style={{ color: '#dc2626', fontWeight: '600', fontSize: 11 }}>Eliminar</Text>
             </TouchableOpacity>
-          )}
-          {esVirtual && (
-            <TouchableOpacity onPress={() => onChangeLink(r)}
-              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-                paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', backgroundColor: '#fff' }}>
-              <Link2 color="#374151" size={14} />
-              <Text style={{ color: '#374151', fontWeight: '600', fontSize: 13 }}>{link ? 'Cambiar link virtual' : 'Agregar link virtual'}</Text>
-            </TouchableOpacity>
-          )}
+          </View>
 
           {/* Contactar encargados */}
           <View>
@@ -270,16 +339,16 @@ function ReunionRow({
   );
 }
 
-function SolicitudPendienteRow({ s }: { s: any }) {
+function SolicitudPendienteRow({ s, onEliminar }: { s: any; onEliminar: (s: any) => void }) {
   return (
     <View style={{ borderTopWidth: 1, borderTopColor: '#f3f4f6', padding: 12, backgroundColor: '#fffbeb' }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
         <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: '#f59e0b' }} />
-        <Text style={{ fontSize: 12, fontWeight: '700', color: '#374151' }} numberOfLines={1}>
+        <Text style={{ fontSize: 12, fontWeight: '700', color: '#374151', flex: 1 }} numberOfLines={1}>
           {s.solicitante}
         </Text>
         <Text style={{ color: '#9ca3af', fontSize: 11 }}>↔</Text>
-        <Text style={{ fontSize: 12, fontWeight: '700', color: '#374151' }} numberOfLines={1}>
+        <Text style={{ fontSize: 12, fontWeight: '700', color: '#374151', flex: 1 }} numberOfLines={1}>
           {s.receptora}
         </Text>
       </View>
@@ -293,52 +362,100 @@ function SolicitudPendienteRow({ s }: { s: any }) {
         <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999, backgroundColor: '#fef3c7' }}>
           <Text style={{ fontSize: 8, fontWeight: '700', color: '#92400e' }}>Pendiente de respuesta</Text>
         </View>
+        <TouchableOpacity onPress={() => onEliminar(s)}
+          style={{ marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 4,
+            paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: '#fecaca', backgroundColor: '#fff' }}>
+          <Trash2 color="#dc2626" size={10} />
+          <Text style={{ fontSize: 9, fontWeight: '700', color: '#dc2626' }}>Eliminar</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
 }
 
-type FiltroEstado = 'EN_USO' | 'PROGRAMADA' | 'LIBRE' | 'TODAS' | 'HISTORIAL';
+type FiltroEstado = 'AGENDA' | 'EN_USO' | 'PROGRAMADA' | 'PENDIENTES' | 'LIBRE' | 'TODAS' | 'INHABILITADA' | 'HISTORIAL';
 
 export default function TecnicoMesasScreen() {
-  const { show: showModal, hide: hideModal, modal } = useModal();
+  const { show: showModal, modal } = useModal();
   const insets = useSafeAreaInsets();
 
   const [mesas,        setMesas]        = useState<any[]>([]);
   const [eventoConfig, setEventoConfig] = useState<any>(null);
   const [loading,      setLoading]      = useState(true);
   const [refreshing,   setRefreshing]   = useState(false);
-  const [filtro,       setFiltro]       = useState<FiltroEstado>('EN_USO');
+  const [filtro,       setFiltro]       = useState<FiltroEstado>('AGENDA');
   const [search,       setSearch]       = useState('');
   const [sinReunion, setSinReunion] = useState<any[]>([]);
+  const [acting, setActing] = useState(false);
+  const [toggling, setToggling] = useState(false);
 
   const [historial,        setHistorial]        = useState<any[]>([]);
   const [loadingHistorial, setLoadingHistorial] = useState(false);
   const [searchH,          setSearchH]          = useState('');
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Modal mensaje
   const [msgModal, setMsgModal]  = useState<{ reunionId: number; empresa: 'A' | 'B'; empresaNombre: string; encargadoNombre: string } | null>(null);
   const [msgText,  setMsgText]   = useState('');
   const [sending,  setSending]   = useState(false);
   const sendingRef = useRef(false);
 
-  // Modal link
   const [linkModal,  setLinkModal]  = useState<{ reunion: any } | null>(null);
   const [linkText,   setLinkText]   = useState('');
   const [savingLink, setSavingLink] = useState(false);
   const savingLinkRef = useRef(false);
 
+  const [editando, setEditando] = useState<any>(null);
+  const [nuevoHorario, setNuevoHorario] = useState('');
+  const [nuevaHora, setNuevaHora] = useState('');
+  const [guardandoEdicion, setGuardandoEdicion] = useState(false);
+  const guardandoEdicionRef = useRef(false);
+
+  const [tecnicos, setTecnicos] = useState<any[]>([]);
+  const [asignandoMesa, setAsignandoMesa] = useState<any>(null);
+  const [guardandoTecnico, setGuardandoTecnico] = useState(false);
+  const guardandoTecnicoRef = useRef(false);
+
   const fetchMesas = useCallback(async () => {
     try {
       const [res, libresRes] = await Promise.all([fetch(`${API_URL}/tecnico/mesas`), fetch(`${API_URL}/staff/empresas-sin-reunion`)]);
       const [data, libres] = await Promise.all([res.json(), libresRes.json()]);
-      setMesas(data.mesas ?? []);
+      setMesas(Array.isArray(data) ? data : (data.mesas ?? []));
       setSinReunion(Array.isArray(libres?.empresas) ? libres.empresas : []);
       if (data.eventoConfig) setEventoConfig(data.eventoConfig);
     } catch { setMesas([]); }
     finally { setLoading(false); setRefreshing(false); }
   }, []);
+
+  const fetchTecnicos = useCallback(async () => {
+    try {
+      const data = await (await fetch(`${API_URL}/tecnico/tecnicos`)).json();
+      setTecnicos(Array.isArray(data) ? data.filter((t: any) => t.estaActivo === 1) : []);
+    } catch { setTecnicos([]); }
+  }, []);
+
+  const asignarTecnico = async (usuarioId: number | null) => {
+    if (!asignandoMesa) return;
+    if (guardandoTecnicoRef.current) return;
+    guardandoTecnicoRef.current = true;
+    setGuardandoTecnico(true);
+    try {
+      const res = await fetch(`${API_URL}/tecnico/mesas/${asignandoMesa.id}/tecnico`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ usuarioId }),
+      });
+      if (!res.ok) throw new Error();
+      const actualizada = await res.json();
+      setMesas((prev) => prev.map((m) => (m.id === asignandoMesa.id ? { ...m, tecnicoasignado: actualizada.tecnicoasignado } : m)));
+      showModal({
+        type: 'success', title: usuarioId ? 'Técnico asignado' : 'Asignación quitada',
+        message: usuarioId
+          ? `Se notificó a ${actualizada.tecnicoasignado?.nombres} ${actualizada.tecnicoasignado?.apellidoPaterno} que controla la Mesa ${asignandoMesa.numeroMesa}.`
+          : `La Mesa ${asignandoMesa.numeroMesa} ya no tiene técnico asignado.`,
+      });
+      setAsignandoMesa(null);
+    } catch { showModal({ type: 'error', title: 'Error', message: 'No se pudo actualizar el técnico asignado. Intenta de nuevo.' }); }
+    finally { setGuardandoTecnico(false); guardandoTecnicoRef.current = false; }
+  };
 
   const fetchHistorial = useCallback(async (q?: string) => {
     setLoadingHistorial(true);
@@ -350,7 +467,7 @@ export default function TecnicoMesasScreen() {
     finally { setLoadingHistorial(false); }
   }, []);
 
-  useEffect(() => { fetchMesas(); }, []);
+  useEffect(() => { fetchMesas(); fetchTecnicos(); }, []);
   useEffect(() => { if (filtro === 'HISTORIAL') fetchHistorial(); }, [filtro]);
 
   const handleSearchH = (val: string) => {
@@ -360,9 +477,11 @@ export default function TecnicoMesasScreen() {
   };
 
   const mesasFiltradas = mesas.filter((m) => {
-    if (filtro === 'EN_USO')     { if (m.estadoMesa !== 'EN_USO')    return false; }
-    if (filtro === 'PROGRAMADA') { if (m.estadoMesa !== 'RESERVADA' && m.estadoMesa !== 'PRE_RESERVADA') return false; }
-    if (filtro === 'LIBRE')      { if (m.estadoMesa !== 'LIBRE')     return false; }
+    if (filtro === 'INHABILITADA') { if (m.estaHabilitada !== 0) return false; }
+    else if (filtro === 'EN_USO')     { if (m.estadoMesa !== 'EN_USO')    return false; }
+    else if (filtro === 'PROGRAMADA') { if (m.estadoMesa !== 'RESERVADA' && m.estadoMesa !== 'PRE_RESERVADA') return false; }
+    else if (filtro === 'PENDIENTES') { if (!(m.solicitudesEnEspera?.length > 0)) return false; }
+    else if (filtro === 'LIBRE')      { if (m.estadoMesa !== 'LIBRE')     return false; }
     if (!search.trim()) return true;
     const q = search.toLowerCase();
     return (
@@ -379,26 +498,75 @@ export default function TecnicoMesasScreen() {
   const counts = {
     enUso:     mesas.filter((m) => m.estadoMesa === 'EN_USO').length,
     programada: mesas.filter((m) => m.estadoMesa === 'RESERVADA' || m.estadoMesa === 'PRE_RESERVADA').length,
+    pendientes: mesas.reduce((sum, m) => sum + (m.solicitudesEnEspera?.length ?? 0), 0),
     libre:     mesas.filter((m) => m.estadoMesa === 'LIBRE').length,
+    inhabilitada: mesas.filter((m) => m.estaHabilitada === 0).length,
     total:     mesas.length,
   };
 
   const FILTROS: { key: FiltroEstado; label: string }[] = [
-    { key: 'EN_USO',     label: `En uso (${counts.enUso})` },
-    { key: 'PROGRAMADA', label: `Programadas (${counts.programada})` },
-    { key: 'LIBRE',      label: `Libres (${counts.libre})` },
-    { key: 'TODAS',      label: `Todas (${counts.total})` },
-    { key: 'HISTORIAL',  label: 'Historial' },
+    { key: 'AGENDA',       label: 'Agenda' },
+    { key: 'EN_USO',       label: `En uso (${counts.enUso})` },
+    { key: 'PROGRAMADA',   label: `Programadas (${counts.programada})` },
+    { key: 'PENDIENTES',   label: `Pendientes de respuesta (${counts.pendientes})` },
+    { key: 'LIBRE',        label: `Libres (${counts.libre})` },
+    { key: 'TODAS',        label: `Todas (${counts.total})` },
+    { key: 'INHABILITADA', label: `Inhabilitadas (${counts.inhabilitada})` },
+    { key: 'HISTORIAL',    label: 'Historial' },
   ];
 
   const openMessageModal = (reunionId: number, empresa: 'A' | 'B', empresaNombre: string, encargadoNombre: string) => {
     setMsgModal({ reunionId, empresa, empresaNombre, encargadoNombre });
     setMsgText('');
   };
-
   const openLinkModal = (reunion: any) => {
     setLinkModal({ reunion });
     setLinkText(reunion.solicitudreunion?.enlaceReunionVirtual ?? '');
+  };
+
+  const cambiarEstadoReunion = (reunion: any, estado: string) => {
+    const labels: Record<string, string> = { EN_CURSO: 'iniciar', CANCELADA: 'cancelar', FINALIZADA: 'finalizar' };
+    showModal({
+      type: 'confirm',
+      title: `${estado === 'EN_CURSO' ? 'Iniciar' : estado === 'CANCELADA' ? 'Cancelar' : 'Finalizar'} reunión`,
+      message: `¿Deseas ${labels[estado]} esta reunión en la Mesa ${reunion.mesa_id}?`,
+      confirmColor: estado === 'CANCELADA' ? '#dc2626' : GREEN,
+      onConfirm: async () => {
+        setActing(true);
+        try {
+          const res = await fetch(`${API_URL}/tecnico/reuniones/${reunion.id}/estado`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estadoReunion: estado }),
+          });
+          if (!res.ok) throw new Error();
+          const doneLabels: Record<string, string> = {
+            EN_CURSO: 'Reunión iniciada correctamente.', FINALIZADA: 'Reunión finalizada y registrada.', CANCELADA: 'Reunión cancelada.',
+          };
+          showModal({ type: 'success', title: '¡Listo!', message: doneLabels[estado] ?? 'Estado actualizado.' });
+          fetchMesas();
+        } catch { showModal({ type: 'error', title: 'Error', message: 'No se pudo actualizar el estado.' }); }
+        finally { setActing(false); }
+      },
+    });
+  };
+
+  const toggleHabilitar = (mesa: any) => {
+    const nuevo = mesa.estaHabilitada === 1 ? 0 : 1;
+    showModal({
+      type: 'confirm',
+      title: `${nuevo === 1 ? 'Habilitar' : 'Deshabilitar'} mesa ${mesa.numeroMesa}`,
+      message: `¿Deseas ${nuevo === 1 ? 'habilitar' : 'deshabilitar'} la Mesa ${mesa.numeroMesa}? ${nuevo === 0 ? 'Los usuarios no podrán usarla.' : 'Estará disponible para reuniones.'}`,
+      onConfirm: async () => {
+        setToggling(true);
+        try {
+          await fetch(`${API_URL}/tecnico/mesas/${mesa.id}/habilitar`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estaHabilitada: nuevo }),
+          });
+          showModal({ type: 'success', title: '¡Listo!', message: `Mesa ${mesa.numeroMesa} ${nuevo === 1 ? 'habilitada' : 'deshabilitada'} correctamente.` });
+          fetchMesas();
+        } catch { showModal({ type: 'error', title: 'Error', message: 'No se pudo cambiar la disponibilidad de la mesa.' }); }
+        finally { setToggling(false); }
+      },
+    });
   };
 
   const sendMessage = async () => {
@@ -425,8 +593,7 @@ export default function TecnicoMesasScreen() {
     setSavingLink(true);
     try {
       const res = await fetch(`${API_URL}/tecnico/reuniones/${linkModal.reunion.id}/link`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enlace: linkText.trim() }),
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enlace: linkText.trim() }),
       });
       if (!res.ok) throw new Error();
       setLinkModal(null);
@@ -435,6 +602,88 @@ export default function TecnicoMesasScreen() {
     } catch { showModal({ type: 'error', title: 'Error', message: 'No se pudo actualizar el link. Intenta de nuevo.' }); }
     finally { setSavingLink(false); savingLinkRef.current = false; }
   };
+
+  const abrirEditar = (reunion: any) => {
+    setEditando(reunion);
+    // Bolivia es UTC-4 todo el año (sin horario de verano).
+    const bolivia = new Date(new Date(reunion.fechaHoraInicioReunion).getTime() - 4 * 3600_000);
+    setNuevoHorario(`${bolivia.getUTCFullYear()}-${String(bolivia.getUTCMonth() + 1).padStart(2, '0')}-${String(bolivia.getUTCDate()).padStart(2, '0')}`);
+    setNuevaHora(`${String(bolivia.getUTCHours()).padStart(2, '0')}:${String(bolivia.getUTCMinutes()).padStart(2, '0')}`);
+  };
+
+  const guardarEdicion = async () => {
+    if (!editando || !nuevoHorario || !nuevaHora) return;
+    if (guardandoEdicionRef.current) return;
+    guardandoEdicionRef.current = true;
+    setGuardandoEdicion(true);
+    try {
+      const res = await fetch(`${API_URL}/tecnico/reuniones/${editando.id}/reprogramar`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inicio: `${nuevoHorario}T${nuevaHora}:00-04:00` }),
+      });
+      if (!res.ok) throw new Error();
+      setEditando(null);
+      showModal({ type: 'success', title: 'Reunión reprogramada', message: 'El nuevo horario ya está confirmado y se avisó a ambas empresas.' });
+      fetchMesas();
+    } catch { showModal({ type: 'error', title: 'Error', message: 'No se pudo reprogramar la reunión.' }); }
+    finally { setGuardandoEdicion(false); guardandoEdicionRef.current = false; }
+  };
+
+  const confirmarEliminar = (reunion: any) => {
+    showModal({
+      type: 'confirm',
+      title: 'Eliminar reunión',
+      message: 'La mesa quedará disponible y se avisará a ambas empresas. Esta acción no se puede deshacer.',
+      confirmColor: '#dc2626',
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`${API_URL}/tecnico/reuniones/${reunion.id}`, { method: 'DELETE' });
+          if (!res.ok) throw new Error();
+          showModal({ type: 'success', title: 'Reunión eliminada', message: 'La mesa quedó disponible y las empresas fueron notificadas.' });
+          fetchMesas();
+        } catch { showModal({ type: 'error', title: 'Error', message: 'No se pudo eliminar la reunión.' }); }
+      },
+    });
+  };
+
+  const confirmarEliminarSolicitud = (s: any) => {
+    showModal({
+      type: 'confirm',
+      title: 'Eliminar solicitud',
+      message: 'Se avisará a ambas empresas de que la solicitud fue eliminada. Esta acción no se puede deshacer.',
+      confirmColor: '#dc2626',
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`${API_URL}/tecnico/solicitudes/${s.solicitudId}`, { method: 'DELETE' });
+          if (!res.ok) throw new Error();
+          showModal({ type: 'success', title: 'Solicitud eliminada', message: 'Las empresas fueron notificadas.' });
+          fetchMesas();
+        } catch { showModal({ type: 'error', title: 'Error', message: 'No se pudo eliminar la solicitud.' }); }
+      },
+    });
+  };
+
+  // Vista Agenda: todas las reuniones activas, agrupadas por día (sin
+  // importar la mesa), con el mismo control que da la vista Mesas.
+  const reunionesAgenda = mesas
+    .flatMap((mesa) => (mesa.reunion ?? []).map((r: any) => ({ ...r, mesa_id: mesa.numeroMesa, _mesa: mesa })))
+    .filter((r: any) => r.estadoReunion === 'PROGRAMADA' || r.estadoReunion === 'EN_CURSO' || r.estadoReunion === 'REPROGRAMADA')
+    .filter((r: any) => {
+      if (!search.trim()) return true;
+      const q = search.toLowerCase();
+      const sol = r.solicitudreunion;
+      const ea = sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa;
+      const eb = sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento?.empresa;
+      return String(r.mesa_id).includes(q) || ea?.nombre?.toLowerCase().includes(q) || eb?.nombre?.toLowerCase().includes(q);
+    })
+    .sort((a: any, b: any) => new Date(a.fechaHoraInicioReunion).getTime() - new Date(b.fechaHoraInicioReunion).getTime());
+
+  const diasAgenda: Record<string, any[]> = {};
+  for (const r of reunionesAgenda) {
+    const k = r.fechaHoraInicioReunion.substring(0, 10);
+    (diasAgenda[k] ??= []).push(r);
+  }
+  const clavesDias = Object.keys(diasAgenda).sort();
 
   if (loading) {
     return (
@@ -467,12 +716,9 @@ export default function TecnicoMesasScreen() {
                 </TouchableOpacity>
               </View>
               <TextInput
-                value={msgText}
-                onChangeText={setMsgText}
-                placeholder="Escribe tu mensaje aquí..."
-                placeholderTextColor="#9ca3af"
-                multiline
-                numberOfLines={5}
+                value={msgText} onChangeText={setMsgText}
+                placeholder="Escribe tu mensaje aquí..." placeholderTextColor="#9ca3af"
+                multiline numberOfLines={5}
                 style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 14, padding: 12, fontSize: 13,
                   color: '#374151', minHeight: 120, textAlignVertical: 'top', marginBottom: 12 }}
               />
@@ -508,14 +754,11 @@ export default function TecnicoMesasScreen() {
                 Actualiza el enlace para la reunión virtual. Todos los participantes podrán verlo.
               </Text>
               <TextInput
-                value={linkText}
-                onChangeText={setLinkText}
+                value={linkText} onChangeText={setLinkText}
                 placeholder="https://meet.google.com/... o https://zoom.us/..."
                 placeholderTextColor="#9ca3af"
-                style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 14, padding: 12, fontSize: 13,
-                  color: '#374151', marginBottom: 12 }}
-                autoCapitalize="none"
-                keyboardType="url"
+                style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 14, padding: 12, fontSize: 13, color: '#374151', marginBottom: 12 }}
+                autoCapitalize="none" keyboardType="url"
               />
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 <TouchableOpacity onPress={() => setLinkModal(null)}
@@ -534,10 +777,97 @@ export default function TecnicoMesasScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
+      {/* Modal editar horario */}
+      <Modal visible={!!editando} transparent animationType="slide" onRequestClose={() => setEditando(null)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+          <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
+            <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 32 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: '#111827' }}>Editar horario</Text>
+                <TouchableOpacity onPress={() => setEditando(null)}>
+                  <X color="#9ca3af" size={20} />
+                </TouchableOpacity>
+              </View>
+              <Text style={{ fontSize: 12, color: '#6b7280', marginBottom: 12 }}>Se avisará a ambas empresas del cambio.</Text>
+              <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
+                <View style={{ flex: 1 }}><FechaHoraInput modo="date" valor={nuevoHorario} onCambiar={setNuevoHorario} placeholder="Fecha" /></View>
+                <View style={{ flex: 1 }}><FechaHoraInput modo="time" valor={nuevaHora} onCambiar={setNuevaHora} placeholder="Hora" /></View>
+              </View>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity onPress={() => setEditando(null)}
+                  style={{ flex: 1, paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: '#e5e7eb', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: '#6b7280' }}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={guardarEdicion} disabled={guardandoEdicion || !nuevoHorario || !nuevaHora}
+                  style={{ flex: 2, paddingVertical: 12, borderRadius: 14, backgroundColor: guardandoEdicion ? '#d1d5db' : GREEN,
+                    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                  <Pencil color="#fff" size={14} />
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff' }}>{guardandoEdicion ? 'Guardando…' : 'Guardar nuevo horario'}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal visible={!!asignandoMesa} transparent animationType="slide" onRequestClose={() => setAsignandoMesa(null)}>
+        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
+          <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 20, maxHeight: '80%' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 4 }}>
+              <View>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: '#111827' }}>Asignar técnico — Mesa {asignandoMesa?.numeroMesa}</Text>
+                <Text style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>Se le notificará que debe controlar esta mesa.</Text>
+              </View>
+              <TouchableOpacity onPress={() => setAsignandoMesa(null)}>
+                <X color="#9ca3af" size={20} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ paddingHorizontal: 14, marginTop: 12 }} contentContainerStyle={{ gap: 6, paddingBottom: 8 }}>
+              {tecnicos.length === 0 && (
+                <Text style={{ fontSize: 13, color: '#9ca3af', textAlign: 'center', paddingVertical: 20 }}>No hay técnicos registrados.</Text>
+              )}
+              {tecnicos.map((t) => {
+                const asignado = asignandoMesa?.tecnicoasignado?.id === t.id;
+                return (
+                  <TouchableOpacity key={t.id} disabled={guardandoTecnico} onPress={() => asignarTecnico(t.id)}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 10,
+                      borderRadius: 14, borderWidth: 1, borderColor: asignado ? GREEN : '#f1f5f9',
+                      backgroundColor: asignado ? '#f0fdf4' : '#fff', opacity: guardandoTecnico ? 0.6 : 1 }}>
+                    {t.urlFotoPerfil
+                      ? <Image source={{ uri: t.urlFotoPerfil }} style={{ width: 32, height: 32, borderRadius: 16 }} resizeMode="contain" />
+                      : <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center' }}>
+                          <UserCheck color="#9ca3af" size={14} />
+                        </View>}
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: '#1f2937' }} numberOfLines={1}>{t.nombres} {t.apellidoPaterno}</Text>
+                      <Text style={{ fontSize: 10, color: '#9ca3af' }} numberOfLines={1}>{t.rolEvento === 'TECNICO_EVENTOS' ? 'Técnico de eventos' : 'Técnico'}</Text>
+                    </View>
+                    {asignado && (
+                      <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: GREEN }}>
+                        <Text style={{ fontSize: 9, fontWeight: '700', color: '#fff' }}>Asignado</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+            {asignandoMesa?.tecnicoasignado && (
+              <View style={{ paddingHorizontal: 20, paddingVertical: 14, borderTopWidth: 1, borderTopColor: '#f3f4f6' }}>
+                <TouchableOpacity disabled={guardandoTecnico} onPress={() => asignarTecnico(null)}
+                  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 11, borderRadius: 14, opacity: guardandoTecnico ? 0.6 : 1 }}>
+                  <X color="#dc2626" size={14} />
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: '#dc2626' }}>Quitar asignación</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
+
       {/* Header */}
       <View style={{ backgroundColor: '#fff', paddingHorizontal: 16, paddingTop: insets.top + 16, paddingBottom: 12,
         borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
-        <Text style={{ fontSize: 22, fontWeight: '800', color: '#0f172a' }}>Mesas del evento</Text>
+        <Text style={{ fontSize: 22, fontWeight: '800', color: '#0f172a' }}>Mesas y reuniones</Text>
 
         {eventoConfig && (
           <View style={{ flexDirection: 'row', gap: 14, marginTop: 6, marginBottom: 8 }}>
@@ -559,11 +889,10 @@ export default function TecnicoMesasScreen() {
         {/* Search */}
         {filtro !== 'HISTORIAL' ? (
           <View style={{ backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e5e7eb',
-            borderRadius: 12, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10,
-            paddingVertical: 8, marginBottom: 10 }}>
+            borderRadius: 12, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 8, marginBottom: 10 }}>
             <Text style={{ fontSize: 13, color: '#9ca3af', marginRight: 6 }}>🔍</Text>
             <TextInput value={search} onChangeText={setSearch}
-              placeholder="Buscar empresa..." placeholderTextColor="#9ca3af"
+              placeholder="Buscar empresa o mesa..." placeholderTextColor="#9ca3af"
               style={{ flex: 1, fontSize: 13, color: '#374151' }} />
             {search.length > 0 && (
               <TouchableOpacity onPress={() => setSearch('')}>
@@ -573,8 +902,7 @@ export default function TecnicoMesasScreen() {
           </View>
         ) : (
           <View style={{ backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e5e7eb',
-            borderRadius: 12, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10,
-            paddingVertical: 8, marginBottom: 10 }}>
+            borderRadius: 12, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 8, marginBottom: 10 }}>
             <Text style={{ fontSize: 13, color: '#9ca3af', marginRight: 6 }}>🔍</Text>
             <TextInput value={searchH} onChangeText={handleSearchH}
               placeholder="Buscar empresa o mesa..." placeholderTextColor="#9ca3af"
@@ -593,10 +921,8 @@ export default function TecnicoMesasScreen() {
             {FILTROS.map((f) => (
               <TouchableOpacity key={f.key} onPress={() => setFiltro(f.key)}
                 style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1,
-                  backgroundColor: filtro === f.key ? GREEN : '#fff',
-                  borderColor: filtro === f.key ? GREEN : '#e5e7eb' }}>
-                <Text style={{ fontSize: 11, fontWeight: '600',
-                  color: filtro === f.key ? '#fff' : '#6b7280' }}>{f.label}</Text>
+                  backgroundColor: filtro === f.key ? GREEN : '#fff', borderColor: filtro === f.key ? GREEN : '#e5e7eb' }}>
+                <Text style={{ fontSize: 11, fontWeight: '600', color: filtro === f.key ? '#fff' : '#6b7280' }}>{f.label}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -605,18 +931,55 @@ export default function TecnicoMesasScreen() {
 
       {/* Body */}
       <View style={{ marginHorizontal: 16, marginTop: 12, borderRadius: 16, borderWidth: 1, borderColor: '#dcfce7', backgroundColor: '#fff', padding: 13 }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}><Text style={{ fontSize: 13, fontWeight: '800', color: '#111827' }}>Empresas sin reunión ahora</Text><Text style={{ fontSize: 11, fontWeight: '800', color: '#15803d', backgroundColor: '#dcfce7', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 }}>{sinReunion.length}</Text></View>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>{sinReunion.map((e) => <Text key={e.empresaeventoId} style={{ fontSize: 9, fontWeight: '600', color: '#374151', backgroundColor: '#f9fafb', borderRadius: 7, paddingHorizontal: 7, paddingVertical: 4 }}>{e.codigo ? `${e.codigo} · ` : ''}{e.nombre}</Text>)}</View>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <Text style={{ fontSize: 13, fontWeight: '800', color: '#111827' }}>Empresas sin reunión ahora</Text>
+          <Text style={{ fontSize: 11, fontWeight: '800', color: '#15803d', backgroundColor: '#dcfce7', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 }}>{sinReunion.length}</Text>
+        </View>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+          {sinReunion.map((e) => (
+            <Text key={e.empresaeventoId} style={{ fontSize: 9, fontWeight: '600', color: '#374151', backgroundColor: '#f9fafb', borderRadius: 7, paddingHorizontal: 7, paddingVertical: 4 }}>
+              {e.codigo ? `${e.codigo} · ` : ''}{e.nombre}
+            </Text>
+          ))}
+        </View>
       </View>
 
-      {filtro === 'HISTORIAL' ? (
+      {filtro === 'AGENDA' ? (
+        <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets style={{ flex: 1 }} contentContainerStyle={{ padding: 14 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchMesas(); }} tintColor={GREEN} />}
+          showsVerticalScrollIndicator={false}>
+          {clavesDias.length === 0 ? (
+            <View style={{ alignItems: 'center', paddingVertical: 60 }}>
+              <Calendar color="#d1d5db" size={40} />
+              <Text style={{ fontSize: 14, color: '#9ca3af', marginTop: 10, fontWeight: '500', textAlign: 'center' }}>No hay reuniones activas</Text>
+              <Text style={{ fontSize: 12, color: '#cbd5e1', marginTop: 4, textAlign: 'center' }}>Todas están finalizadas, canceladas, o todavía no hay mesas programadas.</Text>
+            </View>
+          ) : clavesDias.map((dia) => (
+            <View key={dia} style={{ marginBottom: 18 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: GREEN, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7 }}>
+                  <Calendar color="#fff" size={14} />
+                  <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>{fmtDay(dia)}</Text>
+                </View>
+                <Text style={{ fontSize: 11, color: '#94a3b8', fontWeight: '600' }}>{diasAgenda[dia].length} reunión(es)</Text>
+              </View>
+              <View style={{ backgroundColor: '#fff', borderRadius: 18, borderWidth: 1, borderColor: '#f1f5f9', overflow: 'hidden' }}>
+                {diasAgenda[dia].map((r) => (
+                  <ReunionRow key={r.id} r={r} mesa={r._mesa} mesaNumero={r.mesa_id} acting={acting} mostrarMesa
+                    onMessage={openMessageModal} onChangeLink={openLinkModal} onCambiarEstado={cambiarEstadoReunion}
+                    onEditarHorario={abrirEditar} onEliminar={confirmarEliminar} onAsignarTecnico={setAsignandoMesa} />
+                ))}
+              </View>
+            </View>
+          ))}
+          <View style={{ height: 20 }} />
+        </ScrollView>
+      ) : filtro === 'HISTORIAL' ? (
         <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets style={{ flex: 1 }} contentContainerStyle={{ padding: 14 }}
           refreshControl={<RefreshControl refreshing={loadingHistorial} onRefresh={() => fetchHistorial(searchH)} tintColor={GREEN} />}
           showsVerticalScrollIndicator={false}>
           {loadingHistorial ? (
-            <View style={{ alignItems: 'center', paddingVertical: 60 }}>
-              <ActivityIndicator size="large" color={GREEN} />
-            </View>
+            <View style={{ alignItems: 'center', paddingVertical: 60 }}><ActivityIndicator size="large" color={GREEN} /></View>
           ) : historial.length === 0 ? (
             <View style={{ alignItems: 'center', paddingVertical: 60 }}>
               <History color="#d1d5db" size={40} />
@@ -631,24 +994,22 @@ export default function TecnicoMesasScreen() {
         </ScrollView>
       ) : (
         <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets style={{ flex: 1 }} contentContainerStyle={{ padding: 14 }}
-          refreshControl={<RefreshControl refreshing={refreshing}
-            onRefresh={() => { setRefreshing(true); fetchMesas(); }} tintColor={GREEN} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchMesas(); }} tintColor={GREEN} />}
           showsVerticalScrollIndicator={false}>
 
           {mesasFiltradas.map((mesa) => {
-            const cfg = ESTADO_MESA[mesa.estadoMesa] ?? ESTADO_MESA.LIBRE;
-            const gridColor = GRID_COLOR[mesa.estadoMesa] ?? GREEN;
+            const inhabilitada = mesa.estaHabilitada === 0;
+            const cfg        = ESTADO_MESA[mesa.estadoMesa] ?? ESTADO_MESA.LIBRE;
+            const gridColor  = inhabilitada && mesa.estadoMesa === 'LIBRE' ? '#9ca3af' : (GRID_COLOR[mesa.estadoMesa] ?? GREEN);
+            const label      = inhabilitada && mesa.estadoMesa === 'LIBRE' ? 'Inhabilitada' : cfg.label;
             return (
               <View key={mesa.id} style={{ backgroundColor: '#fff', borderRadius: 18, borderWidth: 1,
                 borderColor: '#f1f5f9', marginBottom: 14, overflow: 'hidden',
                 shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14,
                   backgroundColor: '#fafafa', borderBottomWidth: 1, borderBottomColor: '#f3f4f6' }}>
-                  <View style={{ width: 46, height: 46, borderRadius: 13, alignItems: 'center',
-                    justifyContent: 'center', backgroundColor: gridColor }}>
-                    <Text style={{ color: '#fff', fontWeight: '800', fontSize: 16 }}>
-                      {String(mesa.numeroMesa).padStart(2, '0')}
-                    </Text>
+                  <View style={{ width: 46, height: 46, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: gridColor }}>
+                    <Text style={{ color: '#fff', fontWeight: '800', fontSize: 16 }}>{String(mesa.numeroMesa).padStart(2, '0')}</Text>
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: 15, fontWeight: '700', color: '#0f172a' }}>Mesa {mesa.numeroMesa}</Text>
@@ -656,23 +1017,53 @@ export default function TecnicoMesasScreen() {
                       {mesa.reunion?.length ?? 0} reunión(es){mesa.solicitudesEnEspera?.length ? ` · ${mesa.solicitudesEnEspera.length} pendiente(s)` : ''} · {mesa.capacidadPersonas} personas
                     </Text>
                   </View>
-                  <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: cfg.bg }}>
-                    <Text style={{ fontSize: 10, fontWeight: '700', color: cfg.color }}>{cfg.label}</Text>
+                  <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: inhabilitada && mesa.estadoMesa === 'LIBRE' ? '#f3f4f6' : cfg.bg }}>
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: inhabilitada && mesa.estadoMesa === 'LIBRE' ? '#6b7280' : cfg.color }}>{label}</Text>
                   </View>
                 </View>
 
+                {mesa.reunionActual && (
+                  <TouchableOpacity onPress={() => setAsignandoMesa(mesa)}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 9,
+                      borderBottomWidth: 1, borderBottomColor: '#f3f4f6' }}>
+                    <UserCheck color={mesa.tecnicoasignado ? GREEN : '#d1d5db'} size={14} />
+                    {mesa.tecnicoasignado ? (
+                      <Text style={{ fontSize: 12, color: '#4b5563' }}>
+                        Técnico: <Text style={{ fontWeight: '700', color: '#1f2937' }}>{mesa.tecnicoasignado.nombres} {mesa.tecnicoasignado.apellidoPaterno}</Text>
+                      </Text>
+                    ) : (
+                      <Text style={{ fontSize: 12, color: '#9ca3af' }}>Sin técnico asignado — toca para asignar</Text>
+                    )}
+                  </TouchableOpacity>
+                )}
+
                 {mesa.reunion && mesa.reunion.length > 0 && mesa.reunion.map((r: any) => (
-                  <ReunionRow key={r.id} r={r} onMessage={openMessageModal} onChangeLink={openLinkModal} />
+                  <ReunionRow key={r.id} r={{ ...r, mesa_id: mesa.numeroMesa }} mesa={mesa} mesaNumero={mesa.numeroMesa} acting={acting}
+                    onMessage={openMessageModal} onChangeLink={openLinkModal} onCambiarEstado={cambiarEstadoReunion}
+                    onEditarHorario={abrirEditar} onEliminar={confirmarEliminar} onAsignarTecnico={setAsignandoMesa} />
                 ))}
 
                 {mesa.solicitudesEnEspera && mesa.solicitudesEnEspera.length > 0 && mesa.solicitudesEnEspera.map((s: any) => (
-                  <SolicitudPendienteRow key={s.solicitudId} s={s} />
+                  <SolicitudPendienteRow key={s.solicitudId} s={s} onEliminar={confirmarEliminarSolicitud} />
                 ))}
 
-                {(!mesa.reunion || mesa.reunion.length === 0) && (!mesa.solicitudesEnEspera || mesa.solicitudesEnEspera.length === 0) && (
-                  <View style={{ padding: 16, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#86efac' }} />
-                    <Text style={{ fontSize: 13, color: '#94a3b8' }}>Disponible — sin reuniones asignadas</Text>
+                {(!mesa.reunion || mesa.reunion.length === 0) && (
+                  <View style={{ padding: 16, gap: 10 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: inhabilitada ? '#d1d5db' : '#86efac' }} />
+                      <Text style={{ fontSize: 13, color: '#94a3b8' }}>
+                        {inhabilitada ? 'Inhabilitada — los usuarios no pueden usarla' : (mesa.solicitudesEnEspera?.length ? 'Sin reuniones confirmadas' : 'Disponible — sin reuniones asignadas')}
+                      </Text>
+                    </View>
+                    <TouchableOpacity disabled={toggling} onPress={() => toggleHabilitar(mesa)}
+                      style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+                        paddingVertical: 9, borderRadius: 10, borderWidth: 1,
+                        borderColor: inhabilitada ? '#bbf7d0' : '#e5e7eb', opacity: toggling ? 0.5 : 1 }}>
+                      {inhabilitada ? <Unlock color="#15803d" size={14} /> : <Lock color="#6b7280" size={14} />}
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: inhabilitada ? '#15803d' : '#6b7280' }}>
+                        {inhabilitada ? 'Habilitar mesa' : 'Deshabilitar mesa'}
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 )}
               </View>
@@ -682,9 +1073,7 @@ export default function TecnicoMesasScreen() {
           {mesasFiltradas.length === 0 && (
             <View style={{ alignItems: 'center', paddingVertical: 60 }}>
               <Armchair color="#d1d5db" size={40} />
-              <Text style={{ fontSize: 14, color: '#9ca3af', marginTop: 10, fontWeight: '500' }}>
-                Sin mesas con ese filtro
-              </Text>
+              <Text style={{ fontSize: 14, color: '#9ca3af', marginTop: 10, fontWeight: '500' }}>Sin mesas con ese filtro</Text>
             </View>
           )}
           <View style={{ height: 20 }} />

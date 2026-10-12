@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, TextInput, ActivityIndicator, Linking } from 'react-native';
+import ImagenLightbox from './ImagenLightbox';
 import {
   Radio, Clock, MapPin, User, CheckCircle2, Play, Square, ExternalLink, Megaphone,
 } from 'lucide-react-native';
@@ -161,13 +162,43 @@ export default function CronogramaVivo({
           <Text className="text-sm font-bold text-gray-700">Lo que está pasando en el momento</Text>
         </View>
         {enVivo.length > 0 ? enVivo.map((a) => (
-          <View key={a.id} className="mb-1">
-            <Text className="font-extrabold text-gray-900">{a.nombreActividad}</Text>
-            <View className="flex-row flex-wrap items-center gap-x-3 mt-0.5">
-              <View className="flex-row items-center gap-1"><Clock color="#4b5563" size={13} /><Text className="text-sm text-gray-600">{hora(a.horaInicioActividad)} – {hora(a.horaFinActividad)}</Text></View>
-              <View className="flex-row items-center gap-1"><MapPin color="#4b5563" size={13} /><Text className="text-sm text-gray-600">{a.nombreSalaEspacio}</Text></View>
+          <View key={a.id} className="mb-3 flex-row gap-3">
+            {!!a.urlImagenBannerActividad && (
+              <ImagenLightbox uri={a.urlImagenBannerActividad}
+                style={{ width: 96, height: 72, borderRadius: 12, backgroundColor: '#fff' }} imgStyle={{ resizeMode: 'contain' }} />
+            )}
+            <View className="flex-1">
+              <Text className="font-extrabold text-gray-900 text-base">{a.nombreActividad}</Text>
+              <View className="flex-row flex-wrap items-center gap-x-3 mt-0.5">
+                <View className="flex-row items-center gap-1"><Clock color="#4b5563" size={13} /><Text className="text-sm text-gray-600">{hora(a.horaInicioActividad)} – {hora(a.horaFinActividad)}</Text></View>
+                <View className="flex-row items-center gap-1"><MapPin color="#4b5563" size={13} /><Text className="text-sm text-gray-600">{a.nombreSalaEspacio}</Text></View>
+              </View>
+              {(!!a.nombreCompletoPilaExpositor || !!a.organizacionDelExpositor) && (
+                <View className="flex-row items-center gap-1 mt-1">
+                  <User color="#4b5563" size={13} />
+                  <Text className="flex-1 text-sm text-gray-600">
+                    {a.nombreCompletoPilaExpositor}{a.nombreCompletoPilaExpositor && a.organizacionDelExpositor ? ' · ' : ''}{a.organizacionDelExpositor}
+                  </Text>
+                </View>
+              )}
+              {!!a.descripcionActividad && <Text className="text-sm text-gray-600 mt-1.5">{a.descripcionActividad}</Text>}
+              {!!a.notaEnVivo && <Text className="text-sm text-red-700 font-semibold mt-1">⚠ {a.notaEnVivo}</Text>}
+              <View className="flex-row flex-wrap gap-2 mt-2">
+                {!!a.linkReunionVirtual && (
+                  <TouchableOpacity onPress={() => Linking.openURL(a.linkReunionVirtual)} className="flex-row items-center gap-1.5 rounded-lg bg-[#449D3A] px-3 py-2">
+                    <ExternalLink color="#fff" size={13} /><Text className="text-white text-xs font-bold">Ver transmisión</Text>
+                  </TouchableOpacity>
+                )}
+                {!!a.ubicacionGoogleMapsPresencial && (
+                  <TouchableOpacity onPress={() => Linking.openURL(a.ubicacionGoogleMapsPresencial)} className="flex-row items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-2">
+                    <MapPin color="#374151" size={13} /><Text className="text-gray-700 text-xs font-bold">Cómo llegar</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              {!!a.direccion_texto && (
+                <View className="flex-row items-center gap-1 mt-1.5"><MapPin color="#9ca3af" size={11} /><Text className="flex-1 text-xs text-gray-500">{a.direccion_texto}</Text></View>
+              )}
             </View>
-            {!!a.notaEnVivo && <Text className="text-sm text-red-700 font-semibold mt-1">⚠ {a.notaEnVivo}</Text>}
           </View>
         )) : <Text className="text-sm text-gray-500">En este momento no hay ninguna actividad en curso.</Text>}
         {actualizado && (

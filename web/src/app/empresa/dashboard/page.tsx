@@ -124,7 +124,7 @@ export default function EmpresaDashboardPage() {
 
       {/* Alerta solicitudes pendientes recibidas — solo encargado */}
       {esResponsable && stats?.pendientesRecibidas > 0 && (
-        <Link href="/empresa/solicitudes?tab=recibidas" className="block">
+        <Link href="/empresa/solicitudes?tab=reuniones&filtro=pendientes" className="block">
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-3 hover:border-amber-300 transition-colors cursor-pointer">
             <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
             <div className="flex-1">
@@ -161,14 +161,14 @@ export default function EmpresaDashboardPage() {
               value: stats.pendientesRecibidas,
               Icon: AlertTriangle,
               color: stats.pendientesRecibidas > 0 ? "bg-amber-50 text-amber-600" : "bg-gray-50 text-gray-400",
-              href: "/empresa/solicitudes?tab=recibidas",
+              href: "/empresa/solicitudes?tab=reuniones&filtro=pendientes",
             },
             esResponsable && {
               label: "Sol. enviadas pendientes",
               value: stats.pendientesEnviadas,
               Icon: Send,
               color: stats.pendientesEnviadas > 0 ? "bg-blue-50 text-blue-600" : "bg-gray-50 text-gray-400",
-              href: "/empresa/solicitudes?tab=enviadas",
+              href: "/empresa/solicitudes?tab=reuniones&filtro=enviadas",
             },
             {
               label: "Próximas reuniones",

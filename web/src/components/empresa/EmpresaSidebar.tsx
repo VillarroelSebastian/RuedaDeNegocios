@@ -47,6 +47,7 @@ export default function EmpresaSidebar({ canPackage = false, esEncargado = false
   const [foto, setFoto] = useState<string>('');
   const [nombre, setNombre] = useState<string>('');
   const [mensajesNoLeidos, setMensajesNoLeidos] = useState(0);
+  const [solicitudesPendientes, setSolicitudesPendientes] = useState(0);
 
   useEffect(() => {
     if (!eeId) return;
@@ -59,6 +60,24 @@ export default function EmpresaSidebar({ canPackage = false, esEncargado = false
     window.addEventListener('mensajesActualizados', cargar);
     return () => { window.clearInterval(timer); window.removeEventListener('mensajesActualizados', cargar); };
   }, [eeId, pathname]);
+
+  // Contador de solicitudes recibidas pendientes, como las notificaciones:
+  // solo el encargado gestiona solicitudes.
+  useEffect(() => {
+    if (!eeId || !esEncargado) { setSolicitudesPendientes(0); return; }
+    const cargar = () => fetch(`${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334'}/empresa/solicitudes?eeId=${eeId}`)
+      .then((r) => r.json())
+      .then((data) => setSolicitudesPendientes(Array.isArray(data) ? data.filter((s: any) => s.estado === 'PENDIENTE' && !s.esMiSolicitud).length : 0))
+      .catch(() => {});
+    cargar();
+    const timer = window.setInterval(cargar, 15000);
+    const alNotificar = (event: Event) => {
+      const tipo = (event as CustomEvent)?.detail?.evento ?? '';
+      if (tipo.startsWith('solicitud')) cargar();
+    };
+    window.addEventListener('rueda:notificacion', alNotificar);
+    return () => { window.clearInterval(timer); window.removeEventListener('rueda:notificacion', alNotificar); };
+  }, [eeId, esEncargado, pathname]);
 
   useEffect(() => {
     const leer = () => {
@@ -147,6 +166,11 @@ export default function EmpresaSidebar({ canPackage = false, esEncargado = false
               {item.href === '/empresa/mensajes' && mensajesNoLeidos > 0 && (
                 <span className="min-w-5 h-5 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
                   {mensajesNoLeidos > 99 ? '99+' : mensajesNoLeidos}
+                </span>
+              )}
+              {esEntradaReuniones && esEncargado && solicitudesPendientes > 0 && (
+                <span className="min-w-5 h-5 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                  {solicitudesPendientes > 99 ? '99+' : solicitudesPendientes}
                 </span>
               )}
             </Link>

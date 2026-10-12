@@ -146,15 +146,24 @@ export default function EmpresaEventosScreen() {
                   <Text style={s.metaText}>{item.nombreSalaEspacio}</Text>
                 </View>
               )}
-              {!!item.nombreCompletoPilaExpositor && (
-                <Text style={s.responsible}>Expositor: {item.nombreCompletoPilaExpositor}</Text>
+              {(!!item.nombreCompletoPilaExpositor || !!item.organizacionDelExpositor) && (
+                <Text style={s.responsible}>
+                  Expositor: {item.nombreCompletoPilaExpositor}{item.nombreCompletoPilaExpositor && item.organizacionDelExpositor ? ' · ' : ''}{item.organizacionDelExpositor}
+                </Text>
+              )}
+              {!!item.notaEnVivo && (
+                <Text style={{ color: '#b91c1c', fontSize: 13, fontWeight: '700', marginTop: 6 }}>⚠ {item.notaEnVivo}</Text>
               )}
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
                 {!!item.linkReunionVirtual && <TouchableOpacity onPress={() => Linking.openURL(item.linkReunionVirtual)} style={{ backgroundColor: GREEN, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, flexDirection: 'row', gap: 6 }}><ExternalLink size={14} color="#fff"/><Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>Ver transmisión</Text></TouchableOpacity>}
+                {!!item.ubicacionGoogleMapsPresencial && <TouchableOpacity onPress={() => Linking.openURL(item.ubicacionGoogleMapsPresencial)} style={{ backgroundColor: '#f1f5f9', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, flexDirection: 'row', gap: 6 }}><MapPin size={14} color="#374151"/><Text style={{ color: '#374151', fontSize: 12, fontWeight: '700' }}>Cómo llegar</Text></TouchableOpacity>}
                 {puedeSuscribirse && (
                   <TouchableOpacity onPress={() => suscribir(item)} disabled={suscribiendoId === item.id} style={{ backgroundColor: item.suscrito ? '#fef3c7' : '#f1f5f9', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, flexDirection: 'row', gap: 6 }}><Bell size={14} color={item.suscrito ? '#92400e' : '#475569'}/><Text style={{ color: item.suscrito ? '#92400e' : '#475569', fontSize: 12, fontWeight: '700' }}>{item.suscrito ? 'Suscrito' : 'Suscribirme'}</Text></TouchableOpacity>
                 )}
               </View>
+              {!!item.direccion_texto && (
+                <View style={[s.metaRow, { marginTop: 6 }]}><MapPin size={12} color="#9ca3af" style={{ marginRight: 4 }} /><Text style={[s.metaText, { color: '#9ca3af' }]}>{item.direccion_texto}</Text></View>
+              )}
               {!!item.anuncios?.length && <View style={{ marginTop: 10, gap: 6 }}>{item.anuncios.map((a: any) => <View key={a.id} style={{ backgroundColor: '#fffbeb', borderRadius: 10, padding: 10, flexDirection: 'row', gap: 6 }}><Megaphone size={14} color="#92400e"/><Text style={{ color: '#92400e', fontSize: 12, flex: 1 }}>{a.mensaje}</Text></View>)}</View>}
             </View>
           );

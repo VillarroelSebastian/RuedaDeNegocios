@@ -4,11 +4,12 @@ import {
   TextInput, Image, Linking, Modal as RNModal,
 } from 'react-native';
 import {
-  Search, Building2, Armchair, CalendarCheck, Video, MapPin, X, MessageSquare, CalendarClock, Users, Eye,
+  Search, Building2, Armchair, CalendarCheck, Video, MapPin, X, MessageSquare, CalendarClock, Users, Eye, Star,
 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { API_URL } from '../../utils/userStore';
 import EnviarMensajeEmpresaModal from '../../components/EnviarMensajeEmpresaModal';
+import ImagenLightbox from '../../components/ImagenLightbox';
 import { ParticipantesModal } from '../admin/EmpresasScreen';
 import PerfilEmpresaStaffModal from '../../components/PerfilEmpresaStaffModal';
 
@@ -31,6 +32,98 @@ function fmtTime(iso: string) {
 }
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString('es-BO', { day: 'numeric', month: 'short' });
+}
+
+function StarRow({ value }: { value: number }) {
+  return (
+    <View style={{ flexDirection: 'row', gap: 2 }}>
+      {[1, 2, 3, 4, 5].map((s) => (
+        <Star key={s} size={11} color={s <= value ? '#fbbf24' : '#e5e7eb'} fill={s <= value ? '#fbbf24' : 'transparent'} />
+      ))}
+    </View>
+  );
+}
+
+function EvalBlock({ empresa, resultado, side }: { empresa: any; resultado: any; side: 'A' | 'B' }) {
+  const bg = side === 'A' ? '#f0fdf4' : '#eff6ff';
+  const brd = side === 'A' ? '#bbf7d0' : '#bfdbfe';
+  const ic = side === 'A' ? { bg: '#dcfce7', color: GREEN } : { bg: '#dbeafe', color: '#1d4ed8' };
+  return (
+    <View style={{ borderRadius: 12, borderWidth: 1, borderColor: brd, backgroundColor: bg, padding: 10, gap: 6 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        {empresa?.urlFotoPerfil
+          ? <ImagenLightbox uri={empresa.urlFotoPerfil} style={{ width: 22, height: 22, borderRadius: 11 }} imgStyle={{ resizeMode: 'contain' }} />
+          : <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: ic.bg, alignItems: 'center', justifyContent: 'center' }}>
+              <Building2 size={10} color={ic.color} />
+            </View>}
+        <Text style={{ fontSize: 11, fontWeight: '700', color: '#111827', flex: 1 }} numberOfLines={1}>{empresa?.nombre ?? '—'}</Text>
+      </View>
+      {resultado ? (
+        <>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <StarRow value={resultado.calificacionReunion} />
+            <Text style={{ fontSize: 9, color: '#6b7280', fontWeight: '600' }}>{resultado.calificacionReunion}/5</Text>
+            {resultado.rangoAcuerdoComercial && (
+              <View style={{ backgroundColor: '#fef3c7', borderRadius: 999, borderWidth: 1, borderColor: '#fde68a', paddingHorizontal: 6, paddingVertical: 2 }}>
+                <Text style={{ fontSize: 8, fontWeight: '700', color: '#92400e' }} numberOfLines={1}>{resultado.rangoAcuerdoComercial}</Text>
+              </View>
+            )}
+          </View>
+          {resultado.observacionesPuntosTratados && (
+            <Text style={{ fontSize: 9, color: '#6b7280', fontStyle: 'italic' }} numberOfLines={3}>"{resultado.observacionesPuntosTratados}"</Text>
+          )}
+        </>
+      ) : (
+        <Text style={{ fontSize: 9, color: '#9ca3af', fontStyle: 'italic' }}>Evaluación pendiente</Text>
+      )}
+    </View>
+  );
+}
+
+function AgendaItem({ r, empresaId }: { r: any; empresaId: number }) {
+  const sol = r.solicitudreunion;
+  const eeA = sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento;
+  const eeB = sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento;
+  const a = eeA?.empresa;
+  const b = eeB?.empresa;
+  const otra = sol?.empresaEvento_id === empresaId ? b : a;
+  const est = ESTADO_CFG[r.estadoReunion] ?? ESTADO_CFG.PROGRAMADA;
+  const tip = TIPO_CFG[r.tipoReunion] ?? TIPO_CFG.PRESENCIAL;
+  const link = sol?.enlaceReunionVirtual;
+  const esFinalizada = r.estadoReunion === 'FINALIZADA';
+  const resultados: any[] = r.resultadoreunion ?? [];
+  const resA = resultados.find((res: any) => res.empresaeventoCalificadora_id === eeA?.id);
+  const resB = resultados.find((res: any) => res.empresaeventoCalificadora_id === eeB?.id);
+
+  return (
+    <View style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 14, padding: 12, marginBottom: 9 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <Text style={{ fontWeight: '800', flex: 1 }}>{otra?.nombre ?? 'Empresa'}</Text>
+        <View style={{ flexDirection: 'row', gap: 6 }}>
+          <View style={{ backgroundColor: tip.bg, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 }}><Text style={{ fontSize: 10, fontWeight: '700', color: tip.color }}>{tip.label}</Text></View>
+          <View style={{ backgroundColor: est.bg, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 }}><Text style={{ fontSize: 10, fontWeight: '700', color: est.color }}>{est.label}</Text></View>
+        </View>
+      </View>
+      <Text style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+        {new Date(r.fechaHoraInicioReunion).toLocaleString('es-BO', { timeZone: 'America/La_Paz' })} · {r.mesa ? `Mesa ${r.mesa.numeroMesa}` : r.tipoReunion}
+      </Text>
+      {link && (
+        <TouchableOpacity onPress={() => Linking.openURL(link)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#2563eb', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginTop: 8, alignSelf: 'flex-start' }}>
+          <Video size={13} color="#fff" /><Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>Virtual</Text>
+        </TouchableOpacity>
+      )}
+      {esFinalizada && (
+        <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#f1f5f9', gap: 8 }}>
+          {r.observacionesReunion && (
+            <Text style={{ fontSize: 11, color: '#6b7280', fontStyle: 'italic' }}>"{r.observacionesReunion}"</Text>
+          )}
+          <Text style={{ fontSize: 9, fontWeight: '700', color: '#9ca3af', textTransform: 'uppercase' }}>Evaluaciones de encargados</Text>
+          <EvalBlock empresa={a} resultado={resA} side="A" />
+          <EvalBlock empresa={b} resultado={resB} side="B" />
+        </View>
+      )}
+    </View>
+  );
 }
 
 function EmpresaCard({ e, onMensaje, onAgenda, onParticipantes, onPerfil }: { e: any; onMensaje: (e: any) => void; onAgenda: (e:any)=>void; onParticipantes:(e:any)=>void; onPerfil:(e:any)=>void }) {
@@ -329,7 +422,21 @@ export default function TecnicoBuscadorScreen() {
       )}
       <ParticipantesModal empresa={participantesEmpresa} onClose={() => setParticipantesEmpresa(null)} permitirCambiarPassword={false} />
       <PerfilEmpresaStaffModal empresaEventoId={perfilEmpresaId} onClose={()=>setPerfilEmpresaId(null)} />
-      <RNModal visible={!!agendaEmpresa} transparent animationType="slide" onRequestClose={()=>setAgendaEmpresa(null)}><View style={{flex:1,backgroundColor:'rgba(0,0,0,.5)',justifyContent:'flex-end'}}><View style={{backgroundColor:'#fff',borderTopLeftRadius:24,borderTopRightRadius:24,maxHeight:'85%',padding:20}}><View style={{flexDirection:'row',justifyContent:'space-between',marginBottom:12}}><View><Text style={{fontSize:17,fontWeight:'800'}}>Agenda de {agendaEmpresa?.nombre}</Text><Text style={{fontSize:12,color:'#64748b'}}>Reuniones del evento activo</Text></View><TouchableOpacity onPress={()=>setAgendaEmpresa(null)}><X size={20} color="#64748b"/></TouchableOpacity></View><ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>{!agenda?<ActivityIndicator color={GREEN} style={{marginVertical:40}}/>:!agenda.reuniones?.length?<Text style={{textAlign:'center',color:'#94a3b8',marginVertical:40}}>Sin reuniones registradas.</Text>:agenda.reuniones.map((r:any)=>{const sol=r.solicitudreunion;const a=sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa;const b=sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento?.empresa;const otra=sol?.empresaEvento_id===agendaEmpresa?.empresaeventoId?b:a;return <View key={r.id} style={{borderWidth:1,borderColor:'#e5e7eb',borderRadius:14,padding:12,marginBottom:9}}><Text style={{fontWeight:'800'}}>{otra?.nombre??'Empresa'}</Text><Text style={{fontSize:11,color:'#64748b',marginTop:4}}>{new Date(r.fechaHoraInicioReunion).toLocaleString('es-BO',{timeZone:'America/La_Paz'})} · {r.mesa?`Mesa ${r.mesa.numeroMesa}`:r.tipoReunion} · {r.estadoReunion}</Text></View>})}</ScrollView></View></View></RNModal>
+      <RNModal visible={!!agendaEmpresa} transparent animationType="slide" onRequestClose={()=>setAgendaEmpresa(null)}>
+        <View style={{flex:1,backgroundColor:'rgba(0,0,0,.5)',justifyContent:'flex-end'}}>
+          <View style={{backgroundColor:'#fff',borderTopLeftRadius:24,borderTopRightRadius:24,maxHeight:'85%',padding:20}}>
+            <View style={{flexDirection:'row',justifyContent:'space-between',marginBottom:12}}>
+              <View><Text style={{fontSize:17,fontWeight:'800'}}>Agenda de {agendaEmpresa?.nombre}</Text><Text style={{fontSize:12,color:'#64748b'}}>Reuniones del evento activo</Text></View>
+              <TouchableOpacity onPress={()=>setAgendaEmpresa(null)}><X size={20} color="#64748b"/></TouchableOpacity>
+            </View>
+            <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
+              {!agenda ? <ActivityIndicator color={GREEN} style={{marginVertical:40}}/>
+                : !agenda.reuniones?.length ? <Text style={{textAlign:'center',color:'#94a3b8',marginVertical:40}}>Sin reuniones registradas.</Text>
+                : agenda.reuniones.map((r:any) => <AgendaItem key={r.id} r={r} empresaId={agendaEmpresa?.empresaeventoId} />)}
+            </ScrollView>
+          </View>
+        </View>
+      </RNModal>
     </View>
   );
 }

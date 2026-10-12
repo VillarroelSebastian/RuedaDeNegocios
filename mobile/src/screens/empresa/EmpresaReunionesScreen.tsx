@@ -9,6 +9,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import {
   CalendarDays, Clock, MapPin, Video, ExternalLink, AlertCircle,
   Edit2, X, CheckCircle2, ChevronRight, Star, AlertTriangle,
+  Send, Inbox, Ban, XCircle, Calendar, Users, Monitor, Table2, Check,
 } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
 import { fechaEvento, horaEvento, partesFechaEvento } from '../../utils/fechaEvento';
@@ -34,6 +35,15 @@ const STATUS_STYLE: Record<string, { bg: string; text: string; label: string }> 
   EN_CURSO:   { bg: '#fef9c3', text: '#854d0e', label: 'En curso'   },
   FINALIZADA: { bg: '#dcfce7', text: '#166534', label: 'Finalizada' },
   CANCELADA:  { bg: '#fee2e2', text: '#dc2626', label: 'Cancelada'  },
+};
+
+// Solicitudes pendientes (recibidas y enviadas) se gestionan directamente
+// aquí en reuniones: ya no hay tabs "Enviadas"/"Recibidas" separadas.
+const SOLICITUD_STYLE: Record<string, { bg: string; text: string; label: string }> = {
+  PENDIENTE: { bg: '#fef3c7', text: '#92400e', label: 'Pendiente' },
+  ACEPTADA:  { bg: '#dcfce7', text: '#166534', label: 'Aceptada'  },
+  RECHAZADA: { bg: '#fee2e2', text: '#dc2626', label: 'Rechazada' },
+  CANCELADA: { bg: '#f1f5f9', text: '#475569', label: 'Cancelada' },
 };
 
 interface AppModal { tipo: 'ok' | 'err'; msg: string }
@@ -312,6 +322,249 @@ const cm = StyleSheet.create({
   modalBtn: { paddingVertical: 11, borderRadius: 12, alignItems: 'center' },
   modalBtnText: { fontWeight: '700', fontSize: 13, color: '#fff' },
 });
+
+// ── Detalle de solicitud (pendiente) ────────────────────────────────────────
+// Reemplaza las antiguas pestañas "Enviadas"/"Recibidas": una solicitud
+// pendiente se ve y se gestiona (aceptar/rechazar/editar/cancelar) desde
+// esta misma pantalla de reuniones.
+
+function DetalleSolicitudModal({ sol, navigation, onClose, onAceptar, onRechazar, onCancelar, onEditar }: {
+  sol: any; navigation: any; onClose: () => void;
+  onAceptar: () => void; onRechazar: () => void; onCancelar: () => void; onEditar: () => void;
+}) {
+  const esEnviada = !!sol.esMiSolicitud;
+  const empresa = esEnviada ? sol.receptora : sol.solicitante;
+  const initial = (empresa?.nombre ?? 'E')[0].toUpperCase();
+
+  const Row = ({ label, children }: { label: string; children: React.ReactNode }) => (
+    <View style={dsm.row}>
+      <Text style={dsm.rowLabel}>{label}</Text>
+      <View style={dsm.rowVal}>{children}</View>
+    </View>
+  );
+
+  return (
+    <Modal visible animationType="slide" transparent statusBarTranslucent>
+      <View style={dsm.overlay}>
+        <View style={dsm.sheet}>
+          <View style={dsm.handle} />
+          <View style={dsm.header}>
+            <Text style={dsm.title}>Detalle de solicitud</Text>
+            <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <X size={22} color="#6b7280" />
+            </TouchableOpacity>
+          </View>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
+            <View style={dsm.badges}>
+              <View style={[dsm.badge, { backgroundColor: (SOLICITUD_STYLE[sol.estado] ?? SOLICITUD_STYLE.PENDIENTE).bg }]}>
+                <Text style={[dsm.badgeTxt, { color: (SOLICITUD_STYLE[sol.estado] ?? SOLICITUD_STYLE.PENDIENTE).text }]}>
+                  {(SOLICITUD_STYLE[sol.estado] ?? SOLICITUD_STYLE.PENDIENTE).label}
+                </Text>
+              </View>
+              <View style={[dsm.badge, { backgroundColor: sol.tipo === 'PRESENCIAL' ? '#eff6ff' : '#f5f3ff' }]}>
+                {sol.tipo === 'PRESENCIAL' ? <Users size={10} color="#1d4ed8" /> : <Monitor size={10} color="#7c3aed" />}
+                <Text style={[dsm.badgeTxt, { color: sol.tipo === 'PRESENCIAL' ? '#1d4ed8' : '#7c3aed' }]}>
+                  {sol.tipo === 'PRESENCIAL' ? 'Presencial' : 'Virtual'}
+                </Text>
+              </View>
+            </View>
+
+            {sol.tieneConflicto && (
+              <View style={dsm.conflict}>
+                <AlertTriangle size={13} color="#92400e" />
+                <Text style={dsm.conflictTxt}>Hay otra solicitud pendiente para el mismo horario. Solo puedes aceptar una.</Text>
+              </View>
+            )}
+
+            <View style={dsm.infoCard}>
+              <View style={[dsm.row, { borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }]}>
+                <Text style={dsm.rowLabel}>Empresa</Text>
+                <View style={[dsm.rowVal, { flexDirection: 'row', alignItems: 'center', gap: 8 }]}>
+                  <View style={dsm.avatar}><Text style={dsm.avatarTxt}>{initial}</Text></View>
+                  <Text style={dsm.empresaNombre}>{empresa?.nombre ?? '—'}</Text>
+                </View>
+              </View>
+              <Row label="Fecha">
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Calendar size={13} color="#9ca3af" />
+                  <Text style={dsm.rowValTxt}>{fmtDate(sol.inicio)} · {fmtTime(sol.inicio)}</Text>
+                </View>
+              </Row>
+              {sol.mesa?.numeroMesa && (
+                <Row label="Mesa">
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Table2 size={13} color="#9ca3af" />
+                    <Text style={dsm.rowValTxt}>Mesa {sol.mesa.numeroMesa}</Text>
+                  </View>
+                </Row>
+              )}
+              {sol.mensaje && <Row label="Mensaje"><Text style={dsm.mensajeTxt}>"{sol.mensaje}"</Text></Row>}
+            </View>
+
+            <View style={dsm.actions}>
+              {!esEnviada ? (
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <TouchableOpacity style={dsm.btnRechazar} onPress={onRechazar} activeOpacity={0.8}>
+                    <XCircle size={16} color="#dc2626" /><Text style={dsm.btnRechazarTxt}>Rechazar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={dsm.btnAceptar} onPress={onAceptar} activeOpacity={0.8}>
+                    <CheckCircle2 size={16} color="#fff" /><Text style={dsm.btnAceptarTxt}>Aceptar</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <>
+                  <TouchableOpacity style={dsm.btnEditar} onPress={onEditar} activeOpacity={0.8}>
+                    <Edit2 size={16} color={GREEN} /><Text style={dsm.btnEditarTxt}>Editar solicitud</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={dsm.btnCancelar} onPress={onCancelar} activeOpacity={0.8}>
+                    <Ban size={16} color="#dc2626" /><Text style={dsm.btnCancelarTxt}>Cancelar solicitud</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+              <TouchableOpacity style={dsm.btnCerrar} onPress={onClose} activeOpacity={0.8}>
+                <Text style={dsm.btnCerrarTxt}>Cerrar</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const dsm = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  sheet:   { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '90%', paddingHorizontal: 20, paddingTop: 12 },
+  handle:  { width: 36, height: 4, borderRadius: 2, backgroundColor: '#e2e8f0', alignSelf: 'center', marginBottom: 12 },
+  header:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  title:   { fontSize: 18, fontWeight: '800', color: '#0f172a' },
+  badges:  { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+  badge:   { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
+  badgeTxt:{ fontSize: 10, fontWeight: '700' },
+  conflict: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: '#fffbeb', borderRadius: 10, padding: 10, marginBottom: 12, borderWidth: 1, borderColor: '#fde68a' },
+  conflictTxt: { fontSize: 12, color: '#92400e', flex: 1, lineHeight: 18 },
+  infoCard: { backgroundColor: '#f8fafc', borderRadius: 16, padding: 14, gap: 12, marginBottom: 16 },
+  row:       { flexDirection: 'row', alignItems: 'flex-start', paddingBottom: 12 },
+  rowLabel:  { fontSize: 11, fontWeight: '700', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 0.5, width: 72, marginRight: 8, paddingTop: 1 },
+  rowVal:    { flex: 1 },
+  rowValTxt: { fontSize: 13, fontWeight: '700', color: '#0f172a' },
+  avatar:    { width: 28, height: 28, borderRadius: 8, backgroundColor: '#dcfce7', alignItems: 'center', justifyContent: 'center' },
+  avatarTxt: { fontSize: 12, fontWeight: '800', color: GREEN },
+  empresaNombre: { fontSize: 13, fontWeight: '700', color: '#0f172a', flex: 1 },
+  mensajeTxt:{ fontSize: 12, color: '#374151', fontStyle: 'italic', lineHeight: 18 },
+  actions:   { gap: 10 },
+  btnAceptar:  { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: GREEN, borderRadius: 14, height: 48 },
+  btnAceptarTxt: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  btnRechazar: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#fee2e2', borderRadius: 14, height: 48, borderWidth: 1, borderColor: '#fca5a5' },
+  btnRechazarTxt: { color: '#dc2626', fontSize: 14, fontWeight: '700' },
+  btnEditar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#f0fdf4', borderRadius: 14, height: 48, borderWidth: 1, borderColor: '#bbf7d0' },
+  btnEditarTxt: { color: GREEN, fontSize: 14, fontWeight: '700' },
+  btnCancelar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#fef2f2', borderRadius: 14, height: 48, borderWidth: 1, borderColor: '#fca5a5' },
+  btnCancelarTxt: { color: '#dc2626', fontSize: 14, fontWeight: '700' },
+  btnCerrar:  { alignItems: 'center', justifyContent: 'center', height: 44, borderRadius: 14, borderWidth: 1.5, borderColor: '#94a3b8', backgroundColor: '#f8fafc' },
+  btnCerrarTxt: { fontSize: 14, fontWeight: '800', color: '#334155' },
+});
+
+// ── Confirmar acción sobre una solicitud (aceptar/rechazar/cancelar) ───────
+
+function ActionSolicitudModal({ sol, type, onClose, onDone }: {
+  sol: any; type: 'cancelar' | 'aceptar' | 'rechazar';
+  onClose: () => void; onDone: () => void;
+}) {
+  const [acting, setActing] = useState(false);
+  const actingRef = useRef(false);
+  const [err, setErr] = useState('');
+  const [ok, setOk] = useState(false);
+  const user = userStore.get();
+
+  const doAction = async () => {
+    if (actingRef.current) return;
+    actingRef.current = true;
+    setErr(''); setActing(true);
+    try {
+      const res = await fetch(`${API_URL}/empresa/solicitudes/${sol.id}/${type}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eeId: user?.empresaeventoId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || `Error al ${type}`);
+      setOk(true);
+      onDone();
+    } catch (e: any) { setErr(e.message || 'Error de red'); }
+    finally { setActing(false); actingRef.current = false; }
+  };
+
+  const titleMap = { cancelar: 'Cancelar solicitud', aceptar: 'Confirmar reunión', rechazar: 'Rechazar solicitud' };
+
+  return (
+    <Modal visible animationType="slide" transparent statusBarTranslucent>
+      <View style={dsm.overlay}>
+        <View style={[dsm.sheet, { paddingBottom: 24 }]}>
+          <View style={dsm.handle} />
+          <View style={dsm.header}>
+            <Text style={dsm.title}>{titleMap[type]}</Text>
+            <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <X size={22} color="#6b7280" />
+            </TouchableOpacity>
+          </View>
+          {ok ? (
+            <View style={{ alignItems: 'center', paddingVertical: 24, gap: 12 }}>
+              <CheckCircle2 size={48} color={GREEN} />
+              <Text style={{ fontSize: 14, color: '#374151', fontWeight: '600', textAlign: 'center' }}>
+                {type === 'cancelar' ? 'Solicitud cancelada' : type === 'aceptar' ? '¡Reunión confirmada!' : 'Solicitud rechazada'}
+              </Text>
+              <TouchableOpacity style={{ backgroundColor: GREEN, borderRadius: 14, height: 50, alignItems: 'center', justifyContent: 'center', marginTop: 8, width: '100%' }} onPress={onClose}>
+                <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700' }}>Cerrar</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              {!!err && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#fef2f2', borderRadius: 10, padding: 10, marginBottom: 12, borderWidth: 1, borderColor: '#fca5a5' }}>
+                  <AlertCircle size={14} color="#dc2626" />
+                  <Text style={{ fontSize: 13, color: '#dc2626', flex: 1 }}>{err}</Text>
+                </View>
+              )}
+              {type !== 'aceptar' && (
+                <Text style={{ fontSize: 14, color: '#374151', lineHeight: 22, marginBottom: 24 }}>
+                  {type === 'cancelar' ? '¿Seguro que deseas cancelar esta solicitud?' : '¿Rechazas esta solicitud de reunión?'}
+                </Text>
+              )}
+              {type === 'aceptar' && (
+                <View style={{ backgroundColor: '#f8fafc', borderRadius: 14, padding: 14, marginBottom: 16, gap: 10 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Users size={14} color={GREEN} />
+                    <Text style={{ fontSize: 12, color: '#6b7280', width: 68, fontWeight: '600' }}>Empresa</Text>
+                    <Text style={{ fontSize: 13, color: '#0f172a', fontWeight: '700', flex: 1 }}>{sol.solicitante?.nombre ?? '—'}</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Calendar size={14} color={GREEN} />
+                    <Text style={{ fontSize: 12, color: '#6b7280', width: 68, fontWeight: '600' }}>Fecha</Text>
+                    <Text style={{ fontSize: 13, color: '#0f172a', fontWeight: '700', flex: 1 }}>{fmtDate(sol.inicio)} {fmtTime(sol.inicio)}</Text>
+                  </View>
+                </View>
+              )}
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity style={{ flex: 1, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: '#f1f5f9', borderWidth: 1, borderColor: '#e2e8f0' }} onPress={onClose}>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: '#374151' }}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[{ flex: 1, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 14 }, { backgroundColor: type === 'aceptar' ? GREEN : '#dc2626' }, acting && { opacity: 0.7 }]}
+                  onPress={doAction} disabled={acting}>
+                  {acting ? <ActivityIndicator color="#fff" size="small" /> : (
+                    <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>
+                      {type === 'cancelar' ? 'Cancelar solicitud' : type === 'aceptar' ? 'Confirmar reunión' : 'Rechazar'}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+}
 
 // ── Detail Modal ──────────────────────────────────────────────────────────────
 
@@ -662,37 +915,15 @@ const dm = StyleSheet.create({
 
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
-export default function EmpresaReunionesScreen({ navigation, route, embedded = false, reunionIdProp }: any) {
+export default function EmpresaReunionesScreen({ navigation, route, embedded = false, reunionIdProp, filtroProp }: any) {
   const [items,       setItems]       = useState<any[]>([]);
-
-  // La lista se muestra agrupada: primero las reuniones vigentes (pendientes,
-  // programadas y reprogramadas) ordenadas por fecha, y al final todas las
-  // finalizadas. Cada grupo lleva una cabecera con su día, así que la lista
-  // mezcla cabeceras y reuniones y renderItem distingue unas de otras.
-  const itemsAgrupados = useMemo(() => {
-    const ahoraMs = Date.now();
-    const esFinalizada = (r: any) => r.estado === 'FINALIZADA' || new Date(r.fin).getTime() <= ahoraMs;
-    const vigentes = items.filter((r) => !esFinalizada(r))
-      .sort((a, b) => new Date(a.inicio).getTime() - new Date(b.inicio).getTime());
-    const finalizadas = items.filter(esFinalizada)
-      .sort((a, b) => new Date(b.inicio).getTime() - new Date(a.inicio).getTime());
-
-    const salida: any[] = [];
-    let diaActual = '';
-    for (const r of vigentes) {
-      const dia = partesFechaEvento(r.inicio).dateKey;
-      if (dia !== diaActual) {
-        diaActual = dia;
-        salida.push({ __cabecera: true, id: `dia-${dia}`, titulo: fmtDate(r.inicio) });
-      }
-      salida.push(r);
-    }
-    if (finalizadas.length > 0) {
-      salida.push({ __cabecera: true, id: 'dia-finalizadas', titulo: `Finalizadas (${finalizadas.length})`, apagada: true });
-      salida.push(...finalizadas);
-    }
-    return salida;
-  }, [items]);
+  // Solicitudes aún pendientes (recibidas y enviadas): ya no tienen tabs
+  // propias, se gestionan en esta misma lista junto a las reuniones.
+  const [solicitudes, setSolicitudes] = useState<any[]>([]);
+  const [filtro, setFiltro] = useState<'todas' | 'pendientes' | 'enviadas' | 'proximas' | 'finalizadas'>(filtroProp ?? 'todas');
+  // Un deep-link de notificación (p. ej. "tienes una solicitud nueva") puede
+  // llegar con un filtro distinto mientras esta pantalla ya está montada.
+  useEffect(() => { if (filtroProp) setFiltro(filtroProp); }, [filtroProp]);
   const [loading,     setLoading]     = useState(true);
   const [refreshing,  setRefreshing]  = useState(false);
   const [error,       setError]       = useState('');
@@ -702,10 +933,69 @@ export default function EmpresaReunionesScreen({ navigation, route, embedded = f
   const [appModal,    setAppModal]    = useState<AppModal | null>(null);
   const [respondiendoCambioId, setRespondiendoCambioId] = useState<number | null>(null);
   const respondiendoCambioRef = useRef<number | null>(null);
+  const [detalleSolicitud, setDetalleSolicitud] = useState<any>(null);
+  const [actionSolicitud, setActionSolicitud] = useState<{ sol: any; type: 'cancelar' | 'aceptar' | 'rechazar' } | null>(null);
+
+  const recibidasPendientes = useMemo(() => solicitudes.filter((s) => !s.esMiSolicitud), [solicitudes]);
+  const enviadasPendientes  = useMemo(() => solicitudes.filter((s) => s.esMiSolicitud), [solicitudes]);
+
+  // La lista se muestra agrupada: primero las solicitudes recibidas que
+  // esperan mi respuesta (como una bandeja de entrada, sin importar fecha),
+  // luego lo vigente (reuniones programadas + solicitudes enviadas que
+  // esperan respuesta) ordenado por fecha con cabecera por día, y al final
+  // todo lo finalizado/cancelado. El filtro activo recorta cada bloque.
+  const itemsAgrupados = useMemo(() => {
+    const ahoraMs = Date.now();
+    const esFinalizada = (r: any) => r.estado === 'FINALIZADA' || new Date(r.fin).getTime() <= ahoraMs;
+    const vigentes = items.filter((r) => !esFinalizada(r));
+    const finalizadas = items.filter(esFinalizada)
+      .sort((a, b) => new Date(b.inicio).getTime() - new Date(a.inicio).getTime());
+
+    const salida: any[] = [];
+
+    if (filtro === 'todas' || filtro === 'pendientes') {
+      if (recibidasPendientes.length > 0) {
+        salida.push({ __cabecera: true, id: 'cab-pendientes', titulo: 'Pendientes por aceptar', destacada: true });
+        salida.push(...recibidasPendientes.map((s) => ({ ...s, __tipo: 'solicitud' })));
+      }
+    }
+
+    if (filtro === 'todas' || filtro === 'proximas' || filtro === 'enviadas') {
+      const vigentesFiltradas = filtro === 'enviadas' ? [] : vigentes.map((r) => ({ ...r, __tipo: 'reunion' }));
+      const enviadasFiltradas = filtro === 'proximas' ? [] : enviadasPendientes.map((s) => ({ ...s, __tipo: 'solicitud', fin: s.inicio }));
+      const combinadas = [...vigentesFiltradas, ...enviadasFiltradas]
+        .sort((a, b) => new Date(a.inicio).getTime() - new Date(b.inicio).getTime());
+      let diaActual = '';
+      for (const r of combinadas) {
+        const dia = partesFechaEvento(r.inicio).dateKey;
+        if (dia !== diaActual) {
+          diaActual = dia;
+          salida.push({ __cabecera: true, id: `dia-${dia}`, titulo: fmtDate(r.inicio) });
+        }
+        salida.push(r);
+      }
+    }
+
+    if ((filtro === 'todas' || filtro === 'finalizadas') && finalizadas.length > 0) {
+      salida.push({ __cabecera: true, id: 'dia-finalizadas', titulo: `Finalizadas (${finalizadas.length})`, apagada: true });
+      salida.push(...finalizadas.map((r) => ({ ...r, __tipo: 'reunion' })));
+    }
+    return salida;
+  }, [items, recibidasPendientes, enviadasPendientes, filtro]);
 
   const user = userStore.get();
   const [esEncargado, setEsEncargado] = useState(!!userStore.get()?.esResponsable);
   useEffect(() => userStore.subscribe(() => setEsEncargado(!!userStore.get()?.esResponsable)), []);
+
+  const fetchSolicitudes = useCallback(async (id: number) => {
+    try {
+      const res = await fetch(`${API_URL}/empresa/solicitudes?eeId=${id}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const lista = Array.isArray(data) ? data : [];
+      setSolicitudes(lista.filter((s: any) => s.estado === 'PENDIENTE'));
+    } catch {}
+  }, []);
 
   const fetchData = useCallback(async () => {
     const id = user?.empresaeventoId;
@@ -717,13 +1007,14 @@ export default function EmpresaReunionesScreen({ navigation, route, embedded = f
       const data = await res.json();
       setItems(Array.isArray(data) ? data : []);
       setEeId(id);
+      if (esEncargado) await fetchSolicitudes(id);
     } catch (e: any) {
       setError(e.message || 'Error de red');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [user?.empresaeventoId]);
+  }, [user?.empresaeventoId, esEncargado, fetchSolicitudes]);
 
   useFocusEffect(useCallback(() => {
     fetchData();
@@ -819,10 +1110,49 @@ export default function EmpresaReunionesScreen({ navigation, route, embedded = f
         />
       )}
 
+      {/* Detalle de solicitud pendiente */}
+      {detalleSolicitud && (
+        <DetalleSolicitudModal
+          sol={detalleSolicitud}
+          navigation={navigation}
+          onClose={() => setDetalleSolicitud(null)}
+          onAceptar={() => setActionSolicitud({ sol: detalleSolicitud, type: 'aceptar' })}
+          onRechazar={() => setActionSolicitud({ sol: detalleSolicitud, type: 'rechazar' })}
+          onCancelar={() => setActionSolicitud({ sol: detalleSolicitud, type: 'cancelar' })}
+          onEditar={() => { setDetalleSolicitud(null); navigation.navigate('Empresas', { editarSolicitud: detalleSolicitud }); }}
+        />
+      )}
+
+      {/* Confirmar aceptar/rechazar/cancelar solicitud */}
+      {actionSolicitud && (
+        <ActionSolicitudModal
+          sol={actionSolicitud.sol}
+          type={actionSolicitud.type}
+          onClose={() => setActionSolicitud(null)}
+          onDone={() => { setActionSolicitud(null); setDetalleSolicitud(null); if (eeId) fetchSolicitudes(eeId); fetchData(); }}
+        />
+      )}
+
       {!embedded && (
         <View style={s.header}>
           <Text style={s.headerTitle}>Mis reuniones</Text>
           <Text style={s.headerSub}>{items.length} reunión{items.length !== 1 ? 'es' : ''}</Text>
+        </View>
+      )}
+
+      {esEncargado && (
+        <View style={s.filterRow}>
+          {([
+            ['todas', 'Todas'],
+            ['pendientes', `Pendientes${recibidasPendientes.length > 0 ? ` (${recibidasPendientes.length})` : ''}`],
+            ['enviadas', 'Enviadas'],
+            ['proximas', 'Próximas'],
+            ['finalizadas', 'Finalizadas'],
+          ] as const).map(([key, label]) => (
+            <TouchableOpacity key={key} onPress={() => setFiltro(key)} style={[s.filterChip, filtro === key && s.filterChipActive]}>
+              <Text style={[s.filterChipText, filtro === key && s.filterChipTextActive]}>{label}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
       )}
 
@@ -863,13 +1193,73 @@ export default function EmpresaReunionesScreen({ navigation, route, embedded = f
         ListEmptyComponent={
           <View style={s.empty}>
             <CalendarDays size={48} color="#d1d5db" />
-            <Text style={s.emptyText}>No tienes reuniones confirmadas</Text>
+            <Text style={s.emptyText}>
+              {filtro === 'pendientes' ? 'No tienes solicitudes pendientes por aceptar'
+                : filtro === 'enviadas' ? 'No tienes solicitudes enviadas pendientes'
+                : filtro === 'finalizadas' ? 'No tienes reuniones finalizadas'
+                : 'No tienes reuniones confirmadas'}
+            </Text>
           </View>
         }
         renderItem={({ item }) => {
           if (item.__cabecera) {
             return (
-              <Text style={[s.grupoTitulo, item.apagada && s.grupoTituloApagado]}>{item.titulo}</Text>
+              <Text style={[s.grupoTitulo, item.apagada && s.grupoTituloApagado, item.destacada && s.grupoTituloDestacado]}>{item.titulo}</Text>
+            );
+          }
+          if (item.__tipo === 'solicitud') {
+            const esEnviada = !!item.esMiSolicitud;
+            const empresaSol = esEnviada ? item.receptora : item.solicitante;
+            const isVirtualSol = item.tipo === 'VIRTUAL';
+            return (
+              <TouchableOpacity style={[s.card, s.cardSolicitud]} onPress={() => setDetalleSolicitud(item)} activeOpacity={0.8}>
+                <View style={s.cardHeader}>
+                  <View style={[s.badge, { backgroundColor: SOLICITUD_STYLE.PENDIENTE.bg }]}>
+                    <Text style={[s.badgeText, { color: SOLICITUD_STYLE.PENDIENTE.text }]}>Pendiente</Text>
+                  </View>
+                  <View style={[s.badge, { backgroundColor: isVirtualSol ? '#eff6ff' : '#f0fdf4' }]}>
+                    {isVirtualSol ? <Video size={11} color="#2563eb" style={{ marginRight: 3 }} /> : <MapPin size={11} color={GREEN} style={{ marginRight: 3 }} />}
+                    <Text style={[s.badgeText, { color: isVirtualSol ? '#2563eb' : GREEN }]}>{item.tipo}</Text>
+                  </View>
+                  <View style={[s.badge, { backgroundColor: esEnviada ? '#eef2ff' : '#fffbeb' }]}>
+                    {esEnviada ? <Send size={10} color="#4f46e5" style={{ marginRight: 3 }} /> : <Inbox size={10} color="#d97706" style={{ marginRight: 3 }} />}
+                    <Text style={[s.badgeText, { color: esEnviada ? '#4f46e5' : '#d97706' }]}>{esEnviada ? 'Enviada' : 'Recibida'}</Text>
+                  </View>
+                </View>
+                <View style={s.cardBody}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.counterpart} numberOfLines={1}>{empresaSol?.nombre ?? '—'}</Text>
+                    <View style={s.timeRow}>
+                      <CalendarDays size={12} color="#94a3b8" style={{ marginRight: 4 }} />
+                      <Text style={s.metaText}>{fmtDateShort(item.inicio)}</Text>
+                      <Clock size={12} color="#94a3b8" style={{ marginLeft: 8, marginRight: 4 }} />
+                      <Text style={s.metaText}>{fmtTime(item.inicio)}</Text>
+                    </View>
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: 6 }}>
+                    {!esEnviada ? (
+                      <>
+                        <Pressable style={s.quickBtnRed} onPress={(e) => { e.stopPropagation?.(); setActionSolicitud({ sol: item, type: 'rechazar' }); }}>
+                          <X size={14} color="#dc2626" />
+                        </Pressable>
+                        <Pressable style={s.quickBtnGreen} onPress={(e) => { e.stopPropagation?.(); setActionSolicitud({ sol: item, type: 'aceptar' }); }}>
+                          <Check size={14} color="#fff" />
+                        </Pressable>
+                      </>
+                    ) : (
+                      <>
+                        <Pressable style={s.quickBtnEdit} onPress={(e) => { e.stopPropagation?.(); navigation.navigate('Empresas', { editarSolicitud: item }); }}>
+                          <Edit2 size={14} color={GREEN} />
+                        </Pressable>
+                        <Pressable style={s.quickBtnGray} onPress={(e) => { e.stopPropagation?.(); setActionSolicitud({ sol: item, type: 'cancelar' }); }}>
+                          <Ban size={14} color="#6b7280" />
+                        </Pressable>
+                      </>
+                    )}
+                    <ChevronRight size={16} color="#d1d5db" />
+                  </View>
+                </View>
+              </TouchableOpacity>
             );
           }
           const st = STATUS_STYLE[item.estado] ?? { bg: '#f1f5f9', text: '#475569', label: item.estado };
@@ -936,7 +1326,18 @@ const s = StyleSheet.create({
   // Cabeceras de la lista agrupada: un día, o el bloque de finalizadas.
   grupoTitulo: { fontSize: 13, fontWeight: '800', color: '#0f172a', textTransform: 'capitalize', marginTop: 14, marginBottom: 8 },
   grupoTituloApagado: { color: '#94a3b8', textTransform: 'none' },
+  grupoTituloDestacado: { color: '#92400e', textTransform: 'none', marginTop: 4 },
   root:   { flex: 1, backgroundColor: '#f8fafc' },
+  filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4, backgroundColor: '#f8fafc' },
+  filterChip: { paddingHorizontal: 11, paddingVertical: 6, borderRadius: 20, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e2e8f0' },
+  filterChipActive: { backgroundColor: GREEN, borderColor: GREEN },
+  filterChipText: { fontSize: 11, fontWeight: '700', color: '#64748b' },
+  filterChipTextActive: { color: '#fff' },
+  cardSolicitud: { borderColor: '#fde68a', backgroundColor: '#fffdf7' },
+  quickBtnGreen: { width: 30, height: 30, borderRadius: 10, backgroundColor: GREEN, alignItems: 'center', justifyContent: 'center' },
+  quickBtnRed:   { width: 30, height: 30, borderRadius: 10, backgroundColor: '#fee2e2', alignItems: 'center', justifyContent: 'center' },
+  quickBtnEdit:  { width: 30, height: 30, borderRadius: 10, backgroundColor: '#f0fdf4', alignItems: 'center', justifyContent: 'center' },
+  quickBtnGray:  { width: 30, height: 30, borderRadius: 10, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   changeCard: { backgroundColor: '#fffbeb', borderColor: '#fde68a', borderWidth: 1, borderRadius: 16, padding: 14, marginBottom: 12 },
   changeTitle: { color: '#78350f', fontSize: 14, fontWeight: '800' },

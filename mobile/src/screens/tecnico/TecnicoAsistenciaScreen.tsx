@@ -169,11 +169,11 @@ export default function TecnicoAsistenciaScreen() {
       setPendiente((actual: any) => ({
         ...actual,
         asistencia: {
-          registrada: true,
+          registrada: data.usosRestantes === 0,
           fechaHoraAsistencia: data.fechaHoraAsistencia,
-          usosHoy: data.usosHoy,
+          usosTotal: data.usosTotal,
           usosRestantes: data.usosRestantes,
-          limiteDiario: data.limiteDiario,
+          limiteEvento: data.limiteEvento,
         },
       }));
       show({
@@ -181,7 +181,7 @@ export default function TecnicoAsistenciaScreen() {
         title: "Asistencia registrada",
         message: data.yaRegistrada
           ? "Este escaneo ya había sido registrado. No se consumió un uso adicional."
-          : `${data.participante.nombre} · uso ${data.usosHoy} de ${data.limiteDiario}. Para registrar otro ingreso debes volver a escanear la credencial.`,
+          : `${data.participante.nombre} · uso ${data.usosTotal} de ${data.limiteEvento}. Para registrar otro ingreso debes volver a escanear la credencial.`,
       });
       cargar(empresaEscaneada);
     } catch (e: any) {
@@ -352,8 +352,8 @@ export default function TecnicoAsistenciaScreen() {
             }}
           >
             {pendiente.asistencia?.registrada
-              ? "LÍMITE DIARIO ALCANZADO"
-              : `CREDENCIAL VÁLIDA · ${pendiente.asistencia?.usosHoy || 0} DE ${pendiente.asistencia?.limiteDiario || 2} USOS`}
+              ? "LÍMITE DEL EVENTO ALCANZADO"
+              : `CREDENCIAL VÁLIDA · ${pendiente.asistencia?.usosTotal || 0} DE ${pendiente.asistencia?.limiteEvento || 2} USOS`}
           </Text>
           <Text
             style={{
@@ -377,7 +377,7 @@ export default function TecnicoAsistenciaScreen() {
               ["Evento", pendiente.evento?.nombre || pendiente.evento || "Evento actual"],
             ].map(([etiqueta, valor]) => <View key={etiqueta} style={{ backgroundColor: "#f8fafc", borderRadius: 10, padding: 10 }}><Text style={{ color: "#94a3b8", fontSize: 10 }}>{etiqueta}</Text><Text style={{ color: "#334155", fontWeight: "700", fontSize: 13 }}>{valor}</Text></View>)}
           </View>
-          {pendiente.asistencia?.fechaHoraAsistencia && <View style={{ marginTop: 12, padding: 11, borderRadius: 10, backgroundColor: "#f0fdf4", borderWidth: 1, borderColor: "#bbf7d0" }}><Text style={{ color: "#166534", fontWeight: "700", textAlign: "center", fontSize: 12 }}>Último registro: {new Date(pendiente.asistencia.fechaHoraAsistencia).toLocaleString("es-BO", { timeZone: "America/La_Paz" })}. Usos de hoy: {pendiente.asistencia.usosHoy} de {pendiente.asistencia.limiteDiario || 2}.</Text></View>}
+          {pendiente.asistencia?.fechaHoraAsistencia && <View style={{ marginTop: 12, padding: 11, borderRadius: 10, backgroundColor: "#f0fdf4", borderWidth: 1, borderColor: "#bbf7d0" }}><Text style={{ color: "#166534", fontWeight: "700", textAlign: "center", fontSize: 12 }}>Último registro: {new Date(pendiente.asistencia.fechaHoraAsistencia).toLocaleString("es-BO", { timeZone: "America/La_Paz" })}. Usos del evento: {pendiente.asistencia.usosTotal} de {pendiente.asistencia.limiteEvento || 2}.</Text></View>}
           <View style={{ gap: 8, marginTop: 18 }}>
             {!registroCompletado && !pendiente.asistencia?.registrada && <TouchableOpacity
               onPress={registrarAsistencia}

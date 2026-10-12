@@ -1,16 +1,37 @@
 "use client";
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Armchair, Building2, Clock, Video, MapPin, ChevronDown, ChevronUp,
+  Clock, Users, Armchair, Building2, Video, MapPin, ChevronDown, ChevronUp,
   Search, X, Timer, Star, History, Mail, Link2, Send,
+  Play, Check, XCircle, UserCheck, Lock, Unlock, Calendar, Pencil, Trash2,
 } from 'lucide-react';
 import { useModal } from '@/components/ui/Modal';
 
+// Idéntica a web/src/app/admin/mesas/page.tsx: mismo diseño, mismos filtros y
+// mismas acciones (habilitar/deshabilitar mesa, asignar técnico, eliminar
+// solicitudes, iniciar/cancelar/finalizar reuniones, editar horario). Solo
+// cambian los prefijos de ruta que eran exclusivos de /admin/*, que ahora
+// también existen bajo /tecnico/* en el backend.
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
+
+// Bolivia es UTC-4 todo el año (sin horario de verano), así que se puede
+// convertir a mano sin depender del huso horario del navegador.
+function toDatetimeLocalBolivia(iso: string) {
+  return new Date(new Date(iso).getTime() - 4 * 3600_000).toISOString().slice(0, 16);
+}
+function fromDatetimeLocalBolivia(value: string) {
+  return new Date(`${value}:00-04:00`).toISOString();
+}
+function dayKey(iso: string) {
+  return new Date(iso).toISOString().substring(0, 10);
+}
+function fmtDay(dateKey: string) {
+  return new Date(`${dateKey}T12:00:00`).toLocaleDateString('es-BO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
 
 const ESTADO_MESA: Record<string, { badge: string; dot: string; label: string }> = {
   LIBRE:         { badge: 'bg-green-100 text-green-700',   dot: 'bg-green-400',  label: 'Libre' },
-  RESERVADA:     { badge: 'bg-blue-100 text-blue-700',     dot: 'bg-blue-400',   label: 'Programada' },
+  RESERVADA:     { badge: 'bg-blue-100 text-blue-700',     dot: 'bg-blue-400',   label: 'Reservada' },
   EN_USO:        { badge: 'bg-orange-100 text-orange-700', dot: 'bg-orange-400', label: 'En uso' },
   PRE_RESERVADA: { badge: 'bg-amber-100 text-amber-700',   dot: 'bg-amber-400',  label: 'Pendiente' },
 };
@@ -40,7 +61,7 @@ function getMapsUrl(sol: any): string | null {
 function StarRow({ value }: { value: number }) {
   return (
     <div className="flex gap-0.5">
-      {[1,2,3,4,5].map((s) => (
+      {[1, 2, 3, 4, 5].map((s) => (
         <Star key={s} className={`w-3 h-3 ${s <= value ? 'fill-amber-400 text-amber-400' : 'text-gray-200'}`} />
       ))}
     </div>
@@ -132,13 +153,16 @@ function HistorialRow({ r }: { r: any }) {
 }
 
 function ReunionSlot({
-  r,
-  onMessage,
-  onChangeLink,
+  r, mesa, mesaNumero, acting, onMessage, onChangeLink, onCambiarEstado, onEditarHorario, onEliminar, onAsignarTecnico, mostrarMesa,
 }: {
-  r: any;
+  r: any; mesa?: any; mesaNumero: number; acting: boolean;
   onMessage: (reunionId: number, empresa: 'A' | 'B', empresaNombre: string, encargadoNombre: string) => void;
   onChangeLink: (reunion: any) => void;
+  onCambiarEstado: (reunion: any, estado: string, asistentes?: number) => void;
+  onEditarHorario: (reunion: any) => void;
+  onEliminar: (reunion: any) => void;
+  onAsignarTecnico: (mesa: any) => void;
+  mostrarMesa?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const sol   = r.solicitudreunion;
@@ -153,17 +177,26 @@ function ReunionSlot({
   const mapsUrl = getMapsUrl(sol);
   const esVirtual    = r.tipoReunion === 'VIRTUAL'    || r.tipoReunion === 'MIXTA';
   const esPresencial = r.tipoReunion === 'PRESENCIAL' || r.tipoReunion === 'MIXTA';
+  const esProgramada = r.estadoReunion === 'PROGRAMADA' || r.estadoReunion === 'REPROGRAMADA';
+  const esEnCurso     = r.estadoReunion === 'EN_CURSO';
 
   const nombreEncA = encA ? `${encA.nombres} ${encA.apellidoPaterno}` : 'Encargado';
   const nombreEncB = encB ? `${encB.nombres} ${encB.apellidoPaterno}` : 'Encargado';
 
   return (
     <div className="border-t border-gray-50">
-      <div className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50/80 transition-colors">
+      <div
+        onClick={() => setOpen(!open)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(!open); } }}
+        className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50/80 transition-colors cursor-pointer select-none"
+      >
         <div className="w-24 shrink-0">
           <p className="text-xs font-bold text-gray-800">
             {fmtTime(r.fechaHoraInicioReunion)} – {fmtTime(r.fechaHoraFinReunion)}
           </p>
+          {mostrarMesa && <p className="text-[10px] text-gray-400 font-semibold">Mesa {mesaNumero}</p>}
         </div>
         <div className="flex items-center gap-2 flex-1 min-w-0">
           {ea?.urlFotoPerfil
@@ -179,35 +212,77 @@ function ReunionSlot({
         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 hidden sm:inline ${est.badge}`}>
           {est.label}
         </span>
-        <button onClick={() => setOpen(!open)} className="shrink-0 text-gray-400 hover:text-gray-600">
+        <span className="shrink-0 text-gray-400">
           {open ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-        </button>
+        </span>
       </div>
       {open && (
         <div className="px-4 pb-4 bg-gray-50/50 border-t border-gray-100 space-y-3 pt-3">
-          {/* Links */}
-          <div className="flex flex-wrap gap-2">
+          {mesa && (esProgramada || esEnCurso) && (
+            <button onClick={() => onAsignarTecnico(mesa)}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition-colors text-left">
+              <UserCheck className={`w-4 h-4 shrink-0 ${mesa.tecnicoasignado ? 'text-[#449D3A]' : 'text-gray-300'}`} />
+              {mesa.tecnicoasignado ? (
+                <span className="text-xs text-gray-600 flex-1">
+                  Técnico de esta mesa: <span className="font-semibold text-gray-800">{mesa.tecnicoasignado.nombres} {mesa.tecnicoasignado.apellidoPaterno}</span>
+                </span>
+              ) : (
+                <span className="text-xs text-gray-500 flex-1">Asignar técnico a esta mesa</span>
+              )}
+              <span className="text-[10px] font-bold text-[#449D3A] shrink-0">Cambiar</span>
+            </button>
+          )}
+          {/* Todas las acciones de la reunión en una sola barra que envuelve */}
+          <div className="flex flex-wrap gap-1.5">
+            {esProgramada && (
+              <button disabled={acting} onClick={() => onCambiarEstado(r, 'EN_CURSO')}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#449D3A] hover:bg-[#367d2e] text-white text-xs font-bold disabled:opacity-50 transition-colors">
+                <Play className="w-3 h-3" /> Iniciar
+              </button>
+            )}
+            {esProgramada && (
+              <button disabled={acting} onClick={() => onCambiarEstado(r, 'CANCELADA')}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 text-xs font-bold disabled:opacity-50 transition-colors">
+                <XCircle className="w-3 h-3" /> Cancelar
+              </button>
+            )}
+            {esEnCurso && (
+              <button disabled={acting} onClick={() => onCambiarEstado(r, 'FINALIZADA')}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#449D3A] hover:bg-[#367d2e] text-white text-xs font-bold disabled:opacity-50 transition-colors">
+                <Check className="w-3 h-3" /> Finalizar reunión
+              </button>
+            )}
             {esVirtual && link && (
               <a href={link} target="_blank" rel="noreferrer"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-bold hover:bg-blue-700">
-                <Video className="w-3 h-3" /> Reunión virtual
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-bold hover:bg-blue-700">
+                <Video className="w-3 h-3" /> Entrar
               </a>
             )}
             {esPresencial && mapsUrl && (
               <a href={mapsUrl} target="_blank" rel="noreferrer"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700">
-                <MapPin className="w-3 h-3" /> Google Maps
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700">
+                <MapPin className="w-3 h-3" /> Maps
               </a>
             )}
             {esVirtual && (
               <button onClick={() => onChangeLink(r)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-gray-700 text-xs font-semibold hover:bg-gray-100">
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-700 text-xs font-semibold hover:bg-gray-100">
                 <Link2 className="w-3 h-3" /> {link ? 'Cambiar link' : 'Agregar link'}
               </button>
             )}
+            {esProgramada && (
+              <button onClick={() => onEditarHorario(r)}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-700 text-xs font-semibold hover:bg-gray-100">
+                <Pencil className="w-3 h-3" /> Editar horario
+              </button>
+            )}
+            <button onClick={() => onEliminar(r)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-red-100 bg-white text-red-600 text-xs font-semibold hover:bg-red-50">
+              <Trash2 className="w-3 h-3" /> Eliminar
+            </button>
           </div>
 
-          {/* Acciones técnico */}
+          {/* Contactar encargados */}
           <div>
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-2">Contactar encargados</p>
             <div className="flex flex-wrap gap-2">
@@ -229,7 +304,7 @@ function ReunionSlot({
   );
 }
 
-function SolicitudPendienteRow({ s }: { s: any }) {
+function SolicitudPendienteRow({ s, onEliminar }: { s: any; onEliminar: (s: any) => void }) {
   return (
     <div className="px-4 py-3 border-t border-gray-50 bg-amber-50/60">
       <div className="flex items-center gap-2 mb-1.5">
@@ -243,50 +318,92 @@ function SolicitudPendienteRow({ s }: { s: any }) {
           <Clock className="w-3 h-3 text-gray-400" /> {fmtTime(s.inicio)} – {fmtTime(s.fin)}
         </span>
         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Pendiente de respuesta</span>
+        <button onClick={() => onEliminar(s)}
+          className="ml-auto flex items-center gap-1 px-2 py-1 rounded-lg border border-red-100 bg-white text-red-600 text-[10px] font-semibold hover:bg-red-50">
+          <Trash2 className="w-3 h-3" /> Eliminar
+        </button>
       </div>
     </div>
   );
 }
 
-type FiltroEstado = 'EN_USO' | 'PROGRAMADA' | 'LIBRE' | 'TODAS' | 'HISTORIAL';
+type FiltroEstado = 'AGENDA' | 'EN_USO' | 'PROGRAMADA' | 'PENDIENTES' | 'LIBRE' | 'TODAS' | 'INHABILITADA' | 'HISTORIAL';
 
-export default function TecnicoMesasPage() {
-  const { showSuccess, showError, ModalComponent } = useModal();
+export default function MesasGrid() {
+  const { showSuccess, showError, showConfirm, ModalComponent } = useModal();
 
   const [mesas,        setMesas]        = useState<any[]>([]);
   const [eventoConfig, setEventoConfig] = useState<any>(null);
   const [loading,      setLoading]      = useState(true);
-  const [filtro,       setFiltro]       = useState<FiltroEstado>('EN_USO');
+  const [filtro,       setFiltro]       = useState<FiltroEstado>('AGENDA');
   const [search,       setSearch]       = useState('');
-  const [sinReunion, setSinReunion] = useState<any[]>([]);
+  const [sinReunion,   setSinReunion]   = useState<any[]>([]);
+  const [acting,       setActing]       = useState(false);
+  const [toggling,     setToggling]     = useState(false);
 
   const [historial,        setHistorial]        = useState<any[]>([]);
   const [loadingHistorial, setLoadingHistorial] = useState(false);
   const [searchH,          setSearchH]          = useState('');
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Modal de mensaje
   const [msgModal, setMsgModal] = useState<{ reunionId: number; empresa: 'A' | 'B'; empresaNombre: string; encargadoNombre: string } | null>(null);
   const [msgText,  setMsgText]  = useState('');
   const [sending,  setSending]  = useState(false);
   const sendingRef = useRef(false);
 
-  // Modal de link
   const [linkModal, setLinkModal]  = useState<{ reunion: any } | null>(null);
   const [linkText,  setLinkText]   = useState('');
   const [savingLink, setSavingLink] = useState(false);
   const savingLinkRef = useRef(false);
 
+  const [editando, setEditando] = useState<any>(null);
+  const [nuevoHorario, setNuevoHorario] = useState('');
+  const [guardandoEdicion, setGuardandoEdicion] = useState(false);
+  const guardandoEdicionRef = useRef(false);
+
+  const [tecnicos, setTecnicos] = useState<any[]>([]);
+  const [asignandoMesa, setAsignandoMesa] = useState<any>(null);
+  const [guardandoTecnico, setGuardandoTecnico] = useState(false);
+  const guardandoTecnicoRef = useRef(false);
+
   const fetchMesas = useCallback(async () => {
     try {
       const [res, libresRes] = await Promise.all([fetch(`${API}/tecnico/mesas`), fetch(`${API}/staff/empresas-sin-reunion`)]);
       const [data, libres] = await Promise.all([res.json(), libresRes.json()]);
-      setMesas(data.mesas ?? []);
+      setMesas(Array.isArray(data) ? data : (data.mesas ?? []));
       setSinReunion(Array.isArray(libres?.empresas) ? libres.empresas : []);
       if (data.eventoConfig) setEventoConfig(data.eventoConfig);
     } catch { setMesas([]); }
     finally { setLoading(false); }
   }, []);
+
+  const fetchTecnicos = useCallback(async () => {
+    try {
+      const data = await (await fetch(`${API}/tecnico/tecnicos`)).json();
+      setTecnicos(Array.isArray(data) ? data.filter((t: any) => t.estaActivo === 1) : []);
+    } catch { setTecnicos([]); }
+  }, []);
+
+  const asignarTecnico = async (usuarioId: number | null) => {
+    if (!asignandoMesa || guardandoTecnicoRef.current) return;
+    guardandoTecnicoRef.current = true;
+    setGuardandoTecnico(true);
+    try {
+      const res = await fetch(`${API}/tecnico/mesas/${asignandoMesa.id}/tecnico`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ usuarioId }),
+      });
+      if (!res.ok) throw new Error();
+      const actualizada = await res.json();
+      setMesas((prev) => prev.map((m) => (m.id === asignandoMesa.id ? { ...m, tecnicoasignado: actualizada.tecnicoasignado } : m)));
+      showSuccess(
+        usuarioId ? 'Técnico asignado' : 'Asignación quitada',
+        usuarioId ? `Se notificó a ${actualizada.tecnicoasignado?.nombres} ${actualizada.tecnicoasignado?.apellidoPaterno} que controla la Mesa ${asignandoMesa.numeroMesa}.` : `La Mesa ${asignandoMesa.numeroMesa} ya no tiene técnico asignado.`,
+      );
+      setAsignandoMesa(null);
+    } catch { showError('Error', 'No se pudo actualizar el técnico asignado. Intenta de nuevo.'); }
+    finally { guardandoTecnicoRef.current = false; setGuardandoTecnico(false); }
+  };
 
   const fetchHistorial = useCallback(async (q?: string) => {
     setLoadingHistorial(true);
@@ -298,7 +415,7 @@ export default function TecnicoMesasPage() {
     finally { setLoadingHistorial(false); }
   }, []);
 
-  useEffect(() => { fetchMesas(); }, [fetchMesas]);
+  useEffect(() => { fetchMesas(); fetchTecnicos(); }, [fetchMesas, fetchTecnicos]);
   useEffect(() => { if (filtro === 'HISTORIAL') fetchHistorial(); }, [filtro, fetchHistorial]);
 
   const handleSearchH = (val: string) => {
@@ -308,9 +425,11 @@ export default function TecnicoMesasPage() {
   };
 
   const mesasFiltradas = mesas.filter((m) => {
-    if (filtro === 'EN_USO')     { if (m.estadoMesa !== 'EN_USO')    return false; }
-    if (filtro === 'PROGRAMADA') { if (m.estadoMesa !== 'RESERVADA' && m.estadoMesa !== 'PRE_RESERVADA') return false; }
-    if (filtro === 'LIBRE')      { if (m.estadoMesa !== 'LIBRE')     return false; }
+    if (filtro === 'INHABILITADA') { if (m.estaHabilitada !== 0) return false; }
+    else if (filtro === 'EN_USO')     { if (m.estadoMesa !== 'EN_USO')    return false; }
+    else if (filtro === 'PROGRAMADA') { if (m.estadoMesa !== 'RESERVADA' && m.estadoMesa !== 'PRE_RESERVADA') return false; }
+    else if (filtro === 'PENDIENTES') { if (!(m.solicitudesEnEspera?.length > 0)) return false; }
+    else if (filtro === 'LIBRE')      { if (m.estadoMesa !== 'LIBRE')     return false; }
     if (!search.trim()) return true;
     const q = search.toLowerCase();
     return (
@@ -327,58 +446,185 @@ export default function TecnicoMesasPage() {
   const counts = {
     enUso:     mesas.filter((m) => m.estadoMesa === 'EN_USO').length,
     programada: mesas.filter((m) => m.estadoMesa === 'RESERVADA' || m.estadoMesa === 'PRE_RESERVADA').length,
+    pendientes: mesas.reduce((sum, m) => sum + (m.solicitudesEnEspera?.length ?? 0), 0),
     libre:     mesas.filter((m) => m.estadoMesa === 'LIBRE').length,
+    inhabilitada: mesas.filter((m) => m.estaHabilitada === 0).length,
     total:     mesas.length,
   };
 
   const FILTROS: { key: FiltroEstado; label: string; icon?: React.ReactNode }[] = [
-    { key: 'EN_USO',     label: `En uso (${counts.enUso})` },
-    { key: 'PROGRAMADA', label: `Programadas (${counts.programada})` },
-    { key: 'LIBRE',      label: `Libres (${counts.libre})` },
-    { key: 'TODAS',      label: `Todas (${counts.total})` },
-    { key: 'HISTORIAL',  label: 'Historial', icon: <History className="w-3 h-3" /> },
+    { key: 'AGENDA',       label: 'Agenda', icon: <Calendar className="w-3 h-3" /> },
+    { key: 'EN_USO',       label: `En uso (${counts.enUso})` },
+    { key: 'PROGRAMADA',   label: `Programadas (${counts.programada})` },
+    { key: 'PENDIENTES',   label: `Pendientes de respuesta (${counts.pendientes})` },
+    { key: 'LIBRE',        label: `Libres (${counts.libre})` },
+    { key: 'TODAS',        label: `Todas (${counts.total})` },
+    { key: 'INHABILITADA', label: `Inhabilitadas (${counts.inhabilitada})` },
+    { key: 'HISTORIAL',    label: 'Historial', icon: <History className="w-3 h-3" /> },
   ];
 
   const openMessageModal = (reunionId: number, empresa: 'A' | 'B', empresaNombre: string, encargadoNombre: string) => {
     setMsgModal({ reunionId, empresa, empresaNombre, encargadoNombre });
     setMsgText('');
   };
-
   const openLinkModal = (reunion: any) => {
     setLinkModal({ reunion });
     setLinkText(reunion.solicitudreunion?.enlaceReunionVirtual ?? '');
   };
 
+  const cambiarEstadoReunion = (reunion: any, estado: string) => {
+    const labels: Record<string, string> = { EN_CURSO: 'iniciar', CANCELADA: 'cancelar', FINALIZADA: 'finalizar' };
+    const titulos: Record<string, string> = { EN_CURSO: 'Iniciar reunión', CANCELADA: 'Cancelar reunión', FINALIZADA: 'Finalizar reunión' };
+    showConfirm(titulos[estado] ?? 'Actualizar reunión', `¿Deseas ${labels[estado]} esta reunión en la Mesa ${reunion.mesa_id}?`, async () => {
+      setActing(true);
+      try {
+        const res = await fetch(`${API}/tecnico/reuniones/${reunion.id}/estado`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estadoReunion: estado }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.message || 'No se pudo actualizar el estado de la reunión.');
+        const doneLabels: Record<string, string> = {
+          EN_CURSO: 'Reunión iniciada correctamente.', FINALIZADA: 'Reunión finalizada y registrada.', CANCELADA: 'Reunión cancelada.',
+        };
+        showSuccess('Listo', doneLabels[estado] ?? 'Estado actualizado.');
+        fetchMesas();
+      } catch (e: any) { showError('Error', e?.message || 'No se pudo actualizar el estado de la reunión.'); }
+      finally { setActing(false); }
+    });
+  };
+
+  const toggleHabilitar = (mesa: any) => {
+    const nuevo = mesa.estaHabilitada === 1 ? 0 : 1;
+    showConfirm(
+      `${nuevo === 1 ? 'Habilitar' : 'Deshabilitar'} mesa ${mesa.numeroMesa}`,
+      `¿Deseas ${nuevo === 1 ? 'habilitar' : 'deshabilitar'} la Mesa ${mesa.numeroMesa}? ${nuevo === 0 ? 'Los usuarios no podrán usarla.' : 'Estará disponible para reuniones.'}`,
+      async () => {
+        setToggling(true);
+        try {
+          const res = await fetch(`${API}/tecnico/mesas/${mesa.id}/habilitar`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estaHabilitada: nuevo }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data?.message || 'No se pudo cambiar la disponibilidad de la mesa.');
+          showSuccess('Listo', `Mesa ${mesa.numeroMesa} ${nuevo === 1 ? 'habilitada' : 'deshabilitada'} correctamente.`);
+          fetchMesas();
+        } catch (e: any) { showError('Error', e?.message || 'No se pudo cambiar la disponibilidad de la mesa.'); }
+        finally { setToggling(false); }
+      }
+    );
+  };
+
   const sendMessage = async () => {
-    if (!msgModal || !msgText.trim()) return;
+    if (!msgModal || !msgText.trim() || sendingRef.current) return;
+    sendingRef.current = true;
     setSending(true);
     try {
       const res = await fetch(`${API}/tecnico/reuniones/${msgModal.reunionId}/mensaje`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ empresa: msgModal.empresa, mensaje: msgText.trim() }),
       });
-      if (!res.ok) throw new Error();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || 'No se pudo enviar el mensaje. Intenta de nuevo.');
       showSuccess('Mensaje enviado', `El mensaje fue enviado al encargado de ${msgModal.empresaNombre}.`);
       setMsgModal(null);
-    } catch { showError('Error', 'No se pudo enviar el mensaje. Intenta de nuevo.'); }
-    finally { setSending(false); }
+    } catch (e: any) { showError('Error', e?.message || 'No se pudo enviar el mensaje. Intenta de nuevo.'); }
+    finally { sendingRef.current = false; setSending(false); }
   };
 
   const saveLink = async () => {
-    if (!linkModal) return;
+    if (!linkModal || savingLinkRef.current) return;
+    savingLinkRef.current = true;
     setSavingLink(true);
     try {
       const res = await fetch(`${API}/tecnico/reuniones/${linkModal.reunion.id}/link`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enlace: linkText.trim() }),
       });
-      if (!res.ok) throw new Error();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || 'No se pudo actualizar el link. Intenta de nuevo.');
       showSuccess('Link actualizado', 'El enlace de la reunión virtual fue actualizado.');
       setLinkModal(null);
       fetchMesas();
-    } catch { showError('Error', 'No se pudo actualizar el link. Intenta de nuevo.'); }
-    finally { setSavingLink(false); }
+    } catch (e: any) { showError('Error', e?.message || 'No se pudo actualizar el link. Intenta de nuevo.'); }
+    finally { savingLinkRef.current = false; setSavingLink(false); }
   };
+
+  const abrirEditar = (reunion: any) => {
+    setEditando(reunion);
+    setNuevoHorario(toDatetimeLocalBolivia(reunion.fechaHoraInicioReunion));
+  };
+
+  const guardarEdicion = async () => {
+    if (!editando || !nuevoHorario || guardandoEdicionRef.current) return;
+    guardandoEdicionRef.current = true;
+    setGuardandoEdicion(true);
+    try {
+      const res = await fetch(`${API}/tecnico/reuniones/${editando.id}/reprogramar`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inicio: fromDatetimeLocalBolivia(nuevoHorario) }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || 'No se pudo reprogramar la reunión.');
+      showSuccess('Reunión reprogramada', 'El nuevo horario ya está confirmado y se avisó a ambas empresas.');
+      setEditando(null);
+      fetchMesas();
+    } catch (e: any) { showError('Error', e?.message || 'No se pudo reprogramar la reunión.'); }
+    finally { guardandoEdicionRef.current = false; setGuardandoEdicion(false); }
+  };
+
+  const confirmarEliminar = (reunion: any) => {
+    showConfirm(
+      'Eliminar reunión',
+      'La mesa quedará disponible y se avisará a ambas empresas. Esta acción no se puede deshacer.',
+      async () => {
+        try {
+          const res = await fetch(`${API}/tecnico/reuniones/${reunion.id}`, { method: 'DELETE' });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data?.message || 'No se pudo eliminar la reunión.');
+          showSuccess('Reunión eliminada', 'La mesa quedó disponible y las empresas fueron notificadas.');
+          fetchMesas();
+        } catch (e: any) { showError('Error', e?.message || 'No se pudo eliminar la reunión.'); }
+      },
+    );
+  };
+
+  const confirmarEliminarSolicitud = (s: any) => {
+    showConfirm(
+      'Eliminar solicitud',
+      'Se avisará a ambas empresas de que la solicitud fue eliminada. Esta acción no se puede deshacer.',
+      async () => {
+        try {
+          const res = await fetch(`${API}/tecnico/solicitudes/${s.solicitudId}`, { method: 'DELETE' });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data?.message || 'No se pudo eliminar la solicitud.');
+          showSuccess('Solicitud eliminada', 'Las empresas fueron notificadas.');
+          fetchMesas();
+        } catch (e: any) { showError('Error', e?.message || 'No se pudo eliminar la solicitud.'); }
+      },
+    );
+  };
+
+  // Vista Agenda: todas las reuniones activas, agrupadas por día (sin
+  // importar la mesa), con el mismo control que da la vista Mesas.
+  const reunionesAgenda = mesas
+    .flatMap((mesa) => (mesa.reunion ?? []).map((r: any) => ({ ...r, mesa_id: mesa.numeroMesa, _mesa: mesa })))
+    .filter((r: any) => r.estadoReunion === 'PROGRAMADA' || r.estadoReunion === 'EN_CURSO' || r.estadoReunion === 'REPROGRAMADA')
+    .filter((r: any) => {
+      if (!search.trim()) return true;
+      const q = search.toLowerCase();
+      const sol = r.solicitudreunion;
+      const ea = sol?.empresaevento_solicitudreunion_empresaEvento_idToempresaevento?.empresa;
+      const eb = sol?.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento?.empresa;
+      return String(r.mesa_id).includes(q) || ea?.nombre?.toLowerCase().includes(q) || eb?.nombre?.toLowerCase().includes(q);
+    })
+    .sort((a: any, b: any) => new Date(a.fechaHoraInicioReunion).getTime() - new Date(b.fechaHoraInicioReunion).getTime());
+
+  const diasAgenda: Record<string, any[]> = {};
+  for (const r of reunionesAgenda) {
+    const k = dayKey(r.fechaHoraInicioReunion);
+    (diasAgenda[k] ??= []).push(r);
+  }
+  const clavesDias = Object.keys(diasAgenda).sort();
 
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto">
@@ -398,22 +644,15 @@ export default function TecnicoMesasPage() {
               </button>
             </div>
             <div className="px-5 py-4 space-y-3">
-              <textarea
-                value={msgText}
-                onChange={(e) => setMsgText(e.target.value)}
-                placeholder="Escribe tu mensaje aquí..."
-                rows={5}
-                className="w-full text-sm border border-gray-200 rounded-xl p-3 resize-none focus:outline-none focus:ring-1 focus:ring-[#449D3A]"
-              />
+              <textarea value={msgText} onChange={(e) => setMsgText(e.target.value)}
+                placeholder="Escribe tu mensaje aquí..." rows={5}
+                className="w-full text-sm border border-gray-200 rounded-xl p-3 resize-none focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
             </div>
             <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100">
-              <button onClick={() => setMsgModal(null)} className="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50 rounded-xl">
-                Cancelar
-              </button>
+              <button onClick={() => setMsgModal(null)} className="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50 rounded-xl">Cancelar</button>
               <button onClick={sendMessage} disabled={sending || !msgText.trim()}
                 className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-[#449D3A] rounded-xl hover:bg-[#388030] disabled:opacity-50">
-                <Send className="w-3.5 h-3.5" />
-                {sending ? 'Enviando…' : 'Enviar mensaje'}
+                <Send className="w-3.5 h-3.5" />{sending ? 'Enviando…' : 'Enviar mensaje'}
               </button>
             </div>
           </div>
@@ -426,39 +665,102 @@ export default function TecnicoMesasPage() {
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <p className="text-sm font-bold text-gray-900">Enlace de reunión virtual</p>
-              <button onClick={() => setLinkModal(null)} className="text-gray-400 hover:text-gray-600">
-                <X className="w-5 h-5" />
-              </button>
+              <button onClick={() => setLinkModal(null)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
             </div>
             <div className="px-5 py-4 space-y-3">
               <p className="text-xs text-gray-500">Actualiza el enlace para la reunión virtual. Todos los participantes podrán verlo.</p>
-              <input
-                value={linkText}
-                onChange={(e) => setLinkText(e.target.value)}
+              <input value={linkText} onChange={(e) => setLinkText(e.target.value)}
                 placeholder="https://meet.google.com/... o https://zoom.us/..."
-                className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#449D3A]"
-              />
+                className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
             </div>
             <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100">
-              <button onClick={() => setLinkModal(null)} className="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50 rounded-xl">
-                Cancelar
-              </button>
+              <button onClick={() => setLinkModal(null)} className="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50 rounded-xl">Cancelar</button>
               <button onClick={saveLink} disabled={savingLink}
                 className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-[#449D3A] rounded-xl hover:bg-[#388030] disabled:opacity-50">
-                <Link2 className="w-3.5 h-3.5" />
-                {savingLink ? 'Guardando…' : 'Guardar link'}
+                <Link2 className="w-3.5 h-3.5" />{savingLink ? 'Guardando…' : 'Guardar link'}
               </button>
             </div>
           </div>
         </div>
       )}
 
+      {/* Modal de editar horario */}
+      {editando && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <div>
+                <p className="text-sm font-bold text-gray-900">Editar horario</p>
+                <p className="text-xs text-gray-400">Se avisará a ambas empresas del cambio.</p>
+              </div>
+              <button onClick={() => setEditando(null)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Nueva fecha y hora</label>
+              <input type="datetime-local" value={nuevoHorario} onChange={(e) => setNuevoHorario(e.target.value)}
+                className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
+            </div>
+            <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100">
+              <button onClick={() => setEditando(null)} className="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50 rounded-xl">Cancelar</button>
+              <button onClick={guardarEdicion} disabled={guardandoEdicion || !nuevoHorario}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-[#449D3A] rounded-xl hover:bg-[#388030] disabled:opacity-50">
+                <Pencil className="w-3.5 h-3.5" />{guardandoEdicion ? 'Guardando…' : 'Guardar nuevo horario'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {asignandoMesa && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
+              <div>
+                <p className="text-sm font-bold text-gray-900">Asignar técnico — Mesa {asignandoMesa.numeroMesa}</p>
+                <p className="text-xs text-gray-400">Se le notificará que debe controlar esta mesa.</p>
+              </div>
+              <button onClick={() => setAsignandoMesa(null)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="px-3 py-3 overflow-y-auto space-y-1.5">
+              {tecnicos.length === 0 && (
+                <p className="text-sm text-gray-400 text-center py-6">No hay técnicos registrados.</p>
+              )}
+              {tecnicos.map((t) => {
+                const asignado = asignandoMesa.tecnicoasignado?.id === t.id;
+                return (
+                  <button key={t.id} disabled={guardandoTecnico} onClick={() => asignarTecnico(t.id)}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-colors disabled:opacity-50 ${
+                      asignado ? 'border-[#449D3A] bg-green-50' : 'border-gray-100 hover:bg-gray-50'
+                    }`}>
+                    {t.urlFotoPerfil
+                      ? <img src={t.urlFotoPerfil} className="w-8 h-8 rounded-full object-contain border border-gray-100 shrink-0" alt="" />
+                      : <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center shrink-0"><UserCheck className="w-3.5 h-3.5 text-gray-400" /></div>}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-800 truncate">{t.nombres} {t.apellidoPaterno}</p>
+                      <p className="text-[11px] text-gray-400 truncate">{t.rolEvento === 'TECNICO_EVENTOS' ? 'Técnico de eventos' : 'Técnico'}</p>
+                    </div>
+                    {asignado && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#449D3A] text-white shrink-0">Asignado</span>}
+                  </button>
+                );
+              })}
+            </div>
+            {asignandoMesa.tecnicoasignado && (
+              <div className="px-5 py-3 border-t border-gray-100 shrink-0">
+                <button disabled={guardandoTecnico} onClick={() => asignarTecnico(null)}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 rounded-xl disabled:opacity-50">
+                  <X className="w-3.5 h-3.5" /> Quitar asignación
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="mb-5">
-        <h1 className="text-2xl font-extrabold text-gray-900">Agenda de mesas</h1>
-        <p className="text-sm text-gray-500 mt-1">Estado en tiempo real de cada mesa del evento.</p>
+        <h1 className="text-2xl font-extrabold text-gray-900">Mesas y reuniones</h1>
+        <p className="text-sm text-gray-500 mt-1">Agenda, estado de las mesas y control completo de las reuniones del evento.</p>
       </div>
 
-      {/* Config info */}
       {eventoConfig && (
         <div className="flex flex-wrap items-center gap-4 mb-4 text-xs text-gray-500">
           <div className="flex items-center gap-1.5">
@@ -469,12 +771,25 @@ export default function TecnicoMesasPage() {
             <Timer className="w-3.5 h-3.5 text-gray-400" />
             <span>Limpieza: <strong className="text-gray-700">{eventoConfig.tiempoEntreReuniones} min</strong></span>
           </div>
+          <div className="flex items-center gap-1.5">
+            <Armchair className="w-3.5 h-3.5 text-gray-400" />
+            <span>Mesas del evento: <strong className="text-gray-700">{eventoConfig.cantidadTotalMesasEvento}</strong></span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Users className="w-3.5 h-3.5 text-gray-400" />
+            <span>Cap. por mesa: <strong className="text-gray-700">{eventoConfig.capacidadPersonasPorMesa} personas</strong></span>
+          </div>
         </div>
       )}
 
       <section className="mb-5 rounded-2xl border border-green-100 bg-white p-4 shadow-sm">
-        <div className="mb-3 flex items-center justify-between gap-3"><div><h2 className="text-sm font-extrabold text-gray-900">Empresas sin reunión en este momento</h2><p className="text-xs text-gray-500">Disponibles ahora para apoyo y nuevas conexiones.</p></div><span className="rounded-full bg-green-100 px-2.5 py-1 text-xs font-bold text-green-700">{sinReunion.length}</span></div>
-        <div className="flex max-h-36 flex-wrap gap-2 overflow-y-auto">{sinReunion.map((item) => <span key={item.empresaeventoId} className="rounded-lg border border-gray-100 bg-gray-50 px-2.5 py-1.5 text-xs font-semibold text-gray-700">{item.codigo ? `${item.codigo} · ` : ''}{item.nombre}</span>)}</div>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div><h2 className="text-sm font-extrabold text-gray-900">Empresas sin reunión en este momento</h2><p className="text-xs text-gray-500">Disponibles ahora para orientación o nuevas conexiones.</p></div>
+          <span className="rounded-full bg-green-100 px-2.5 py-1 text-xs font-bold text-green-700">{sinReunion.length}</span>
+        </div>
+        <div className="flex max-h-36 flex-wrap gap-2 overflow-y-auto">
+          {sinReunion.map((item) => <span key={item.empresaeventoId} className="rounded-lg border border-gray-100 bg-gray-50 px-2.5 py-1.5 text-xs font-semibold text-gray-700">{item.codigo ? `${item.codigo} · ` : ''}{item.nombre}</span>)}
+        </div>
       </section>
 
       {/* Filter bar */}
@@ -483,119 +798,141 @@ export default function TecnicoMesasPage() {
           {FILTROS.map((f) => (
             <button key={f.key} onClick={() => setFiltro(f.key)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
-                filtro === f.key
-                  ? 'bg-[#449D3A] text-white border-[#449D3A]'
-                  : 'bg-white text-gray-600 border-gray-200 hover:border-[#449D3A] hover:text-[#449D3A]'
+                filtro === f.key ? 'bg-[#449D3A] text-white border-[#449D3A]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#449D3A] hover:text-[#449D3A]'
               }`}>
               {f.icon}{f.label}
             </button>
           ))}
         </div>
 
-        {filtro !== 'HISTORIAL' && (
+        {filtro !== 'HISTORIAL' ? (
           <div className="relative">
             <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-gray-400" />
             <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar empresa participante..."
+              placeholder="Buscar empresa o mesa..."
               className="w-full pl-8 pr-8 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
-            {search && (
-              <button onClick={() => setSearch('')} className="absolute right-2 top-2.5 text-gray-400 hover:text-gray-600">
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
+            {search && <button onClick={() => setSearch('')} className="absolute right-2 top-2.5 text-gray-400 hover:text-gray-600"><X className="w-3.5 h-3.5" /></button>}
           </div>
-        )}
-
-        {filtro === 'HISTORIAL' && (
+        ) : (
           <div className="relative">
             <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-gray-400" />
             <input type="text" value={searchH} onChange={(e) => handleSearchH(e.target.value)}
               placeholder="Buscar empresa o mesa..."
               className="w-full pl-8 pr-8 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#449D3A]" />
-            {searchH && (
-              <button onClick={() => { setSearchH(''); fetchHistorial(); }} className="absolute right-2 top-2.5 text-gray-400 hover:text-gray-600">
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
+            {searchH && <button onClick={() => { setSearchH(''); fetchHistorial(); }} className="absolute right-2 top-2.5 text-gray-400 hover:text-gray-600"><X className="w-3.5 h-3.5" /></button>}
           </div>
         )}
       </div>
 
-      {/* Leyenda */}
-      {filtro !== 'HISTORIAL' && (
-        <div className="flex flex-wrap gap-3 mb-4 text-xs text-gray-500">
-          {Object.entries(ESTADO_MESA).map(([k, v]) => (
-            <div key={k} className="flex items-center gap-1.5">
-              <span className={`w-2 h-2 rounded-full ${v.dot}`} />
-              {v.label}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Historial tab */}
       {filtro === 'HISTORIAL' ? (
         <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
           {loadingHistorial ? (
-            <div className="flex items-center justify-center py-16">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#449D3A]" />
-            </div>
+            <div className="flex items-center justify-center py-16"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#449D3A]" /></div>
           ) : historial.length === 0 ? (
             <div className="text-center py-16">
               <History className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-              <p className="text-gray-400 font-medium text-sm">Sin reuniones finalizadas</p>
+              <p className="text-gray-400 font-medium text-sm">{searchH ? 'Sin resultados.' : 'Sin reuniones finalizadas'}</p>
             </div>
           ) : (
-            historial.map((r) => <HistorialRow key={r.id} r={r} />)
+            <div>
+              <p className="px-4 pt-3 pb-2 text-xs text-gray-400 font-semibold">{historial.length} reunión(es) finalizada(s)</p>
+              {historial.map((r) => <HistorialRow key={r.id} r={r} />)}
+            </div>
           )}
         </div>
       ) : loading ? (
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#449D3A]" />
-        </div>
+        <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#449D3A]" /></div>
+      ) : filtro === 'AGENDA' ? (
+        clavesDias.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-dashed border-gray-200 p-16 text-center">
+            <Calendar className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+            <p className="text-gray-500 font-semibold">No hay reuniones activas</p>
+            <p className="text-sm text-gray-400 mt-1">Todas están finalizadas, canceladas, o todavía no hay mesas programadas.</p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {clavesDias.map((dia) => (
+              <div key={dia}>
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="bg-[#449D3A] text-white rounded-xl px-4 py-2 flex items-center gap-2 shadow-sm">
+                    <Calendar className="w-4 h-4" />
+                    <span className="text-sm font-bold capitalize">{fmtDay(dia)}</span>
+                  </div>
+                  <span className="text-xs text-gray-400 font-semibold">{diasAgenda[dia].length} reunión(es)</span>
+                </div>
+                <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                  {diasAgenda[dia].map((r) => (
+                    <ReunionSlot key={r.id} r={r} mesa={r._mesa} mesaNumero={r.mesa_id} acting={acting} mostrarMesa
+                      onMessage={openMessageModal} onChangeLink={openLinkModal} onCambiarEstado={cambiarEstadoReunion}
+                      onEditarHorario={abrirEditar} onEliminar={confirmarEliminar} onAsignarTecnico={setAsignandoMesa} />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )
       ) : (
         <div className="space-y-4">
           {mesasFiltradas.map((mesa) => {
+            const inhabilitada = mesa.estaHabilitada === 0;
             const cfg = ESTADO_MESA[mesa.estadoMesa] ?? ESTADO_MESA.LIBRE;
+            const colorClass = inhabilitada && mesa.estadoMesa === 'LIBRE'
+              ? 'bg-gray-400'
+              : mesa.estadoMesa === 'EN_USO' ? 'bg-orange-500' : mesa.estadoMesa === 'RESERVADA' ? 'bg-blue-500' : mesa.estadoMesa === 'PRE_RESERVADA' ? 'bg-amber-500' : 'bg-[#449D3A]';
+            const label = inhabilitada && mesa.estadoMesa === 'LIBRE' ? 'Inhabilitada' : cfg.label;
+            const badgeClass = inhabilitada && mesa.estadoMesa === 'LIBRE' ? 'bg-gray-100 text-gray-500' : cfg.badge;
             return (
               <div key={mesa.id} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
                 <div className="flex items-center gap-4 px-4 py-3 border-b border-gray-50">
-                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center font-extrabold text-base text-white shrink-0 ${
-                    mesa.estadoMesa === 'EN_USO'    ? 'bg-orange-500'
-                    : mesa.estadoMesa === 'RESERVADA'? 'bg-blue-500'
-                    : mesa.estadoMesa === 'PRE_RESERVADA' ? 'bg-amber-500'
-                    : 'bg-[#449D3A]'
-                  }`}>
+                  <div className={`relative w-11 h-11 rounded-xl flex items-center justify-center font-extrabold text-base text-white shrink-0 ${colorClass}`}>
+                    {inhabilitada && <Lock className="absolute -top-1 -right-1 w-3.5 h-3.5 text-white/80 bg-gray-500 rounded-full p-0.5" />}
                     {String(mesa.numeroMesa).padStart(2, '0')}
                   </div>
                   <div className="flex-1">
                     <p className="text-base font-bold text-gray-900">Mesa {mesa.numeroMesa}</p>
-                    <p className="text-xs text-gray-400">
-                      {mesa.reunion?.length ?? 0} reunión(es){mesa.solicitudesEnEspera?.length ? ` · ${mesa.solicitudesEnEspera.length} pendiente(s)` : ''} · {mesa.capacidadPersonas} personas
-                    </p>
+                    <p className="text-xs text-gray-400">{mesa.reunion?.length ?? 0} reunión(es){mesa.solicitudesEnEspera?.length ? ` · ${mesa.solicitudesEnEspera.length} pendiente(s)` : ''} · {mesa.capacidadPersonas} personas</p>
                   </div>
-                  <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0 ${cfg.badge}`}>
-                    {cfg.label}
-                  </span>
+                  <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0 ${badgeClass}`}>{label}</span>
                 </div>
 
+                {mesa.reunionActual && (
+                  <button onClick={() => setAsignandoMesa(mesa)}
+                    className="w-full flex items-center gap-2 px-4 py-2 border-b border-gray-50 hover:bg-gray-50/80 transition-colors text-left">
+                    <UserCheck className={`w-3.5 h-3.5 shrink-0 ${mesa.tecnicoasignado ? 'text-[#449D3A]' : 'text-gray-300'}`} />
+                    {mesa.tecnicoasignado ? (
+                      <span className="text-xs text-gray-600">
+                        Técnico: <span className="font-semibold text-gray-800">{mesa.tecnicoasignado.nombres} {mesa.tecnicoasignado.apellidoPaterno}</span>
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-400">Sin técnico asignado — toca para asignar</span>
+                    )}
+                  </button>
+                )}
+
                 {mesa.reunion && mesa.reunion.length > 0 && mesa.reunion.map((r: any) => (
-                  <ReunionSlot
-                    key={r.id}
-                    r={r}
-                    onMessage={openMessageModal}
-                    onChangeLink={openLinkModal}
-                  />
+                  <ReunionSlot key={r.id} r={{ ...r, mesa_id: mesa.numeroMesa }} mesa={mesa} mesaNumero={mesa.numeroMesa} acting={acting}
+                    onMessage={openMessageModal} onChangeLink={openLinkModal} onCambiarEstado={cambiarEstadoReunion}
+                    onEditarHorario={abrirEditar} onEliminar={confirmarEliminar} onAsignarTecnico={setAsignandoMesa} />
                 ))}
 
                 {mesa.solicitudesEnEspera && mesa.solicitudesEnEspera.length > 0 && mesa.solicitudesEnEspera.map((s: any) => (
-                  <SolicitudPendienteRow key={s.solicitudId} s={s} />
+                  <SolicitudPendienteRow key={s.solicitudId} s={s} onEliminar={confirmarEliminarSolicitud} />
                 ))}
 
-                {(!mesa.reunion || mesa.reunion.length === 0) && (!mesa.solicitudesEnEspera || mesa.solicitudesEnEspera.length === 0) && (
-                  <div className="px-4 py-4 flex items-center gap-3">
-                    <div className="w-2 h-2 rounded-full bg-green-300 shrink-0" />
-                    <p className="text-sm text-gray-400 font-medium">Disponible — sin reuniones asignadas</p>
+                {(!mesa.reunion || mesa.reunion.length === 0) && (
+                  <div className="px-4 py-4 flex items-center justify-between gap-3 flex-wrap">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-2 h-2 rounded-full shrink-0 ${inhabilitada ? 'bg-gray-300' : 'bg-green-300'}`} />
+                      <p className="text-sm text-gray-400 font-medium">
+                        {inhabilitada ? 'Inhabilitada — los usuarios no pueden usarla' : (mesa.solicitudesEnEspera?.length ? 'Sin reuniones confirmadas' : 'Disponible — sin reuniones asignadas')}
+                      </p>
+                    </div>
+                    <button disabled={toggling} onClick={() => toggleHabilitar(mesa)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors disabled:opacity-50 ${
+                        inhabilitada ? 'border-green-200 text-green-700 hover:bg-green-50' : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                      }`}>
+                      {inhabilitada ? <><Unlock className="w-3.5 h-3.5" /> Habilitar mesa</> : <><Lock className="w-3.5 h-3.5" /> Deshabilitar mesa</>}
+                    </button>
                   </div>
                 )}
               </div>

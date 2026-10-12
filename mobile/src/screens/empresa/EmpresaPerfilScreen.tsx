@@ -14,7 +14,7 @@ import {
   Hash, ExternalLink, CheckCircle2, Camera, Eye, EyeOff,
 } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
-import { LIMITES, validarNombrePersona, validarTelefono } from '../../utils/validaciones';
+import { LIMITES, validarNombreEmpresa, validarNombrePersona, validarTelefono } from '../../utils/validaciones';
 import { RUBROS } from '../../constants/rubros';
 import { useModal } from '../../components/AppModal';
 
@@ -76,6 +76,17 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
   const pagoUploadingRef = useRef(false);
   const [pagoError,     setPagoError]     = useState('');
   const [pagoOk,        setPagoOk]        = useState(false);
+
+  // Datos generales de la empresa (nombre/sitio web/descripción) — solo
+  // encargado edita; rubro y correo corporativo los gestiona el equipo del evento.
+  const [empresaModal,  setEmpresaModal]  = useState(false);
+  const [empNombre,     setEmpNombre]     = useState('');
+  const [empSitioWeb,   setEmpSitioWeb]   = useState('');
+  const [empDescripcion, setEmpDescripcion] = useState('');
+  const [empSaving,     setEmpSaving]     = useState(false);
+  const empSavingRef = useRef(false);
+  const [empError,      setEmpError]      = useState('');
+  const [empOk,         setEmpOk]         = useState(false);
 
   // Ficha comercial (oferta / demanda / intereses) — solo encargado edita
   const [comercialModal,  setComercialModal]  = useState(false);
@@ -250,6 +261,43 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
     } finally {
       setSaving(false);
       savingRef.current = false;
+    }
+  };
+
+  const openEmpresa = () => {
+    setEmpNombre(empresa?.empresa?.nombre ?? '');
+    setEmpSitioWeb(empresa?.empresa?.sitioWeb ?? '');
+    setEmpDescripcion(empresa?.empresa?.descripcion ?? '');
+    setEmpError(''); setEmpOk(false);
+    setEmpresaModal(true);
+  };
+
+  const handleSaveEmpresa = async () => {
+    if (empSavingRef.current) return;
+    const errNom = validarNombreEmpresa(empNombre);
+    if (errNom) { setEmpError(errNom); return; }
+    empSavingRef.current = true;
+    setEmpError(''); setEmpSaving(true);
+    try {
+      const res = await fetch(`${API_URL}/empresa/ficha`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          euId: perfil?.empresaUsuarioId,
+          nombre: empNombre.trim(),
+          sitioWeb: empSitioWeb.trim(),
+          descripcion: empDescripcion.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || 'Error al guardar');
+      setEmpOk(true);
+      fetchAll();
+    } catch (e: any) {
+      setEmpError(e.message || 'Error de red');
+    } finally {
+      setEmpSaving(false);
+      empSavingRef.current = false;
     }
   };
 
@@ -620,9 +668,16 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
         {/* Empresa info */}
         {empresa && (
           <View style={s.section}>
-            <View style={s.sectionHeader}>
-              <Building2 size={16} color={GREEN} style={{ marginRight: 6 }} />
-              <Text style={s.sectionTitle}>Empresa</Text>
+            <View style={[s.sectionHeader, { justifyContent: 'space-between' }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Building2 size={16} color={GREEN} style={{ marginRight: 6 }} />
+                <Text style={s.sectionTitle}>Empresa</Text>
+              </View>
+              {esEncargado && (
+                <TouchableOpacity onPress={openEmpresa} style={s.editBtnSmall} activeOpacity={0.7}>
+                  <Edit3 size={13} color={GREEN} />
+                </TouchableOpacity>
+              )}
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14, padding: 10, borderRadius: 12, backgroundColor: '#f9fafb' }}>
               <View style={{ width: 64, height: 64, borderRadius: 12, overflow: 'hidden', backgroundColor: '#fff', borderWidth: 1, borderColor: '#e5e7eb', alignItems: 'center', justifyContent: 'center' }}>
@@ -640,9 +695,14 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
                 )}
               </View>
             </View>
-            <InfoRow label="Nombre"  value={empresa?.empresa?.nombre ?? '—'} />
-            <InfoRow label="Rubro"   value={empresa?.empresa?.rubro ?? '—'} />
-            <InfoRow label="Estado"  value={empresa?.estadoAcceso ?? empresa?.estadoPago ?? '—'} />
+            <InfoRow label="Nombre"      value={empresa?.empresa?.nombre ?? '—'} />
+            <InfoRow label="Rubro"       value={empresa?.empresa?.rubro ?? '—'} />
+            <InfoRow label="Sitio web"   value={empresa?.empresa?.sitioWeb || '—'} />
+            <InfoRow label="Descripción" value={empresa?.empresa?.descripcion || '—'} />
+            <InfoRow label="Estado"      value={empresa?.estadoAcceso ?? empresa?.estadoPago ?? '—'} />
+            {esEncargado && (
+              <Text style={s.hintText}>El rubro y el correo corporativo son gestionados por el equipo organizador.</Text>
+            )}
           </View>
         )}
 
@@ -889,6 +949,47 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
                 <TouchableOpacity style={[s.btnPrimary, saving && { opacity: 0.7 }]} onPress={handleSavePerfil} disabled={saving}>
                   {saving ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Guardar</Text>}
                 </TouchableOpacity>
+              </ScrollView>
+            )}
+          </View>
+        </View>
+        </KeyboardSafeView>
+      </Modal>
+
+      {/* Empresa (datos generales) modal */}
+      <Modal visible={empresaModal} animationType="slide" transparent statusBarTranslucent>
+        <KeyboardSafeView>
+        <View style={s.overlay}>
+          <View style={s.modalCard}>
+            <View style={s.modalHeader}>
+              <Text style={s.modalTitle}>Editar empresa</Text>
+              <TouchableOpacity onPress={() => setEmpresaModal(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <X size={22} color="#6b7280" />
+              </TouchableOpacity>
+            </View>
+            {empOk ? (
+              <View style={s.successBox}>
+                <Check size={40} color={GREEN} />
+                <Text style={s.successText}>Datos de la empresa actualizados</Text>
+                <TouchableOpacity style={s.btnPrimary} onPress={() => setEmpresaModal(false)}>
+                  <Text style={s.btnText}>Cerrar</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
+                {!!empError && <View style={s.errorBox}><Text style={s.errorText}>{empError}</Text></View>}
+                <Text style={s.label}>Nombre</Text>
+                <TextInput style={s.input} value={empNombre} onChangeText={(t) => setEmpNombre(t.slice(0, LIMITES.nombreEmpresa))} placeholder="Nombre de la empresa" placeholderTextColor="#9ca3af" />
+                <Text style={s.label}>Sitio web</Text>
+                <TextInput style={s.input} value={empSitioWeb} onChangeText={setEmpSitioWeb} placeholder="https://..." placeholderTextColor="#9ca3af" autoCapitalize="none" keyboardType="url" />
+                <Text style={s.label}>Descripción</Text>
+                <TextInput style={[s.input, s.textArea]} value={empDescripcion} onChangeText={(t) => setEmpDescripcion(t.slice(0, LIMITES.descripcion))} maxLength={LIMITES.descripcion}
+                  placeholder="Describe brevemente tu empresa..." placeholderTextColor="#9ca3af" multiline numberOfLines={3} />
+                <Text style={{ fontSize: 11, color: '#9ca3af', textAlign: 'right', marginTop: -6, marginBottom: 4 }}>{empDescripcion.length}/{LIMITES.descripcion}</Text>
+                <TouchableOpacity style={[s.btnPrimary, empSaving && { opacity: 0.7 }]} onPress={handleSaveEmpresa} disabled={empSaving}>
+                  {empSaving ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Guardar</Text>}
+                </TouchableOpacity>
+                <View style={{ height: 20 }} />
               </ScrollView>
             )}
           </View>
