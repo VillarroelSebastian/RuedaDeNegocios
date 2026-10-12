@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { Plus, X, Newspaper, Clock } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { permisoGaleria } from '../../utils/permisosMedia';
 import { API_URL, userStore } from '../../utils/userStore';
 import { useModal } from '../../components/AppModal';
 import ImagenLightbox from '../../components/ImagenLightbox';
@@ -59,7 +60,7 @@ export default function NoticiasScreen() {
   useEffect(() => { fetchNoticias(); }, []);
 
   const handlePickImage = async () => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    const perm = await permisoGaleria();
     if (!perm.granted) { show({ type: 'warning', title: 'Permiso requerido', message: 'Necesitamos acceso a tus fotos.' }); return; }
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: 'images', quality: 0.8 });
     if (!result.canceled && result.assets[0]) {

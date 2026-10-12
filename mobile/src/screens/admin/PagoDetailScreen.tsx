@@ -8,6 +8,7 @@ import { API_URL } from '../../utils/userStore';
 import { useModal } from '../../components/AppModal';
 import FichaEmpresaModal from '../../components/FichaEmpresaModal';
 import ImagenLightbox from '../../components/ImagenLightbox';
+import { abrirEnlace } from '../../utils/abrirEnlace';
 
 const GREEN = '#449D3A';
 
@@ -182,7 +183,7 @@ export default function PagoDetailScreen({ route, navigation }: any) {
                 />
               ) : (
                 <TouchableOpacity
-                  onPress={() => Linking.openURL(comprobante.urlComprobantePagoInscripcion)}
+                  onPress={() => abrirEnlace(comprobante.urlComprobantePagoInscripcion)}
                   className="flex-row items-center justify-center gap-2 py-2.5 border border-gray-200 rounded-xl"
                 >
                   <Download color={GREEN} size={16} />

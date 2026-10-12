@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { User, Lock, Camera, Save, LogOut, Mail, KeyRound, CheckCircle2, X, Eye, EyeOff, Send, CheckCircle, AlertCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { validarNombrePersona, validarTelefono } from '@/lib/validaciones';
+import EliminarCuenta from "@/components/EliminarCuenta";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
@@ -411,6 +412,7 @@ export default function TecnicoPerfilPage() {
               <LogOut className="w-4 h-4" />
               Cerrar sesión
             </button>
+            <EliminarCuenta />
           </div>
         </div>
       )}

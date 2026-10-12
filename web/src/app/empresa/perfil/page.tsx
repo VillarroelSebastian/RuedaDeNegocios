@@ -10,6 +10,7 @@ import {
 import ImagenLightbox from "@/components/ui/ImagenLightbox";
 import { LIMITES, validarNombreEmpresa, validarNombrePersona, validarTelefono } from "@/lib/validaciones";
 import { RUBROS } from "@/lib/rubros";
+import EliminarCuenta from "@/components/EliminarCuenta";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
@@ -1437,6 +1438,8 @@ export default function EmpresaPerfilPage() {
                 </button>
               </div>
             </div>
+
+            <EliminarCuenta />
           </>
         )}
       </div>

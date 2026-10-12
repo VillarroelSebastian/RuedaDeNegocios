@@ -15,6 +15,8 @@ import { LIMITES, correoValido, validarNombreEmpresa, limpiarEspacios, validarNo
 // Los rubros viven en ../constants/rubros para no repetirlos entre pantallas.
 
 import { RUBROS, RUBROS_CON_OTRO, OTRO } from '../constants/rubros';
+import { abrirEnlace } from '../utils/abrirEnlace';
+import { URL_PRIVACIDAD } from '../components/CuentaLegal';
 
 const SOUTH_AMERICA: Record<string, string[]> = {
   'Bolivia':   ['Trinidad','Beni','La Paz','Santa Cruz de la Sierra','Cochabamba','Sucre','Oruro','Potosí','Tarija','Cobija','Riberalta'],
@@ -750,7 +752,7 @@ function RegistroEmpresaScreen({ navigation, tipo = 'empresa' }: any) {
                   <View style={{ alignItems: 'center' }}>
                     {comprobanteEsPdf ? (
                       <TouchableOpacity
-                        onPress={() => Linking.openURL(comprobanteUrl)}
+                        onPress={() => abrirEnlace(comprobanteUrl)}
                         style={{ width: '100%', minHeight: 150, borderRadius: 12, backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center', padding: 20 }}
                       >
                         <Text style={{ fontSize: 38, marginBottom: 8 }}>📄</Text>
@@ -857,6 +859,13 @@ function RegistroEmpresaScreen({ navigation, tipo = 'empresa' }: any) {
                 </TouchableOpacity>
               )}
             </View>
+          )}
+
+          {step === 2 && (
+            <Text style={{ fontSize: 12, color: '#64748b', textAlign: 'center', marginTop: 4 }}>
+              Al enviar tu registro aceptas el tratamiento de tus datos según la{' '}
+              <Text style={{ color: '#449D3A', fontWeight: '700' }} onPress={() => abrirEnlace(URL_PRIVACIDAD)}>política de privacidad</Text>.
+            </Text>
           )}
 
           {/* ─── Navigation ─────────────────────────────────────── */}

@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { API_URL } from '../../utils/userStore';
 import { useModal } from '../../components/AppModal';
 import FechaHoraInput from '../../components/FechaHoraInput';
+import { abrirEnlace } from '../../utils/abrirEnlace';
 
 const GREEN = '#449D3A';
 
@@ -272,7 +273,7 @@ function ReunionRow({
               </TouchableOpacity>
             )}
             {esVirtual && link && (
-              <TouchableOpacity onPress={() => Linking.openURL(link)}
+              <TouchableOpacity onPress={() => abrirEnlace(link)}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 6,
                   paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, backgroundColor: '#2563eb' }}>
                 <Video color="#fff" size={12} />
@@ -280,7 +281,7 @@ function ReunionRow({
               </TouchableOpacity>
             )}
             {esPresencial && mapsUrl && (
-              <TouchableOpacity onPress={() => Linking.openURL(mapsUrl)}
+              <TouchableOpacity onPress={() => abrirEnlace(mapsUrl)}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 6,
                   paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, backgroundColor: '#059669' }}>
                 <MapPin color="#fff" size={12} />

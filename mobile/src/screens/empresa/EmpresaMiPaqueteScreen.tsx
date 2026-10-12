@@ -4,6 +4,7 @@ import {
   ActivityIndicator, RefreshControl, StyleSheet, Image,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { permisoGaleria } from '../../utils/permisosMedia';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   Package, Check, X as XIcon, Users, Armchair, Star, Globe,
@@ -74,7 +75,7 @@ export default function EmpresaMiPaqueteScreen() {
 
   const elegirComprobante = async () => {
     if (subiendoRef.current) return;
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    const perm = await permisoGaleria();
     if (!perm.granted) { show({ type: 'error', title: 'Permiso necesario', message: 'Se necesita permiso para acceder a la galería.' }); return; }
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.85 });
     if (result.canceled || !result.assets?.length) return;

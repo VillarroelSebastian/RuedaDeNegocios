@@ -1,8 +1,10 @@
 import { Platform, NativeModules } from 'react-native';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 
 const STORAGE_KEY = 'rueda_current_user';
+const TOKEN_KEY = 'rueda_session_token';
 const BACKEND_PORT = 3334;
 
 let currentUser: any = null;
@@ -61,12 +63,30 @@ global.fetch = ((input: any, init: RequestInit = {}) => {
     .finally(() => clearTimeout(timer));
 }) as typeof fetch;
 
+// El token de sesión vive en el almacén cifrado del sistema (Keystore); el resto
+// del perfil, en AsyncStorage. Si el almacén seguro no está disponible se usa
+// AsyncStorage para no dejar al usuario sin poder iniciar sesión.
+async function guardarToken(token: string) {
+  try { await SecureStore.setItemAsync(TOKEN_KEY, token); await AsyncStorage.removeItem(TOKEN_KEY); }
+  catch { await AsyncStorage.setItem(TOKEN_KEY, token); }
+}
+async function leerToken(): Promise<string | null> {
+  try { const t = await SecureStore.getItemAsync(TOKEN_KEY); if (t) return t; } catch {}
+  return AsyncStorage.getItem(TOKEN_KEY);
+}
+async function borrarToken() {
+  try { await SecureStore.deleteItemAsync(TOKEN_KEY); } catch {}
+  await AsyncStorage.removeItem(TOKEN_KEY);
+}
+
 export const userStore = {
   subscribe: (fn: () => void) => { listeners.add(fn); return () => { listeners.delete(fn); }; },
   set: async (user: any) => {
     currentUser = user;
     notify();
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+    const { token, ...resto } = user ?? {};
+    if (token) await guardarToken(String(token));
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(resto));
   },
   get: () => currentUser,
   isSessionActive: (token: string) => !loggingOut && currentUser?.token === token && sessionExpiry(currentUser) > Date.now(),
@@ -79,6 +99,7 @@ export const userStore = {
       currentUser = null;
       notify();
       await AsyncStorage.removeItem(STORAGE_KEY);
+      await borrarToken();
     })().finally(() => { loggingOut = false; logoutTask = null; });
     return logoutTask;
   },
@@ -87,9 +108,19 @@ export const userStore = {
       const stored = await AsyncStorage.getItem(STORAGE_KEY);
       if (stored) {
         const user = JSON.parse(stored);
+        // Sesiones guardadas por versiones anteriores traen el token dentro del
+        // JSON: se migra al almacén seguro la primera vez.
+        const tokenSeguro = await leerToken();
+        if (tokenSeguro) user.token = tokenSeguro;
+        else if (user.token) {
+          await guardarToken(String(user.token));
+          const { token: _migrado, ...sinToken } = user;
+          await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(sinToken));
+        }
         const expiry = sessionExpiry(user);
         if (!user.token || !expiry || expiry <= Date.now()) {
           await AsyncStorage.removeItem(STORAGE_KEY);
+          await borrarToken();
           return null;
         }
         currentUser = user;
@@ -97,7 +128,7 @@ export const userStore = {
         return user;
       }
     } catch (e) {
-      console.warn('[userStore] AsyncStorage load error:', e);
+      if (__DEV__) console.warn('[userStore] AsyncStorage load error:', e);
     }
     return null;
   },

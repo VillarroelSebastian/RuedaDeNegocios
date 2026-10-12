@@ -546,6 +546,7 @@ export default function HomePage() {
               <a href="#sobre" className="hover:text-white transition-colors">Sobre el Evento</a>
               <a href="#actividades" className="hover:text-white transition-colors">Actividades</a>
               <a href="#contacto" className="hover:text-white transition-colors">Contacto</a>
+              <Link href="/privacidad" className="hover:text-white transition-colors">Privacidad</Link>
               <Link href="/auth/login" className="hover:text-white transition-colors">Admin</Link>
             </div>
           </div>

@@ -7,8 +7,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import KeyboardSafeView from '../../components/KeyboardSafeView';
 import { UserCircle, Lock, LogOut, Eye, EyeOff, Shield, Camera } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { permisoGaleria } from '../../utils/permisosMedia';
 import { API_URL, userStore } from '../../utils/userStore';
 import { validarNombrePersona, validarTelefono } from '../../utils/validaciones';
+import CuentaLegal from '../../components/CuentaLegal';
 
 const GREEN = '#449D3A';
 
@@ -100,7 +102,7 @@ export default function TecnicoPerfilScreen({ navigation }: any) {
 
   // ── Pick & upload photo ──
   const handlePickPhoto = async () => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    const perm = await permisoGaleria();
     if (!perm.granted) {
       setModal({ visible: true, type: 'error', title: 'Permiso denegado', message: 'Necesitamos acceso a tu galería para cambiar la foto.' });
       return;
@@ -438,6 +440,8 @@ export default function TecnicoPerfilScreen({ navigation }: any) {
             <Text style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>Salir de tu cuenta de técnico</Text>
           </View>
         </TouchableOpacity>
+
+        <CuentaLegal />
 
         <View style={{ height: 30 }} />
       </ScrollView>

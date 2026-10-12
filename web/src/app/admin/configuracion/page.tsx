@@ -4,6 +4,7 @@ import { User, Lock, Camera, Save, LogOut, Mail, KeyRound, CheckCircle2, X, Eye,
 import { useRouter } from 'next/navigation';
 import { useModal } from '@/components/ui/Modal';
 import { validarNombrePersona, validarTelefono } from '@/lib/validaciones';
+import EliminarCuenta from "@/components/EliminarCuenta";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
@@ -381,6 +382,7 @@ export default function ConfiguracionPage() {
               <LogOut className="w-4 h-4" />
               Cerrar sesión
             </button>
+            <EliminarCuenta />
           </div>
         </div>
       )}

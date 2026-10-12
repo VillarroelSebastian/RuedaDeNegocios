@@ -16,6 +16,9 @@
     },
     "production": {
       "autoIncrement": true,
+      "android": {
+        "buildType": "app-bundle"
+      },
       "environment": "production",
       "env": {
         "EXPO_PUBLIC_API_URL": "https://app.ruedadenegocios.univalle.edu/api"

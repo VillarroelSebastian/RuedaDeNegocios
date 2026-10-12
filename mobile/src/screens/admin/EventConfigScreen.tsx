@@ -10,6 +10,7 @@ import {
   Search, X,
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { permisoGaleria } from '../../utils/permisosMedia';
 import { API_URL } from '../../utils/userStore';
 import { useModal } from '../../components/AppModal';
 import FechaHoraInput from '../../components/FechaHoraInput';
@@ -165,7 +166,7 @@ export default function EventConfigScreen({ navigation }: any) {
 
   // ── Subir imagen al servidor ─────────────────────────────────────────────────
   const handlePickImage = async (fieldKey: string, qrIndex?: number) => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    const perm = await permisoGaleria();
     if (!perm.granted) {
       show({ type: 'warning', title: 'Permiso requerido', message: 'Necesitamos acceso a tus fotos.' });
       return;

@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '../../utils/userStore';
 import { useModal } from '../../components/AppModal';
+import { abrirEnlace } from '../../utils/abrirEnlace';
 
 const CANCELADAS_VISTA_KEY = 'rueda_virtuales_canceladas_vista_at';
 
@@ -141,7 +142,7 @@ function VirtualCard({ r, acting, onEditLink, onMessage, onCambiarEstado }: {
 
         {enlaceOperativo && (link ? (
           <TouchableOpacity
-            onPress={() => Linking.openURL(link)}
+            onPress={() => abrirEnlace(link)}
             style={{
               flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
               gap: 8, marginTop: 12, paddingVertical: 10, borderRadius: 12,

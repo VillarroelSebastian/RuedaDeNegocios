@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { permisoGaleria } from '../utils/permisosMedia';
 import { ArrowDown, Pencil, Plus, Trash2, Upload, X } from 'lucide-react-native';
 import { API_URL } from '../utils/userStore';
 import { useModal } from './AppModal';
@@ -40,7 +41,7 @@ export default function FlujoEmpresaMobile({ paquetes, eventoId, tarjeta }: { pa
   };
 
   const elegirQR = async () => {
-    const permiso = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    const permiso = await permisoGaleria();
     if (!permiso.granted) return show({ type: 'warning', title: 'Permiso requerido', message: 'Se necesita acceso a las fotos para seleccionar el QR.' });
     const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: 'images', quality: 0.9 });
     if (r.canceled) return;

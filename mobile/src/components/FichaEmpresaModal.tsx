@@ -3,6 +3,7 @@ import { ActivityIndicator, Linking, Modal, ScrollView, Text, TouchableOpacity, 
 import { Building2, ExternalLink, X } from 'lucide-react-native';
 import { API_URL } from '../utils/userStore';
 import ImagenLightbox from './ImagenLightbox';
+import { abrirEnlace } from '../utils/abrirEnlace';
 
 const GREEN = '#449D3A';
 
@@ -90,7 +91,7 @@ export default function FichaEmpresaModal({ empresaId, onClose }: { empresaId: n
                   <Dato label="Qué busca" value={datos.demanda} />
                   <Dato label="Sectores de interés" value={datos.interesesBusqueda} />
                   {!!datos.urlPdf && (
-                    <TouchableOpacity onPress={() => Linking.openURL(datos.urlPdf)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12 }}>
+                    <TouchableOpacity onPress={() => abrirEnlace(datos.urlPdf)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12 }}>
                       <ExternalLink color={GREEN} size={15} />
                       <Text style={{ color: GREEN, fontSize: 13, fontWeight: '700' }}>Abrir documento de la empresa</Text>
                     </TouchableOpacity>
@@ -113,7 +114,7 @@ export default function FichaEmpresaModal({ empresaId, onClose }: { empresaId: n
                     <View key={c.id} style={{ flexDirection: 'row', gap: 12, alignItems: 'center', paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
                       {!!c.url && (/\.(jpg|jpeg|png|webp)$/i.test(c.url)
                         ? <ImagenLightbox uri={c.url} style={{ width: 58, height: 58, borderRadius: 10, backgroundColor: '#f1f5f9' }} />
-                        : <TouchableOpacity onPress={() => Linking.openURL(c.url)}><ExternalLink color={GREEN} size={22} /></TouchableOpacity>)}
+                        : <TouchableOpacity onPress={() => abrirEnlace(c.url)}><ExternalLink color={GREEN} size={22} /></TouchableOpacity>)}
                       <View style={{ flex: 1 }}>
                         <Text style={{ fontSize: 13, fontWeight: '700', color: '#1f2937' }}>{c.tipoPago === 'ADICIONAL' ? 'Cupos adicionales' : 'Inscripción'}</Text>
                         <Text style={{ fontSize: 11, color: '#64748b' }}>{[c.estadoPago, c.montoPago != null ? `Bs. ${c.montoPago}` : null].filter(Boolean).join(' · ')}</Text>

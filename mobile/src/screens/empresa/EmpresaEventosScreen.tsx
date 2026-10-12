@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { CalendarDays, Clock, MapPin, AlertCircle, Bell, ExternalLink, Megaphone } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
+import { abrirEnlace } from '../../utils/abrirEnlace';
 
 const GREEN = '#449D3A';
 
@@ -155,8 +156,8 @@ export default function EmpresaEventosScreen() {
                 <Text style={{ color: '#b91c1c', fontSize: 13, fontWeight: '700', marginTop: 6 }}>⚠ {item.notaEnVivo}</Text>
               )}
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
-                {!!item.linkReunionVirtual && <TouchableOpacity onPress={() => Linking.openURL(item.linkReunionVirtual)} style={{ backgroundColor: GREEN, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, flexDirection: 'row', gap: 6 }}><ExternalLink size={14} color="#fff"/><Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>Ver transmisión</Text></TouchableOpacity>}
-                {!!item.ubicacionGoogleMapsPresencial && <TouchableOpacity onPress={() => Linking.openURL(item.ubicacionGoogleMapsPresencial)} style={{ backgroundColor: '#f1f5f9', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, flexDirection: 'row', gap: 6 }}><MapPin size={14} color="#374151"/><Text style={{ color: '#374151', fontSize: 12, fontWeight: '700' }}>Cómo llegar</Text></TouchableOpacity>}
+                {!!item.linkReunionVirtual && <TouchableOpacity onPress={() => abrirEnlace(item.linkReunionVirtual)} style={{ backgroundColor: GREEN, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, flexDirection: 'row', gap: 6 }}><ExternalLink size={14} color="#fff"/><Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>Ver transmisión</Text></TouchableOpacity>}
+                {!!item.ubicacionGoogleMapsPresencial && <TouchableOpacity onPress={() => abrirEnlace(item.ubicacionGoogleMapsPresencial)} style={{ backgroundColor: '#f1f5f9', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, flexDirection: 'row', gap: 6 }}><MapPin size={14} color="#374151"/><Text style={{ color: '#374151', fontSize: 12, fontWeight: '700' }}>Cómo llegar</Text></TouchableOpacity>}
                 {puedeSuscribirse && (
                   <TouchableOpacity onPress={() => suscribir(item)} disabled={suscribiendoId === item.id} style={{ backgroundColor: item.suscrito ? '#fef3c7' : '#f1f5f9', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, flexDirection: 'row', gap: 6 }}><Bell size={14} color={item.suscrito ? '#92400e' : '#475569'}/><Text style={{ color: item.suscrito ? '#92400e' : '#475569', fontSize: 12, fontWeight: '700' }}>{item.suscrito ? 'Suscrito' : 'Suscribirme'}</Text></TouchableOpacity>
                 )}

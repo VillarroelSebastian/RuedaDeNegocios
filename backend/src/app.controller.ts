@@ -790,6 +790,55 @@ export class AppController implements OnModuleInit {
     };
   }
 
+  // ─── CUENTA (requisito de Google Play: eliminación dentro de la app) ───────
+
+  // Baja lógica de la propia cuenta, confirmada con la contraseña. Se conservan
+  // los registros del evento (pagos, reuniones, resultados) por su valor
+  // histórico; la persona deja de poder ingresar y se revocan sus dispositivos.
+  @Post('cuenta/eliminar')
+  async eliminarMiCuenta(@Req() req: any, @Body() body: { contrasenia?: string }) {
+    const usuarioId = Number(req.user?.sub);
+    const usuario = await this.prisma.usuario.findFirst({ where: { id: usuarioId, estaActivo: 1 } });
+    if (!usuario) throw new UnauthorizedException('La cuenta ya no está habilitada.');
+    const contrasenia = String(body?.contrasenia ?? '');
+    const tieneHash = /^\$2[aby]\$/.test(usuario.contrasenia);
+    const valida = tieneHash ? await bcrypt.compare(contrasenia, usuario.contrasenia) : contrasenia === usuario.contrasenia;
+    if (!contrasenia || !valida) throw new BadRequestException('La contraseña no es correcta.');
+
+    const contacto = 'Escribe al equipo del evento para que lo gestione.';
+    if (usuario.rolEvento === 'ADMINISTRADOR') {
+      const otros = await this.prisma.usuario.count({ where: { rolEvento: 'ADMINISTRADOR', estaActivo: 1, id: { not: usuarioId } } });
+      if (otros === 0) throw new BadRequestException(`Eres el único administrador del sistema y no puedes eliminar tu cuenta. ${contacto}`);
+    }
+    const vinculos = await this.prisma.empresa_usuario.findMany({
+      where: { usuario_id: usuarioId, estaActivo: 1 },
+      select: { id: true, esResponsable: true, empresaevento_id: true, empresaevento: { select: { empresa: { select: { nombre: true } } } } },
+    });
+    for (const v of vinculos.filter((x) => x.esResponsable === 1)) {
+      const otros = await this.prisma.empresa_usuario.count({
+        where: { empresaevento_id: v.empresaevento_id, estaActivo: 1, usuario_id: { not: usuarioId } },
+      });
+      if (otros > 0)
+        throw new BadRequestException(`Eres el encargado de ${v.empresaevento.empresa.nombre} y la empresa tiene más participantes. Primero hay que reasignar el encargado. ${contacto}`);
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.empresa_usuario.updateMany({ where: { usuario_id: usuarioId, estaActivo: 1 }, data: { estaActivo: 0 } });
+      await tx.pushsubscription.updateMany({ where: { usuarioId }, data: { estaActivo: 0 } });
+      await tx.usuario.update({ where: { id: usuarioId }, data: { estaActivo: 0, creadoModificadoFecha: new Date() } });
+    });
+    return { ok: true };
+  }
+
+  // Errores no controlados de la app móvil (sesión iniciada): quedan en el log
+  // del servidor para poder diagnosticar fallos de usuarios reales.
+  @Post('app/error-log')
+  async registrarErrorApp(@Req() req: any, @Body() body: { mensaje?: string; pila?: string; pantalla?: string; version?: string; plataforma?: string }) {
+    const corto = (v: any, n: number) => String(v ?? '').slice(0, n);
+    console.error(`[AppMovil] usuario=${Number(req.user?.sub)} rol=${req.user?.role} v=${corto(body?.version, 20)} ${corto(body?.plataforma, 40)} pantalla=${corto(body?.pantalla, 80)} :: ${corto(body?.mensaje, 400)}\n${corto(body?.pila, 1500)}`);
+    return { ok: true };
+  }
+
   // ─── AUTH ───────────────────────────────────────────────────────────────────
 
   @Post('auth/login')
@@ -893,7 +942,7 @@ export class AppController implements OnModuleInit {
       eeIds: memberships.map((m) => m.empresaevento_id), euIds: memberships.map((m) => m.id) });
     return {
       token,
-      sessionExpiresAt: Date.now() + 24 * 60 * 60 * 1000,
+      sessionExpiresAt: Date.now() + 72 * 60 * 60 * 1000,
       id: user.id,
       correo: user.correo,
       nombres: user.nombres,

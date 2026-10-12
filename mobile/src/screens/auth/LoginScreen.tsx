@@ -11,6 +11,8 @@ import { Mail, Lock, Eye, EyeOff, X, KeyRound, CheckCircle } from 'lucide-react-
 import { API_URL, userStore } from '../../utils/userStore';
 import { correoValido, sinEspacios } from '../../utils/validaciones';
 import KeyboardSafeView from '../../components/KeyboardSafeView';
+import { abrirEnlace } from '../../utils/abrirEnlace';
+import { URL_PRIVACIDAD } from '../../components/CuentaLegal';
 
 const GREEN  = '#449D3A';
 const GREEN2 = '#166534';
@@ -243,6 +245,9 @@ export default function LoginScreen({ navigation }: any) {
 
             <TouchableOpacity onPress={openReset} activeOpacity={0.7} style={{ marginTop: 16, alignSelf: 'center' }}>
               <Text style={{ color: '#449D3A', fontSize: 13, fontWeight: '600' }}>¿Olvidaste tu contraseña?</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => abrirEnlace(URL_PRIVACIDAD)} activeOpacity={0.7} style={{ marginTop: 12, alignSelf: 'center' }}>
+              <Text style={{ color: '#64748b', fontSize: 12 }}>Política de privacidad</Text>
             </TouchableOpacity>
           </View>
 

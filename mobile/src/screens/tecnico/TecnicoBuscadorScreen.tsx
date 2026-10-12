@@ -12,6 +12,7 @@ import EnviarMensajeEmpresaModal from '../../components/EnviarMensajeEmpresaModa
 import ImagenLightbox from '../../components/ImagenLightbox';
 import { ParticipantesModal } from '../admin/EmpresasScreen';
 import PerfilEmpresaStaffModal from '../../components/PerfilEmpresaStaffModal';
+import { abrirEnlace } from '../../utils/abrirEnlace';
 
 const GREEN = '#449D3A';
 
@@ -108,7 +109,7 @@ function AgendaItem({ r, empresaId }: { r: any; empresaId: number }) {
         {new Date(r.fechaHoraInicioReunion).toLocaleString('es-BO', { timeZone: 'America/La_Paz' })} · {r.mesa ? `Mesa ${r.mesa.numeroMesa}` : r.tipoReunion}
       </Text>
       {link && (
-        <TouchableOpacity onPress={() => Linking.openURL(link)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#2563eb', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginTop: 8, alignSelf: 'flex-start' }}>
+        <TouchableOpacity onPress={() => abrirEnlace(link)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#2563eb', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginTop: 8, alignSelf: 'flex-start' }}>
           <Video size={13} color="#fff" /><Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>Virtual</Text>
         </TouchableOpacity>
       )}
@@ -211,7 +212,7 @@ function ReunionCard({ r }: { r: any }) {
       {expanded && ((esVirtual && link) || (esPresencial && mapsUrl)) && (
         <View style={{ borderTopWidth:1, borderTopColor:'#f3f4f6', padding:12, gap:8 }}>
           {esVirtual && link && (
-            <TouchableOpacity onPress={() => Linking.openURL(link)}
+            <TouchableOpacity onPress={() => abrirEnlace(link)}
               style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:8,
                 paddingVertical:9, borderRadius:10, backgroundColor:'#2563eb' }}>
               <Video color="#fff" size={13} />
@@ -219,7 +220,7 @@ function ReunionCard({ r }: { r: any }) {
             </TouchableOpacity>
           )}
           {esPresencial && mapsUrl && (
-            <TouchableOpacity onPress={() => Linking.openURL(mapsUrl)}
+            <TouchableOpacity onPress={() => abrirEnlace(mapsUrl)}
               style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:8,
                 paddingVertical:9, borderRadius:10, backgroundColor:'#059669' }}>
               <MapPin color="#fff" size={13} />

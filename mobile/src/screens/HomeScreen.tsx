@@ -6,6 +6,7 @@ import {
 import { Calendar, MapPin, Phone, Mail, Users, LayoutGrid, Layers, Building2 } from 'lucide-react-native';
 import { API_URL } from '../utils/userStore';
 import ImagenLightbox from '../components/ImagenLightbox';
+import { abrirEnlace } from '../utils/abrirEnlace';
 
 // ─── Paleta ────────────────────────────────────────────────────────────────
 const C = {
@@ -358,7 +359,7 @@ export default function HomeScreen({ navigation }: any) {
           </Text>
 
           {evento.telefonoContacto && (
-            <TouchableOpacity style={s.contactCard} onPress={() => Linking.openURL(`tel:${evento.telefonoContacto}`)} activeOpacity={0.8}>
+            <TouchableOpacity style={s.contactCard} onPress={() => abrirEnlace(`tel:${evento.telefonoContacto}`)} activeOpacity={0.8}>
               <View style={[s.contactIcon, { backgroundColor: C.green100 }]}>
                 <Phone size={20} color={C.green700} />
               </View>
@@ -371,7 +372,7 @@ export default function HomeScreen({ navigation }: any) {
           )}
 
           {evento.correoContacto && (
-            <TouchableOpacity style={s.contactCard} onPress={() => Linking.openURL(`mailto:${evento.correoContacto}`)} activeOpacity={0.8}>
+            <TouchableOpacity style={s.contactCard} onPress={() => abrirEnlace(`mailto:${evento.correoContacto}`)} activeOpacity={0.8}>
               <View style={[s.contactIcon, { backgroundColor: C.blue100 }]}>
                 <Mail size={20} color={C.blue700} />
               </View>
@@ -400,22 +401,22 @@ export default function HomeScreen({ navigation }: any) {
           {(evento.enlaceFacebook || evento.enlaceInstagram || evento.enlaceLinkedIn || evento.enlaceTiktok) && (
             <View style={s.socialRow}>
               {evento.enlaceFacebook && (
-                <TouchableOpacity style={[s.socialBtn, { backgroundColor: '#1877f2' }]} onPress={() => Linking.openURL(evento.enlaceFacebook!)} activeOpacity={0.85}>
+                <TouchableOpacity style={[s.socialBtn, { backgroundColor: '#1877f2' }]} onPress={() => abrirEnlace(evento.enlaceFacebook!)} activeOpacity={0.85}>
                   <Text style={s.socialBtnText}>f</Text>
                 </TouchableOpacity>
               )}
               {evento.enlaceInstagram && (
-                <TouchableOpacity style={[s.socialBtn, { backgroundColor: '#e1306c' }]} onPress={() => Linking.openURL(evento.enlaceInstagram!)} activeOpacity={0.85}>
+                <TouchableOpacity style={[s.socialBtn, { backgroundColor: '#e1306c' }]} onPress={() => abrirEnlace(evento.enlaceInstagram!)} activeOpacity={0.85}>
                   <Text style={s.socialBtnText}>ig</Text>
                 </TouchableOpacity>
               )}
               {evento.enlaceLinkedIn && (
-                <TouchableOpacity style={[s.socialBtn, { backgroundColor: '#0A66C2' }]} onPress={() => Linking.openURL(evento.enlaceLinkedIn!)} activeOpacity={0.85}>
+                <TouchableOpacity style={[s.socialBtn, { backgroundColor: '#0A66C2' }]} onPress={() => abrirEnlace(evento.enlaceLinkedIn!)} activeOpacity={0.85}>
                   <Text style={s.socialBtnText}>in</Text>
                 </TouchableOpacity>
               )}
               {evento.enlaceTiktok && (
-                <TouchableOpacity style={[s.socialBtn, { backgroundColor: C.gray900 }]} onPress={() => Linking.openURL(evento.enlaceTiktok!)} activeOpacity={0.85}>
+                <TouchableOpacity style={[s.socialBtn, { backgroundColor: C.gray900 }]} onPress={() => abrirEnlace(evento.enlaceTiktok!)} activeOpacity={0.85}>
                   <Text style={s.socialBtnText}>tt</Text>
                 </TouchableOpacity>
               )}

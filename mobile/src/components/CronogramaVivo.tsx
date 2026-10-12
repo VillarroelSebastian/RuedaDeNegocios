@@ -5,6 +5,7 @@ import {
   Radio, Clock, MapPin, User, CheckCircle2, Play, Square, ExternalLink, Megaphone,
 } from 'lucide-react-native';
 import { API_URL, userStore } from '../utils/userStore';
+import { abrirEnlace } from '../utils/abrirEnlace';
 
 // Mismo diseño y comportamiento que web/src/components/CronogramaVivo.tsx —
 // se mantienen ambos alineados a propósito (misma grilla de estados, mismos
@@ -185,12 +186,12 @@ export default function CronogramaVivo({
               {!!a.notaEnVivo && <Text className="text-sm text-red-700 font-semibold mt-1">⚠ {a.notaEnVivo}</Text>}
               <View className="flex-row flex-wrap gap-2 mt-2">
                 {!!a.linkReunionVirtual && (
-                  <TouchableOpacity onPress={() => Linking.openURL(a.linkReunionVirtual)} className="flex-row items-center gap-1.5 rounded-lg bg-[#449D3A] px-3 py-2">
+                  <TouchableOpacity onPress={() => abrirEnlace(a.linkReunionVirtual)} className="flex-row items-center gap-1.5 rounded-lg bg-[#449D3A] px-3 py-2">
                     <ExternalLink color="#fff" size={13} /><Text className="text-white text-xs font-bold">Ver transmisión</Text>
                   </TouchableOpacity>
                 )}
                 {!!a.ubicacionGoogleMapsPresencial && (
-                  <TouchableOpacity onPress={() => Linking.openURL(a.ubicacionGoogleMapsPresencial)} className="flex-row items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-2">
+                  <TouchableOpacity onPress={() => abrirEnlace(a.ubicacionGoogleMapsPresencial)} className="flex-row items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-2">
                     <MapPin color="#374151" size={13} /><Text className="text-gray-700 text-xs font-bold">Cómo llegar</Text>
                   </TouchableOpacity>
                 )}
@@ -248,7 +249,7 @@ export default function CronogramaVivo({
                     {!!a.notaEnVivo && <Text className="text-xs text-red-600 font-semibold mt-1.5">⚠ {a.notaEnVivo}</Text>}
                     {!!a.descripcionActividad && <Text className="text-sm text-gray-600 mt-2">{a.descripcionActividad}</Text>}
                     {!!a.linkReunionVirtual && (
-                      <TouchableOpacity onPress={() => Linking.openURL(a.linkReunionVirtual)} className="mt-3 flex-row items-center gap-1.5 bg-[#449D3A] rounded-lg px-3 py-2 self-start">
+                      <TouchableOpacity onPress={() => abrirEnlace(a.linkReunionVirtual)} className="mt-3 flex-row items-center gap-1.5 bg-[#449D3A] rounded-lg px-3 py-2 self-start">
                         <ExternalLink color="#fff" size={14} /><Text className="text-white text-xs font-bold">Ver transmisión</Text>
                       </TouchableOpacity>
                     )}

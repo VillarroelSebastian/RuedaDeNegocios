@@ -14,6 +14,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { useFocusEffect } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
+import { permisoGaleria } from '../../utils/permisosMedia';
 import { Camera, Images, X, Trash2, Star, Building2, Wrench } from "lucide-react-native";
 import { API_URL, userStore } from "../../utils/userStore";
 import { useModal } from "../../components/AppModal";
@@ -136,7 +137,7 @@ export default function TecnicoGaleriaScreen() {
     const permiso =
       origen === "camara"
         ? await ImagePicker.requestCameraPermissionsAsync()
-        : await ImagePicker.requestMediaLibraryPermissionsAsync();
+        : await permisoGaleria();
     if (!permiso.granted)
       return show({
         type: "warning",

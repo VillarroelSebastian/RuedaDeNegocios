@@ -13,6 +13,7 @@ import {
 import { API_URL, userStore } from '../../utils/userStore';
 
 import NotificationBell from '../../components/NotificationBell';
+import { abrirEnlace } from '../../utils/abrirEnlace';
 
 const GREEN = '#449D3A';
 
@@ -120,7 +121,7 @@ function ReunionCard({ r, onEstadoChange }: { r: any; onEstadoChange: (id: numbe
       {(esVirtual && link) || (esPresencial && mapsUrl) ? (
         <View style={{ borderTopWidth:1, borderTopColor:'#f3f4f6', padding:12, gap:8 }}>
           {esVirtual && link && (
-            <TouchableOpacity onPress={() => Linking.openURL(link)}
+            <TouchableOpacity onPress={() => abrirEnlace(link)}
               style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:8,
                 paddingVertical:9, borderRadius:11, backgroundColor:'#2563eb' }}>
               <Video color="#fff" size={13} />
@@ -128,7 +129,7 @@ function ReunionCard({ r, onEstadoChange }: { r: any; onEstadoChange: (id: numbe
             </TouchableOpacity>
           )}
           {esPresencial && mapsUrl && (
-            <TouchableOpacity onPress={() => Linking.openURL(mapsUrl)}
+            <TouchableOpacity onPress={() => abrirEnlace(mapsUrl)}
               style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:8,
                 paddingVertical:9, borderRadius:11, backgroundColor:'#059669' }}>
               <MapPin color="#fff" size={13} />

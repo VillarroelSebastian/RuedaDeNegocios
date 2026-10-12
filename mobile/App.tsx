@@ -15,7 +15,8 @@ import RegistroScreen   from './src/screens/RegistroScreen';
 import AdminNavigator   from './src/navigation/AdminNavigator';
 import TecnicoNavigator from './src/navigation/TecnicoNavigator';
 import EmpresaNavigator from './src/navigation/EmpresaNavigator';
-import { userStore, API_URL, sessionExpiry } from './src/utils/userStore';
+import { userStore, sessionExpiry } from './src/utils/userStore';
+import { reportarError, instalarManejadorGlobal } from './src/utils/errorLog';
 import { rutaDeNotifMobile } from './src/hooks/useNotificaciones';
 
 const Stack = createNativeStackNavigator();
@@ -82,7 +83,7 @@ class AppErrorBoundary extends Component<{ children: React.ReactNode }, EBState>
     return { hasError: true, errorMsg: error?.message ?? String(error) };
   }
   componentDidCatch(error: any, info: any) {
-    console.error('[ErrorBoundary]', error, info?.componentStack);
+    reportarError(error, 'ErrorBoundary', String(info?.componentStack ?? ''));
   }
   render() {
     if (this.state.hasError) {
@@ -119,7 +120,7 @@ export default function App() {
   const [initialRoute, setInitialRoute] = useState<string>('Login');
 
   useEffect(() => {
-    console.log('[App] API_URL =', API_URL);
+    instalarManejadorGlobal();
 
     let didFinish = false;
     const finish = (route: string) => {
@@ -131,7 +132,7 @@ export default function App() {
 
     // Safety timeout: si AsyncStorage no responde en 6s mostramos Login
     const timer = setTimeout(() => {
-      console.warn('[App] Session restore timed out (6s) — showing Login');
+      if (__DEV__) console.warn('[App] Session restore timed out (6s) — showing Login');
       userStore.clear();
       finish('Login');
     }, 6000);
@@ -141,13 +142,12 @@ export default function App() {
         clearTimeout(timer);
         const role: string | undefined = user?.rolEvento;
         if (user?.id && role && VALID_ROLES.includes(role)) {
-          console.log('[App] Session restored. id:', user.id, 'role:', role);
           if (role === 'ADMINISTRADOR')  finish('AdminRoot');
           else if (role === 'TECNICO' || role === 'TECNICO_EVENTOS') finish('TecnicoRoot');
           else finish('EmpresaRoot');
         } else {
           if (user) {
-            console.warn('[App] Stored session invalid (role:', role, ') — clearing');
+            if (__DEV__) console.warn('[App] Stored session invalid (role:', role, ') — clearing');
             userStore.clear();
           }
           finish('Login');
@@ -155,7 +155,7 @@ export default function App() {
       })
       .catch((err) => {
         clearTimeout(timer);
-        console.error('[App] Session load error:', err);
+        reportarError(err, 'restaurar-sesion');
         userStore.clear();
         finish('Login');
       });

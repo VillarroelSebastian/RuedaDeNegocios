@@ -23,7 +23,7 @@ import { NotificacionesController } from './notificaciones/notificaciones.contro
     ConfigModule.forRoot({ isGlobal: true }),
     // 24 horas: la sesión debe seguir activa para que sigan llegando notificaciones
     // push sin forzar un re-login constante durante el evento.
-    JwtModule.register({ global: true, secret: process.env.JWT_SECRET || 'development-only-change-me', signOptions: { expiresIn: '24h' } }),
+    JwtModule.register({ global: true, secret: process.env.JWT_SECRET || 'development-only-change-me', signOptions: { expiresIn: '72h' } }),
     PrismaModule,
     PushModule,
     ImagenesModule,

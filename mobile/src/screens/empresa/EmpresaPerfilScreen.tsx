@@ -8,6 +8,7 @@ import KeyboardSafeView from '../../components/KeyboardSafeView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
+import { permisoGaleria } from '../../utils/permisosMedia';
 import {
   User, Building2, LogOut, Edit3, UserPlus, UserX,
   ShieldCheck, Users, CreditCard, AlertCircle, Check, X, Upload,
@@ -17,6 +18,8 @@ import { API_URL, userStore } from '../../utils/userStore';
 import { LIMITES, validarNombreEmpresa, validarNombrePersona, validarTelefono } from '../../utils/validaciones';
 import { RUBROS } from '../../constants/rubros';
 import { useModal } from '../../components/AppModal';
+import { abrirEnlace } from '../../utils/abrirEnlace';
+import CuentaLegal from '../../components/CuentaLegal';
 
 const GREEN = '#449D3A';
 
@@ -115,7 +118,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
   // Selecciona una foto de la galería, la sube y la guarda como foto de perfil.
   const cambiarFoto = async () => {
     if (subiendoFotoRef.current) return;
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    const perm = await permisoGaleria();
     if (!perm.granted) { setError('Se necesita permiso para acceder a la galería.'); return; }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -159,7 +162,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
   const cambiarFotoEmpresa = async () => {
     if (subiendoLogoRef.current) return;
     if (!perfil?.esResponsable) return;
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    const perm = await permisoGaleria();
     if (!perm.granted) { setError('Se necesita permiso para acceder a la galería.'); return; }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -462,7 +465,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
 
   const pickComprobante = async () => {
     if (pagoUploadingRef.current) return;
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    const perm = await permisoGaleria();
     if (!perm.granted) { setPagoError('Se necesita permiso para acceder a la galería.'); return; }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -656,7 +659,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
                 {!!perfil?.evento && (
                   <Text style={s.credEvento}>{perfil.evento.nombre} {perfil.evento.edicion}</Text>
                 )}
-                <TouchableOpacity onPress={() => Linking.openURL(perfil.urlCredencialQR)} activeOpacity={0.75} style={[s.credDownloadBtn, { backgroundColor: bgCred }]}>
+                <TouchableOpacity onPress={() => abrirEnlace(perfil.urlCredencialQR)} activeOpacity={0.75} style={[s.credDownloadBtn, { backgroundColor: bgCred }]}>
                   <ExternalLink size={13} color={colorCred} style={{ marginRight: 5 }} />
                   <Text style={[s.credLink, { color: colorCred }]}>Descargar credencial</Text>
                 </TouchableOpacity>
@@ -883,7 +886,7 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
                       <ImagenLightbox uri={p.urlComprobante} style={s.pagoThumb} />
                     )}
                     {!!p.urlComprobante && String(p.urlComprobante).toLowerCase().endsWith('.pdf') && (
-                      <TouchableOpacity onPress={() => Linking.openURL(p.urlComprobante)} style={s.pagoVerPdf}>
+                      <TouchableOpacity onPress={() => abrirEnlace(p.urlComprobante)} style={s.pagoVerPdf}>
                         <Text style={s.pagoVerPdfText}>Ver PDF</Text>
                       </TouchableOpacity>
                     )}
@@ -914,6 +917,8 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
           <LogOut size={18} color="#dc2626" style={{ marginRight: 8 }} />
           <Text style={s.logoutText}>Cerrar sesión</Text>
         </TouchableOpacity>
+
+        <CuentaLegal />
 
         <View style={{ height: 32 }} />
       </ScrollView>
