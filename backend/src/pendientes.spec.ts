@@ -101,12 +101,23 @@ describe('Verificación de pagos: separa empresas y foro',()=>{
   });
 });
 describe('Mensajes y galería',()=>{
-  it.each([false, true])('bloquea enviar al equipo incluso con ticket abierto: %s',async abierto=>{
+  const prismaMensajes=(hiloDelEquipo:boolean,create:any)=>({
+    evento:{findFirst:fn({id:1})},
+    empresa_usuario:{findFirst:fn({esResponsable:1})},
+    mensajeempresa:{findFirst:fn(hiloDelEquipo?{id:9}:null),create},
+    empresaevento:{findUnique:fn({empresa:{nombre:'Empresa'}})},
+  });
+  it('bloquea que una empresa inicie una conversación con el equipo',async()=>{
     const create=fn();
-    const prisma={ticketsoporte:{findFirst:fn(abierto?{id:1,estado:'ABIERTO'}:null)},mensajeempresa:{create}};
-    const c=new AppController({} as any,prisma as any,{} as any,{} as any);
+    const c=new AppController({} as any,prismaMensajes(false,create) as any,{} as any,{} as any);
     await expect(c.enviarMensajeEmpresa({eeId:7,euId:4,receptorEeId:0,contenido:'Hola'})).rejects.toBeInstanceOf(ForbiddenException);
     expect(create).not.toHaveBeenCalled();
+  });
+  it('permite responder al equipo solo si el equipo escribió primero',async()=>{
+    const create=fn({id:5,fechaCreacion:new Date()});
+    const c=new AppController({} as any,prismaMensajes(true,create) as any,{} as any,{} as any);
+    await expect(c.enviarMensajeEmpresa({eeId:7,euId:4,receptorEeId:0,contenido:'Gracias'})).resolves.toMatchObject({ok:true});
+    expect(create.mock.calls[0][0].data).toMatchObject({emisorEe_id:7,receptorEe_id:0,empresa_usuario_id:4});
   });
   it('bloquea el envio al equipo por la ruta antigua de soporte',async()=>{
     const create=fn();

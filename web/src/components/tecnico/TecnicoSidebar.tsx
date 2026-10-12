@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Armchair, Video, Search, Newspaper, Handshake,
-  UserCircle, LogOut, Shield, Menu, X, CalendarPlus, CalendarDays, Radio, QrCode, Images, Building2,
+  UserCircle, LogOut, Shield, Menu, X, CalendarPlus,Radio, QrCode, Images, Building2,
   MessageSquare, Users2,
 } from 'lucide-react';
 
@@ -15,7 +15,6 @@ const menuItems = [
   { name: 'Empresas',          icon: Building2,       href: '/tecnico/empresas' },
   { name: 'Mensajes',         icon: MessageSquare,   href: '/tecnico/mensajes' },
   { name: 'Equipo del evento', icon: Users2,         href: '/tecnico/equipo' },
-  { name: 'Mis reuniones',    icon: CalendarDays,    href: '/tecnico/reuniones' },
   { name: 'Mesas',            icon: Armchair,        href: '/tecnico/mesas' },
   { name: 'Virtuales',        icon: Video,           href: '/tecnico/virtuales' },
   { name: 'Buscador',         icon: Search,          href: '/tecnico/buscar' },

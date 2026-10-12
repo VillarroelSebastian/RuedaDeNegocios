@@ -991,7 +991,7 @@ export function ReunionesSection({ embedded = false, onEditarSolicitud }: { embe
           reunion={cambiarModal}
           eeId={eeId}
           onClose={() => setCambiarModal(null)}
-          onOk={() => { setCambiarModal(null); if (eeId) { setLoading(true); cargarReuniones(eeId); } }}
+          onOk={() => { setCambiarModal(null); if (eeId) { setLoading(true); cargarReuniones(eeId); if (esEncargado) cargarSolicitudes(eeId); } }}
         />
       )}
       {detalleSolicitud && eeId && (

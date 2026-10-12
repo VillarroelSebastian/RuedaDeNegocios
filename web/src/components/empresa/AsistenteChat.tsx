@@ -58,13 +58,31 @@ const SUGERENCIAS = [
   "Cupos disponibles",
 ];
 
-const BIENVENIDA = "¡Hola! Soy tu asistente virtual del evento. Elige una opción del 1 al 7 o escribe tu pregunta. Después de cada consulta volveré a mostrarte el menú principal.";
+// El participante (no encargado) solo consulta información de solo lectura.
+const SUGERENCIAS_PARTICIPANTE = [
+  "Mi próxima reunión",
+  "Todas mis reuniones aceptadas",
+  "Mi próxima mesa",
+  "Fecha y horario del evento",
+  "Mapa del recinto",
+  "Cronograma de charlas",
+];
 
-export default function AsistenteChat({ eeId, euId }: { eeId: number | null; euId?: number | null }) {
+const bienvenida = (n: number) => `¡Hola! Soy tu asistente virtual del evento. Elige una opción del 1 al ${n} o escribe tu pregunta. Después de cada consulta volveré a mostrarte el menú principal.`;
+
+export default function AsistenteChat({ eeId, euId, esEncargado = false }: { eeId: number | null; euId?: number | null; esEncargado?: boolean }) {
+  const menu = esEncargado ? SUGERENCIAS : SUGERENCIAS_PARTICIPANTE;
   const [open, setOpen] = useState(false);
   const [msgs, setMsgs] = useState<Msg[]>([
-    { role: "bot", text: BIENVENIDA, opciones: SUGERENCIAS },
+    { role: "bot", text: bienvenida(menu.length), opciones: menu },
   ]);
+  // El rol llega después de cargar el contexto: se reinicia el saludo con el
+  // menú correcto para que un participante nunca vea las opciones del encargado.
+  useEffect(() => {
+    setMsgs([{ role: "bot", text: bienvenida(menu.length), opciones: menu }]);
+    setContexto(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [esEncargado]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [contexto, setContexto] = useState<any>(null);
@@ -102,7 +120,7 @@ export default function AsistenteChat({ eeId, euId }: { eeId: number | null; euI
         text: data.respuesta,
         imageUrl: data.imageUrl,
         reuniones: data.reuniones,
-        opciones: data.opciones?.length ? data.opciones : (sigueFlujo ? undefined : SUGERENCIAS),
+        opciones: data.opciones?.length ? data.opciones : (sigueFlujo ? undefined : menu),
       }]);
     } catch {
       setMsgs((prev) => [...prev, { role: "bot", text: "Lo siento, no pude conectarme al servidor. Intenta de nuevo." }]);

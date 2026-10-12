@@ -198,6 +198,20 @@ export default function CronogramaVivo({
               {!!a.direccion_texto && (
                 <View className="flex-row items-center gap-1 mt-1.5"><MapPin color="#9ca3af" size={11} /><Text className="flex-1 text-xs text-gray-500">{a.direccion_texto}</Text></View>
               )}
+              {/* Lo que está en vivo no aparece en la agenda de abajo, así que
+                  los controles para terminarlo o quitarlo de "en vivo" van aquí. */}
+              {staff && (
+                <View className="flex-row flex-wrap gap-2 mt-3">
+                  <TouchableOpacity onPress={() => cambiarEstado(a.id, 'FINALIZADA')} disabled={cambiando === a.id}
+                    className="flex-row items-center gap-1 rounded-lg bg-gray-700 px-3 py-2" style={{ opacity: cambiando === a.id ? 0.4 : 1 }}>
+                    <Square color="#fff" size={12} /><Text className="text-white text-xs font-bold">Finalizar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => cambiarEstado(a.id, 'PENDIENTE')} disabled={cambiando === a.id}
+                    className="rounded-lg border border-gray-300 bg-white px-3 py-2" style={{ opacity: cambiando === a.id ? 0.4 : 1 }}>
+                    <Text className="text-gray-700 text-xs font-bold">Quitar de en vivo</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
           </View>
         )) : <Text className="text-sm text-gray-500">En este momento no hay ninguna actividad en curso.</Text>}

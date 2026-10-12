@@ -262,6 +262,20 @@ export default function CronogramaVivo({
                   {a.direccion_texto && (
                     <p className="text-xs text-gray-500 mt-2 flex items-center gap-1"><MapPin className="w-3 h-3" />{a.direccion_texto}</p>
                   )}
+                  {/* Lo que está en vivo no aparece en la agenda de abajo, así que
+                      los controles para terminarlo o quitarlo de "en vivo" van aquí. */}
+                  {staff && (
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      <button onClick={() => cambiarEstado(a.id, "FINALIZADA")} disabled={cambiando === a.id}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-gray-700 text-white hover:bg-gray-800 disabled:opacity-40">
+                        <Square className="w-3 h-3" /> Finalizar
+                      </button>
+                      <button onClick={() => cambiarEstado(a.id, "PENDIENTE")} disabled={cambiando === a.id}
+                        className="px-3 py-1.5 rounded-lg text-xs font-bold border border-gray-300 bg-white text-gray-700 hover:bg-gray-100 disabled:opacity-40">
+                        Quitar de en vivo
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

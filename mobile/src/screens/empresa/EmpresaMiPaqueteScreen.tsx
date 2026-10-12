@@ -162,6 +162,15 @@ export default function EmpresaMiPaqueteScreen() {
           </View>
         )}
 
+        {!!ctx?.esResponsable && !sinPaquete && mejoras.length === 0 && !tienePendiente && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f9fafb', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, padding: 12, marginBottom: 12 }}>
+            <TrendingUp size={16} color="#9ca3af" style={{ marginRight: 8 }} />
+            <Text style={{ flex: 1, fontSize: 12, color: '#4b5563', lineHeight: 17 }}>
+              Por ahora no hay un paquete superior disponible para mejorar. Cuando el equipo del evento habilite una mejora, el botón aparecerá aquí.
+            </Text>
+          </View>
+        )}
+
         {!sinPaquete && mejoras.length > 0 && !mostrarMejora && (
           <TouchableOpacity
             style={[s.mejorarBtn, tienePendiente && { opacity: 0.5 }]}

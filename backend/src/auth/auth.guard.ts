@@ -86,7 +86,7 @@ export class AuthGuard implements CanActivate {
     const EMPRESA_BLOQUEADO_PARA_PARTICIPANTE = [
       '/empresa/mi-paquete', '/empresa/resultados', '/empresa/solicitudes',
       '/empresa/directorio', '/empresa/empresas', '/empresa/oportunidades',
-      '/empresa/mensajes', '/empresa/asistente', '/empresa/horarios',
+      '/empresa/mensajes', '/empresa/horarios',
       '/empresa/mesas-disponibles', '/empresa/reuniones/',
     ];
     if (path.startsWith('/empresa/')) {

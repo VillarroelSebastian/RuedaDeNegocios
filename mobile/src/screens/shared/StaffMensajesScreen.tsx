@@ -23,14 +23,29 @@ function fmtFechaCorta(iso: string) {
   return d.toLocaleDateString('es-BO', { day: '2-digit', month: 'short' });
 }
 
+type Destino =
+  | { tipo: 'empresa'; eeId: number; nombre: string }
+  | { tipo: 'staff'; usuarioId: number; nombre: string; rol: string };
+type FiltroDestino = 'empresas' | 'administradores' | 'tecnicos';
+const claveDestino = (d: Destino) => (d.tipo === 'empresa' ? `e-${d.eeId}` : `u-${d.usuarioId}`);
+
 export default function StaffMensajesScreen({ embedded = false }: { embedded?: boolean } = {}) {
   const user = userStore.get();
+  const esAdmin = user?.rolEvento === 'ADMINISTRADOR';
+  // Filtros del selector: Empresas, Administradores (solo admin) y Técnicos.
+  const filtrosDestino: { key: FiltroDestino; label: string }[] = [
+    { key: 'empresas', label: 'Empresas' },
+    ...(esAdmin ? [{ key: 'administradores' as const, label: 'Administradores' }] : []),
+    { key: 'tecnicos', label: 'Técnicos' },
+  ];
 
   const [convs, setConvs] = useState<any[]>([]);
+  const [convsStaff, setConvsStaff] = useState<any[]>([]);
+  const [filtroDestino, setFiltroDestino] = useState<FiltroDestino>('empresas');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const [activa, setActiva] = useState<{ eeId: number; nombre: string } | null>(null);
+  const [activa, setActiva] = useState<Destino | null>(null);
   const [mensajes, setMensajes] = useState<any[]>([]);
   const [texto, setTexto] = useState('');
   const [enviando, setEnviando] = useState(false);
@@ -53,13 +68,19 @@ export default function StaffMensajesScreen({ embedded = false }: { embedded?: b
       const res = await fetch(`${API_URL}/staff/mensajes/conversaciones`);
       const data = res.ok ? await res.json() : [];
       setConvs(Array.isArray(data) ? data : []);
+      const resStaff = await fetch(`${API_URL}/staff/directo/conversaciones`);
+      const dataStaff = resStaff.ok ? await resStaff.json() : [];
+      setConvsStaff(Array.isArray(dataStaff) ? dataStaff : []);
     } catch {}
     finally { setLoading(false); setRefreshing(false); }
   }, []);
 
-  const cargarMensajes = useCallback(async (eeId: number) => {
+  const cargarMensajes = useCallback(async (destino: Destino) => {
     try {
-      const res = await fetch(`${API_URL}/staff/mensajes?eeId=${eeId}`);
+      const url = destino.tipo === 'empresa'
+        ? `${API_URL}/staff/mensajes?eeId=${destino.eeId}`
+        : `${API_URL}/staff/directo?conId=${destino.usuarioId}`;
+      const res = await fetch(url);
       const data = res.ok ? await res.json() : [];
       setMensajes(Array.isArray(data) ? data : []);
     } catch {}
@@ -71,26 +92,39 @@ export default function StaffMensajesScreen({ embedded = false }: { embedded?: b
     const iv = setInterval(() => {
       cargarConvs();
       const act = activaRef.current;
-      if (act) cargarMensajes(act.eeId);
+      if (act) cargarMensajes(act);
     }, POLL_MS);
     return () => clearInterval(iv);
   }, [cargarConvs, cargarMensajes]);
 
   useEffect(() => {
-    if (activa) cargarMensajes(activa.eeId);
+    if (activa) cargarMensajes(activa);
   }, [activa, cargarMensajes]);
 
-  const abrirNueva = async () => {
-    setModalNueva(true);
+  const cargarDestinatarios = async (filtro: FiltroDestino) => {
+    setFiltroDestino(filtro);
     setBusqueda('');
+    setEmpresas([]);
     setCargandoEmp(true);
     try {
-      const res = await fetch(`${API_URL}/tecnico/empresas-habilitadas`);
+      const url = filtro === 'empresas' ? `${API_URL}/tecnico/empresas-habilitadas` : `${API_URL}/staff/directo/destinatarios?tipo=${filtro}`;
+      const res = await fetch(url);
       const data = res.ok ? await res.json() : [];
       setEmpresas(Array.isArray(data) ? data : []);
     } catch {}
     finally { setCargandoEmp(false); }
   };
+
+  const abrirNueva = async () => {
+    setModalNueva(true);
+    await cargarDestinatarios('empresas');
+  };
+
+  // Una sola lista: empresas y personas del equipo, de la más reciente a la más antigua.
+  const todasLasConvs = [
+    ...convs.map((c: any) => ({ ...c, destino: { tipo: 'empresa', eeId: c.eeId, nombre: c.nombre } as Destino, clave: `e-${c.eeId}` })),
+    ...convsStaff.map((c: any) => ({ ...c, destino: { tipo: 'staff', usuarioId: c.usuarioId, nombre: c.nombre, rol: c.rol } as Destino, clave: `u-${c.usuarioId}` })),
+  ].sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
 
   const enviar = async () => {
     const t = texto.trim();
@@ -99,15 +133,17 @@ export default function StaffMensajesScreen({ embedded = false }: { embedded?: b
     setEnviando(true);
     setError('');
     try {
-      const res = await fetch(`${API_URL}/staff/mensajes`, {
+      const res = await fetch(activa.tipo === 'empresa' ? `${API_URL}/staff/mensajes` : `${API_URL}/staff/directo`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ usuarioId: user.id, receptorEeId: activa.eeId, contenido: t }),
+        body: JSON.stringify(activa.tipo === 'empresa'
+          ? { usuarioId: user.id, receptorEeId: activa.eeId, contenido: t }
+          : { receptorId: activa.usuarioId, contenido: t }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message ?? 'Error al enviar');
       setTexto('');
-      await cargarMensajes(activa.eeId);
+      await cargarMensajes(activa);
       cargarConvs();
     } catch (e: any) { setError(e.message || 'Error de red'); }
     finally { setEnviando(false); enviandoRef.current = false; }
@@ -129,9 +165,18 @@ export default function StaffMensajesScreen({ embedded = false }: { embedded?: b
             <TouchableOpacity onPress={() => { setActiva(null); setMensajes([]); cargarConvs(); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <ChevronLeft size={22} color="#374151" />
             </TouchableOpacity>
-            <View style={s.chatAvatar}><Building2 size={16} color={GREEN} /></View>
-            <Text style={s.chatTitle} numberOfLines={1}>{activa.nombre}</Text>
-            <DeleteConversation canal="staff" otroEeId={activa.eeId} onDeleted={() => { setActiva(null); setMensajes([]); cargarConvs(); }} />
+            <View style={s.chatAvatar}>
+              {activa.tipo === 'empresa'
+                ? <Building2 size={16} color={GREEN} />
+                : <Text style={s.convAvatarText}>{(activa.nombre ?? 'U')[0].toUpperCase()}</Text>}
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={s.chatTitle} numberOfLines={1}>{activa.nombre}</Text>
+              {activa.tipo === 'staff' && <Text style={s.rolTag}>{activa.rol}</Text>}
+            </View>
+            {activa.tipo === 'empresa' && (
+              <DeleteConversation canal="staff" otroEeId={activa.eeId} onDeleted={() => { setActiva(null); setMensajes([]); cargarConvs(); }} />
+            )}
           </View>
 
           <FlatList
@@ -155,7 +200,9 @@ export default function StaffMensajesScreen({ embedded = false }: { embedded?: b
                   )}
                   <Text style={[s.burbujaTexto, item.esMio && { color: '#fff' }]}>{item.contenido}</Text>
                   <Text style={[s.burbujaHora, item.esMio && { color: 'rgba(255,255,255,0.6)' }]}>{item.editado && !item.eliminado ? 'Editado - ' : ''}{fmtHora(item.fecha)}</Text>
-                  <MessageActions mensaje={item} onChanged={() => { cargarMensajes(activa.eeId); cargarConvs(); }} />
+                  {activa.tipo === 'empresa' && (
+                    <MessageActions mensaje={item} onChanged={() => { cargarMensajes(activa); cargarConvs(); }} />
+                  )}
                 </View>
               </View>
             )}
@@ -202,8 +249,8 @@ export default function StaffMensajesScreen({ embedded = false }: { embedded?: b
       {!embedded && <Text style={s.headerSub}>Escríbele directamente a cualquier empresa habilitada del evento</Text>}
 
       <FlatList
-        data={convs}
-        keyExtractor={(c: any) => String(c.eeId)}
+        data={todasLasConvs}
+        keyExtractor={(c: any) => c.clave}
         contentContainerStyle={{ padding: 16, paddingTop: 8 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); cargarConvs(); }} colors={[GREEN]} />}
         ListEmptyComponent={
@@ -216,7 +263,7 @@ export default function StaffMensajesScreen({ embedded = false }: { embedded?: b
         renderItem={({ item }: any) => (
           <TouchableOpacity
             style={s.convCard}
-            onPress={() => setActiva({ eeId: item.eeId, nombre: item.nombre })}
+            onPress={() => setActiva(item.destino)}
             activeOpacity={0.8}
           >
             <View style={s.convAvatar}>
@@ -227,7 +274,7 @@ export default function StaffMensajesScreen({ embedded = false }: { embedded?: b
             </View>
             <View style={{ flex: 1, minWidth: 0 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Text style={[s.convNombre, item.noLeidos > 0 && { fontWeight: '800' }]} numberOfLines={1}>{item.nombre}</Text>
+                <Text style={[s.convNombre, item.noLeidos > 0 && { fontWeight: '800' }]} numberOfLines={1}>{item.nombre}{item.destino.tipo === 'staff' ? ` · ${item.destino.rol}` : ''}</Text>
                 <Text style={s.convFecha}>{fmtFechaCorta(item.fecha)}</Text>
               </View>
               <Text style={[s.convUltimo, item.noLeidos > 0 && { color: '#374151', fontWeight: '600' }]} numberOfLines={1}>
@@ -247,12 +294,24 @@ export default function StaffMensajesScreen({ embedded = false }: { embedded?: b
                 <X size={20} color="#6b7280" />
               </TouchableOpacity>
             </View>
+            <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 14, paddingBottom: 8 }}>
+              {filtrosDestino.map((f) => (
+                <TouchableOpacity
+                  key={f.key}
+                  onPress={() => cargarDestinatarios(f.key)}
+                  activeOpacity={0.8}
+                  style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: filtroDestino === f.key ? GREEN : '#f1f5f9' }}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: filtroDestino === f.key ? '#fff' : '#475569' }}>{f.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
             <View style={s.searchBox}>
               <Search size={15} color="#94a3b8" />
               <TextInput
                 value={busqueda}
                 onChangeText={setBusqueda}
-                placeholder="Buscar empresa..."
+                placeholder={filtroDestino === 'empresas' ? 'Buscar empresa...' : 'Buscar persona...'}
                 placeholderTextColor="#9ca3af"
                 style={s.searchInput}
               />
@@ -262,14 +321,19 @@ export default function StaffMensajesScreen({ embedded = false }: { embedded?: b
             ) : (
               <FlatList
                 data={filtradas}
-                keyExtractor={(e: any) => String(e.eeId)}
+                keyExtractor={(e: any) => String(e.eeId ?? e.usuarioId ?? e.id)}
                 style={{ maxHeight: 380 }}
                 contentContainerStyle={{ padding: 10 }}
-                ListEmptyComponent={<Text style={[s.emptyText, { paddingVertical: 20 }]}>Sin empresas habilitadas.</Text>}
+                ListEmptyComponent={<Text style={[s.emptyText, { paddingVertical: 20 }]}>{filtroDestino === 'empresas' ? 'Sin empresas habilitadas.' : 'Sin resultados.'}</Text>}
                 renderItem={({ item }: any) => (
                   <TouchableOpacity
                     style={s.empRow}
-                    onPress={() => { setModalNueva(false); setActiva({ eeId: item.eeId, nombre: item.nombre }); }}
+                    onPress={() => {
+                      setModalNueva(false);
+                      setActiva(filtroDestino === 'empresas'
+                        ? { tipo: 'empresa', eeId: item.eeId, nombre: item.nombre }
+                        : { tipo: 'staff', usuarioId: item.usuarioId ?? item.id, nombre: item.nombre, rol: item.rol ?? (filtroDestino === 'tecnicos' ? 'Técnico' : 'Administrador') });
+                    }}
                     activeOpacity={0.8}
                   >
                     <View style={s.empAvatar}><Text style={s.empAvatarText}>{(item.nombre ?? 'E')[0].toUpperCase()}</Text></View>
@@ -334,6 +398,7 @@ const s = StyleSheet.create({
     width: 34, height: 34, borderRadius: 10,
     backgroundColor: '#f0fdf4', alignItems: 'center', justifyContent: 'center',
   },
+  rolTag: { fontSize: 11, fontWeight: '700', color: GREEN },
   chatTitle: { fontSize: 15, fontWeight: '800', color: '#0f172a', flex: 1 },
   chatEmpty: { fontSize: 12, color: '#9ca3af', textAlign: 'center', paddingVertical: 24 },
   chatError: { fontSize: 12, color: '#dc2626', textAlign: 'center', paddingBottom: 4 },

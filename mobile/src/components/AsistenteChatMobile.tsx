@@ -22,7 +22,17 @@ const SUGERENCIAS = [
   'Cupos disponibles',
 ];
 
-const BIENVENIDA = '¡Hola! Soy tu asistente virtual del evento. Elige una opción del 1 al 7 o escribe tu pregunta. Después de cada consulta volveré a mostrarte el menú principal.';
+// El participante (no encargado) solo consulta información de solo lectura.
+const SUGERENCIAS_PARTICIPANTE = [
+  'Mi próxima reunión',
+  'Todas mis reuniones aceptadas',
+  'Mi próxima mesa',
+  'Fecha y horario del evento',
+  'Mapa del recinto',
+  'Cronograma de charlas',
+];
+
+const bienvenida = (n: number) => `¡Hola! Soy tu asistente virtual del evento. Elige una opción del 1 al ${n} o escribe tu pregunta. Después de cada consulta volveré a mostrarte el menú principal.`;
 
 interface ReunionCard {
   empresa: string;
@@ -83,9 +93,19 @@ export function AsistenteChatButton({ onOpen }: { onOpen: () => void }) {
 }
 
 export default function AsistenteChatModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const [esEncargado, setEsEncargado] = useState(!!userStore.get()?.esResponsable);
+  useEffect(() => userStore.subscribe(() => setEsEncargado(!!userStore.get()?.esResponsable)), []);
+  const menu = esEncargado ? SUGERENCIAS : SUGERENCIAS_PARTICIPANTE;
   const [msgs, setMsgs] = useState<Msg[]>([
-    { role: 'bot', text: BIENVENIDA, opciones: SUGERENCIAS },
+    { role: 'bot', text: bienvenida(menu.length), opciones: menu },
   ]);
+  // El rol puede resolverse después de abrir: se reinicia el saludo con el
+  // menú correcto para que un participante nunca vea opciones del encargado.
+  useEffect(() => {
+    setMsgs([{ role: 'bot', text: bienvenida(menu.length), opciones: menu }]);
+    setContexto(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [esEncargado]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [eeId, setEeId] = useState<number | null>(userStore.get()?.empresaeventoId ?? null);
@@ -146,7 +166,7 @@ export default function AsistenteChatModal({ visible, onClose }: { visible: bool
         const sigueFlujo = Boolean(data.contexto?.paso);
         setMsgs((prev) => [...prev, {
           role: 'bot', text: data.respuesta, imageUrl: data.imageUrl, reuniones: data.reuniones,
-          opciones: data.opciones?.length ? data.opciones : (sigueFlujo ? undefined : SUGERENCIAS),
+          opciones: data.opciones?.length ? data.opciones : (sigueFlujo ? undefined : menu),
         }]);
       } catch {
         setMsgs((prev) => [...prev, { role: 'bot', text: 'Lo siento, no pude conectarme. Intenta de nuevo.' }]);

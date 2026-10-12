@@ -23,23 +23,39 @@ function fmtFechaCorta(iso: string) {
   return d.toLocaleDateString("es-BO", { day: "2-digit", month: "short" });
 }
 
-function NuevaConversacionModal({ onClose, onElegir }: {
-  onClose: () => void; onElegir: (ee: { eeId: number; nombre: string }) => void;
+type Destino =
+  | { tipo: "empresa"; eeId: number; nombre: string }
+  | { tipo: "staff"; usuarioId: number; nombre: string; rol: string };
+
+type FiltroDestino = "empresas" | "administradores" | "tecnicos";
+
+// Orden de los filtros: Empresas, Administradores, Técnicos. El técnico no ve
+// "Administradores" (no inicia conversaciones con ellos, solo les responde).
+function NuevaConversacionModal({ esAdmin, onClose, onElegir }: {
+  esAdmin: boolean; onClose: () => void; onElegir: (destino: Destino) => void;
 }) {
-  const [empresas, setEmpresas] = useState<any[]>([]);
+  const [filtro, setFiltro] = useState<FiltroDestino>("empresas");
+  const [lista, setLista] = useState<any[]>([]);
   const [busqueda, setBusqueda] = useState("");
   const [cargando, setCargando] = useState(true);
+  const filtros: { key: FiltroDestino; label: string }[] = [
+    { key: "empresas", label: "Empresas" },
+    ...(esAdmin ? [{ key: "administradores" as const, label: "Administradores" }] : []),
+    { key: "tecnicos", label: "Técnicos" },
+  ];
 
   useEffect(() => {
-    fetch(`${API}/tecnico/empresas-habilitadas`)
+    setCargando(true); setLista([]);
+    const url = filtro === "empresas" ? `${API}/tecnico/empresas-habilitadas` : `${API}/staff/directo/destinatarios?tipo=${filtro}`;
+    fetch(url)
       .then((r) => r.json())
-      .then((d) => setEmpresas(Array.isArray(d) ? d : []))
+      .then((d) => setLista(Array.isArray(d) ? d : []))
       .catch(() => {})
       .finally(() => setCargando(false));
-  }, []);
+  }, [filtro]);
 
-  const filtradas = empresas.filter((e) =>
-    [e.nombre, e.rubro, e.codigo].some((v) => v && String(v).toLowerCase().includes(busqueda.toLowerCase()))
+  const filtradas = lista.filter((e) =>
+    [e.nombre, e.rubro, e.codigo, e.rol].some((v) => v && String(v).toLowerCase().includes(busqueda.toLowerCase()))
   );
 
   return (
@@ -51,6 +67,16 @@ function NuevaConversacionModal({ onClose, onElegir }: {
             <X className="w-4 h-4 text-gray-500" />
           </button>
         </div>
+        <div className="px-5 pt-3 flex flex-wrap gap-2">
+          {filtros.map((f) => (
+            <button key={f.key} onClick={() => { setFiltro(f.key); setBusqueda(""); }}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
+                filtro === f.key ? "bg-[#449D3A] text-white border-[#449D3A]" : "bg-white text-gray-600 border-gray-200 hover:border-[#449D3A]"
+              }`}>
+              {f.label}
+            </button>
+          ))}
+        </div>
         <div className="px-5 py-3 border-b border-gray-50">
           <div className="relative">
             <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -58,7 +84,7 @@ function NuevaConversacionModal({ onClose, onElegir }: {
               autoFocus
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Buscar empresa..."
+              placeholder={filtro === "empresas" ? "Buscar empresa..." : "Buscar por nombre..."}
               className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#449D3A]/30 focus:border-[#449D3A]"
             />
           </div>
@@ -69,12 +95,16 @@ function NuevaConversacionModal({ onClose, onElegir }: {
               <div className="w-6 h-6 border-4 border-[#449D3A] border-t-transparent rounded-full animate-spin" />
             </div>
           ) : filtradas.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-8">Sin empresas habilitadas.</p>
+            <p className="text-sm text-gray-400 text-center py-8">
+              {filtro === "empresas" ? "Sin empresas habilitadas." : "No hay personas disponibles."}
+            </p>
           ) : (
             filtradas.map((e) => (
               <button
-                key={e.eeId}
-                onClick={() => onElegir({ eeId: e.eeId, nombre: e.nombre })}
+                key={filtro === "empresas" ? `e-${e.eeId}` : `u-${e.id}`}
+                onClick={() => onElegir(filtro === "empresas"
+                  ? { tipo: "empresa", eeId: e.eeId, nombre: e.nombre }
+                  : { tipo: "staff", usuarioId: e.id, nombre: e.nombre, rol: e.rol })}
                 className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-green-50 transition-colors text-left"
               >
                 <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center shrink-0 font-bold text-[#449D3A]">
@@ -82,7 +112,9 @@ function NuevaConversacionModal({ onClose, onElegir }: {
                 </div>
                 <div className="min-w-0">
                   <p className="text-sm font-bold text-gray-900 truncate">{e.nombre}</p>
-                  {e.rubro && <p className="text-xs text-gray-400 truncate">{e.rubro}</p>}
+                  {filtro === "empresas"
+                    ? (e.rubro && <p className="text-xs text-gray-400 truncate">{e.rubro}</p>)
+                    : <p className="text-xs text-gray-400 truncate">{e.rol}</p>}
                 </div>
               </button>
             ))
@@ -96,7 +128,8 @@ function NuevaConversacionModal({ onClose, onElegir }: {
 export default function StaffMensajes({ storageKey, embedded = false }: { storageKey: "adminUser" | "tecnicoUser"; embedded?: boolean }) {
   const [user, setUser] = useState<any>(null);
   const [convs, setConvs] = useState<any[]>([]);
-  const [activa, setActiva] = useState<{ eeId: number; nombre: string } | null>(null);
+  const [convsStaff, setConvsStaff] = useState<any[]>([]);
+  const [activa, setActiva] = useState<Destino | null>(null);
   const [mensajes, setMensajes] = useState<any[]>([]);
   const [texto, setTexto] = useState("");
   const [enviando, setEnviando] = useState(false);
@@ -122,10 +155,17 @@ export default function StaffMensajes({ storageKey, embedded = false }: { storag
       .then((d) => setConvs(Array.isArray(d) ? d : []))
       .catch(() => {})
       .finally(() => setCargando(false));
+    fetch(`${API}/staff/directo/conversaciones`)
+      .then((r) => r.json())
+      .then((d) => setConvsStaff(Array.isArray(d) ? d : []))
+      .catch(() => {});
   }, []);
 
-  const cargarMensajes = useCallback((eeId: number) => {
-    fetch(`${API}/staff/mensajes?eeId=${eeId}`)
+  const cargarMensajes = useCallback((destino: Destino) => {
+    const url = destino.tipo === "empresa"
+      ? `${API}/staff/mensajes?eeId=${destino.eeId}`
+      : `${API}/staff/directo?conId=${destino.usuarioId}`;
+    fetch(url)
       .then((r) => r.json())
       .then((d) => setMensajes(Array.isArray(d) ? d : []))
       .catch(() => {});
@@ -137,13 +177,13 @@ export default function StaffMensajes({ storageKey, embedded = false }: { storag
     const iv = setInterval(() => {
       cargarConvs();
       const act = activaRef.current;
-      if (act) cargarMensajes(act.eeId);
+      if (act) cargarMensajes(act);
     }, POLL_MS);
     return () => clearInterval(iv);
   }, [cargarConvs, cargarMensajes]);
 
   useEffect(() => {
-    if (activa) cargarMensajes(activa.eeId);
+    if (activa) cargarMensajes(activa);
   }, [activa, cargarMensajes]);
 
   useEffect(() => {
@@ -156,18 +196,27 @@ export default function StaffMensajes({ storageKey, embedded = false }: { storag
     enviandoRef.current = true;
     setEnviando(true);
     try {
-      const res = await fetch(`${API}/staff/mensajes`, {
+      const res = await fetch(activa.tipo === "empresa" ? `${API}/staff/mensajes` : `${API}/staff/directo`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ usuarioId: user.id, receptorEeId: activa.eeId, contenido: t }),
+        body: JSON.stringify(activa.tipo === "empresa"
+          ? { usuarioId: user.id, receptorEeId: activa.eeId, contenido: t }
+          : { receptorId: activa.usuarioId, contenido: t }),
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.message ?? "Error al enviar"); }
       setTexto("");
-      cargarMensajes(activa.eeId);
+      cargarMensajes(activa);
       cargarConvs();
     } catch (e: any) { setError(e.message); setTimeout(() => setError(null), 4000); }
     finally { enviandoRef.current = false; setEnviando(false); }
   };
+
+  const claveDestino = (d: Destino) => (d.tipo === "empresa" ? `e-${d.eeId}` : `u-${d.usuarioId}`);
+  // Una sola lista: empresas y personas del equipo, de la más reciente a la más antigua.
+  const todasLasConvs = [
+    ...convs.map((c) => ({ ...c, destino: { tipo: "empresa", eeId: c.eeId, nombre: c.nombre } as Destino, clave: `e-${c.eeId}` })),
+    ...convsStaff.map((c) => ({ ...c, destino: { tipo: "staff", usuarioId: c.usuarioId, nombre: c.nombre, rol: c.rol } as Destino, clave: `u-${c.usuarioId}` })),
+  ].sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
 
   if (cargando) return (
     <div className="flex items-center justify-center h-64">
@@ -179,6 +228,7 @@ export default function StaffMensajes({ storageKey, embedded = false }: { storag
     <ChatViewport embedded={embedded} className={embedded ? "p-4 sm:p-6 h-full flex flex-col" : "p-4 sm:p-6 h-[calc(100dvh-4rem)] flex flex-col"}>
       {modalNueva && (
         <NuevaConversacionModal
+          esAdmin={storageKey === "adminUser"}
           onClose={() => setModalNueva(false)}
           onElegir={(e) => { setModalNueva(false); setActiva(e); }}
         />
@@ -188,7 +238,11 @@ export default function StaffMensajes({ storageKey, embedded = false }: { storag
         {!embedded && (
           <div>
             <h1 className="text-2xl font-extrabold text-gray-900">Mensajes</h1>
-            <p className="text-sm text-gray-400 mt-0.5">Escríbele directamente a cualquier empresa habilitada del evento</p>
+            <p className="text-sm text-gray-400 mt-0.5">
+              {storageKey === "adminUser"
+                ? "Escríbele a empresas, administradores y técnicos del evento"
+                : "Escríbele a empresas y técnicos del evento"}
+            </p>
           </div>
         )}
         <button
@@ -206,19 +260,19 @@ export default function StaffMensajes({ storageKey, embedded = false }: { storag
       <div className="flex-1 min-h-0 bg-white rounded-2xl border border-gray-100 shadow-sm flex overflow-hidden">
         <div className={`w-full md:w-80 border-r border-gray-100 flex-col ${activa ? "hidden md:flex" : "flex"}`}>
           <div className="flex-1 overflow-y-auto p-2">
-            {convs.length === 0 ? (
+            {todasLasConvs.length === 0 ? (
               <div className="text-center py-12 px-4">
                 <MessageSquare className="w-10 h-10 text-gray-200 mx-auto mb-3" />
                 <p className="text-sm text-gray-400">Aún no se ha enviado ningún mensaje.</p>
-                <p className="text-xs text-gray-400 mt-1">Usa "Nuevo mensaje" para escribirle a una empresa.</p>
+                <p className="text-xs text-gray-400 mt-1">Usa "Nuevo mensaje" para escribirle a una empresa o a alguien del equipo.</p>
               </div>
             ) : (
-              convs.map((c) => (
+              todasLasConvs.map((c) => (
                 <button
-                  key={c.eeId}
-                  onClick={() => setActiva({ eeId: c.eeId, nombre: c.nombre })}
+                  key={c.clave}
+                  onClick={() => setActiva(c.destino)}
                   className={`w-full flex items-center gap-3 p-3 rounded-xl transition-colors text-left ${
-                    activa?.eeId === c.eeId ? "bg-green-50" : "hover:bg-gray-50"
+                    activa && claveDestino(activa) === c.clave ? "bg-green-50" : "hover:bg-gray-50"
                   }`}
                 >
                   <div className="w-11 h-11 rounded-xl bg-green-50 flex items-center justify-center shrink-0 font-bold text-[#449D3A] relative">
@@ -234,6 +288,9 @@ export default function StaffMensajes({ storageKey, embedded = false }: { storag
                       <p className={`text-sm truncate ${c.noLeidos > 0 ? "font-extrabold text-gray-900" : "font-bold text-gray-800"}`}>{c.nombre}</p>
                       <span className="text-[10px] text-gray-400 shrink-0">{fmtFechaCorta(c.fecha)}</span>
                     </div>
+                    {c.destino.tipo === "staff" && (
+                      <span className="inline-block text-[9px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-full">{c.destino.rol}</span>
+                    )}
                     <p className={`text-xs truncate mt-0.5 ${c.noLeidos > 0 ? "text-gray-700 font-semibold" : "text-gray-400"}`}>
                       {c.esMio ? "Tú: " : ""}{c.ultimoMensaje}
                     </p>
@@ -257,10 +314,15 @@ export default function StaffMensajes({ storageKey, embedded = false }: { storag
                   <ChevronLeft className="w-4 h-4 text-gray-500" />
                 </button>
                 <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold bg-green-50 text-[#449D3A]">
-                  <Building2 className="w-4 h-4" />
+                  {activa.tipo === "empresa" ? <Building2 className="w-4 h-4" /> : (activa.nombre ?? "U")[0].toUpperCase()}
                 </div>
-                <p className="font-bold text-gray-900 text-sm truncate">{activa.nombre}</p>
-                <DeleteConversation canal="staff" otroEeId={activa.eeId} onDeleted={() => { setActiva(null); setMensajes([]); cargarConvs(); }} />
+                <div className="min-w-0 flex-1">
+                  <p className="font-bold text-gray-900 text-sm truncate">{activa.nombre}</p>
+                  {activa.tipo === "staff" && <p className="text-[10px] font-bold text-indigo-600">{activa.rol}</p>}
+                </div>
+                {activa.tipo === "empresa" && (
+                  <DeleteConversation canal="staff" otroEeId={activa.eeId} onDeleted={() => { setActiva(null); setMensajes([]); cargarConvs(); }} />
+                )}
               </div>
 
               <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-gray-50/50">
@@ -278,7 +340,9 @@ export default function StaffMensajes({ storageKey, embedded = false }: { storag
                         <p className={`text-[10px] font-bold mb-0.5 ${m.esMio ? "text-white/80" : "text-[#449D3A]"}`}>{m.autor}</p>
                       )}
                       <p className="whitespace-pre-line break-words">{m.contenido}</p>
-                      <MessageActions mensaje={m} onChanged={() => { if (activa) { cargarMensajes(activa.eeId); cargarConvs(); } }} />
+                      {activa.tipo === "empresa" && (
+                        <MessageActions mensaje={m} onChanged={() => { if (activa) { cargarMensajes(activa); cargarConvs(); } }} />
+                      )}
                       <p className={`text-[9px] mt-1 text-right ${m.esMio ? "text-white/60" : "text-gray-400"}`}>{m.editado && !m.eliminado ? 'Editado \u00b7 ' : ''}{fmtHora(m.fecha)}</p>
                     </div>
                   </div>

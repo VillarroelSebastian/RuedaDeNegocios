@@ -99,6 +99,9 @@ function SolicitudesContent() {
           onCreada={() => {
             setModalNueva(null);
             setTab("reuniones");
+            // La lista de Reuniones ya puede estar montada: se le pide refrescar
+            // de inmediato para que la solicitud editada cambie de día/posición.
+            window.dispatchEvent(new CustomEvent("rueda:notificacion", { detail: { evento: "solicitud:actualizada" } }));
             setExitoMsg(modalNueva.solicitud ? "Tu solicitud fue actualizada correctamente." : "Tu solicitud de reunión fue enviada correctamente. Te avisaremos cuando la empresa responda.");
           }} />
       )}

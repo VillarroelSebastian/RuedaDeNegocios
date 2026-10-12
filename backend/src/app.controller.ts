@@ -1213,7 +1213,9 @@ export class AppController implements OnModuleInit {
   // (empresas y foro contados juntos, sin distinguir). Esta vista separa a
   // los participantes de empresa (con nombre de empresa) de los del Foro ·
   // Personal (inscripción individual, solo tienen nombre propio).
-  @Get('admin/asistencia')
+  // El técnico usa el mismo resumen (en versión compacta) para controlar la
+  // asistencia de las empresas desde la pantalla de escaneo.
+  @Get(['admin/asistencia', 'tecnico/asistencia/resumen'])
   async getAsistenciaAdmin() {
     const eventoId = await this.getPrincipalEventoId();
     if (!eventoId) {
@@ -1284,6 +1286,16 @@ export class AppController implements OnModuleInit {
         empresasSinAsistencia: empresaIdsTotal.size - empresaIdsAsistieron.size,
       },
       foro: resumenPersonas(foroParticipantes),
+      // Una fila por empresa (la vista compacta del técnico trabaja con empresas).
+      empresas: Array.from(empresaIdsTotal).map((eeId) => {
+        const personas = empresaParticipantes.filter((p) => p.empresaevento_id === eeId);
+        return {
+          empresaEventoId: eeId,
+          nombre: personas[0]?.empresaevento?.empresa?.nombre ?? '—',
+          registrados: personas.length,
+          asistentes: personas.filter((p) => asistenciaPorParticipante.has(p.id)).length,
+        };
+      }).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')),
       listado,
     };
   }
@@ -6202,8 +6214,8 @@ export class AppController implements OnModuleInit {
   }
 
   @Post('empresa/asistente')
-  async asistente(@Body() body: { eeId: number; euId?: number; mensaje: string; contexto?: any }) {
-    const { eeId, euId, mensaje = '' } = body;
+  async asistente(@Body() body: { eeId: number; euId?: number; mensaje: string; contexto?: any }, @Req() req: any) {
+    const { eeId, mensaje = '' } = body;
     if (!eeId) throw new BadRequestException('eeId requerido');
     const msg = mensaje.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
@@ -6223,14 +6235,13 @@ export class AppController implements OnModuleInit {
     // cupos, eso es tarea exclusiva del encargado. Las opciones restringidas
     // de abajo quedan condicionadas a `esEncargado`; el menú de respaldo al
     // final también cambia para dejar claro qué sí puede pedir.
-    let esEncargado = true;
-    if (euId) {
-      const eu = await this.prisma.empresa_usuario.findFirst({
-        where: { id: Number(euId), empresaevento_id: Number(eeId), estaActivo: 1 },
-        select: { esResponsable: true },
-      });
-      esEncargado = eu?.esResponsable === 1;
-    }
+    // El rol sale de la sesión (JWT), nunca de lo que mande el cliente: si no
+    // se puede comprobar que es el encargado, se trata como participante.
+    const euSesion = await this.prisma.empresa_usuario.findFirst({
+      where: { usuario_id: Number(req?.user?.sub), empresaevento_id: Number(eeId), estaActivo: 1 },
+      select: { esResponsable: true },
+    });
+    const esEncargado = euSesion?.esResponsable === 1;
     const opcionesParticipante = [
       'Mi próxima reunión', 'Todas mis reuniones aceptadas', 'Mi próxima mesa',
       'Fecha y horario del evento', 'Mapa del recinto', 'Cronograma de charlas',
@@ -6960,7 +6971,7 @@ export class AppController implements OnModuleInit {
     return msgs.map((m) => {
       // Mensajes del equipo del evento: mostrar el nombre/rol del staff que escribió.
       const autorStaff = m.remitenteRol
-        ? `${m.remitenteNombre ?? 'Equipo del evento'} · ${m.remitenteRol === 'ADMIN' ? 'Organización' : 'Técnico'}`
+        ? `${m.remitenteNombre ?? 'Equipo del evento'} · ${m.remitenteRol === 'ADMIN' ? 'Administrador' : 'Técnico'}`
         : null;
       return {
         id: m.id,
@@ -6984,8 +6995,6 @@ export class AppController implements OnModuleInit {
     if (Number(eeId) === Number(receptorEeId))
       throw new BadRequestException('No puedes enviarte mensajes a tu propia empresa');
     if (req?.user) await this.mensajeria.contexto(req.user, 'empresa', Number(eeId), Number(receptorEeId));
-    if (Number(receptorEeId) === 0)
-      throw new ForbiddenException('Los mensajes directos solo se pueden enviar entre empresas.');
     const eventoId = await this.getPrincipalEventoId();
     if (!eventoId) throw new BadRequestException('No hay un evento activo');
     const eu = await this.prisma.empresa_usuario.findFirst({
@@ -6995,6 +7004,28 @@ export class AppController implements OnModuleInit {
     // Solo el encargado puede enviar mensajes en nombre de la empresa.
     if (eu.esResponsable !== 1)
       throw new BadRequestException('Solo el encargado de la empresa puede enviar mensajes');
+    // Una empresa nunca inicia una conversación con el equipo del evento (0):
+    // solo puede responder si un administrador o técnico le escribió primero.
+    if (Number(receptorEeId) === 0) {
+      const hiloDelEquipo = await this.prisma.mensajeempresa.findFirst({
+        where: { evento_id: eventoId, emisorEe_id: 0, receptorEe_id: Number(eeId), estaActivo: 1 },
+        select: { id: true },
+      });
+      if (!hiloDelEquipo)
+        throw new ForbiddenException('Solo puedes responder a una conversación que el equipo del evento haya iniciado.');
+      const respuesta = await this.prisma.mensajeempresa.create({
+        data: {
+          evento_id: eventoId, emisorEe_id: Number(eeId), receptorEe_id: 0,
+          empresa_usuario_id: Number(euId), contenido: contenido.trim().slice(0, 1000),
+          haSidoLeido: 0, estaActivo: 1,
+        },
+      });
+      const empresaEmisora = await this.prisma.empresaevento.findUnique({
+        where: { id: Number(eeId) }, select: { empresa: { select: { nombre: true } } },
+      });
+      try { this.notifGateway.emitirParaStaff('mensaje:nuevo', { deEeId: Number(eeId), titulo: 'Respuesta de empresa', mensaje: `${empresaEmisora?.empresa?.nombre ?? 'Una empresa'} respondió al equipo.` }); } catch {}
+      return { ok: true, id: respuesta.id, fecha: respuesta.fechaCreacion };
+    }
     await this.verificarEE(Number(receptorEeId));
     const msg = await this.prisma.mensajeempresa.create({
       data: {
@@ -7158,7 +7189,10 @@ export class AppController implements OnModuleInit {
     const messages = await this.prisma.mensajeempresa.findMany({
       where: { evento_id: eventoId, estaActivo: 1, receptorEe_id: 0, haSidoLeido: 0 },
     });
-    return { count: (await this.mensajeria.visibles(req.user.sub, eventoId, 'staff', 0, messages)).length };
+    const directos = await this.prisma.mensajeinterno.count({
+      where: { evento_id: eventoId, estaActivo: 1, destinatario_id: Number(req.user.sub), haSidoLeido: 0 },
+    });
+    return { count: (await this.mensajeria.visibles(req.user.sub, eventoId, 'staff', 0, messages)).length + directos };
   }
 
   @Get('staff/mensajes')
@@ -7199,7 +7233,7 @@ export class AppController implements OnModuleInit {
         editado: !!m.fechaEdicion,
         puedeModificar: m.estaActivo === 1 && (m.remitenteUsuario_id === req.user.sub || req.user.euIds?.includes(m.empresa_usuario_id)),
       autor: m.emisorEe_id === 0
-        ? (m.remitenteNombre ? `${m.remitenteNombre} · ${m.remitenteRol === 'ADMIN' ? 'Organización' : 'Técnico'}` : null)
+        ? (m.remitenteNombre ? `${m.remitenteNombre} · ${m.remitenteRol === 'ADMIN' ? 'Administrador' : 'Técnico'}` : null)
         : (m.empresa_usuario_id ? autorPorEu.get(m.empresa_usuario_id) ?? null : null),
       fecha: m.fechaCreacion,
     }));
@@ -7215,7 +7249,7 @@ export class AppController implements OnModuleInit {
       throw new BadRequestException('usuarioId, receptorEeId y contenido son requeridos');
     const usuario = await this.prisma.usuario.findUnique({
       where: { id: Number(usuarioId) },
-      select: { nombres: true, apellidoPaterno: true, rolEvento: true },
+      select: { nombres: true, apellidoPaterno: true, apellidoMaterno: true, rolEvento: true },
     });
     if (!usuario) throw new BadRequestException('Usuario no encontrado');
     if (!['ADMINISTRADOR', 'TECNICO', 'TECNICO_EVENTOS'].includes(usuario.rolEvento))
@@ -7225,7 +7259,8 @@ export class AppController implements OnModuleInit {
     await this.verificarEE(Number(receptorEeId));
 
     const rol = usuario.rolEvento === 'ADMINISTRADOR' ? 'ADMIN' : 'TECNICO';
-    const nombre = `${usuario.nombres} ${usuario.apellidoPaterno}`.trim();
+    // Nombre y apellidos completos: la empresa ve quién le escribe.
+    const nombre = `${usuario.nombres} ${usuario.apellidoPaterno} ${usuario.apellidoMaterno ?? ''}`.replace(/\s+/g, ' ').trim();
     const msg = await this.prisma.mensajeempresa.create({
       data: {
         evento_id: eventoId,
@@ -7264,7 +7299,8 @@ export class AppController implements OnModuleInit {
     const eventoId = await this.getPrincipalEventoId();
     if (!eventoId) return [];
     let mensajes = await this.prisma.mensajeinterno.findMany({
-      where: { evento_id: eventoId },
+      // Los mensajes 1 a 1 (con destinatario) no son del tablón compartido.
+      where: { evento_id: eventoId, destinatario_id: null },
       orderBy: { fechaCreacion: 'desc' },
       take: 300,
     });
@@ -7301,6 +7337,126 @@ export class AppController implements OnModuleInit {
     });
     try { this.notifGateway.emitirParaStaff('chat-interno:nuevo', { id: msg.id, titulo: 'Chat del equipo', mensaje: 'Hay un nuevo mensaje del equipo.', excludeUserId: usuarioId }); } catch {}
     return msg;
+  }
+
+  // ── Mensajes 1 a 1 dentro del equipo ────────────────────────────────────────
+  // Un administrador puede escribirle a cualquiera del equipo; un técnico solo a
+  // otros técnicos (y a empresas por staff/mensajes). Un técnico únicamente
+  // puede contestar a un administrador si este le escribió primero.
+
+  private etiquetaRolStaff(rol: string) {
+    return rol === 'ADMINISTRADOR' ? 'Administrador' : 'Técnico';
+  }
+
+  @Get('staff/directo/destinatarios')
+  async destinatariosDirecto(@Query('tipo') tipo: string, @Req() req: any) {
+    if (tipo !== 'administradores' && tipo !== 'tecnicos') throw new BadRequestException('Tipo de destinatario inválido');
+    if (tipo === 'administradores' && req.user.role !== 'ADMINISTRADOR')
+      throw new ForbiddenException('Solo un administrador puede escribirle a otros administradores.');
+    const usuarios = await this.prisma.usuario.findMany({
+      where: {
+        estaActivo: 1, id: { not: Number(req.user.sub) },
+        rolEvento: { in: tipo === 'administradores' ? ['ADMINISTRADOR'] : ['TECNICO', 'TECNICO_EVENTOS'] },
+      },
+      select: { id: true, nombres: true, apellidoPaterno: true, apellidoMaterno: true, urlFotoPerfil: true, rolEvento: true },
+      orderBy: { nombres: 'asc' },
+    });
+    return usuarios.map((u) => ({
+      id: u.id,
+      nombre: `${u.nombres} ${u.apellidoPaterno} ${u.apellidoMaterno ?? ''}`.replace(/\s+/g, ' ').trim(),
+      rol: this.etiquetaRolStaff(u.rolEvento),
+      urlFotoPerfil: u.urlFotoPerfil,
+    }));
+  }
+
+  @Get('staff/directo/conversaciones')
+  async conversacionesDirecto(@Req() req: any) {
+    const eventoId = await this.getPrincipalEventoId();
+    if (!eventoId) return [];
+    const yo = Number(req.user.sub);
+    const msgs = await this.prisma.mensajeinterno.findMany({
+      where: { evento_id: eventoId, estaActivo: 1, destinatario_id: { not: null }, OR: [{ usuario_id: yo }, { destinatario_id: yo }] },
+      orderBy: { fechaCreacion: 'desc' }, take: 500,
+    });
+    const porPersona = new Map<number, { ultimo: any; noLeidos: number }>();
+    for (const m of msgs) {
+      const otro = m.usuario_id === yo ? m.destinatario_id! : m.usuario_id;
+      if (!porPersona.has(otro)) porPersona.set(otro, { ultimo: m, noLeidos: 0 });
+      if (m.destinatario_id === yo && m.haSidoLeido === 0) porPersona.get(otro)!.noLeidos++;
+    }
+    const ids = [...porPersona.keys()];
+    const usuarios = ids.length
+      ? await this.prisma.usuario.findMany({
+          where: { id: { in: ids } },
+          select: { id: true, nombres: true, apellidoPaterno: true, apellidoMaterno: true, urlFotoPerfil: true, rolEvento: true },
+        })
+      : [];
+    const porId = new Map(usuarios.map((u) => [u.id, u]));
+    return ids.map((id) => {
+      const u = porId.get(id);
+      const { ultimo, noLeidos } = porPersona.get(id)!;
+      return {
+        usuarioId: id,
+        nombre: u ? `${u.nombres} ${u.apellidoPaterno} ${u.apellidoMaterno ?? ''}`.replace(/\s+/g, ' ').trim() : 'Usuario',
+        rol: u ? this.etiquetaRolStaff(u.rolEvento) : 'Equipo',
+        urlFotoPerfil: u?.urlFotoPerfil ?? null,
+        ultimoMensaje: ultimo.contenido, esMio: ultimo.usuario_id === yo, fecha: ultimo.fechaCreacion, noLeidos,
+      };
+    }).sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+  }
+
+  @Get('staff/directo')
+  async mensajesDirecto(@Query('conId') conId: string, @Req() req: any) {
+    const eventoId = await this.getPrincipalEventoId();
+    const otro = Number(conId);
+    if (!eventoId || !otro) return [];
+    const yo = Number(req.user.sub);
+    await this.prisma.mensajeinterno.updateMany({
+      where: { evento_id: eventoId, usuario_id: otro, destinatario_id: yo, haSidoLeido: 0 },
+      data: { haSidoLeido: 1 },
+    });
+    const msgs = await this.prisma.mensajeinterno.findMany({
+      where: { evento_id: eventoId, estaActivo: 1, OR: [{ usuario_id: yo, destinatario_id: otro }, { usuario_id: otro, destinatario_id: yo }] },
+      orderBy: { fechaCreacion: 'asc' }, take: 300,
+    });
+    return msgs.map((m) => ({
+      id: m.id, esMio: m.usuario_id === yo, contenido: m.contenido,
+      autor: `${m.autorNombre} · ${m.autorRol === 'ADMIN' ? 'Administrador' : 'Técnico'}`, fecha: m.fechaCreacion,
+    }));
+  }
+
+  @Post('staff/directo')
+  async enviarDirecto(@Body() body: { receptorId: number; contenido: string }, @Req() req: any) {
+    const yo = Number(req.user.sub);
+    const receptorId = Number(body.receptorId);
+    if (!receptorId || !body.contenido?.trim()) throw new BadRequestException('receptorId y contenido son requeridos');
+    if (receptorId === yo) throw new BadRequestException('No puedes escribirte a ti mismo.');
+    const eventoId = await this.getPrincipalEventoId();
+    if (!eventoId) throw new BadRequestException('No hay un evento activo');
+    const [emisor, receptor] = await Promise.all([
+      this.prisma.usuario.findFirst({ where: { id: yo, estaActivo: 1 }, select: { nombres: true, apellidoPaterno: true, apellidoMaterno: true, rolEvento: true } }),
+      this.prisma.usuario.findFirst({ where: { id: receptorId, estaActivo: 1 }, select: { rolEvento: true } }),
+    ]);
+    const ROLES = ['ADMINISTRADOR', 'TECNICO', 'TECNICO_EVENTOS'];
+    if (!emisor || !ROLES.includes(emisor.rolEvento)) throw new ForbiddenException('Solo el equipo del evento puede usar esta función');
+    if (!receptor || !ROLES.includes(receptor.rolEvento)) throw new BadRequestException('El destinatario no pertenece al equipo del evento.');
+    // Un técnico no inicia conversaciones con administradores: solo responde.
+    if (emisor.rolEvento !== 'ADMINISTRADOR' && receptor.rolEvento === 'ADMINISTRADOR') {
+      const previo = await this.prisma.mensajeinterno.findFirst({
+        where: { evento_id: eventoId, usuario_id: receptorId, destinatario_id: yo, estaActivo: 1 }, select: { id: true },
+      });
+      if (!previo) throw new ForbiddenException('Solo puedes responder a un administrador que te escribió primero.');
+    }
+    const msg = await this.prisma.mensajeinterno.create({
+      data: {
+        evento_id: eventoId, usuario_id: yo, destinatario_id: receptorId, haSidoLeido: 0,
+        autorNombre: `${emisor.nombres} ${emisor.apellidoPaterno} ${emisor.apellidoMaterno ?? ''}`.replace(/\s+/g, ' ').trim(),
+        autorRol: emisor.rolEvento === 'ADMINISTRADOR' ? 'ADMIN' : 'TECNICO',
+        contenido: body.contenido.trim().slice(0, 1000), estaActivo: 1,
+      },
+    });
+    try { this.notifGateway.emitirParaUsuario(receptorId, 'mensajes:actualizados', { eventoId }); } catch {}
+    return { ok: true, id: msg.id, fecha: msg.fechaCreacion };
   }
 
   @Get('empresa/horarios')

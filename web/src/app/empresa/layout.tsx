@@ -78,7 +78,7 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
         <main className="flex-1">{children}</main>
       </div>
       <NotificacionToast eeId={eeId} />
-      {!esForo && pathname !== '/empresa/mensajes' && <AsistenteChat eeId={eeId} euId={euId} />}
+      {!esForo && pathname !== '/empresa/mensajes' && <AsistenteChat eeId={eeId} euId={euId} esEncargado={esEncargado} />}
     </div>
   );
 }

@@ -197,7 +197,7 @@ export default function TecnicoDashboardPage() {
               <div>
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-base font-bold text-gray-900">Próximas reuniones</h2>
-                  <Link href="/tecnico/reuniones" className="text-xs font-semibold text-[#449D3A] hover:underline flex items-center gap-1">
+                  <Link href="/tecnico/mesas" className="text-xs font-semibold text-[#449D3A] hover:underline flex items-center gap-1">
                     Ver todas <ChevronRight className="w-3 h-3" />
                   </Link>
                 </div>

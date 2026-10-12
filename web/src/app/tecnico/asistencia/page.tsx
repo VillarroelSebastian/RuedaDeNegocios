@@ -2,6 +2,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { CheckCircle2, ImageIcon, ScanLine, X } from "lucide-react";
 import { BrowserQRCodeReader } from "@zxing/browser";
+import ResumenAsistenciaMini from "@/components/tecnico/ResumenAsistenciaMini";
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
 export default function TecnicoAsistenciaPage() {
@@ -221,7 +222,10 @@ export default function TecnicoAsistenciaPage() {
         Solo el personal técnico puede verificar credenciales y registrar
         asistencias.
       </p>
-      <div className="mt-5 bg-white border rounded-2xl p-4 sm:p-6">
+      <div className="mt-5">
+        <ResumenAsistenciaMini refreshKey={asistencias.length + (pendiente?.registroCompletado ? 1 : 0)} />
+      </div>
+      <div className="bg-white border rounded-2xl p-4 sm:p-6">
         {pendiente ? (
           <div>
             <CheckCircle2 className="w-12 h-12 text-green-600 mx-auto" />

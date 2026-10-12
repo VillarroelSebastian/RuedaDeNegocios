@@ -182,9 +182,9 @@ export default function EmpresaMensajesScreen() {
 
 
           {/* Input — solo el encargado puede escribir */}
-          {(!esEncargado || activa.eeId === 0) ? (
+          {!esEncargado ? (
             <View style={s.readonlyNote}>
-              <Text style={s.readonlyNoteText}>{activa.eeId === 0 ? 'Los mensajes del equipo son de solo lectura. Puedes escribir a otras empresas.' : 'Solo el encargado de la empresa puede enviar mensajes.'}</Text>
+              <Text style={s.readonlyNoteText}>Solo el encargado de la empresa puede enviar mensajes.</Text>
             </View>
           ) : (
             <View style={s.inputRow}>

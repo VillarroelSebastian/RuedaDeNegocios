@@ -314,7 +314,7 @@ function MensajesContent() {
                 </div>
                 <p className="font-bold text-gray-900 text-sm truncate">{activa.nombre}</p>
                 <DeleteConversation canal="empresa" eeId={ctx?.empresaeventoId} otroEeId={activa.eeId} onDeleted={() => { setActiva(null); setMensajes([]); cargarConvs(ctx.empresaeventoId); }} />
-                {activaEsStaff && <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">Organización</span>}
+                {activaEsStaff && <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">Equipo del evento</span>}
               </div>
 
               {/* Mensajes */}
@@ -342,9 +342,9 @@ function MensajesContent() {
               </div>
 
               {/* Input — solo el encargado puede escribir */}
-              {(!esEncargado || activaEsStaff) ? (
+              {!esEncargado ? (
                 <div className="px-4 py-3 border-t border-gray-100 shrink-0 text-center text-xs text-gray-400 bg-gray-50/50">
-                  {activaEsStaff ? 'Los mensajes del equipo son de solo lectura. Puedes escribir a otras empresas.' : 'Solo el encargado de la empresa puede enviar mensajes.'}
+                  Solo el encargado de la empresa puede enviar mensajes.
                 </div>
               ) : (
                 <div className="px-3 py-3 border-t border-gray-100 shrink-0 flex gap-2">

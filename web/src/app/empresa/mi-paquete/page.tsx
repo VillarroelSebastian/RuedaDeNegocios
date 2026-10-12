@@ -263,6 +263,12 @@ export default function MiPaquetePage() {
         </div>
       )}
 
+      {ctx?.esResponsable && !sinPaquete && mejoras.length === 0 && !tieneSolicitudPendiente && (
+        <div className="mb-4 flex items-center gap-2.5 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
+          <TrendingUp className="w-4 h-4 shrink-0 text-gray-400" /> Por ahora no hay un paquete superior disponible para mejorar. Cuando el equipo del evento habilite una mejora, el botón aparecerá aquí.
+        </div>
+      )}
+
       {tieneSolicitudPendiente && (
         <div className="mb-4 flex items-center gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
           <Clock className="w-4 h-4 shrink-0" /> Ya tienes una solicitud de mejora de paquete pendiente de revisión por el administrador.

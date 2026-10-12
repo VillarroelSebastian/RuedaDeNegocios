@@ -13,6 +13,7 @@ import { CheckCircle2, QrCode } from "lucide-react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { API_URL, userStore } from "../../utils/userStore";
 import { useModal } from "../../components/AppModal";
+import ResumenAsistenciaMini from "../../components/ResumenAsistenciaMini";
 
 const GREEN = "#449D3A";
 
@@ -417,6 +418,7 @@ export default function TecnicoAsistenciaScreen() {
           data={asistencias}
           keyExtractor={(item) => String(item.id)}
           contentContainerStyle={{ padding: 16, gap: 10 }}
+          ListHeaderComponent={<ResumenAsistenciaMini refreshKey={asistencias.length} />}
           ListEmptyComponent={
             <Text
               style={{ textAlign: "center", color: "#94a3b8", marginTop: 50 }}

@@ -10,7 +10,6 @@ import { useModal } from '../components/AppModal';
 import TecnicoDashboardScreen  from '../screens/tecnico/TecnicoDashboardScreen';
 import TecnicoMesasScreen      from '../screens/tecnico/TecnicoMesasScreen';
 import TecnicoVirtualesScreen  from '../screens/tecnico/TecnicoVirtualesScreen';
-import TecnicoReunionesScreen  from '../screens/tecnico/TecnicoReunionesScreen';
 import TecnicoBuscadorScreen   from '../screens/tecnico/TecnicoBuscadorScreen';
 import TecnicoNoticiasScreen   from '../screens/tecnico/TecnicoNoticiasScreen';
 import TecnicoPerfilScreen     from '../screens/tecnico/TecnicoPerfilScreen';
@@ -144,7 +143,6 @@ export default function TecnicoNavigator() {
       <StatusBar style="dark" backgroundColor="#ffffff" />
       <TecnicoStack.Navigator screenOptions={{ headerShown: false }}>
         <TecnicoStack.Screen name="TecnicoTabs"     component={TecnicoTabs} />
-        <TecnicoStack.Screen name="TecnicoReuniones" component={TecnicoReunionesScreen} />
         <TecnicoStack.Screen name="TecnicoAgendar"   component={TecnicoAgendarScreen} />
         <TecnicoStack.Screen name="TecnicoAsistencia" component={TecnicoAsistenciaScreen} />
         <TecnicoStack.Screen name="TecnicoEventosVivo" component={TecnicoEventosVivoScreen} />
