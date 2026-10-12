@@ -4,7 +4,7 @@ import {
   RefreshControl, StyleSheet, Modal, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { MessageSquare, Send, Search, X, ChevronLeft, Plus, Building2 } from 'lucide-react-native';
 import { API_URL, userStore } from '../../utils/userStore';
 import { MessageActions, DeleteConversation } from '../../components/MessageActions';
@@ -30,6 +30,7 @@ type FiltroDestino = 'empresas' | 'administradores' | 'tecnicos';
 const claveDestino = (d: Destino) => (d.tipo === 'empresa' ? `e-${d.eeId}` : `u-${d.usuarioId}`);
 
 export default function StaffMensajesScreen({ embedded = false }: { embedded?: boolean } = {}) {
+  const navigation: any = useNavigation();
   const user = userStore.get();
   const esAdmin = user?.rolEvento === 'ADMINISTRADOR';
   // Filtros del selector: Empresas, Administradores (solo admin) y Técnicos.
@@ -240,7 +241,17 @@ export default function StaffMensajesScreen({ embedded = false }: { embedded?: b
   return (
     <SafeAreaView style={s.root} edges={['top', 'bottom', 'left', 'right']}>
       <View style={[s.header, embedded && { justifyContent: 'flex-end' }]}>
-        {!embedded && <Text style={s.headerTitle}>Mensajes</Text>}
+        {!embedded && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+            {navigation?.canGoBack?.() && (
+              <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityLabel="Volver"
+                style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center' }}>
+                <ChevronLeft size={22} color="#374151" />
+              </TouchableOpacity>
+            )}
+            <Text style={s.headerTitle}>Mensajes</Text>
+          </View>
+        )}
         <TouchableOpacity style={s.nuevaBtn} onPress={abrirNueva} activeOpacity={0.8}>
           <Plus size={15} color="#fff" />
           <Text style={s.nuevaBtnText}>Nuevo</Text>

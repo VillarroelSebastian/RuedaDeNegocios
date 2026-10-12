@@ -38,6 +38,8 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
   // Edit perfil modal
   const [editModal,   setEditModal]   = useState(false);
   const [editNombre,  setEditNombre]  = useState('');
+  const [editApellidoP, setEditApellidoP] = useState('');
+  const [editApellidoM, setEditApellidoM] = useState('');
   const [editTel,     setEditTel]     = useState('');
   const [editCargo,   setEditCargo]   = useState('');
   const [saving,      setSaving]      = useState(false);
@@ -234,6 +236,8 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
 
   const openEdit = () => {
     setEditNombre(perfil?.usuario?.nombres ?? user?.nombres ?? '');
+    setEditApellidoP(perfil?.usuario?.apellidoPaterno ?? user?.apellidoPaterno ?? '');
+    setEditApellidoM(perfil?.usuario?.apellidoMaterno ?? user?.apellidoMaterno ?? '');
     setEditTel(perfil?.usuario?.telefono ?? '');
     setEditCargo(perfil?.cargo ?? '');
     setSaveError(''); setSaveOk(false);
@@ -244,6 +248,12 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
     if (savingRef.current) return;
     const errNom = validarNombrePersona(editNombre, 'El nombre');
     if (errNom) { setSaveError(errNom); return; }
+    const errApeP = validarNombrePersona(editApellidoP, 'El apellido paterno');
+    if (errApeP) { setSaveError(errApeP); return; }
+    if (editApellidoM.trim()) {
+      const errApeM = validarNombrePersona(editApellidoM, 'El apellido materno');
+      if (errApeM) { setSaveError(errApeM); return; }
+    }
     const errTel = validarTelefono(editTel);
     if (errTel) { setSaveError(errTel); return; }
     savingRef.current = true;
@@ -255,7 +265,10 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
         body: JSON.stringify({
           euId:    perfil?.empresaUsuarioId,
           nombres: editNombre.trim(),
+          apellidoPaterno: editApellidoP.trim(),
+          apellidoMaterno: editApellidoM.trim(),
           telefono: editTel.trim(),
+          cargo: editCargo.trim(),
         }),
       });
       const data = await res.json();
@@ -748,9 +761,16 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
         <View style={s.section}>
           <View style={s.sectionHeader}>
             <User size={16} color={GREEN} style={{ marginRight: 6 }} />
-            <Text style={s.sectionTitle}>Datos personales</Text>
+            <Text style={[s.sectionTitle, { flex: 1 }]}>Datos personales</Text>
+            <TouchableOpacity onPress={openEdit} activeOpacity={0.7} accessibilityLabel="Editar datos personales"
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: GREEN + '55', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 }}>
+              <Edit3 size={13} color={GREEN} />
+              <Text style={{ color: GREEN, fontWeight: '700', fontSize: 12 }}>Editar</Text>
+            </TouchableOpacity>
           </View>
-          <InfoRow label="Nombre"   value={perfil?.usuario?.nombres ?? user?.nombres ?? '—'} />
+          <InfoRow label="Nombres"  value={perfil?.usuario?.nombres ?? user?.nombres ?? '—'} />
+          <InfoRow label="Apellido paterno" value={perfil?.usuario?.apellidoPaterno ?? user?.apellidoPaterno ?? '—'} />
+          <InfoRow label="Apellido materno" value={perfil?.usuario?.apellidoMaterno || '—'} />
           <InfoRow label="Correo"   value={perfil?.usuario?.correo ?? user?.correo ?? '—'} />
           <InfoRow label="Teléfono" value={perfil?.usuario?.telefono ?? '—'} />
           <InfoRow label="Cargo"    value={perfil?.cargo ?? '—'} />
@@ -949,8 +969,12 @@ export default function EmpresaPerfilScreen({ navigation }: any) {
             ) : (
               <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
                 {!!saveError && <View style={s.errorBox}><Text style={s.errorText}>{saveError}</Text></View>}
-                <Text style={s.label}>Nombre</Text>
-                <TextInput style={s.input} value={editNombre} onChangeText={(v) => setEditNombre(soloNombre(v))} autoCapitalize="words" maxLength={105} placeholder="Tu nombre completo" placeholderTextColor="#9ca3af" />
+                <Text style={s.label}>Nombres *</Text>
+                <TextInput style={s.input} value={editNombre} onChangeText={(v) => setEditNombre(soloNombre(v))} autoCapitalize="words" maxLength={105} placeholder="Primer y segundo nombre" placeholderTextColor="#9ca3af" />
+                <Text style={s.label}>Apellido paterno *</Text>
+                <TextInput style={s.input} value={editApellidoP} onChangeText={(v) => setEditApellidoP(soloNombre(v))} autoCapitalize="words" maxLength={65} placeholder="Apellido paterno" placeholderTextColor="#9ca3af" />
+                <Text style={s.label}>Apellido materno</Text>
+                <TextInput style={s.input} value={editApellidoM} onChangeText={(v) => setEditApellidoM(soloNombre(v))} autoCapitalize="words" maxLength={65} placeholder="Apellido materno (opcional)" placeholderTextColor="#9ca3af" />
                 <Text style={s.label}>Teléfono</Text>
                 <TelefonoInput value={editTel} onChange={setEditTel} />
                 <Text style={s.label}>Cargo</Text>
