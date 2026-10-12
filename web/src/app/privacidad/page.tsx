@@ -13,7 +13,7 @@ export default function PrivacidadPage() {
         <p>
           Esta política explica cómo la plataforma y la aplicación móvil de <b>{c.nombre}</b> (en adelante, “la plataforma”)
           recopilan, usan y protegen tus datos personales. La plataforma es operada por el equipo organizador del evento
-          (Universidad Privada del Valle). Para cualquier consulta escribe a {contacto}.
+          (UMA de la Universidad Privada del Valle, Univalle). Para cualquier consulta escribe a {contacto}.
         </p>
       </section>
 

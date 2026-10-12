@@ -7,6 +7,7 @@ Textos listos para pegar en Play Console (Presencia en Google Play › Ficha de 
 - **Paquete:** `edu.univalle.ruedadenegocios`
 - **Categoría:** Negocios
 - **Etiquetas sugeridas:** Eventos, Negocios, Networking
+- **Desarrollador / organización:** UMA – Univalle (Universidad Privada del Valle)
 - **Correo de contacto:** el correo de contacto del evento (Admin › Evento).
 - **Sitio web:** https://app.ruedadenegocios.univalle.edu
 - **Política de privacidad:** https://app.ruedadenegocios.univalle.edu/privacidad
@@ -16,7 +17,7 @@ Textos listos para pegar en Play Console (Presencia en Google Play › Ficha de 
 Agenda reuniones, conoce empresas y sigue la Rueda de Negocios del Beni.
 
 ## Descripción completa (máx. 4000)
-Rueda de Negocios es la aplicación oficial del encuentro empresarial del Beni, organizado por la Universidad Privada del Valle. Reúne en un solo lugar todo lo que necesitas antes, durante y después del evento.
+Rueda de Negocios es la aplicación oficial del encuentro empresarial del Beni, organizado por UMA de la Universidad Privada del Valle (Univalle). Reúne en un solo lugar todo lo que necesitas antes, durante y después del evento.
 
 PARA EMPRESAS PARTICIPANTES
 • Conoce a las empresas inscritas y su oferta y demanda comercial.
