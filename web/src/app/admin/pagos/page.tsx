@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import PagosAdicionales from '@/components/admin/PagosAdicionales';
 import PagosMejora from '@/components/admin/PagosMejora';
+import { usePagosPendientes } from '@/hooks/usePagosPendientes';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
 
@@ -176,15 +177,29 @@ function PagosIniciales({ embedded = false }: { embedded?: boolean } = {}) {
   );
 }
 
-// Unifica "Pagos Iniciales" (verificación de inscripción) y "Pagos
-// Adicionales" (cupos extra): son dos flujos de pago distintos, pero no
-// tenía sentido que vivieran en secciones separadas del menú.
+// Unifica "Pagos Iniciales" (verificación de inscripción) y los pagos
+// "Adicionales": cupos extra y mejoras de paquete (dos subsecciones).
+const Badge = ({ n }: { n: number }) => n > 0 ? (
+  <span className="min-w-5 h-5 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">{n > 99 ? '99+' : n}</span>
+) : null;
+
 function AdminPagosPageInner() {
   const searchParams = useSearchParams();
   const tabInicial = searchParams.get('tab');
-  const [tab, setTab] = useState<'iniciales' | 'adicionales' | 'mejoras'>(
-    tabInicial === 'adicionales' ? 'adicionales' : tabInicial === 'mejoras' ? 'mejoras' : 'iniciales',
+  const subInicial = searchParams.get('sub');
+  const esMejora = tabInicial === 'mejoras' || subInicial === 'mejoras';
+  const [tab, setTab] = useState<'iniciales' | 'adicionales'>(
+    tabInicial === 'adicionales' || tabInicial === 'mejoras' ? 'adicionales' : 'iniciales',
   );
+  const [sub, setSub] = useState<'cupos' | 'mejoras'>(esMejora ? 'mejoras' : 'cupos');
+  const pendientes = usePagosPendientes();
+
+  const claseTab = (activo: boolean) => `flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+    activo ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+  }`;
+  const claseSub = (activo: boolean) => `flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
+    activo ? 'bg-[#449D3A] text-white border-[#449D3A]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#449D3A]'
+  }`;
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto min-w-0">
@@ -196,27 +211,27 @@ function AdminPagosPageInner() {
       </div>
 
       <div className="inline-flex gap-1 rounded-xl bg-gray-100 p-1 mb-6">
-        <button onClick={() => setTab('iniciales')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-            tab === 'iniciales' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-          }`}>
-          <CreditCard className="w-4 h-4" /> Iniciales
+        <button onClick={() => setTab('iniciales')} className={claseTab(tab === 'iniciales')}>
+          <CreditCard className="w-4 h-4" /> Iniciales <Badge n={pendientes.iniciales} />
         </button>
-        <button onClick={() => setTab('adicionales')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-            tab === 'adicionales' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-          }`}>
-          <PlusCircle className="w-4 h-4" /> Adicionales
-        </button>
-        <button onClick={() => setTab('mejoras')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-            tab === 'mejoras' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-          }`}>
-          <TrendingUp className="w-4 h-4" /> Mejoras
+        <button onClick={() => setTab('adicionales')} className={claseTab(tab === 'adicionales')}>
+          <PlusCircle className="w-4 h-4" /> Adicionales <Badge n={pendientes.adicionales + pendientes.mejoras} />
         </button>
       </div>
 
-      {tab === 'iniciales' ? <PagosIniciales embedded /> : tab === 'adicionales' ? <PagosAdicionales embedded /> : <PagosMejora embedded />}
+      {tab === 'iniciales' ? <PagosIniciales embedded /> : (
+        <>
+          <div className="flex flex-wrap gap-2 mb-5">
+            <button onClick={() => setSub('cupos')} className={claseSub(sub === 'cupos')}>
+              <PlusCircle className="w-3.5 h-3.5" /> Cupos adicionales <Badge n={pendientes.adicionales} />
+            </button>
+            <button onClick={() => setSub('mejoras')} className={claseSub(sub === 'mejoras')}>
+              <TrendingUp className="w-3.5 h-3.5" /> Mejoras de paquete <Badge n={pendientes.mejoras} />
+            </button>
+          </div>
+          {sub === 'cupos' ? <PagosAdicionales embedded /> : <PagosMejora embedded />}
+        </>
+      )}
     </div>
   );
 }

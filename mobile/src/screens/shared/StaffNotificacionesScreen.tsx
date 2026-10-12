@@ -31,7 +31,7 @@ export default function StaffNotificacionesScreen({ navigation }: any) {
       else navigation.navigate('TecnicoTabs', { screen: 'TecnicoVirtuales' });
       return;
     }
-    if (String(n.enlace).includes('pagos-adicionales')) navigation.navigate('AdminTabs', { screen: 'Pagos', params: { initialTab: 'adicionales' } });
+    if (String(n.enlace).includes('pagos-adicionales')) navigation.navigate('AdminTabs', { screen: 'Pagos', params: { initialTab: 'adicionales', initialSub: String(n.enlace).includes('sub=mejoras') ? 'mejoras' : 'cupos' } });
     else if (String(n.enlace).match(/\/admin\/pagos\/(\d+)/)) navigation.navigate('PagoDetail', { id: Number(String(n.enlace).match(/\d+$/)?.[0]) });
     else navigation.navigate('AdminTabs', { screen: 'Empresas' });
   };

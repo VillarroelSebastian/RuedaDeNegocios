@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Building2, CalendarDays } from 'lucide-react-native';
 import { userStore } from '../../utils/userStore';
+import { useSolicitudesPendientesCount } from '../../hooks/useSolicitudesPendientesCount';
 import EmpresaEmpresasScreen from './EmpresaEmpresasScreen';
 import EmpresaReunionesScreen from './EmpresaReunionesScreen';
 
@@ -17,6 +18,7 @@ export default function EmpresaSolicitudesScreen({ route }: any) {
   const [esEncargado, setEsEncargado] = useState(!!userStore.get()?.esResponsable);
   useEffect(() => userStore.subscribe(() => setEsEncargado(!!userStore.get()?.esResponsable)), []);
   const [tab, setTab] = useState<'empresas' | 'reuniones'>('empresas');
+  const pendientes = useSolicitudesPendientesCount();
 
   useEffect(() => {
     // Un participante (no encargado) solo tiene la vista de reuniones.
@@ -42,6 +44,9 @@ export default function EmpresaSolicitudesScreen({ route }: any) {
           <TouchableOpacity style={[s.tab, tab === 'reuniones' && s.tabActive]} onPress={() => setTab('reuniones')}>
             <CalendarDays size={15} color={tab === 'reuniones' ? GREEN : '#9ca3af'} />
             <Text style={[s.tabText, tab === 'reuniones' && s.tabTextActive]}>Reuniones</Text>
+            {pendientes > 0 && (
+              <View style={s.badge}><Text style={s.badgeText}>{pendientes > 99 ? '99+' : pendientes}</Text></View>
+            )}
           </TouchableOpacity>
         </View>
       )}
@@ -69,6 +74,8 @@ const s = StyleSheet.create({
   // separan un poco y el texto baja de tamaño para que quepan holgadas.
   tab:  { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 14, paddingHorizontal: 4, marginHorizontal: 3, borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabActive:     { borderBottomColor: GREEN },
+  badge:         { minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 5, backgroundColor: '#ef4444', alignItems: 'center', justifyContent: 'center' },
+  badgeText:     { color: '#fff', fontSize: 10, fontWeight: '800' },
   tabText:       { fontSize: 12, fontWeight: '700', color: '#9ca3af' },
   tabTextActive: { color: GREEN },
 });

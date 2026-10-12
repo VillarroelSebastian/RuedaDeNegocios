@@ -69,6 +69,8 @@ export class NotificacionesController {
       items.push(...pending.map(e => ({ id: `pago-${e.id}`, titulo: 'Pago pendiente de revisión', mensaje: `${e.empresa.nombre}: ${e.estadoVerificacionPago.toLowerCase()}`, tipo: 'pago:pendiente', fecha: e.fechaHoraEnvioComprobante ?? e.fechaCreacion, enlace: `/admin/pagos/${e.id}` })));
       const adicionales = await this.prisma.empresaeventocomprobantes.findMany({ where: { tipoPago: 'ADICIONAL', estadoPago: 'PENDIENTE', estaActivo: 1, empresaevento: { evento_id: eventoId } }, include: { empresaevento: { include: { empresa: true } } } });
       items.push(...adicionales.map(p => ({ id: `adicional-${p.id}`, titulo: 'Pago adicional pendiente', mensaje: p.empresaevento.empresa.nombre, tipo: 'pago:adicional', fecha: p.fechaCreacion, enlace: '/admin/pagos-adicionales' })));
+      const mejoras = await this.prisma.empresaeventocomprobantes.findMany({ where: { tipoPago: 'MEJORA', estadoPago: 'PENDIENTE', estaActivo: 1, empresaevento: { evento_id: eventoId } }, include: { empresaevento: { include: { empresa: true } }, paqueteDestino: { select: { nombre: true } } } });
+      items.push(...mejoras.map(p => ({ id: `mejora-${p.id}`, titulo: 'Mejora de paquete pendiente', mensaje: `${p.empresaevento.empresa.nombre} → ${p.paqueteDestino?.nombre ?? 'paquete superior'}`, tipo: 'pago:mejora', fecha: p.fechaCreacion, enlace: '/admin/pagos-adicionales?sub=mejoras' })));
     }
     for (const item of items) item.leida = readKeys.has(item.id);
     items.sort((a,b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());

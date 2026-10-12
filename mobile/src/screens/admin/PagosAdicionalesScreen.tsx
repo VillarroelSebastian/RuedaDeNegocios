@@ -41,7 +41,9 @@ function badgeEstado(estado: string) {
   );
 }
 
-export default function PagosAdicionalesScreen({ embedded = false }: { embedded?: boolean } = {}) {
+export default function PagosAdicionalesScreen({ embedded = false, tipo = 'adicional' }: { embedded?: boolean; tipo?: 'adicional' | 'mejora' } = {}) {
+  const esMejora = tipo === 'mejora';
+  const base = esMejora ? 'pagos-mejora' : 'pagos-adicionales';
   const { show, modal } = useModal();
   const [tab, setTab]           = useState('');
   const [pagos, setPagos]       = useState<any[]>([]);
@@ -58,14 +60,14 @@ export default function PagosAdicionalesScreen({ embedded = false }: { embedded?
   const fetchPagos = useCallback(async () => {
     try {
       const url = tab
-        ? `${API_URL}/admin/pagos-adicionales?estado=${tab}`
-        : `${API_URL}/admin/pagos-adicionales`;
+        ? `${API_URL}/admin/${base}?estado=${tab}`
+        : `${API_URL}/admin/${base}`;
       const res = await fetch(url);
       const data = await res.json();
       setPagos(Array.isArray(data) ? data : []);
     } catch { setPagos([]); }
     finally { setLoading(false); setRefreshing(false); }
-  }, [tab]);
+  }, [tab, base]);
 
   useFocusEffect(useCallback(() => { setLoading(true); fetchPagos(); }, [fetchPagos]));
 
@@ -84,17 +86,19 @@ export default function PagosAdicionalesScreen({ embedded = false }: { embedded?
     if (!selected) return;
     show({
       type: 'confirm',
-      title: 'Aprobar pago adicional',
-      message: `¿Aprobar ${selected.cantidadParticipantes} cupo(s) adicional(es) para ${selected.empresa?.nombre ?? 'la empresa'}? Esto aumentará sus slots pagados.`,
+      title: esMejora ? 'Aprobar mejora de paquete' : 'Aprobar pago adicional',
+      message: esMejora
+        ? `¿Aprobar que ${selected.empresa?.nombre ?? 'la empresa'} pase a ${selected.paqueteDestino?.nombre ?? 'un paquete superior'}? Cambiará de paquete de inmediato.`
+        : `¿Aprobar ${selected.cantidadParticipantes} cupo(s) adicional(es) para ${selected.empresa?.nombre ?? 'la empresa'}? Esto aumentará sus slots pagados.`,
       confirmText: 'Aprobar',
       cancelText: 'Cancelar',
       onConfirm: async () => {
         setActing(true);
         try {
-          const res = await fetch(`${API_URL}/admin/pagos-adicionales/${selected.id}/aprobar`, { method: 'PUT' });
+          const res = await fetch(`${API_URL}/admin/${base}/${selected.id}/aprobar`, { method: 'PUT' });
           const data = await res.json();
           if (!res.ok) throw new Error(data?.message || 'Error al aprobar');
-          show({ type: 'success', title: '¡Aprobado!', message: `Slots aumentados a ${data.nuevoTotalSlots ?? '?'}.` });
+          show({ type: 'success', title: '¡Aprobado!', message: esMejora ? `Nuevo paquete: ${data.paquete ?? '?'}.` : `Slots aumentados a ${data.nuevoTotalSlots ?? '?'}.` });
           closeDetail();
           fetchPagos();
         } catch (e: any) {
@@ -114,7 +118,7 @@ export default function PagosAdicionalesScreen({ embedded = false }: { embedded?
     actingRef.current = true;
     setActing(true);
     try {
-      const res = await fetch(`${API_URL}/admin/pagos-adicionales/${selected.id}/observar`, {
+      const res = await fetch(`${API_URL}/admin/${base}/${selected.id}/observar`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ observacion: obs.trim() }),
@@ -137,14 +141,14 @@ export default function PagosAdicionalesScreen({ embedded = false }: { embedded?
     }
     show({
       type: 'confirm',
-      title: 'Rechazar pago adicional',
-      message: 'El pago adicional será rechazado. Los slots pagados no cambiarán.',
+      title: esMejora ? 'Rechazar mejora de paquete' : 'Rechazar pago adicional',
+      message: esMejora ? 'La mejora será rechazada y la empresa conservará su paquete actual.' : 'El pago adicional será rechazado. Los slots pagados no cambiarán.',
       confirmText: 'Rechazar',
       cancelText: 'Cancelar',
       onConfirm: async () => {
         setActing(true);
         try {
-          const res = await fetch(`${API_URL}/admin/pagos-adicionales/${selected.id}/rechazar`, {
+          const res = await fetch(`${API_URL}/admin/${base}/${selected.id}/rechazar`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ motivo: obs.trim() }),
@@ -210,7 +214,7 @@ export default function PagosAdicionalesScreen({ embedded = false }: { embedded?
           {pagos.length === 0 ? (
             <View style={s.empty}>
               <CreditCard color="#d1d5db" size={40} />
-              <Text style={s.emptyText}>No hay pagos adicionales en esta categoría</Text>
+              <Text style={s.emptyText}>{esMejora ? 'No hay mejoras de paquete en esta categoría' : 'No hay pagos adicionales en esta categoría'}</Text>
             </View>
           ) : (
             pagos.map((p) => {
@@ -240,8 +244,8 @@ export default function PagosAdicionalesScreen({ embedded = false }: { embedded?
                     <View style={s.cardDetails}>
                       <View style={s.detailRow}>
                         <Users color="#94a3b8" size={13} style={{ marginRight: 6 }} />
-                        <Text style={s.detailLabel}>Cupos solicitados:</Text>
-                        <Text style={s.detailValue}>{p.cantidadParticipantes}</Text>
+                        <Text style={s.detailLabel}>{esMejora ? 'Mejora:' : 'Cupos solicitados:'}</Text>
+                        <Text style={s.detailValue}>{esMejora ? `${p.paqueteActual ?? '—'} → ${p.paqueteDestino?.nombre ?? '—'}` : p.cantidadParticipantes}</Text>
                       </View>
                       {p.montoPago != null && (
                         <View style={s.detailRow}>
@@ -306,7 +310,7 @@ export default function PagosAdicionalesScreen({ embedded = false }: { embedded?
         <View style={s.overlay}>
           <View style={s.modalCard}>
             <View style={s.modalHeader}>
-              <Text style={s.modalTitle}>Gestionar pago adicional</Text>
+              <Text style={s.modalTitle}>{esMejora ? 'Gestionar mejora de paquete' : 'Gestionar pago adicional'}</Text>
               <TouchableOpacity onPress={closeDetail} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <X size={22} color="#6b7280" />
               </TouchableOpacity>
@@ -318,8 +322,8 @@ export default function PagosAdicionalesScreen({ embedded = false }: { embedded?
                 <View style={s.modalInfoBox}>
                   <Text style={s.modalInfoTitle}>{selected.empresa?.nombre ?? '—'}</Text>
                   <View style={s.modalInfoRow}>
-                    <Text style={s.modalInfoLabel}>Cupos solicitados:</Text>
-                    <Text style={s.modalInfoValue}>{selected.cantidadParticipantes}</Text>
+                    <Text style={s.modalInfoLabel}>{esMejora ? 'Mejora:' : 'Cupos solicitados:'}</Text>
+                    <Text style={s.modalInfoValue}>{esMejora ? `${selected.paqueteActual ?? '—'} → ${selected.paqueteDestino?.nombre ?? '—'}` : selected.cantidadParticipantes}</Text>
                   </View>
                   {selected.montoPago != null && (
                     <View style={s.modalInfoRow}>
@@ -372,7 +376,7 @@ export default function PagosAdicionalesScreen({ embedded = false }: { embedded?
                     {acting ? <ActivityIndicator color="#fff" /> : (
                       <>
                         <Check size={16} color="#fff" style={{ marginRight: 6 }} />
-                        <Text style={s.btnAprobarText}>Aprobar — +{selected.cantidadParticipantes} cupos</Text>
+                        <Text style={s.btnAprobarText}>{esMejora ? 'Aprobar mejora' : `Aprobar — +${selected.cantidadParticipantes} cupos`}</Text>
                       </>
                     )}
                   </TouchableOpacity>
@@ -392,7 +396,7 @@ export default function PagosAdicionalesScreen({ embedded = false }: { embedded?
                     disabled={acting}
                   >
                     <X size={16} color="#dc2626" style={{ marginRight: 6 }} />
-                    <Text style={s.btnRechazarText}>Rechazar pago adicional</Text>
+                    <Text style={s.btnRechazarText}>{esMejora ? 'Rechazar mejora' : 'Rechazar pago adicional'}</Text>
                   </TouchableOpacity>
                 </View>
 

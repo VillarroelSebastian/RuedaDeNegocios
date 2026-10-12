@@ -27,6 +27,23 @@ function SolicitudesContent() {
   const [exitoMsg, setExitoMsg] = useState<string | null>(null);
 
   const esEncargado = !!ctx?.esResponsable;
+  const [pendientes, setPendientes] = useState(0);
+
+  // Solicitudes recibidas sin responder: badge rojo en la subpestaña "Reuniones".
+  useEffect(() => {
+    if (!ctx?.empresaeventoId || !esEncargado) { setPendientes(0); return; }
+    const cargar = () => fetch(`${API}/empresa/solicitudes?eeId=${ctx.empresaeventoId}`)
+      .then((r) => r.json())
+      .then((d) => setPendientes(Array.isArray(d) ? d.filter((s: any) => s.estado === "PENDIENTE" && !s.esMiSolicitud).length : 0))
+      .catch(() => {});
+    cargar();
+    const timer = window.setInterval(cargar, 15000);
+    const alNotificar = (e: Event) => {
+      if (String((e as CustomEvent)?.detail?.evento ?? "").startsWith("solicitud")) cargar();
+    };
+    window.addEventListener("rueda:notificacion", alNotificar);
+    return () => { window.clearInterval(timer); window.removeEventListener("rueda:notificacion", alNotificar); };
+  }, [ctx?.empresaeventoId, esEncargado]);
 
   const cargarEmpresas = (eeId: number) =>
     fetch(`${API}/empresa/directorio?eeId=${eeId}`)
@@ -132,6 +149,11 @@ function SolicitudesContent() {
                 tab === "reuniones" ? "bg-white shadow text-gray-900" : "text-gray-500 hover:text-gray-700"
               }`}>
               <CalendarDays className="w-4 h-4" />Reuniones
+              {pendientes > 0 && (
+                <span className="min-w-5 h-5 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                  {pendientes > 99 ? "99+" : pendientes}
+                </span>
+              )}
             </button>
           </div>
         )}

@@ -2000,6 +2000,18 @@ export class AppController implements OnModuleInit {
         })
       : [];
 
+    const mejorasPendientes = eventoId
+      ? await this.prisma.empresaeventocomprobantes.findMany({
+          where: {
+            tipoPago: 'MEJORA', estadoPago: 'PENDIENTE', estaActivo: 1,
+            empresaevento: { evento_id: eventoId, estaActivo: 1 },
+          },
+          take: 10,
+          orderBy: { fechaCreacion: 'desc' },
+          include: { empresaevento: { include: { empresa: true } }, paqueteDestino: { select: { nombre: true } } },
+        })
+      : [];
+
     const empresasRecientes = eventoId
       ? await this.prisma.empresa.findMany({
           where: {
@@ -2039,6 +2051,15 @@ export class AppController implements OnModuleInit {
         enlace: '/admin/pagos-adicionales',
         leida: false,
       })),
+      ...mejorasPendientes.map((pago) => ({
+        id: `pago-mejora-${pago.id}`,
+        tipo: 'pago_mejora_pendiente',
+        titulo: 'Mejora de paquete pendiente',
+        mensaje: `${pago.empresaevento.empresa.nombre} pidió mejorar a ${pago.paqueteDestino?.nombre ?? 'un paquete superior'}`,
+        fecha: pago.fechaCreacion.toISOString(),
+        enlace: '/admin/pagos-adicionales?sub=mejoras',
+        leida: false,
+      })),
       ...empresasRecientes.map((e) => ({
         id: `emp-${e.id}`,
         tipo: 'empresa_nueva',
@@ -2052,7 +2073,7 @@ export class AppController implements OnModuleInit {
 
     return {
       notificaciones,
-      totalNoLeidas: pagosPendientes.length + pagosObservados.length + pagosAdicionalesPendientes.length,
+      totalNoLeidas: pagosPendientes.length + pagosObservados.length + pagosAdicionalesPendientes.length + mejorasPendientes.length,
     };
   }
 
@@ -9720,6 +9741,23 @@ export class AppController implements OnModuleInit {
       data: { estadoPago: 'OBSERVADO', observacion: body.observacion },
     });
     return { ok: true };
+  }
+
+  // Pagos esperando revisión, para los badges rojos de Pagos (iniciales,
+  // cupos adicionales y mejoras de paquete).
+  @Get('admin/pagos-resumen')
+  async getPagosResumenAdmin() {
+    const eventoId = await this.getPrincipalEventoId();
+    if (!eventoId) return { iniciales: 0, adicionales: 0, mejoras: 0, total: 0 };
+    const comprobantes = (tipoPago: string) => this.prisma.empresaeventocomprobantes.count({
+      where: { tipoPago, estadoPago: 'PENDIENTE', estaActivo: 1, empresaevento: { evento_id: eventoId, estaActivo: 1 } },
+    });
+    const [iniciales, adicionales, mejoras] = await Promise.all([
+      this.prisma.empresaevento.count({ where: { evento_id: eventoId, estaActivo: 1, estadoVerificacionPago: 'PENDIENTE' } }),
+      comprobantes('ADICIONAL'),
+      comprobantes('MEJORA'),
+    ]);
+    return { iniciales, adicionales, mejoras, total: iniciales + adicionales + mejoras };
   }
 
   // ─── Admin: mejoras de paquete ─────────────────────────────────────────────

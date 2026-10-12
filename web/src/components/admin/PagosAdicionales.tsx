@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Check, X, Eye, AlertCircle, CheckCircle2, RefreshCw } from "lucide-react";
 import ImagenLightbox from "@/components/ui/ImagenLightbox";
+import { avisarPagosActualizados } from "@/hooks/usePagosPendientes";
 
 const esPdf = (url?: string) => !!url && url.toLowerCase().endsWith(".pdf");
 
@@ -47,6 +48,7 @@ export default function PagosAdicionales({ embedded = false }: { embedded?: bool
       setMensajeErr("No se pudo cargar los pagos adicionales.");
     } finally {
       setLoading(false);
+      avisarPagosActualizados();
     }
   }, [filtro]);
 

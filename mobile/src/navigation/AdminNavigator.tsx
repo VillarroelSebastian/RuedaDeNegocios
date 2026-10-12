@@ -16,6 +16,7 @@ import { useModal } from '../components/AppModal';
 import DashboardScreen    from '../screens/admin/DashboardScreen';
 import EmpresasScreen     from '../screens/admin/EmpresasScreen';
 import PagosUnificadoScreen from '../screens/admin/PagosUnificadoScreen';
+import { usePagosPendientes } from '../hooks/usePagosPendientes';
 import PagoDetailScreen   from '../screens/admin/PagoDetailScreen';
 import MesasScreen from '../screens/admin/MesasScreen';
 import ActividadesScreen  from '../screens/admin/ActividadesScreen';
@@ -186,6 +187,7 @@ function LogoutPlaceholder() { return null; }
 function AdminTabs() {
   const { show, modal } = useModal();
   const tabBarStyle = useTabBarStyle();
+  const pagosPendientes = usePagosPendientes();
 
   const handleLogout = (navigation: any) => {
     show({
@@ -209,7 +211,7 @@ function AdminTabs() {
         <Tab.Screen name="Empresas"   component={EmpresasScreen}
           options={{ title: 'Empresas', tabBarIcon: IconEmpresas }} />
         <Tab.Screen name="Pagos"      component={PagosUnificadoScreen}
-          options={{ title: 'Pagos',    tabBarIcon: IconPagos }} />
+          options={{ title: 'Pagos',    tabBarIcon: IconPagos, tabBarBadge: pagosPendientes.total > 0 ? pagosPendientes.total : undefined }} />
         <Tab.Screen name="Mesas"      component={MesasScreen}
           options={{ title: 'Mesas',    tabBarIcon: IconMesas }} />
         <Tab.Screen name="Menu"       component={MenuScreen}

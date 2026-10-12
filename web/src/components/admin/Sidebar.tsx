@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { usePagosPendientes } from '@/hooks/usePagosPendientes';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
@@ -57,6 +58,7 @@ export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const pagosPendientes = usePagosPendientes();
 
   // Cerrar el drawer al navegar
   useEffect(() => { setMobileOpen(false); }, [pathname]);
@@ -119,7 +121,12 @@ export default function Sidebar() {
               }`}
             >
               <item.icon className="w-4 h-4 mr-3 flex-shrink-0" />
-              {item.name}
+              <span className="flex-1">{item.name}</span>
+              {item.href === '/admin/pagos' && pagosPendientes.total > 0 && (
+                <span className="min-w-5 h-5 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                  {pagosPendientes.total > 99 ? '99+' : pagosPendientes.total}
+                </span>
+              )}
             </Link>
           );
         })}
