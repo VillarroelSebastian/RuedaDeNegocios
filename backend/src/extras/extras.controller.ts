@@ -346,15 +346,69 @@ export class ExtrasController {
       credencialesIncluidas: credenciales,
       urlQR: this.texto(body.urlQR, 505, 'QR de pago', false),
       orden: Number(body.orden) || 0,
-      costoMejora: body.costoMejora !== undefined && body.costoMejora !== null && body.costoMejora !== ''
-        ? (() => {
-            const v = Number(body.costoMejora);
-            if (!Number.isFinite(v) || v < 0) throw new BadRequestException('El costo de mejora debe ser un número mayor o igual a 0.');
-            return v;
-          })()
-        : null,
-      urlQRMejora: this.texto(body.urlQRMejora, 505, 'QR de mejora', false),
     };
+  }
+
+  // ── Mejoras entre paquetes (origen → destino, con costo y QR propios) ──
+  @Get('admin/paquetes/mejoras')
+  async listarMejoras(@Query('eventoId') eventoIdSolicitado?: string) {
+    const eventoId = await this.eventoAdministrableId(eventoIdSolicitado);
+    const filas = await this.prisma.paquetemejora.findMany({
+      where: { estaActivo: 1, origen: { evento_id: eventoId, estaActivo: 1 }, destino: { estaActivo: 1 } },
+      orderBy: [{ origen: { costo: 'asc' } }, { destino: { costo: 'asc' } }],
+      select: { id: true, origen_id: true, destino_id: true, costo: true, urlQR: true },
+    });
+    return filas.map((f) => ({ ...f, costo: Number(f.costo) }));
+  }
+
+  private async datosMejora(body: any) {
+    const origenId = Number(body.origenId);
+    const destinoId = Number(body.destinoId);
+    const costo = Number(body.costo);
+    const urlQR = this.texto(body.urlQR, 505, 'QR de pago de la mejora')!;
+    if (!Number.isInteger(origenId) || !Number.isInteger(destinoId) || origenId === destinoId)
+      throw new BadRequestException('Elige dos paquetes distintos: el actual y el superior.');
+    if (!Number.isFinite(costo) || costo < 0)
+      throw new BadRequestException('El costo de la mejora debe ser un número mayor o igual a 0.');
+    const [origen, destino] = await Promise.all([
+      this.prisma.paquete.findFirst({ where: { id: origenId, estaActivo: 1, tipoPaquete: 'EMPRESA' } }),
+      this.prisma.paquete.findFirst({ where: { id: destinoId, estaActivo: 1, tipoPaquete: 'EMPRESA' } }),
+    ]);
+    if (!origen || !destino || origen.evento_id !== destino.evento_id)
+      throw new BadRequestException('Los dos paquetes deben ser de empresa y del mismo evento.');
+    if (Number(destino.costo) <= Number(origen.costo))
+      throw new BadRequestException('El paquete al que se mejora debe costar más que el actual.');
+    return { origen_id: origenId, destino_id: destinoId, costo, urlQR };
+  }
+
+  @Post('admin/paquetes/mejoras')
+  async crearMejora(@Body() body: any) {
+    const datos = await this.datosMejora(body);
+    const existe = await this.prisma.paquetemejora.findFirst({
+      where: { origen_id: datos.origen_id, destino_id: datos.destino_id, estaActivo: 1 },
+    });
+    if (existe) throw new BadRequestException('Ya existe una mejora entre esos dos paquetes. Edítala en lugar de crear otra.');
+    return this.prisma.paquetemejora.create({ data: datos });
+  }
+
+  @Put('admin/paquetes/mejoras/:id')
+  async editarMejora(@Param('id') id: string, @Body() body: any) {
+    const actual = await this.prisma.paquetemejora.findFirst({ where: { id: Number(id), estaActivo: 1 } });
+    if (!actual) throw new BadRequestException('La mejora no existe o ya fue eliminada.');
+    const datos = await this.datosMejora(body);
+    const duplicada = await this.prisma.paquetemejora.findFirst({
+      where: { origen_id: datos.origen_id, destino_id: datos.destino_id, estaActivo: 1, id: { not: actual.id } },
+    });
+    if (duplicada) throw new BadRequestException('Ya existe una mejora entre esos dos paquetes.');
+    return this.prisma.paquetemejora.update({ where: { id: actual.id }, data: { ...datos, creadoModificadoFecha: new Date() } });
+  }
+
+  @Delete('admin/paquetes/mejoras/:id')
+  async eliminarMejora(@Param('id') id: string) {
+    const actual = await this.prisma.paquetemejora.findFirst({ where: { id: Number(id), estaActivo: 1 } });
+    if (!actual) throw new BadRequestException('La mejora no existe o ya fue eliminada.');
+    await this.prisma.paquetemejora.update({ where: { id: actual.id }, data: { estaActivo: 0, creadoModificadoFecha: new Date() } });
+    return { ok: true };
   }
 
   @Post('admin/paquetes')
@@ -396,6 +450,11 @@ export class ExtrasController {
       );
     await this.prisma.paquete.update({
       where: { id: paqueteId },
+      data: { estaActivo: 0, creadoModificadoFecha: new Date() },
+    });
+    // Las mejoras que salían de él o llegaban a él dejan de tener sentido.
+    await this.prisma.paquetemejora.updateMany({
+      where: { estaActivo: 1, OR: [{ origen_id: paqueteId }, { destino_id: paqueteId }] },
       data: { estaActivo: 0, creadoModificadoFecha: new Date() },
     });
     return { ok: true };

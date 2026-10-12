@@ -100,8 +100,28 @@ model paquete {
   empresaevento         empresaevento[]
   auspiciador           auspiciador[]
   comprobantesMejora    empresaeventocomprobantes[]
+  mejorasDesde          paquetemejora[] @relation("mejoraOrigen")
+  mejorasHacia          paquetemejora[] @relation("mejoraDestino")
 
   @@index([evento_id])
+}
+
+// Mejora de un paquete a otro superior: la define el admin entre dos paquetes
+// (origen → destino) con su propio costo y QR de pago.
+model paquetemejora {
+  id                    Int       @id @default(autoincrement())
+  origen_id             Int
+  destino_id            Int
+  costo                 Decimal   @db.Decimal(10, 2)
+  urlQR                 String    @db.VarChar(505)
+  estaActivo            Int       @default(1) @db.SmallInt
+  fechaCreacion         DateTime  @default(now()) @db.Timestamp(6)
+  creadoModificadoFecha DateTime? @db.Timestamp(6)
+  origen                paquete   @relation("mejoraOrigen", fields: [origen_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  destino               paquete   @relation("mejoraDestino", fields: [destino_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([origen_id])
+  @@index([destino_id])
 }
 
 // ── Auspiciadores ───────────────────────────────────────────────────────────

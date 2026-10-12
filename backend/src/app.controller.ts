@@ -369,21 +369,22 @@ export class AppController implements OnModuleInit {
       where: { empresaEvento_id: Number(eeId), tipoPago: 'MEJORA', estadoPago: 'PENDIENTE', estaActivo: 1 },
     });
 
-    const candidatos = await this.prisma.paquete.findMany({
+    const filas = await this.prisma.paquetemejora.findMany({
       where: {
-        evento_id: ee.evento_id, estaActivo: 1, tipoPaquete: 'EMPRESA',
-        costo: { gt: ee.paquete.costo },
-        costoMejora: { not: null },
-        urlQRMejora: { not: null },
+        origen_id: ee.paquete.id, estaActivo: 1,
+        destino: { evento_id: ee.evento_id, estaActivo: 1, tipoPaquete: 'EMPRESA', costo: { gt: ee.paquete.costo } },
       },
-      orderBy: { costo: 'asc' },
-      select: { id: true, nombre: true, costo: true, credencialesIncluidas: true, maxParticipantes: true, nivelMesa: true, costoMejora: true, urlQRMejora: true, contenido: true },
+      orderBy: { destino: { costo: 'asc' } },
+      select: {
+        costo: true, urlQR: true,
+        destino: { select: { id: true, nombre: true, costo: true, credencialesIncluidas: true, maxParticipantes: true, nivelMesa: true, contenido: true } },
+      },
     });
     return {
-      mejoras: candidatos.map((p) => ({
+      mejoras: filas.map(({ destino: p, costo, urlQR }) => ({
         id: p.id, nombre: p.nombre, costo: Number(p.costo), credencialesIncluidas: p.credencialesIncluidas,
         maxParticipantes: p.maxParticipantes, nivelMesa: p.nivelMesa,
-        costoMejora: Number(p.costoMejora), urlQRMejora: p.urlQRMejora,
+        costoMejora: Number(costo), urlQRMejora: urlQR,
         beneficios: String(p.contenido ?? '').split('\n').filter(Boolean),
       })),
       tieneSolicitudPendiente: !!pendiente,
@@ -415,7 +416,10 @@ export class AppController implements OnModuleInit {
     const destino = await this.prisma.paquete.findFirst({
       where: { id: Number(paqueteId), evento_id: ee.evento_id, estaActivo: 1, tipoPaquete: 'EMPRESA' },
     });
-    if (!destino || destino.costoMejora == null || !destino.urlQRMejora)
+    const mejora = destino
+      ? await this.prisma.paquetemejora.findFirst({ where: { origen_id: ee.paquete.id, destino_id: destino.id, estaActivo: 1 } })
+      : null;
+    if (!destino || !mejora)
       throw new BadRequestException('Ese paquete no está disponible como mejora.');
     if (Number(destino.costo) <= Number(ee.paquete.costo))
       throw new BadRequestException('Solo puedes mejorar a un paquete superior al que ya tienes.');
@@ -426,12 +430,12 @@ export class AppController implements OnModuleInit {
         urlComprobantePagoInscripcion: urlComprobante,
         tipoPago: 'MEJORA',
         paqueteDestino_id: destino.id,
-        montoPago: destino.costoMejora,
+        montoPago: mejora.costo,
         estadoPago: 'PENDIENTE',
         estaActivo: 1,
       },
     });
-    return { ok: true, comprobanteId: comprobante.id, montoPago: Number(destino.costoMejora) };
+    return { ok: true, comprobanteId: comprobante.id, montoPago: Number(mejora.costo) };
   }
 
   async onModuleInit() {

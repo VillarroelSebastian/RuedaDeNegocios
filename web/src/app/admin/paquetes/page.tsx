@@ -4,6 +4,7 @@ import React, { useEffect, useState, useCallback, useRef } from "react";
 import { Package, Plus, Pencil, Trash2, X, Check, Users, Building2, Upload, QrCode, Star } from "lucide-react";
 import { useModal } from "@/components/ui/Modal";
 import ImagenLightbox from "@/components/ui/ImagenLightbox";
+import FlujoEmpresa from "@/components/admin/FlujoEmpresa";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
@@ -32,7 +33,7 @@ type Paquete = {
 
 const formVacio = {
   nombre: "", objetivo: "", descripcion: "", contenido: "",
-  costo: "", credencialesIncluidas: "2", urlQR: "", costoMejora: "", urlQRMejora: "", orden: "0",
+  costo: "", credencialesIncluidas: "2", urlQR: "", orden: "0",
   maxParticipantes: "2", nivelMesa: "NORMAL", tipoParticipacion: "PRESENCIAL",
   tipoPaquete: "EMPRESA" as "EMPRESA" | "FORO",
   apareceEnCatalogo: true, logoEnWeb: false, destacadoEnListados: false,
@@ -55,7 +56,6 @@ const CAPACIDADES = [
 export default function PaquetesPage() {
   const { showSuccess, showError, showConfirm, ModalComponent } = useModal();
   const fileRef = useRef<HTMLInputElement>(null);
-  const fileRefMejora = useRef<HTMLInputElement>(null);
 
   const [lista, setLista] = useState<Paquete[]>([]);
   const [loading, setLoading] = useState(true);
@@ -132,8 +132,6 @@ export default function PaquetesPage() {
       costo: String(Number(p.costo)),
       credencialesIncluidas: String(p.credencialesIncluidas),
       urlQR: p.urlQR ?? "",
-      costoMejora: p.costoMejora != null ? String(Number(p.costoMejora)) : "",
-      urlQRMejora: p.urlQRMejora ?? "",
       orden: String(p.orden),
       maxParticipantes: String(p.maxParticipantes ?? p.credencialesIncluidas),
       nivelMesa: p.nivelMesa ?? "NORMAL",
@@ -147,7 +145,7 @@ export default function PaquetesPage() {
   };
 
   // El QR de pago se sube como archivo; nunca se pide una URL escrita a mano.
-  const subirQR = async (file: File, campo: "urlQR" | "urlQRMejora" = "urlQR") => {
+  const subirQR = async (file: File, campo: "urlQR" = "urlQR") => {
     setSubiendo(true);
     try {
       const fd = new FormData();
@@ -171,9 +169,6 @@ export default function PaquetesPage() {
     if (Number(form.maxParticipantes) < Number(form.credencialesIncluidas))
       return showError("Dato incoherente",
         `El máximo de participantes no puede ser menor que las ${form.credencialesIncluidas} credenciales incluidas.`);
-    if ((form.costoMejora.trim() !== "") !== (form.urlQRMejora.trim() !== ""))
-      return showError("Mejora de paquete incompleta",
-        "Para habilitar la mejora de paquete debes indicar tanto el costo de mejora como subir su QR de pago.");
 
     if (guardandoRef.current) return;
     guardandoRef.current = true;
@@ -190,8 +185,6 @@ export default function PaquetesPage() {
           credencialesIncluidas: Number(form.credencialesIncluidas),
           maxParticipantes: Number(form.maxParticipantes),
           orden: Number(form.orden) || 0,
-          costoMejora: form.costoMejora.trim() !== "" ? Number(form.costoMejora) : null,
-          urlQRMejora: form.urlQRMejora.trim() !== "" ? form.urlQRMejora : null,
         }),
       });
       const data = await res.json();
@@ -237,45 +230,7 @@ export default function PaquetesPage() {
       }
     });
 
-  return (
-    <div className="p-4 sm:p-6 max-w-7xl mx-auto">
-      {ModalComponent}
-
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl font-extrabold text-gray-900 flex items-center gap-2">
-            <Package className="w-6 h-6 text-[#449D3A]" /> Paquetes de inscripción
-          </h1>
-          {eventoNombre && <p className="mt-1 text-sm font-semibold text-[#449D3A]">Evento: {eventoNombre}</p>}
-          <p className="text-sm text-gray-500 mt-1">
-            Definen el costo, las credenciales incluidas y el QR de pago del formulario de registro.
-          </p>
-        </div>
-        <button onClick={abrirNuevo}
-          className="inline-flex items-center justify-center gap-2 bg-[#449D3A] hover:bg-[#367d2e] text-white font-semibold px-5 py-2.5 rounded-xl transition-colors">
-          <Plus className="w-4 h-4" /> Nuevo paquete
-        </button>
-      </div>
-
-      {paquetesRequeridos && (
-        <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          Este evento todavía no puede activarse como principal. Crea al menos un paquete de inscripción para habilitarlo.
-        </div>
-      )}
-
-      {loading ? (
-        <p className="text-center text-gray-400 py-12">Cargando paquetes…</p>
-      ) : lista.length === 0 ? (
-        <div className="text-center py-16 bg-white border border-dashed border-gray-300 rounded-2xl">
-          <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-          <p className="font-semibold text-gray-700">Todavía no hay paquetes</p>
-          <p className="text-sm text-gray-400 mt-1">
-            Crea al menos uno para habilitar este evento como principal y permitir nuevas inscripciones.
-          </p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-          {lista.map((p) => {
+  const tarjeta = (p: Paquete) => {
             const beneficios = String(p.contenido ?? "").split("\n").filter(Boolean);
             const usos = (p._count?.empresaevento ?? 0) + (p._count?.auspiciador ?? 0);
             const foroPaquetes = lista.filter((x) => x.tipoPaquete === "FORO");
@@ -358,8 +313,56 @@ export default function PaquetesPage() {
                 )}
               </div>
             );
-          })}
+  };
+
+  return (
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto">
+      {ModalComponent}
+
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl font-extrabold text-gray-900 flex items-center gap-2">
+            <Package className="w-6 h-6 text-[#449D3A]" /> Paquetes de inscripción
+          </h1>
+          {eventoNombre && <p className="mt-1 text-sm font-semibold text-[#449D3A]">Evento: {eventoNombre}</p>}
+          <p className="text-sm text-gray-500 mt-1">
+            Definen el costo, las credenciales incluidas y el QR de pago del formulario de registro.
+          </p>
         </div>
+        <button onClick={abrirNuevo}
+          className="inline-flex items-center justify-center gap-2 bg-[#449D3A] hover:bg-[#367d2e] text-white font-semibold px-5 py-2.5 rounded-xl transition-colors">
+          <Plus className="w-4 h-4" /> Nuevo paquete
+        </button>
+      </div>
+
+      {paquetesRequeridos && (
+        <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Este evento todavía no puede activarse como principal. Crea al menos un paquete de inscripción para habilitarlo.
+        </div>
+      )}
+
+      {loading ? (
+        <p className="text-center text-gray-400 py-12">Cargando paquetes…</p>
+      ) : lista.length === 0 ? (
+        <div className="text-center py-16 bg-white border border-dashed border-gray-300 rounded-2xl">
+          <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+          <p className="font-semibold text-gray-700">Todavía no hay paquetes</p>
+          <p className="text-sm text-gray-400 mt-1">
+            Crea al menos uno para habilitar este evento como principal y permitir nuevas inscripciones.
+          </p>
+        </div>
+      ) : (
+        <>
+          <FlujoEmpresa paquetes={lista} eventoId={eventoId} tarjeta={tarjeta} />
+          {lista.some((x) => x.tipoPaquete === "FORO") && (
+            <>
+              <h2 className="text-lg font-extrabold text-gray-900 mt-10 mb-4">Paquetes Foro · Personal</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                {lista.filter((x) => x.tipoPaquete === "FORO").map((p) => tarjeta(p))}
+              </div>
+            </>
+          )}
+        </>
       )}
 
       {abierto && paso === "elegir" && (
@@ -555,42 +558,6 @@ export default function PaquetesPage() {
                   </button>
                 </div>
               </div>
-
-              {form.tipoPaquete === "EMPRESA" && (
-                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-3">
-                  <p className="text-xs font-extrabold text-gray-700 uppercase tracking-wide">
-                    Mejora de paquete (opcional)
-                  </p>
-                  <p className="text-[11px] text-gray-400">
-                    Si se completa, las empresas con un paquete más barato podrán pedir mejorar a este pagando la diferencia.
-                  </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1.5">Costo de mejora (Bs.)</label>
-                      <input type="number" min={0} value={form.costoMejora}
-                        onChange={(e) => setForm({ ...form, costoMejora: e.target.value })}
-                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:border-[#449D3A]"
-                        placeholder="100" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1.5">QR de pago de la mejora</label>
-                      <div className="flex items-center gap-3">
-                        {form.urlQRMejora && (
-                          <ImagenLightbox src={form.urlQRMejora} alt="QR de mejora"
-                            className="w-14 h-14 border border-gray-200 rounded-xl bg-white p-1" />
-                        )}
-                        <input ref={fileRefMejora} type="file" accept="image/*" className="hidden"
-                          onChange={(e) => { const f = e.target.files?.[0]; if (f) subirQR(f, "urlQRMejora"); }} />
-                        <button type="button" onClick={() => fileRefMejora.current?.click()} disabled={subiendo}
-                          className="inline-flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-xl text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50">
-                          <Upload className="w-3.5 h-3.5" />
-                          {subiendo ? "Subiendo…" : form.urlQRMejora ? "Cambiar" : "Subir QR"}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
 
             <div className="flex gap-3 px-6 py-4 border-t border-gray-100">
