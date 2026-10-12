@@ -32,14 +32,18 @@ function SolicitudesContent() {
   // Solicitudes recibidas sin responder: badge rojo en la subpestaña "Reuniones".
   useEffect(() => {
     if (!ctx?.empresaeventoId || !esEncargado) { setPendientes(0); return; }
-    const cargar = () => fetch(`${API}/empresa/solicitudes?eeId=${ctx.empresaeventoId}`)
-      .then((r) => r.json())
-      .then((d) => setPendientes(Array.isArray(d) ? d.filter((s: any) => s.estado === "PENDIENTE" && !s.esMiSolicitud).length : 0))
-      .catch(() => {});
+    // Solicitudes de reunión recibidas + cambios de horario por responder.
+    const cargar = () => Promise.all([
+      fetch(`${API}/empresa/solicitudes?eeId=${ctx.empresaeventoId}`).then((r) => r.json()).catch(() => []),
+      fetch(`${API}/empresa/reuniones/cambios?eeId=${ctx.empresaeventoId}`).then((r) => r.json()).catch(() => []),
+    ]).then(([sol, cam]) => setPendientes(
+      (Array.isArray(sol) ? sol.filter((s: any) => s.estado === "PENDIENTE" && !s.esMiSolicitud).length : 0) +
+      (Array.isArray(cam) ? cam.filter((c: any) => c.estado === "PENDIENTE" && c.direccion === "recibida").length : 0),
+    ));
     cargar();
     const timer = window.setInterval(cargar, 15000);
     const alNotificar = (e: Event) => {
-      if (String((e as CustomEvent)?.detail?.evento ?? "").startsWith("solicitud")) cargar();
+      const tipo = String((e as CustomEvent)?.detail?.evento ?? ""); if (tipo.startsWith("solicitud") || tipo.startsWith("reunion")) cargar();
     };
     window.addEventListener("rueda:notificacion", alNotificar);
     return () => { window.clearInterval(timer); window.removeEventListener("rueda:notificacion", alNotificar); };

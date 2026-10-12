@@ -9,6 +9,7 @@ import {
   XCircle, Ban, Send, Inbox,
 } from "lucide-react";
 import { fechaEvento, horaEvento, partesFechaEvento } from "@/lib/fechaEvento";
+import CambiosPanel from "@/components/empresa/CambiosPanel";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 
@@ -793,7 +794,9 @@ export function ReunionesSection({ embedded = false, onEditarSolicitud }: { embe
   const [error, setError] = useState<string | null>(null);
   const [eeId, setEeId] = useState<number | null>(null);
   const [esEncargado, setEsEncargado] = useState(false);
-  const [filtro, setFiltro] = useState<"todas" | "pendientes" | "enviadas" | "proximas" | "finalizadas">("todas");
+  const [filtro, setFiltro] = useState<"todas" | "pendientes" | "enviadas" | "proximas" | "finalizadas" | "cambios">("todas");
+  // Propuestas de cambio de horario/modalidad (recibidas, enviadas e historial).
+  const [cambios, setCambios] = useState<any[]>([]);
   const [detalleModal, setDetalleModal] = useState<any>(null);
   const [cambiarModal, setCambiarModal] = useState<any>(null);
   const [detalleSolicitud, setDetalleSolicitud] = useState<any>(null);
@@ -803,10 +806,6 @@ export function ReunionesSection({ embedded = false, onEditarSolicitud }: { embe
   const cancelandoRef = useRef(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const deepLinkProcesadoRef = useRef(false);
-  const [respondiendoCambioId, setRespondiendoCambioId] = useState<number | null>(null);
-  // Guard sincrónico: evita que un doble clic en "Aceptar"/"Rechazar" dispare
-  // la petición dos veces antes de que el estado se re-renderice.
-  const respondiendoRef = useRef(false);
 
   const cargarReuniones = useCallback((id: number) => {
     fetch(`${API}/empresa/reuniones?eeId=${id}`, { cache: "no-store" })
@@ -823,6 +822,13 @@ export function ReunionesSection({ embedded = false, onEditarSolicitud }: { embe
       })
       .catch(() => setError("No se pudo cargar las reuniones."))
       .finally(() => setLoading(false));
+  }, []);
+
+  const cargarCambios = useCallback((id: number) => {
+    fetch(`${API}/empresa/reuniones/cambios?eeId=${id}`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data) => setCambios(Array.isArray(data) ? data : []))
+      .catch(() => {});
   }, []);
 
   const cargarSolicitudes = useCallback((id: number) => {
@@ -847,18 +853,18 @@ export function ReunionesSection({ embedded = false, onEditarSolicitud }: { embe
         setEeId(ctx.empresaeventoId);
         setEsEncargado(!!ctx.esResponsable);
         cargarReuniones(ctx.empresaeventoId);
-        if (ctx.esResponsable) cargarSolicitudes(ctx.empresaeventoId);
+        if (ctx.esResponsable) { cargarSolicitudes(ctx.empresaeventoId); cargarCambios(ctx.empresaeventoId); }
         const filtroInicial = new URLSearchParams(window.location.search).get("filtro");
-        if (filtroInicial === "pendientes" || filtroInicial === "enviadas" || filtroInicial === "proximas" || filtroInicial === "finalizadas") {
+        if (filtroInicial === "pendientes" || filtroInicial === "enviadas" || filtroInicial === "proximas" || filtroInicial === "finalizadas" || (filtroInicial === "cambios" && ctx.esResponsable)) {
           setFiltro(filtroInicial);
         }
       })
       .catch(() => setError("No se pudo cargar el contexto."));
-  }, [cargarReuniones, cargarSolicitudes]);
+  }, [cargarReuniones, cargarSolicitudes, cargarCambios]);
 
   useEffect(() => {
     if (!eeId) return;
-    const refrescar = () => { cargarReuniones(eeId); if (esEncargado) cargarSolicitudes(eeId); };
+    const refrescar = () => { cargarReuniones(eeId); if (esEncargado) { cargarSolicitudes(eeId); cargarCambios(eeId); } };
     const alNotificar = (event: Event) => {
       const tipo = (event as CustomEvent)?.detail?.evento ?? "";
       if (tipo.startsWith("reunion") || tipo.startsWith("solicitud")) refrescar();
@@ -874,7 +880,7 @@ export function ReunionesSection({ embedded = false, onEditarSolicitud }: { embe
       window.removeEventListener("focus", refrescar);
       document.removeEventListener("visibilitychange", alVolver);
     };
-  }, [eeId, esEncargado, cargarReuniones, cargarSolicitudes]);
+  }, [eeId, esEncargado, cargarReuniones, cargarSolicitudes, cargarCambios]);
 
   const handleCancelarSolicitud = async (solId: number) => {
     if (!eeId || cancelandoRef.current) return;
@@ -895,6 +901,7 @@ export function ReunionesSection({ embedded = false, onEditarSolicitud }: { embe
     finally { cancelandoRef.current = false; setCancelando(null); }
   };
 
+  const cambiosPorResponder = cambios.filter((c) => c.estado === "PENDIENTE" && c.direccion === "recibida").length;
   const recibidasPendientes = solicitudes.filter((s) => !s.esMiSolicitud);
   const enviadasPendientes = solicitudes.filter((s) => s.esMiSolicitud);
 
@@ -940,27 +947,6 @@ export function ReunionesSection({ embedded = false, onEditarSolicitud }: { embe
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reuniones, recibidasPendientes, enviadasPendientes, filtro]);
 
-  const responderCambio = async (cambioId: number, aceptar: boolean) => {
-    if (!eeId || respondiendoRef.current) return;
-    respondiendoRef.current = true;
-    setRespondiendoCambioId(cambioId);
-    try {
-      const res = await fetch(`${API}/empresa/reuniones/cambios/${cambioId}/responder`, {
-        method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eeId, aceptar }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message ?? "No se pudo responder la propuesta");
-      setLoading(true);
-      cargarReuniones(eeId);
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      respondiendoRef.current = false;
-      setRespondiendoCambioId(null);
-    }
-  };
-
   if (loading) return (
     <div className="flex items-center justify-center h-64">
       <div className="w-8 h-8 border-4 border-[#449D3A] border-t-transparent rounded-full animate-spin" />
@@ -991,7 +977,7 @@ export function ReunionesSection({ embedded = false, onEditarSolicitud }: { embe
           reunion={cambiarModal}
           eeId={eeId}
           onClose={() => setCambiarModal(null)}
-          onOk={() => { setCambiarModal(null); if (eeId) { setLoading(true); cargarReuniones(eeId); if (esEncargado) cargarSolicitudes(eeId); } }}
+          onOk={() => { setCambiarModal(null); if (eeId) { setLoading(true); cargarReuniones(eeId); if (esEncargado) { cargarSolicitudes(eeId); cargarCambios(eeId); } setFiltro("cambios"); setToastMsg("Solicitud de cambio enviada. Te avisaremos cuando la otra empresa responda."); setTimeout(() => setToastMsg(null), 5000); } }}
         />
       )}
       {detalleSolicitud && eeId && (
@@ -1035,13 +1021,13 @@ export function ReunionesSection({ embedded = false, onEditarSolicitud }: { embe
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           {embedded && <p className="text-sm text-gray-400">{reuniones.length} reuniones confirmadas</p>}
           <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
-            <button onClick={() => { if (eeId) { cargarReuniones(eeId); if (esEncargado) cargarSolicitudes(eeId); } }}
+            <button onClick={() => { if (eeId) { cargarReuniones(eeId); if (esEncargado) { cargarSolicitudes(eeId); cargarCambios(eeId); } } }}
               className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-600 hover:bg-gray-50">
               <RefreshCw className="h-3.5 w-3.5" /> Actualizar
             </button>
             <div className="flex max-w-full overflow-x-auto bg-gray-100 rounded-xl p-1">
               {(esEncargado
-                ? (["todas", "pendientes", "enviadas", "proximas", "finalizadas"] as const)
+                ? (["todas", "pendientes", "enviadas", "proximas", "cambios", "finalizadas"] as const)
                 : (["todas", "proximas", "finalizadas"] as const)
               ).map((f) => (
                 <button key={f} onClick={() => setFiltro(f)}
@@ -1051,41 +1037,34 @@ export function ReunionesSection({ embedded = false, onEditarSolicitud }: { embe
                   {f === "todas" ? "Todas"
                     : f === "pendientes" ? `Pendientes${recibidasPendientes.length > 0 ? ` (${recibidasPendientes.length})` : ""}`
                     : f === "enviadas" ? "Enviadas"
+                    : f === "cambios" ? "Cambios"
                     : f === "proximas" ? "Próximas" : "Finalizadas"}
+                  {f === "cambios" && cambiosPorResponder > 0 && (
+                    <span className="ml-1.5 inline-flex min-w-5 h-5 px-1 items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold">{cambiosPorResponder}</span>
+                  )}
                 </button>
               ))}
             </div>
           </div>
         </div>
 
-        {esEncargado && reuniones.filter((r) => r.cambioPendiente && r.cambioPendiente.solicitadoPorEe_id !== eeId).map((r) => (
-          <div key={`cambio-${r.cambioPendiente.id}`} className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm font-extrabold text-amber-900">Cambio solicitado por {r.contraparte?.nombre}</p>
-                <p className="mt-1 text-xs text-amber-700">
-                  Nueva propuesta: {fmtDate(r.cambioPendiente.fechaHoraInicio)} · {fmtTime(r.cambioPendiente.fechaHoraInicio)}
-                  {` · ${r.cambioPendiente.tipoReunion === "VIRTUAL" ? "Virtual" : "Presencial"}`}
-                </p>
-                {r.cambioPendiente.mensaje && <p className="mt-1 text-xs text-amber-800">“{r.cambioPendiente.mensaje}”</p>}
-              </div>
-              <div className="flex gap-2">
-                <button onClick={() => responderCambio(r.cambioPendiente.id, false)}
-                  disabled={respondiendoCambioId === r.cambioPendiente.id}
-                  className="rounded-xl border border-amber-300 bg-white px-4 py-2 text-xs font-bold text-amber-800 disabled:opacity-50">
-                  Rechazar
-                </button>
-                <button onClick={() => responderCambio(r.cambioPendiente.id, true)}
-                  disabled={respondiendoCambioId === r.cambioPendiente.id}
-                  className="rounded-xl bg-[#449D3A] px-4 py-2 text-xs font-bold text-white disabled:opacity-50">
-                  Aceptar cambio
-                </button>
-              </div>
-            </div>
-          </div>
-        ))}
+        {esEncargado && filtro !== "cambios" && cambiosPorResponder > 0 && (
+          <button onClick={() => setFiltro("cambios")}
+            className="w-full flex items-center justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-left hover:bg-amber-100/60">
+            <span className="text-sm font-extrabold text-amber-900">
+              Tienes {cambiosPorResponder} solicitud{cambiosPorResponder > 1 ? "es" : ""} de cambio por responder
+            </span>
+            <span className="rounded-full bg-red-500 px-2.5 py-1 text-[11px] font-bold text-white">Ver cambios</span>
+          </button>
+        )}
 
-        {itemsAgrupados.length === 0 ? (
+        {esEncargado && filtro === "cambios" && eeId ? (
+          <CambiosPanel eeId={eeId} cambios={cambios}
+            onActualizado={() => { cargarCambios(eeId); cargarReuniones(eeId); window.dispatchEvent(new CustomEvent("rueda:notificacion", { detail: { evento: "reunion:cambio" } })); }}
+            onMensaje={(m) => { setToastMsg(m); setTimeout(() => setToastMsg(null), 5000); }}
+            onReintentar={(reunionId) => { const r = reuniones.find((x) => x.id === reunionId); if (r) setCambiarModal(r); }} />
+        ) : null}
+        {filtro === "cambios" && esEncargado ? null : itemsAgrupados.length === 0 ? (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center text-gray-400">
             <Users className="w-12 h-12 mx-auto mb-3 opacity-30" />
             <p className="text-sm mb-4">

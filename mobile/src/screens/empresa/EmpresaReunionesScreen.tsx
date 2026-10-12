@@ -11,6 +11,7 @@ import {
   Edit2, X, CheckCircle2, ChevronRight, Star, AlertTriangle,
   Send, Inbox, Ban, XCircle, Calendar, Users, Monitor, Table2, Check,
 } from 'lucide-react-native';
+import CambiosPanelMobile from '../../components/CambiosPanelMobile';
 import { API_URL, userStore } from '../../utils/userStore';
 import { fechaEvento, horaEvento, partesFechaEvento } from '../../utils/fechaEvento';
 
@@ -920,7 +921,9 @@ export default function EmpresaReunionesScreen({ navigation, route, embedded = f
   // Solicitudes aún pendientes (recibidas y enviadas): ya no tienen tabs
   // propias, se gestionan en esta misma lista junto a las reuniones.
   const [solicitudes, setSolicitudes] = useState<any[]>([]);
-  const [filtro, setFiltro] = useState<'todas' | 'pendientes' | 'enviadas' | 'proximas' | 'finalizadas'>(filtroProp ?? 'todas');
+  const [filtro, setFiltro] = useState<'todas' | 'pendientes' | 'enviadas' | 'proximas' | 'finalizadas' | 'cambios'>(filtroProp ?? 'todas');
+  // Propuestas de cambio de horario/modalidad (recibidas, enviadas e historial).
+  const [cambios, setCambios] = useState<any[]>([]);
   // Un deep-link de notificación (p. ej. "tienes una solicitud nueva") puede
   // llegar con un filtro distinto mientras esta pantalla ya está montada.
   useEffect(() => { if (filtroProp) setFiltro(filtroProp); }, [filtroProp]);
@@ -937,6 +940,7 @@ export default function EmpresaReunionesScreen({ navigation, route, embedded = f
   const [actionSolicitud, setActionSolicitud] = useState<{ sol: any; type: 'cancelar' | 'aceptar' | 'rechazar' } | null>(null);
 
   const recibidasPendientes = useMemo(() => solicitudes.filter((s) => !s.esMiSolicitud), [solicitudes]);
+  const cambiosPorResponder = useMemo(() => cambios.filter((c) => c.estado === 'PENDIENTE' && c.direccion === 'recibida').length, [cambios]);
   const enviadasPendientes  = useMemo(() => solicitudes.filter((s) => s.esMiSolicitud), [solicitudes]);
 
   // La lista se muestra agrupada: primero las solicitudes recibidas que
@@ -987,6 +991,15 @@ export default function EmpresaReunionesScreen({ navigation, route, embedded = f
   const [esEncargado, setEsEncargado] = useState(!!userStore.get()?.esResponsable);
   useEffect(() => userStore.subscribe(() => setEsEncargado(!!userStore.get()?.esResponsable)), []);
 
+  const fetchCambios = useCallback(async (id: number) => {
+    try {
+      const res = await fetch(`${API_URL}/empresa/reuniones/cambios?eeId=${id}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setCambios(Array.isArray(data) ? data : []);
+    } catch {}
+  }, []);
+
   const fetchSolicitudes = useCallback(async (id: number) => {
     try {
       const res = await fetch(`${API_URL}/empresa/solicitudes?eeId=${id}`);
@@ -1007,14 +1020,14 @@ export default function EmpresaReunionesScreen({ navigation, route, embedded = f
       const data = await res.json();
       setItems(Array.isArray(data) ? data : []);
       setEeId(id);
-      if (esEncargado) await fetchSolicitudes(id);
+      if (esEncargado) await Promise.all([fetchSolicitudes(id), fetchCambios(id)]);
     } catch (e: any) {
       setError(e.message || 'Error de red');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [user?.empresaeventoId, esEncargado, fetchSolicitudes]);
+  }, [user?.empresaeventoId, esEncargado, fetchSolicitudes, fetchCambios]);
 
   useFocusEffect(useCallback(() => {
     fetchData();
@@ -1035,29 +1048,6 @@ export default function EmpresaReunionesScreen({ navigation, route, embedded = f
       navigation.setParams?.({ reunionId: undefined });
     }
   }, [items, reunionIdProp, route?.params?.reunionId, navigation]);
-
-  const responderCambio = async (cambioId: number, aceptar: boolean) => {
-    if (!eeId) return;
-    if (respondiendoCambioRef.current !== null) return;
-    respondiendoCambioRef.current = cambioId;
-    setRespondiendoCambioId(cambioId);
-    try {
-      const res = await fetch(`${API_URL}/empresa/reuniones/cambios/${cambioId}/responder`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eeId, aceptar }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message ?? 'No se pudo responder la propuesta');
-      setAppModal({ tipo: 'ok', msg: aceptar ? 'Cambio aceptado y agenda actualizada.' : 'Cambio rechazado.' });
-      fetchData();
-    } catch (e: any) {
-      setAppModal({ tipo: 'err', msg: e.message || 'No se pudo responder la propuesta' });
-    } finally {
-      respondiendoCambioRef.current = null;
-      setRespondiendoCambioId(null);
-    }
-  };
 
   if (loading) return (
     <View style={s.center}><ActivityIndicator size="large" color={GREEN} /></View>
@@ -1105,7 +1095,8 @@ export default function EmpresaReunionesScreen({ navigation, route, embedded = f
             setCambiarModal(null);
             setLoading(true);
             fetchData();
-            setAppModal({ tipo: 'ok', msg: 'Horario actualizado correctamente.' });
+            setFiltro('cambios');
+            setAppModal({ tipo: 'ok', msg: 'Solicitud de cambio enviada. Te avisaremos cuando la otra empresa responda.' });
           }}
         />
       )}
@@ -1147,10 +1138,14 @@ export default function EmpresaReunionesScreen({ navigation, route, embedded = f
             ['pendientes', `Pendientes${recibidasPendientes.length > 0 ? ` (${recibidasPendientes.length})` : ''}`],
             ['enviadas', 'Enviadas'],
             ['proximas', 'Próximas'],
+            ['cambios', 'Cambios'],
             ['finalizadas', 'Finalizadas'],
           ] as const).map(([key, label]) => (
-            <TouchableOpacity key={key} onPress={() => setFiltro(key)} style={[s.filterChip, filtro === key && s.filterChipActive]}>
+            <TouchableOpacity key={key} onPress={() => setFiltro(key)} style={[s.filterChip, { flexDirection: 'row', alignItems: 'center', gap: 5 }, filtro === key && s.filterChipActive]}>
               <Text style={[s.filterChipText, filtro === key && s.filterChipTextActive]}>{label}</Text>
+              {key === 'cambios' && cambiosPorResponder > 0 && (
+                <View style={s.redBadge}><Text style={s.redBadgeText}>{cambiosPorResponder}</Text></View>
+              )}
             </TouchableOpacity>
           ))}
         </View>
@@ -1163,34 +1158,26 @@ export default function EmpresaReunionesScreen({ navigation, route, embedded = f
         </View>
       )}
 
+      {esEncargado && filtro === 'cambios' && eeId ? (
+        <CambiosPanelMobile eeId={eeId} cambios={cambios} refreshing={refreshing}
+          onRefresh={() => { setRefreshing(true); fetchData(); }}
+          onActualizado={() => { fetchData(); }}
+          onMensaje={(tipo, msg) => setAppModal({ tipo, msg })}
+          onReintentar={(reunionId) => { const r = items.find((x) => x.id === reunionId); if (r) setCambiarModal(r); }} />
+      ) : (
       <FlatList
         data={itemsAgrupados}
         keyExtractor={(item) => String(item.id)}
         contentContainerStyle={s.list}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(); }} tintColor={GREEN} />}
         ListHeaderComponent={
-          <View>
-            {esEncargado && items.filter((r) => r.cambioPendiente && r.cambioPendiente.solicitadoPorEe_id !== eeId).map((r) => (
-              <View key={`cambio-${r.cambioPendiente.id}`} style={s.changeCard}>
-                <Text style={s.changeTitle}>Cambio solicitado por {r.contraparte?.nombre}</Text>
-                <Text style={s.changeText}>
-                  Nueva propuesta: {fmtDate(r.cambioPendiente.fechaHoraInicio)} · {fmtTime(r.cambioPendiente.fechaHoraInicio)}
-                  {` · ${r.cambioPendiente.tipoReunion === 'VIRTUAL' ? 'Virtual' : 'Presencial'}`}
-                </Text>
-                {!!r.cambioPendiente.mensaje && <Text style={s.changeText}>“{r.cambioPendiente.mensaje}”</Text>}
-                <View style={s.changeActions}>
-                  <TouchableOpacity style={s.changeReject} onPress={() => responderCambio(r.cambioPendiente.id, false)} disabled={respondiendoCambioId === r.cambioPendiente.id}>
-                    <Text style={s.changeRejectText}>Rechazar</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={s.changeAccept} onPress={() => responderCambio(r.cambioPendiente.id, true)} disabled={respondiendoCambioId === r.cambioPendiente.id}>
-                    <Text style={s.changeAcceptText}>Aceptar cambio</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ))}
-          </View>
-        }
-        ListEmptyComponent={
+          esEncargado && cambiosPorResponder > 0 ? (
+            <TouchableOpacity onPress={() => setFiltro('cambios')} style={s.changeCard} activeOpacity={0.8}>
+              <Text style={s.changeTitle}>Tienes {cambiosPorResponder} solicitud{cambiosPorResponder > 1 ? 'es' : ''} de cambio por responder</Text>
+              <Text style={s.changeText}>Toca para verlas en Cambios.</Text>
+            </TouchableOpacity>
+          ) : null
+        }        ListEmptyComponent={
           <View style={s.empty}>
             <CalendarDays size={48} color="#d1d5db" />
             <Text style={s.emptyText}>
@@ -1318,6 +1305,7 @@ export default function EmpresaReunionesScreen({ navigation, route, embedded = f
           );
         }}
       />
+      )}
     </Root>
   );
 }
@@ -1331,6 +1319,8 @@ const s = StyleSheet.create({
   filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4, backgroundColor: '#f8fafc' },
   filterChip: { paddingHorizontal: 11, paddingVertical: 6, borderRadius: 20, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e2e8f0' },
   filterChipActive: { backgroundColor: GREEN, borderColor: GREEN },
+  redBadge: { minWidth: 16, height: 16, borderRadius: 8, paddingHorizontal: 4, backgroundColor: '#ef4444', alignItems: 'center', justifyContent: 'center' },
+  redBadgeText: { color: '#fff', fontSize: 9, fontWeight: '800' },
   filterChipText: { fontSize: 11, fontWeight: '700', color: '#64748b' },
   filterChipTextActive: { color: '#fff' },
   cardSolicitud: { borderColor: '#fde68a', backgroundColor: '#fffdf7' },

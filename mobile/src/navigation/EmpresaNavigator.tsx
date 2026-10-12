@@ -443,7 +443,8 @@ export default function EmpresaNavigator() {
                 }
                 if (ruta && navigationRef.isReady()) {
                   const esTabPrincipal = ['Inicio', 'Empresas', 'Solicitudes', 'Mas'].includes(ruta);
-                  const params = notifActual.evento === 'solicitud:nueva' || notifActual.evento === 'solicitud:editada' || notifActual.evento === 'solicitud:cancelada'
+                  const params = notifActual.evento.startsWith('reunion:cambio') ? { tab: 'reuniones', filtro: 'cambios' }
+                    : notifActual.evento === 'solicitud:nueva' || notifActual.evento === 'solicitud:editada' || notifActual.evento === 'solicitud:cancelada'
                     ? { tab: 'recibidas' }
                     : notifActual.evento.startsWith('solicitud') ? { tab: 'enviadas' }
                     : notifActual.evento.startsWith('reunion') || notifActual.evento === 'mensaje:tecnico'

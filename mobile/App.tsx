@@ -48,7 +48,8 @@ export function abrirNotificacion(data: any): boolean {
     const ruta = rutaDeNotifMobile(tipo) || 'Comunicados';
     const esTab = ['Solicitudes', 'Reuniones'].includes(ruta);
     const subParams = ruta === 'Solicitudes'
-      ? tipo.startsWith('reunion') ? { tab: 'reuniones', reunionId: Number(data?.referenciaId) || undefined }
+      ? tipo.startsWith('reunion:cambio') ? { tab: 'reuniones', filtro: 'cambios' }
+        : tipo.startsWith('reunion') ? { tab: 'reuniones', reunionId: Number(data?.referenciaId) || undefined }
         : { tab: ['solicitud:nueva', 'solicitud:editada', 'solicitud:cancelada'].includes(tipo) ? 'recibidas' : 'enviadas' }
       : ruta === 'Reuniones' && data?.referenciaId ? { reunionId: Number(data.referenciaId) }
       : undefined;

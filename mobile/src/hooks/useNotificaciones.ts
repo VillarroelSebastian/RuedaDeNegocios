@@ -43,6 +43,8 @@ const EVENTO_LABELS: Record<string, string> = {
   'reunion:cambio-solicitado':'Solicitud de cambio en la reunión',
   'reunion:cambio-aceptado':  'Cambio de reunión acordado',
   'reunion:cambio-rechazado': 'Cambio rechazado',
+  'reunion:cambio-cancelado': 'Solicitud de cambio cancelada',
+  'reunion:cambio-vencido':   'Solicitud de cambio vencida',
   'reunion:calificar':        'Califica tu reunión',
   'solicitud:editada':        'Solicitud actualizada',
   'mensaje:staff':            'Mensaje del equipo del evento',
@@ -98,6 +100,7 @@ export function useNotificacionesMobile(eeId: number | null) {
       'reunion:agendada', 'reunion:cancelada', 'reunion:iniciada', 'reunion:inicio-solicitado',
       'reunion:enlace-actualizado', 'reunion:reprogramada', 'reunion:recordatorio',
       'reunion:cambio-solicitado', 'reunion:cambio-aceptado', 'reunion:cambio-rechazado',
+      'reunion:cambio-cancelado', 'reunion:cambio-vencido',
       'reunion:calificar', 'mensaje:staff', 'mensaje:empresa', 'mensaje:tecnico',
       'comunicado:nuevo', 'noticia:nueva', 'mensaje:nuevo', 'mensajes:actualizados', 'notificaciones:actualizadas',
     ];

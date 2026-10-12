@@ -43,6 +43,8 @@ export class NotificacionesController {
         // de "Reuniones", que filtra las pendientes por aceptar.
         : n.tipoNotificacion === 'solicitud:nueva' ? `${base}/solicitudes?tab=reuniones&filtro=pendientes`
         : n.tipoNotificacion.startsWith('solicitud') ? `${base}/solicitudes?tab=reuniones`
+        // Las propuestas de cambio de horario se gestionan en Reuniones › Cambios.
+        : company && n.tipoNotificacion.startsWith('reunion:cambio') ? `${base}/solicitudes?tab=reuniones&filtro=cambios`
         : company ? `${base}/solicitudes?tab=reuniones&reunionId=${n.referenciaId}` : `${base}/virtuales`,
     });
     // Personal notifications outside this event are never included.

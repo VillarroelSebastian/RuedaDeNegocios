@@ -45,6 +45,7 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
           : tipo.startsWith('mensaje') || tipo.startsWith('ticket') ? base+'/mensajes'
           : tipo.startsWith('mesa') ? base+'/mesas'
           : tipo.startsWith('evento') ? base+'/cronograma-vivo'
+          : tipo.startsWith('reunion:cambio') && base === '/empresa' ? `${base}/solicitudes?tab=reuniones&filtro=cambios`
           : tipo.startsWith('reunion') || tipo.startsWith('staff:reunion') ? base === '/empresa' ? `${base}/solicitudes?tab=reuniones&reunionId=${Number(payload.referenciaId)}` : base+'/virtuales'
           // Las solicitudes ya no tienen pestañas propias: se gestionan
           // dentro de "Reuniones", que filtra las pendientes por aceptar.

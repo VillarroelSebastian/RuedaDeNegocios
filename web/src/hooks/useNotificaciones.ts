@@ -58,6 +58,7 @@ export function useNotificaciones(eeId: number | null) {
       "reunion:agendada", "reunion:cancelada", "reunion:iniciada", "reunion:inicio-solicitado",
       "reunion:enlace-actualizado", "reunion:reprogramada", "reunion:recordatorio",
       "reunion:cambio-solicitado", "reunion:cambio-aceptado", "reunion:cambio-rechazado",
+      "reunion:cambio-cancelado", "reunion:cambio-vencido",
       "reunion:calificar", "mensaje:staff", "mensaje:empresa",
       "comunicado:nuevo", "noticia:nueva", "mensaje:nuevo", "mensajes:actualizados",
     ];

@@ -8665,11 +8665,9 @@ export class AppController implements OnModuleInit {
     const { eeId, inicio } = body;
     if (!eeId || !inicio) throw new BadRequestException('eeId e inicio requeridos');
 
-    const cambiosPrevios = await this.prisma.cambioreunion.count({
-      where: { reunion_id: Number(id), estaActivo: 1 },
-    });
-    if (cambiosPrevios > 0)
-      throw new BadRequestException('Por seguridad, una reunión confirmada solo admite una solicitud de cambio de horario.');
+    // Sin tope de intentos: si la contraparte rechaza (o la propuesta se
+    // cancela), se puede proponer otro cambio. Solo una propuesta pendiente a
+    // la vez (se valida más abajo).
 
     const reunion = await this.prisma.reunion.findFirst({
       where: {
@@ -8760,10 +8758,106 @@ export class AppController implements OnModuleInit {
     });
     const contraparte = Number(eeId) === eeA ? eeB : eeA;
     const nuevaHoraPropuesta = this.fmtSlotAsistente(iniDate.toISOString());
+    const horaActual = this.fmtSlotAsistente(reunion.fechaHoraInicioReunion.toISOString());
+    const proponente = await this.prisma.empresaevento.findUnique({ where: { id: Number(eeId) }, select: { empresa: { select: { nombre: true } } } });
     await this.notificar(contraparte, 'reunion:cambio-solicitado', 'Solicitud de cambio en la reunión',
-      `La otra empresa solicitó cambios en la reunión (${tipoPropuesto.toLowerCase()}, ${nuevaHoraPropuesta}). Debes aceptar para que se apliquen.`,
-      propuesta.id, 'cambioreunion');
+      `${proponente?.empresa?.nombre ?? 'La otra empresa'} propone cambiar la reunión de ${horaActual} a ${nuevaHoraPropuesta} (${tipoPropuesto.toLowerCase()}). Responde desde Reuniones › Cambios; si no hay acuerdo, la reunión se mantiene como estaba.`,
+      reunion.id, 'reunion');
     return { ok: true, pendienteAprobacion: true, propuesta };
+  }
+
+  // Estado de cada propuesta de cambio de horario/modalidad de la empresa
+  // (recibidas y enviadas) para la pestaña "Cambios" de Reuniones. Las
+  // pendientes cuya reunión ya empezó, se canceló o dejó de ser editable se
+  // marcan VENCIDA y se avisa a quien las propuso.
+  @Get('empresa/reuniones/cambios')
+  async listarCambiosReunion(@Query('eeId') eeId: string) {
+    const ee = Number(eeId);
+    if (!ee) throw new BadRequestException('eeId requerido');
+    const cambios = await this.prisma.cambioreunion.findMany({
+      where: {
+        estaActivo: 1,
+        reunion: { solicitudreunion: { OR: [{ empresaEvento_id: ee }, { empresaEventorReceptora_id: ee }] } },
+      },
+      orderBy: { fechaCreacion: 'desc' },
+      take: 100,
+      include: {
+        reunion: {
+          include: {
+            mesa: { select: { numeroMesa: true } },
+            solicitudreunion: {
+              include: {
+                empresaevento_solicitudreunion_empresaEvento_idToempresaevento: { include: { empresa: { select: { nombre: true, rubro: true, urlFotoPerfil: true } } } },
+                empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento: { include: { empresa: { select: { nombre: true, rubro: true, urlFotoPerfil: true } } } },
+              },
+            },
+          },
+        },
+      },
+    });
+    const ahora = new Date();
+    const resultado: any[] = [];
+    // Por reunión: la propuesta más reciente y si hay una pendiente, para
+    // ofrecer "Proponer otro horario" a ambas empresas tras cualquier respuesta.
+    const ultimaPorReunion = new Map<number, number>();
+    const conPendiente = new Set<number>();
+    for (const c of cambios) {
+      if (!ultimaPorReunion.has(c.reunion_id)) ultimaPorReunion.set(c.reunion_id, c.id);
+      if (c.estado === 'PENDIENTE') conPendiente.add(c.reunion_id);
+    }
+    for (const c of cambios) {
+      let estado = c.estado;
+      const r: any = c.reunion;
+      const editable = r.estaActivo === 1 && ['PROGRAMADA', 'REPROGRAMADA'].includes(r.estadoReunion) && r.fechaHoraInicioReunion > ahora;
+      if (estado === 'PENDIENTE' && !editable) {
+        estado = 'VENCIDA';
+        await this.prisma.cambioreunion.update({ where: { id: c.id }, data: { estado: 'VENCIDA', creadoModificadoFecha: new Date() } });
+        await this.notificar(c.solicitadoPorEe_id, 'reunion:cambio-vencido', 'Solicitud de cambio vencida',
+          'Tu solicitud de cambio ya no puede responderse porque la reunión cambió o está por comenzar. La reunión sigue con su horario original.',
+          c.reunion_id, 'reunion');
+      }
+      const sol = r.solicitudreunion;
+      const solicitante = sol.empresaevento_solicitudreunion_empresaEvento_idToempresaevento;
+      const receptora = sol.empresaevento_solicitudreunion_empresaEventorReceptora_idToempresaevento;
+      const esMia = c.solicitadoPorEe_id === ee;
+      const yoSoySolicitante = solicitante.id === ee;
+      const contraparte = (yoSoySolicitante ? receptora : solicitante).empresa;
+      const proponente = (c.solicitadoPorEe_id === solicitante.id ? solicitante : receptora).empresa;
+      resultado.push({
+        id: c.id, reunionId: c.reunion_id, estado, direccion: esMia ? 'enviada' : 'recibida',
+        contraparte, proponente: proponente.nombre,
+        actual: { inicio: r.fechaHoraInicioReunion, fin: r.fechaHoraFinReunion, tipo: r.tipoReunion, mesa: r.mesa?.numeroMesa ?? null },
+        propuesto: { inicio: c.fechaHoraInicio, fin: c.fechaHoraFin, tipo: c.tipoReunion },
+        mensaje: c.mensaje, motivoRechazo: c.motivoRechazo,
+        fechaCreacion: c.fechaCreacion, fechaRespuesta: estado === 'PENDIENTE' ? null : c.creadoModificadoFecha,
+        // Tras aceptar, rechazar o cancelar, ambas empresas pueden proponer otro
+        // cambio mientras la reunión siga editable y no haya otra pendiente.
+        puedeReintentar: ['ACEPTADA', 'RECHAZADA', 'CANCELADA'].includes(estado) && editable
+          && ultimaPorReunion.get(c.reunion_id) === c.id && !conPendiente.has(c.reunion_id),
+      });
+    }
+    return resultado;
+  }
+
+  @Put('empresa/reuniones/cambios/:cambioId/cancelar')
+  async cancelarCambioReunion(@Param('cambioId') cambioId: string, @Body() body: { eeId: number }) {
+    const cambio = await this.prisma.cambioreunion.findFirst({
+      where: { id: Number(cambioId), estado: 'PENDIENTE', estaActivo: 1 },
+      include: { reunion: { include: { solicitudreunion: true } } },
+    });
+    if (!cambio) throw new BadRequestException('La propuesta ya no está pendiente');
+    if (cambio.solicitadoPorEe_id !== Number(body.eeId))
+      throw new BadRequestException('Solo quien propuso el cambio puede cancelarlo');
+    await this.prisma.cambioreunion.update({
+      where: { id: cambio.id }, data: { estado: 'CANCELADA', creadoModificadoFecha: new Date() },
+    });
+    const sol = cambio.reunion.solicitudreunion;
+    const contraparte = sol.empresaEvento_id === cambio.solicitadoPorEe_id ? sol.empresaEventorReceptora_id : sol.empresaEvento_id;
+    const quien = await this.prisma.empresaevento.findUnique({ where: { id: cambio.solicitadoPorEe_id }, select: { empresa: { select: { nombre: true } } } });
+    await this.notificar(contraparte, 'reunion:cambio-cancelado', 'Solicitud de cambio cancelada',
+      `${quien?.empresa?.nombre ?? 'La otra empresa'} retiró su propuesta de cambio. La reunión se mantiene como estaba.`,
+      cambio.reunion_id, 'reunion');
+    return { ok: true, estado: 'CANCELADA' };
   }
 
   @Put('empresa/reuniones/cambios/:cambioId/responder')
@@ -8782,12 +8876,15 @@ export class AppController implements OnModuleInit {
       throw new BadRequestException('Solo la contraparte puede responder esta propuesta');
 
     if (!body.aceptar) {
+      const motivo = String(body.motivo ?? '').trim().slice(0, 500);
+      if (motivo.length < 3) throw new BadRequestException('Indica el motivo del rechazo para que la otra empresa lo sepa.');
       await this.prisma.cambioreunion.update({
         where: { id: cambio.id },
-        data: { estado: 'RECHAZADA', motivoRechazo: body.motivo || null, creadoModificadoFecha: new Date() },
+        data: { estado: 'RECHAZADA', motivoRechazo: motivo, creadoModificadoFecha: new Date() },
       });
+      const quien = await this.prisma.empresaevento.findUnique({ where: { id: Number(body.eeId) }, select: { empresa: { select: { nombre: true } } } });
       await this.notificar(cambio.solicitadoPorEe_id, 'reunion:cambio-rechazado', 'Cambio rechazado',
-        `La otra empresa rechazó el cambio propuesto.${body.motivo ? ` Motivo: ${body.motivo}` : ''}`,
+        `${quien?.empresa?.nombre ?? 'La otra empresa'} rechazó tu propuesta de cambio. Motivo: ${motivo}. La reunión se mantiene en su horario original; puedes proponer otro desde Reuniones › Cambios.`,
         cambio.reunion_id, 'reunion');
       return { ok: true, estado: 'RECHAZADA' };
     }
@@ -8854,11 +8951,12 @@ export class AppController implements OnModuleInit {
     const modalidadAnterior = cambio.reunion.tipoReunion === 'PRESENCIAL' ? 'presencial' : 'virtual';
     const modalidadNueva = cambio.tipoReunion === 'PRESENCIAL' ? 'presencial' : 'virtual';
     const modalidadCambio = modalidadAnterior !== modalidadNueva;
+    const nuevaHora = this.fmtSlotAsistente(cambio.fechaHoraInicio.toISOString());
     for (const ee of participantes) {
       await this.notificar(ee, 'reunion:cambio-aceptado', modalidadCambio ? 'Modalidad de reunión cambiada' : 'Cambio de reunión acordado',
         modalidadCambio
-          ? `Ambas empresas aceptaron el cambio. La modalidad cambió de ${modalidadAnterior} a ${modalidadNueva}; la agenda y la mesa ya fueron actualizadas.`
-          : 'Ambas empresas aceptaron el cambio de horario. La agenda y la mesa ya fueron actualizadas.',
+          ? `Ambas empresas aceptaron el cambio. La reunión ahora es ${modalidadNueva} (antes ${modalidadAnterior}) el ${nuevaHora}; la agenda y la mesa ya fueron actualizadas.`
+          : `Ambas empresas aceptaron el cambio. La reunión quedó para el ${nuevaHora}; la agenda y la mesa ya fueron actualizadas.`,
         cambio.reunion_id, 'reunion');
     }
     return { ok: true, estado: 'ACEPTADA' };

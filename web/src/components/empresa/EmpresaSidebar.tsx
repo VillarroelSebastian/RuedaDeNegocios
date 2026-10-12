@@ -65,15 +65,20 @@ export default function EmpresaSidebar({ canPackage = false, esEncargado = false
   // solo el encargado gestiona solicitudes.
   useEffect(() => {
     if (!eeId || !esEncargado) { setSolicitudesPendientes(0); return; }
-    const cargar = () => fetch(`${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334'}/empresa/solicitudes?eeId=${eeId}`)
-      .then((r) => r.json())
-      .then((data) => setSolicitudesPendientes(Array.isArray(data) ? data.filter((s: any) => s.estado === 'PENDIENTE' && !s.esMiSolicitud).length : 0))
-      .catch(() => {});
+    const api = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
+    // Solicitudes de reunión recibidas + cambios de horario por responder.
+    const cargar = () => Promise.all([
+      fetch(`${api}/empresa/solicitudes?eeId=${eeId}`).then((r) => r.json()).catch(() => []),
+      fetch(`${api}/empresa/reuniones/cambios?eeId=${eeId}`).then((r) => r.json()).catch(() => []),
+    ]).then(([sol, cam]) => setSolicitudesPendientes(
+      (Array.isArray(sol) ? sol.filter((s: any) => s.estado === 'PENDIENTE' && !s.esMiSolicitud).length : 0) +
+      (Array.isArray(cam) ? cam.filter((c: any) => c.estado === 'PENDIENTE' && c.direccion === 'recibida').length : 0),
+    ));
     cargar();
     const timer = window.setInterval(cargar, 15000);
     const alNotificar = (event: Event) => {
       const tipo = (event as CustomEvent)?.detail?.evento ?? '';
-      if (tipo.startsWith('solicitud')) cargar();
+      if (tipo.startsWith('solicitud') || tipo.startsWith('reunion')) cargar();
     };
     window.addEventListener('rueda:notificacion', alNotificar);
     return () => { window.clearInterval(timer); window.removeEventListener('rueda:notificacion', alNotificar); };
