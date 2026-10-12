@@ -1,6 +1,6 @@
-﻿// Config dinÃ¡mica (en vez de app.json) solo para poder resolver
+// Config dinámica (en vez de app.json) solo para poder resolver
 // android.googleServicesFile en tiempo de build: en EAS Build ese archivo no
-// estÃ¡ en git (contiene una API key), asÃ­ que se sube como variable de
+// está en git (contiene una API key), así que se sube como variable de
 // entorno de archivo secreta ("GOOGLE_SERVICES_JSON", ver eas.json/EAS
 // dashboard) y EAS la descarga y expone su ruta local en esa env var. En
 // local (Expo Go / build local) simplemente se usa el archivo del repo.
@@ -23,13 +23,13 @@ module.exports = {
     android: {
       package: "edu.univalle.ruedadenegocios",
       // Android 16 (targetSdk 36) impone edge-to-edge y ya ignora
-      // windowOptOutEdgeToEdgeEnforcement, asÃ­ que desactivarlo no servÃ­a de
-      // nada: la app se dibuja bajo la barra de estado igual. La soluciÃ³n es
+      // windowOptOutEdgeToEdgeEnforcement, así que desactivarlo no servía de
+      // nada: la app se dibuja bajo la barra de estado igual. La solución es
       // que cada pantalla reserve el inset superior con SafeAreaView.
       versionCode: 21,
       googleServicesFile: process.env.GOOGLE_SERVICES_JSON ?? "./google-services.json",
       softwareKeyboardLayoutMode: "resize",
-      // La app solo usa cÃ¡mara (escaneo de QR y fotos) y selector de fotos del
+      // La app solo usa cámara (escaneo de QR y fotos) y selector de fotos del
       // sistema: estos permisos no se usan y Play pide justificarlos.
       blockedPermissions: [
         "android.permission.RECORD_AUDIO",
@@ -37,7 +37,7 @@ module.exports = {
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.SYSTEM_ALERT_WINDOW",
       ],
-      // Sin respaldo automÃ¡tico: evita copiar la sesiÃ³n guardada al backup de Google.
+      // Sin respaldo automático: evita copiar la sesión guardada al backup de Google.
       allowBackup: false,
       adaptiveIcon: {
         backgroundColor: "#E6F4FE",
