@@ -13,6 +13,7 @@ export default function InstalarAppButton({
 }: { className?: string; label?: string }) {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [esIOS, setEsIOS] = useState(false);
+  const [esAndroid, setEsAndroid] = useState(false);
   const [instalada, setInstalada] = useState(false);
   const [modalIOS, setModalIOS] = useState(false);
 
@@ -25,6 +26,7 @@ export default function InstalarAppButton({
 
     // Detectar iOS (iPhone/iPad) — no soporta beforeinstallprompt
     const ua = window.navigator.userAgent.toLowerCase();
+    setEsAndroid(/android/.test(ua));
     const iOS = /iphone|ipad|ipod/.test(ua) ||
       (navigator.platform === "MacIntel" && (navigator as any).maxTouchPoints > 1);
     setEsIOS(iOS);
@@ -45,6 +47,14 @@ export default function InstalarAppButton({
   }, []);
 
   // Ya instalada: no mostrar nada
+  if (esAndroid) {
+    return (
+      <a href="https://play.google.com/store/apps/details?id=edu.univalle.ruedadenegocios" className={className}>
+        <Download size={16} />
+        Descargar en Google Play
+      </a>
+    );
+  }
   if (instalada) return null;
   // En navegadores de escritorio sin soporte y que no son iOS, no mostrar
   // (evita un botón que no hace nada). En iOS siempre mostramos (con instrucciones).
