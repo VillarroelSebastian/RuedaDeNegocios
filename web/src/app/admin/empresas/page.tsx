@@ -1,10 +1,11 @@
 "use client";
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, Building2, Users, Eye, Trash2, ChevronLeft, ChevronRight, Filter, X, MessageSquare, KeyRound, CalendarClock, Copy, Check, CreditCard, ShieldOff, ShieldCheck } from 'lucide-react';
+import { Search, Building2, Users, Eye, Trash2, ChevronLeft, ChevronRight, Filter, X, MessageSquare, KeyRound, CalendarClock, Copy, Check, CreditCard, ShieldOff, ShieldCheck, Plus } from 'lucide-react';
 import ImagenLightbox from '@/components/ui/ImagenLightbox';
 import { useModal } from '@/components/ui/Modal';
 import { EnviarMensajeEmpresaModal } from '@/components/EnviarMensajeEmpresaModal';
 import FichaEmpresaModal from '@/components/admin/FichaEmpresaModal';
+import NuevaEmpresaModal from '@/components/admin/NuevaEmpresaModal';
 import PerfilEmpresaStaffModal from '@/components/PerfilEmpresaStaffModal';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3334';
@@ -354,6 +355,7 @@ export function EmpresasRegistradasPage({ modoTecnico = false }: { modoTecnico?:
     );
   };
 
+  const [nuevaEmpresaAbierta, setNuevaEmpresaAbierta] = useState(false);
   const totalPages = Math.ceil(total / limit);
 
   return (
@@ -372,9 +374,13 @@ export function EmpresasRegistradasPage({ modoTecnico = false }: { modoTecnico?:
         />
       )}
 
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Empresas registradas</h1>
-        <p className="text-sm text-gray-500 mt-1">Consulta las empresas inscritas en el evento y su estado de habilitación.</p>
+      {!modoTecnico && <NuevaEmpresaModal abierto={nuevaEmpresaAbierta} onClose={() => setNuevaEmpresaAbierta(false)} onCreada={(m) => { showSuccess('Empresa creada', m); fetchEmpresas(); }} />}
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Empresas registradas</h1>
+          <p className="text-sm text-gray-500 mt-1">Consulta las empresas inscritas en el evento y su estado de habilitación.</p>
+        </div>
+        {!modoTecnico && <button onClick={() => setNuevaEmpresaAbierta(true)} className="inline-flex items-center gap-2 rounded-xl bg-[#449D3A] px-4 py-2.5 text-sm font-bold text-white"><Plus className="w-4 h-4" />Nueva empresa</button>}
       </div>
 
       {/* Filtros */}

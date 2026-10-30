@@ -1455,7 +1455,7 @@ export class AppController implements OnModuleInit {
   }
 
   @Post('public/registro')
-  async registroPublico(@Body() body: any) {
+  async registroPublico(@Body() body: any, opciones: { altaAdmin?: boolean } = {}) {
     const eventoId = await this.getPrincipalEventoId();
     if (!eventoId) throw new BadRequestException('No hay evento activo en este momento.');
 
@@ -1466,12 +1466,13 @@ export class AppController implements OnModuleInit {
     // de inscripción. La agenda de reuniones se controla exclusivamente con
     // horariosReunionJson y las fechas propias del evento.
     const ahora = new Date();
-    if (evento.fechaInicioSolicitudes && ahora < new Date(evento.fechaInicioSolicitudes)) {
+    // El alta directa del administrador no depende del período de inscripción.
+    if (!opciones.altaAdmin && evento.fechaInicioSolicitudes && ahora < new Date(evento.fechaInicioSolicitudes)) {
       throw new BadRequestException(
         `Las inscripciones abren el ${new Date(evento.fechaInicioSolicitudes).toLocaleString('es-BO', { timeZone: EVENT_TIME_ZONE })}`,
       );
     }
-    if (evento.fechaFinSolicitudes && ahora > new Date(evento.fechaFinSolicitudes)) {
+    if (!opciones.altaAdmin && evento.fechaFinSolicitudes && ahora > new Date(evento.fechaFinSolicitudes)) {
       throw new BadRequestException(
         `El período de inscripción cerró el ${new Date(evento.fechaFinSolicitudes).toLocaleString('es-BO', { timeZone: EVENT_TIME_ZONE })}`,
       );
@@ -1787,7 +1788,8 @@ export class AppController implements OnModuleInit {
     if (!empresaExistente) await this.asegurarCodigoEmpresa(empresa.id, null, empresa.nombre);
 
     const encargado = (body.participantes || []).find((p: any) => p.esResponsable);
-    if (encargado?.correo) {
+    // En el alta directa el correo de credenciales lo envía la aprobación.
+    if (encargado?.correo && !opciones.altaAdmin) {
       try {
         const baseUrl = process.env.WEB_URL || 'http://localhost:3000';
         const trackingUrl = `${baseUrl}/seguimiento?ee=${ee.id}&t=${this.seguimientoToken(ee.id)}`;
@@ -2559,6 +2561,23 @@ export class AppController implements OnModuleInit {
           fechaCreacion: c.fechaCreacion,
         })),
       },
+    };
+  }
+
+  // Alta directa: el administrador inscribe una empresa y la deja habilitada sin
+  // pasar por comprobante de pago. Reutiliza las validaciones del registro
+  // público y la aprobación de pago (cuentas, QR y correo de credenciales).
+  @Post('admin/empresas')
+  async altaDirectaEmpresa(@Body() body: any) {
+    const registro = await this.registroPublico(body, { altaAdmin: true });
+    const aprobado: any = await this.aprobarPago(String(registro.empresaeventoId));
+    return {
+      ok: true,
+      empresaeventoId: registro.empresaeventoId,
+      empresa: registro.empresa,
+      participantes: registro.participantes,
+      correosFallidos: aprobado.correosFallidos ?? [],
+      credencialesEnviadas: aprobado.credencialesEnviadas ?? false,
     };
   }
 

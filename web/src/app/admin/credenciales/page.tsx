@@ -43,6 +43,7 @@ export default function CredencialesPage() {
          el diálogo de impresión. */
       @page { margin: 6mm; }
       @media print {
+        .credencial-print, .credencial-print * { -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important }
         aside, header, .no-print { display:none!important }
         main { margin:0!important; padding:0!important; max-width:none!important }
         .contenedor-credenciales { display:flex!important; flex-wrap:wrap!important; align-items:flex-start!important; gap:3mm!important }
@@ -60,8 +61,8 @@ export default function CredencialesPage() {
         const color = COLOR_TIPO[c.tipo] ?? COLOR_TIPO.EMPRESA;
         const esLogoForo = c.tipo === "FORO" && !!data.evento?.urlLogoForo;
         const logo = esLogoForo ? data.evento.urlLogoForo : data.evento?.urlLogoEvento;
-        return <section key={c.id} className={`credencial-print relative bg-white border-2 ${color.borde} rounded-2xl overflow-hidden p-5 flex flex-col items-center text-center justify-center gap-1.5 mx-auto ${imprimirId !== null && imprimirId !== c.id ? "no-seleccionada" : ""}`} style={{ width: "90mm", height: "130mm" }}>
-          <div className={`absolute top-0 left-0 right-0 h-2 ${color.franja}`}/>
+        return <section key={c.id} className={`credencial-print relative bg-white border-[7px] ${color.borde} rounded-2xl overflow-hidden p-5 flex flex-col items-center text-center justify-center gap-1.5 mx-auto ${imprimirId !== null && imprimirId !== c.id ? "no-seleccionada" : ""}`} style={{ width: "90mm", height: "130mm" }}>
+          <div className={`absolute top-0 left-0 right-0 h-3 ${color.franja}`}/>
           {/* El logo del foro suele venir con mucho margen interno en el
               archivo, así que a la misma altura se ve más chico que el del
               evento: se le da más alto para que "pese" visualmente igual. */}

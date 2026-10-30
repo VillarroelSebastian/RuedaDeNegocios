@@ -3,7 +3,8 @@ import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   ActivityIndicator, RefreshControl, Modal as RNModal, KeyboardAvoidingView, Platform,
 } from 'react-native';
-import { Search, Building2, Users, Eye, X, MessageSquare, KeyRound, CalendarClock } from 'lucide-react-native';
+import { Search, Building2, Users, Eye, X, MessageSquare, KeyRound, CalendarClock, Plus } from 'lucide-react-native';
+import NuevaEmpresaModal from '../../components/NuevaEmpresaModal';
 import { API_URL } from '../../utils/userStore';
 import EnviarMensajeEmpresaModal from '../../components/EnviarMensajeEmpresaModal';
 import * as Clipboard from 'expo-clipboard';
@@ -244,6 +245,7 @@ export default function EmpresasScreen({ navigation }: any) {
   const [mensajeEmpresa, setMensajeEmpresa] = useState<{ eeId: number; nombre: string } | null>(null);
   const [agendaEmpresa, setAgendaEmpresa] = useState<{ eeId:number; nombre:string } | null>(null);
   const [perfilEmpresaId, setPerfilEmpresaId] = useState<number | null>(null);
+  const [nuevaEmpresaVisible, setNuevaEmpresaVisible] = useState(false);
   const [appModal, setAppModal] = useState<{ visible: boolean; type: string; title: string; message: string; onConfirm?: () => void }>({
     visible: false, type: 'confirm', title: '', message: '',
   });
@@ -332,8 +334,16 @@ export default function EmpresasScreen({ navigation }: any) {
 
       {/* Header */}
       <View className="bg-white px-4 pt-12 pb-4 border-b border-gray-100">
-        <Text className="text-2xl font-bold text-gray-900">Empresas</Text>
-        <Text className="text-sm text-gray-500 mt-1">Empresas registradas en el evento</Text>
+        <View className="flex-row items-start justify-between">
+          <View style={{ flex: 1 }}>
+            <Text className="text-2xl font-bold text-gray-900">Empresas</Text>
+            <Text className="text-sm text-gray-500 mt-1">Empresas registradas en el evento</Text>
+          </View>
+          <TouchableOpacity onPress={() => setNuevaEmpresaVisible(true)} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: GREEN, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 9 }}>
+            <Plus size={15} color="#fff" /><Text style={{ color: '#fff', fontWeight: '800', fontSize: 12 }}>Nueva</Text>
+          </TouchableOpacity>
+        </View>
+        <NuevaEmpresaModal visible={nuevaEmpresaVisible} onClose={() => setNuevaEmpresaVisible(false)} onCreada={(m) => { showModal('success', 'Empresa creada', m); fetchEmpresas(1); }} />
         <View className="flex-row items-center bg-gray-100 rounded-xl px-3 mt-3">
           <Search color="#9ca3af" size={16} />
           <TextInput
