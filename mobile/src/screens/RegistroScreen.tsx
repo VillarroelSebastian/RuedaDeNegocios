@@ -1063,8 +1063,8 @@ function RegistroForoScreen({ navigation }: any) {
               {paquete ? `Costo: Bs. ${Number(paquete.costo)}. Realiza el pago y sube tu comprobante.` : 'Realiza el pago de tu inscripción y sube tu comprobante para que lo verifiquemos.'}
             </Text>
             {!!paquete?.urlQR && (
-              <TouchableOpacity onPress={() => setLightboxUrl(paquete.urlQR)} style={{ alignSelf: 'center', marginBottom: 12 }}>
-                <Image source={{ uri: paquete.urlQR }} style={{ width: 160, height: 160, borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb' }} resizeMode="contain" />
+              <TouchableOpacity onPress={() => setLightboxUrl(paquete.urlQR)} style={{ alignSelf: 'center', marginBottom: 12, width: '100%', alignItems: 'center' }}>
+                <Image source={{ uri: paquete.urlQR }} style={{ width: 300, maxWidth: '100%', aspectRatio: 0.75, borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', backgroundColor: '#fff' }} resizeMode="contain" />
               </TouchableOpacity>
             )}
             {comprobanteUrl ? (

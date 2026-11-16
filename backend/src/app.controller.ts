@@ -2594,8 +2594,10 @@ export class AppController implements OnModuleInit {
   // público y la aprobación de pago (cuentas, QR y correo de credenciales).
   @Post('admin/empresas')
   async altaDirectaEmpresa(@Body() body: any) {
+    // Se valida el monto antes de crear nada, para no dejar una inscripción a medias.
+    const montoRecibido = this.leerMontoRecibido(body?.montoRecibido);
     const registro = await this.registroPublico(body, { altaAdmin: true });
-    const aprobado: any = await this.aprobarPago(String(registro.empresaeventoId));
+    const aprobado: any = await this.aprobarPago(String(registro.empresaeventoId), montoRecibido != null ? { montoRecibido } : {});
     return {
       ok: true,
       empresaeventoId: registro.empresaeventoId,

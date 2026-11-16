@@ -1316,7 +1316,10 @@ function RegistroForoPage({ onVolver }: { onVolver: () => void }) {
           <p className="text-sm text-gray-500 mb-4">Realiza el pago de tu inscripción y sube tu comprobante para que lo verifiquemos.</p>
         )}
         {paquete?.urlQR && (
-          <ImagenLightbox src={paquete.urlQR} alt="QR de pago" className="w-40 h-40 rounded-xl border border-gray-200 mb-4 mx-auto sm:mx-0" />
+          <div className="mb-4">
+            <ImagenLightbox src={paquete.urlQR} alt="QR de pago" className="w-full max-w-[360px] mx-auto rounded-xl border border-gray-200 bg-white" imgClassName="!h-auto" />
+            <p className="text-xs text-gray-400 text-center mt-2">Escanéalo con la app de tu banco, toma una captura o tócalo para ampliarlo.</p>
+          </div>
         )}
         {urlComprobante ? (
           <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl p-3">

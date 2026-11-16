@@ -18,6 +18,8 @@ export default function NuevaEmpresaModal({ visible, onClose, onCreada }: { visi
   const [paqueteId, setPaqueteId] = useState<number | null>(null);
   const [empresa, setEmpresa] = useState(empresaVacia());
   const [personas, setPersonas] = useState([personaVacia()]);
+  // Monto realmente pagado; se precarga con el precio del paquete.
+  const [montoPagado, setMontoPagado] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState('');
 
@@ -33,6 +35,7 @@ export default function NuevaEmpresaModal({ visible, onClose, onCreada }: { visi
   const guardar = async () => {
     setError('');
     if (!paqueteId) return setError('Selecciona un paquete.');
+    if (montoPagado.trim() !== '' && !(Number(montoPagado) > 0)) return setError('El monto pagado debe ser mayor a 0.');
     if (!empresa.nombre.trim() || !empresa.rubro || !empresa.correoCorporativo.trim() || !empresa.telefonoWhatsapp.trim())
       return setError('Completa nombre, rubro, correo y teléfono de la empresa.');
     if (personas.some((p) => !p.nombres.trim() || !p.apellidoPaterno.trim() || !p.correo.trim() || !p.telefono.trim()))
@@ -45,6 +48,7 @@ export default function NuevaEmpresaModal({ visible, onClose, onCreada }: { visi
         body: JSON.stringify({
           empresa: { ...empresa, nombre: empresa.nombre.trim(), ciudadNombre: empresa.ciudadNombre.trim() || 'Trinidad' },
           participacion: { paquete_id: paqueteId },
+          montoRecibido: montoPagado.trim() === '' ? undefined : montoPagado,
           participantes: personas.map((p, i) => ({ ...p, esResponsable: i === 0 })),
         }),
       });
@@ -56,6 +60,7 @@ export default function NuevaEmpresaModal({ visible, onClose, onCreada }: { visi
       setEmpresa(empresaVacia());
       setPersonas([personaVacia()]);
       setPaqueteId(null);
+      setMontoPagado('');
       onCreada(`Empresa creada y habilitada.${aviso}`);
       onClose();
     } catch (e: any) {
@@ -73,7 +78,7 @@ export default function NuevaEmpresaModal({ visible, onClose, onCreada }: { visi
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 48, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' }}>
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 20, fontWeight: '800', color: '#111827' }}>Nueva empresa</Text>
-            <Text style={{ fontSize: 12, color: '#6b7280' }}>Se crea habilitada, sin comprobante de pago.</Text>
+            <Text style={{ fontSize: 12, color: '#6b7280' }}>Se crea habilitada; no necesita comprobante de pago.</Text>
           </View>
           <TouchableOpacity onPress={onClose} hitSlop={10}><X size={22} color="#9ca3af" /></TouchableOpacity>
         </View>
@@ -81,11 +86,16 @@ export default function NuevaEmpresaModal({ visible, onClose, onCreada }: { visi
           <Text style={{ fontWeight: '700', color: '#374151' }}>Paquete</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
             {paquetes.map((p) => (
-              <TouchableOpacity key={p.id} style={chip(p.id === paqueteId)} onPress={() => { setPaqueteId(p.id); setPersonas((prev) => prev.slice(0, 1)); }}>
+              <TouchableOpacity key={p.id} style={chip(p.id === paqueteId)} onPress={() => { setPaqueteId(p.id); setMontoPagado(String(Number(p.costo))); setPersonas((prev) => prev.slice(0, 1)); }}>
                 <Text style={{ fontSize: 12, fontWeight: '700', color: p.id === paqueteId ? GREEN : '#374151' }}>{p.nombre} · Bs {Number(p.costo).toLocaleString('es-BO')}</Text>
               </TouchableOpacity>
             ))}
           </View>
+          <Text style={{ fontWeight: '700', color: '#374151' }}>Monto pagado (Bs)</Text>
+          <TextInput style={inputStyle} placeholder="Monto real" keyboardType="decimal-pad" value={montoPagado} onChangeText={setMontoPagado} />
+          {!!paquete && montoPagado !== '' && Number(montoPagado) !== Number(paquete.costo) && (
+            <Text style={{ fontSize: 12, color: '#b45309' }}>Se registrará Bs {Number(montoPagado).toLocaleString('es-BO')} pagado frente a Bs {Number(paquete.costo).toLocaleString('es-BO')} del paquete.</Text>
+          )}
           <TextInput style={inputStyle} placeholder="Nombre de la empresa" maxLength={55} value={empresa.nombre} onChangeText={(v) => setEmpresa({ ...empresa, nombre: v })} />
           <Text style={{ fontWeight: '700', color: '#374151' }}>Rubro</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>

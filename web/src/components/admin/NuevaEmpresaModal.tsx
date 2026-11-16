@@ -15,6 +15,8 @@ export default function NuevaEmpresaModal({ abierto, onClose, onCreada }: { abie
   const [paqueteId, setPaqueteId] = useState<number | "">("");
   const [empresa, setEmpresa] = useState(empresaVacia());
   const [personas, setPersonas] = useState([personaVacia()]);
+  // Monto realmente pagado; se precarga con el precio del paquete.
+  const [montoPagado, setMontoPagado] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState("");
 
@@ -31,6 +33,7 @@ export default function NuevaEmpresaModal({ abierto, onClose, onCreada }: { abie
   const guardar = async () => {
     setError("");
     if (!paqueteId) return setError("Selecciona un paquete.");
+    if (montoPagado.trim() !== "" && !(Number(montoPagado) > 0)) return setError("El monto pagado debe ser mayor a 0.");
     if (!empresa.nombre.trim() || !empresa.rubro || !empresa.correoCorporativo.trim() || !empresa.telefonoWhatsapp.trim())
       return setError("Completa nombre, rubro, correo y teléfono de la empresa.");
     if (personas.some((p) => !p.nombres.trim() || !p.apellidoPaterno.trim() || !p.correo.trim() || !p.telefono.trim()))
@@ -43,6 +46,7 @@ export default function NuevaEmpresaModal({ abierto, onClose, onCreada }: { abie
         body: JSON.stringify({
           empresa: { ...empresa, nombre: empresa.nombre.trim(), ciudadNombre: empresa.ciudadNombre.trim() || "Trinidad" },
           participacion: { paquete_id: paqueteId },
+          montoRecibido: montoPagado.trim() === "" ? undefined : montoPagado,
           participantes: personas.map((p, i) => ({ ...p, esResponsable: i === 0 })),
         }),
       });
@@ -54,6 +58,7 @@ export default function NuevaEmpresaModal({ abierto, onClose, onCreada }: { abie
       setEmpresa(empresaVacia());
       setPersonas([personaVacia()]);
       setPaqueteId("");
+      setMontoPagado("");
       onCreada(`Empresa creada y habilitada.${aviso}`);
       onClose();
     } catch (e: any) {
@@ -64,19 +69,34 @@ export default function NuevaEmpresaModal({ abierto, onClose, onCreada }: { abie
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-start sm:items-center justify-center p-3 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl my-4">
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-3">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[92vh] flex flex-col">
         <div className="flex items-center justify-between p-5 border-b border-gray-100">
-          <div><h2 className="text-lg font-bold text-gray-900">Nueva empresa</h2><p className="text-xs text-gray-500">Se crea habilitada, sin comprobante de pago.</p></div>
+          <div><h2 className="text-lg font-bold text-gray-900">Nueva empresa</h2><p className="text-xs text-gray-500">Se crea habilitada; no necesita comprobante de pago.</p></div>
           <button onClick={onClose} aria-label="Cerrar"><X className="w-5 h-5 text-gray-400" /></button>
         </div>
-        <div className="p-5 space-y-4">
+        {/* Paquete y monto quedan siempre visibles; solo se desplaza lo de abajo. */}
+        <div className="px-5 pt-4 pb-3 border-b border-gray-100 grid sm:grid-cols-[1fr_180px] gap-3">
           <label className="block text-sm font-semibold text-gray-700">Paquete
-            <select value={paqueteId} onChange={(e) => { setPaqueteId(e.target.value ? Number(e.target.value) : ""); setPersonas((prev) => prev.slice(0, 1)); }} className={`${inputCls} mt-1`}>
+            <select value={paqueteId} onChange={(e) => {
+              const id = e.target.value ? Number(e.target.value) : "";
+              setPaqueteId(id);
+              const elegido = paquetes.find((p) => p.id === id);
+              setMontoPagado(elegido ? String(Number(elegido.costo)) : "");
+              setPersonas((prev) => prev.slice(0, 1));
+            }} className={`${inputCls} mt-1`}>
               <option value="">Selecciona un paquete…</option>
               {paquetes.map((p) => <option key={p.id} value={p.id}>{p.nombre} — Bs {Number(p.costo).toLocaleString("es-BO")}</option>)}
             </select>
           </label>
+          <label className="block text-sm font-semibold text-gray-700">Monto pagado (Bs)
+            <input type="number" inputMode="decimal" min="0" step="0.01" value={montoPagado} onChange={(e) => setMontoPagado(e.target.value)} className={`${inputCls} mt-1`} placeholder="Monto real" />
+          </label>
+          {paquete && montoPagado !== "" && Number(montoPagado) !== Number(paquete.costo) && (
+            <p className="sm:col-span-2 text-xs text-amber-700">Se registrará Bs {Number(montoPagado).toLocaleString("es-BO")} pagado frente a Bs {Number(paquete.costo).toLocaleString("es-BO")} del paquete.</p>
+          )}
+        </div>
+        <div className="p-5 space-y-4 overflow-y-auto flex-1">
           <div className="grid sm:grid-cols-2 gap-3">
             <input className={inputCls} placeholder="Nombre de la empresa" maxLength={55} value={empresa.nombre} onChange={(e) => setEmpresa({ ...empresa, nombre: e.target.value })} />
             <select className={inputCls} value={empresa.rubro} onChange={(e) => setEmpresa({ ...empresa, rubro: e.target.value })}>
