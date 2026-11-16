@@ -80,6 +80,9 @@ const tipoColors: Record<string, string> = {
   TALLER:      "bg-green-100 text-green-700",
   PANEL:       "bg-purple-100 text-purple-700",
   Seminario:   "bg-amber-100 text-amber-700",
+  Conferencia: "bg-blue-100 text-blue-700",
+  Panel:       "bg-purple-100 text-purple-700",
+  Actividad:   "bg-gray-100 text-gray-700",
 };
 
 function formatDate(iso: string) {
@@ -110,7 +113,7 @@ export default function HomePage() {
         if (ev && ev.id && ev.nombre && ev.stats) {
           setEvento(ev);
         }
-        setActividades(Array.isArray(acts) ? acts.slice(0, 4) : []);
+        setActividades(Array.isArray(acts) ? acts : []);
       } catch {
         // Backend not available
       } finally {
@@ -367,38 +370,38 @@ export default function HomePage() {
             <div className="text-center mb-12">
               <span className="text-green-600 font-semibold text-sm uppercase tracking-wider">Programa</span>
               <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mt-3">Actividades del Evento</h2>
-              <p className="text-gray-500 mt-3 max-w-xl mx-auto">Conferencias, talleres y paneles diseñados para potenciar tu negocio.</p>
+              <p className="text-gray-500 mt-3 max-w-xl mx-auto">Programa completo del evento, día por día.</p>
             </div>
-            <div className="grid sm:grid-cols-2 gap-6">
-              {actividades.map((act) => (
-                <div key={act.id} className="bg-gray-50 border border-gray-200 rounded-2xl p-6 hover:shadow-md transition-shadow">
-                  <div className="flex items-start justify-between gap-3 mb-3">
-                    <span className={`text-xs font-semibold px-3 py-1 rounded-full ${tipoColors[act.tipoActividad] ?? "bg-gray-100 text-gray-700"}`}>
-                      {act.tipoActividad}
-                    </span>
-                    <div className="flex items-center gap-1 text-gray-400 text-xs whitespace-nowrap">
-                      <Clock size={12} />{formatTime(act.horaInicioActividad)} – {formatTime(act.horaFinActividad)}
-                    </div>
-                  </div>
-                  <h3 className="font-bold text-gray-900 text-base leading-snug mb-2">{act.nombreActividad}</h3>
-                  <p className="text-gray-500 text-sm line-clamp-2 mb-4">{act.descripcionActividad}</p>
-                  {act.nombreCompletoPilaExpositor && (
-                    <div className="flex items-center gap-2 text-sm text-gray-600 border-t border-gray-200 pt-3">
-                      <div className="w-7 h-7 bg-green-100 rounded-full flex items-center justify-center text-green-700 font-bold text-xs flex-shrink-0">
-                        {act.nombreCompletoPilaExpositor[0]}
+            {Object.entries(actividades.reduce((g: Record<string, Actividad[]>, a) => { const d = String(a.fechaActividad).substring(0, 10); (g[d] = g[d] || []).push(a); return g; }, {})).sort(([a], [b]) => a.localeCompare(b)).map(([dia, lista]) => (
+              <div key={dia} className="mb-12 last:mb-0">
+                <h3 className="text-xl font-extrabold text-green-800 mb-4 capitalize">{formatDate(dia)}</h3>
+                <div className="divide-y divide-gray-100 border border-gray-200 rounded-2xl overflow-hidden bg-white">
+                  {lista.map((act) => {
+                    const pausa = /coffee|almuerzo/i.test(act.nombreActividad);
+                    return (
+                      <div key={act.id} className={`flex gap-4 p-4 sm:p-5 ${pausa ? "bg-amber-50/60" : "hover:bg-gray-50"} transition-colors`}>
+                        <div className="w-28 shrink-0 text-sm font-bold text-gray-700 flex items-start gap-1.5">
+                          <Clock size={13} className="mt-0.5 text-green-600" />{formatTime(act.horaInicioActividad)} – {formatTime(act.horaFinActividad)}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2 mb-1">
+                            <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${tipoColors[act.tipoActividad] ?? "bg-gray-100 text-gray-700"}`}>{act.tipoActividad}</span>
+                          </div>
+                          <p className="font-bold text-gray-900 text-sm sm:text-base leading-snug">{act.nombreActividad}</p>
+                          {act.nombreCompletoPilaExpositor && (
+                            <p className="text-sm text-gray-600 mt-1">
+                              {act.nombreCompletoPilaExpositor}
+                              {act.organizacionDelExpositor && <span className="text-gray-400"> · {act.organizacionDelExpositor}</span>}
+                            </p>
+                          )}
+                          {act.nombreSalaEspacio && <p className="mt-1 text-xs text-gray-400 flex items-center gap-1"><MapPin size={11} />{act.nombreSalaEspacio}</p>}
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium text-gray-800 text-xs">{act.nombreCompletoPilaExpositor}</p>
-                        {act.organizacionDelExpositor && <p className="text-gray-400 text-xs">{act.organizacionDelExpositor}</p>}
-                      </div>
-                    </div>
-                  )}
-                  <div className="mt-3 text-xs text-gray-400 flex items-center gap-1">
-                    <MapPin size={11} />{act.nombreSalaEspacio}
-                  </div>
+                    );
+                  })}
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
           </div>
         </section>
       )}
