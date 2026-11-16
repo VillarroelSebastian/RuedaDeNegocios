@@ -1697,7 +1697,10 @@ export class AppController implements OnModuleInit {
     }
 
     // Crear participantes (usuario + empresa_usuario)
-    const defaultPass = await bcrypt.hash('Beni2026!', 10);
+    // Mientras la inscripción está pendiente la cuenta queda con una contraseña
+    // aleatoria que nadie conoce: la real se genera y envía al aprobar el pago.
+    // (Antes era una contraseña fija conocida.)
+    const defaultPass = await bcrypt.hash(randomBytes(24).toString('base64url'), 10);
     const participantesCreados: any[] = [];
     const participantesOmitidos: any[] = [];
     const correosVistos = new Set<string>();
@@ -2922,6 +2925,15 @@ export class AppController implements OnModuleInit {
       const usuarioReutilizado = otrasInscripciones > 0;
       const pwd = usuarioReutilizado ? null : generarPasswordTemporal();
       const hashed = pwd ? await bcrypt.hash(pwd, 10) : null;
+      // La contraseña nueva se guarda siempre, aunque luego falle el correo: así
+      // la cuenta nunca queda con la contraseña provisional. Si el correo falla,
+      // el admin usa "Reenviar credenciales" o vuelve a aprobar.
+      if (hashed) {
+        await this.prisma.usuario.update({
+          where: { id: u.id },
+          data: { contrasenia: hashed, creadoModificadoFecha: new Date() },
+        });
+      }
 
       let qrUrl = '';
       try {
@@ -2982,12 +2994,6 @@ export class AppController implements OnModuleInit {
             </div>
           `,
         });
-        if (hashed) {
-          await this.prisma.usuario.update({
-            where: { id: u.id },
-            data: { contrasenia: hashed, creadoModificadoFecha: new Date() },
-          });
-        }
       } catch (emailErr) {
         console.warn(`[WARN] No se pudo enviar email a ${u.correo}:`, emailErr instanceof Error ? emailErr.message : emailErr);
         correosFallidos.push(u.correo);
@@ -9360,6 +9366,10 @@ export class AppController implements OnModuleInit {
     const { eeId, euId, reunionId, calificacion, rango, observaciones } = body;
     if (!eeId || !euId || !reunionId || !calificacion || !rango)
       throw new BadRequestException('Calificación y rango de acuerdo son obligatorios');
+    // Antes un valor fuera de rango llegaba hasta la restricción de la base y
+    // el usuario veía un error genérico 500.
+    if (!Number.isInteger(Number(calificacion)) || Number(calificacion) < 1 || Number(calificacion) > 5)
+      throw new BadRequestException('La calificación debe ser un número entero entre 1 y 5.');
 
     // Verificar que la reunión existe y la empresa participa
     const reunion = await this.prisma.reunion.findFirst({

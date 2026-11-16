@@ -858,11 +858,12 @@ export class ExtrasController implements OnModuleInit {
 
     // Si el correo ya tenía una cuenta (de otra edición del evento), se
     // conserva usuario y contraseña; solo se crea la nueva inscripción. Si
-    // queda pendiente de pago usa la misma contraseña por defecto que el
-    // registro de empresa: la contraseña real se genera y se envía recién
+    // queda pendiente de pago, la contraseña real se genera y se envía recién
     // al aprobar el pago (admin/pagos/:id/aprobar), igual que una empresa.
     const pwd = `Rn!${randomBytes(9).toString('base64url')}9aA`;
-    const hash = await bcrypt.hash(pendiente ? 'Beni2026!' : pwd, 10);
+    // Pendiente o no, la contraseña es aleatoria: la de una cuenta pendiente no
+    // se envía a nadie y la real se genera al aprobar el pago.
+    const hash = await bcrypt.hash(pwd, 10);
     const nombreEmpresa = (datos.institucionNombre?.trim() || `${nombres} ${apellidoPaterno}`).slice(0, 55);
 
     const creado = await this.prisma.$transaction(async (tx) => {

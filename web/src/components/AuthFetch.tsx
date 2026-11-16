@@ -39,6 +39,15 @@ export default function AuthFetch() {
             : "No se pudo conectar. Revisa tu conexión a internet e intenta de nuevo.");
         })
         .then((res) => {
+          // Sesión vencida o inválida: en vez de dejar que cada pantalla falle
+          // con datos vacíos ("This page couldn't load"), se cierra la sesión y
+          // se vuelve al login. No aplica al propio login ni a rutas públicas.
+          if (res.status === 401 && token && !target.pathname.includes("/auth/") && !window.location.pathname.startsWith("/auth/")) {
+            for (const key of ["adminUser", "tecnicoUser", "empresaUser", "foroUser"]) {
+              try { localStorage.removeItem(key); } catch {}
+            }
+            window.location.replace("/auth/login?sesion=vencida");
+          }
           // Si el servidor responde algo que no es JSON (p. ej. una página
           // de error del proxy), que falle res.json() en pantalla con un
           // "Unexpected token..." en inglés tampoco dice nada al usuario.
