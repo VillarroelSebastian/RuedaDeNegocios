@@ -55,6 +55,7 @@ interface EventoPublico {
   urlLogoEvento: string | null;
   urlImagenMapaRecinto: string | null;
   urlImagenCronogramaCharlas: string | null;
+  imagenesCronograma?: string[];
   ciudadEvento: string | null;
   paisEvento: string | null;
   stats: { empresasCount: number; mesasCount: number; actividadesCount: number; tecnicosCount: number };
@@ -325,19 +326,22 @@ export default function HomeScreen({ navigation }: any) {
         )}
 
         {/* ══════════════════════════════ CRONOGRAMA ═══════════════════════ */}
-        {evento.urlImagenCronogramaCharlas && (
-          <View style={[s.section, { alignItems: 'center' }]}>
-            <Text style={s.sectionLabel}>Programa</Text>
-            <Text style={[s.sectionTitle, { textAlign: 'center' }]}>Cronograma de Charlas</Text>
-            <View style={s.cronograma}>
-              <Image
-                source={{ uri: evento.urlImagenCronogramaCharlas }}
-                style={{ width: '100%', height: 260 }}
-                resizeMode="contain"
-              />
+        {(() => {
+          const imagenes = evento.imagenesCronograma?.length ? evento.imagenesCronograma : (evento.urlImagenCronogramaCharlas ? [evento.urlImagenCronogramaCharlas] : []);
+          if (!imagenes.length) return null;
+          return (
+            <View style={[s.section, { alignItems: 'center' }]}>
+              <Text style={s.sectionLabel}>Programa</Text>
+              <Text style={[s.sectionTitle, { textAlign: 'center' }]}>Cronograma de Actividades</Text>
+              {imagenes.map((url, i) => (
+                <View key={url + i} style={[s.cronograma, { marginBottom: 12 }]}>
+                  <Image source={{ uri: url }} style={{ width: '100%', aspectRatio: 0.77 }} resizeMode="contain" />
+                  {imagenes.length > 1 && <Text style={{ textAlign: 'center', color: '#9ca3af', fontSize: 11, paddingVertical: 6 }}>Parte {i + 1} de {imagenes.length}</Text>}
+                </View>
+              ))}
             </View>
-          </View>
-        )}
+          );
+        })()}
 
         {/* ════════════════════════════════ CTA BANNER ═════════════════════ */}
         <View style={s.ctaBanner}>

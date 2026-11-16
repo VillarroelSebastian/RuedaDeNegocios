@@ -991,7 +991,7 @@ export class AppController implements OnModuleInit {
       this.prisma.usuario.count({ where: { estaActivo: 1, rolEvento: { in: ['TECNICO', 'TECNICO_EVENTOS'] } } }),
     ]);
 
-    return { ...evento, stats: { empresasCount, mesasCount, actividadesCount, tecnicosCount } };
+    return { ...evento, imagenesCronograma: this.leerImagenesCronograma(evento), stats: { empresasCount, mesasCount, actividadesCount, tecnicosCount } };
   }
 
   @Get('public/verificar-empresa')
@@ -2171,7 +2171,18 @@ export class AppController implements OnModuleInit {
       include: { eventoreglaqr: { where: { estadoActivo: 1 }, orderBy: { rangoDesde: 'asc' } } },
     });
     if (!evento) return {};
-    return evento;
+    return { ...evento, imagenesCronograma: this.leerImagenesCronograma(evento) };
+  }
+
+  // Un evento puede tener varias imágenes de cronograma (una por día o por
+  // jornada). Se guardan como JSON en `imagenesCronograma`; si está vacío se
+  // usa la imagen única anterior para no perder lo que ya estaba cargado.
+  private leerImagenesCronograma(evento: any): string[] {
+    try {
+      const lista = JSON.parse(evento?.imagenesCronograma || '[]');
+      if (Array.isArray(lista) && lista.length) return lista.filter((u) => typeof u === 'string' && u);
+    } catch { /* se usa la imagen única */ }
+    return evento?.urlImagenCronogramaCharlas ? [evento.urlImagenCronogramaCharlas] : [];
   }
 
   private normalizarHorariosPorDia(
@@ -2217,6 +2228,15 @@ export class AppController implements OnModuleInit {
 
   private sanitizeEventoData(body: any) {
     const orNull = (v: any) => (v === '' || v === undefined ? null : v);
+    // Varias imágenes de cronograma: lista de URLs (máx. 12). La primera se
+    // copia también en la columna anterior para las apps que aún solo leen esa.
+    let imagenesCronograma: string | null | undefined;
+    if (body.imagenesCronograma !== undefined) {
+      const lista = (Array.isArray(body.imagenesCronograma) ? body.imagenesCronograma : [])
+        .filter((u: any) => typeof u === 'string' && u.trim()).map((u: string) => u.trim()).slice(0, 12);
+      imagenesCronograma = lista.length ? JSON.stringify(lista) : null;
+      if (lista.length) body = { ...body, urlImagenCronogramaCharlas: lista[0] };
+    }
     // Los controles datetime-local no incluyen zona horaria. El evento se realiza
     // en Bolivia (UTC-4), por lo que no deben interpretarse con la zona del VPS.
     const fechaBolivia = (v: any) => {
@@ -2274,6 +2294,7 @@ export class AppController implements OnModuleInit {
       maxParticipantesPorEmpresa: Number(body.maxParticipantesPorEmpresa) || 5,
       urlImagenMapaRecinto: orNull(body.urlImagenMapaRecinto),
       urlImagenCronogramaCharlas: orNull(body.urlImagenCronogramaCharlas),
+      ...(imagenesCronograma !== undefined ? { imagenesCronograma } : {}),
       urlLogoEvento: orNull(body.urlLogoEvento),
       urlLogoForo: orNull(body.urlLogoForo),
       sobreElEvento: orNull(body.sobreElEvento),
@@ -2535,6 +2556,7 @@ export class AppController implements OnModuleInit {
         tipoParticipacion: ee?.tipoParticipacion ?? null,
         numeroParticipantes: ee?.numeroParticipantes ?? 0,
         montoPagado: ee?.montoPagado != null ? Number(ee.montoPagado) : null,
+        montoEsperado: ee?.montoEsperado != null ? Number(ee.montoEsperado) : null,
         estadoVerificacionPago: ee?.estadoVerificacionPago ?? 'SIN_REGISTRO',
         estadoHabilitacionAcceso: ee?.estadoHabilitacionAcceso ?? 'SIN_REGISTRO',
         motivoRechazoAcceso: ee?.motivoRechazoAcceso ?? null,
@@ -2831,8 +2853,19 @@ export class AppController implements OnModuleInit {
     return { data: pagos, total, page: Number(page) || 1, limit: take };
   }
 
+  // Monto realmente recibido al aprobar un pago. Es opcional: si no se envía se
+  // da por bueno el monto esperado del paquete.
+  private leerMontoRecibido(valor: any): number | null {
+    if (valor === undefined || valor === null || valor === '') return null;
+    const monto = Number(String(valor).replace(',', '.'));
+    if (!Number.isFinite(monto) || monto <= 0 || monto > 10_000_000)
+      throw new BadRequestException('El monto recibido no es válido.');
+    return Math.round(monto * 100) / 100;
+  }
+
   @Put('admin/pagos/:id/aprobar')
-  async aprobarPago(@Param('id') id: string) {
+  async aprobarPago(@Param('id') id: string, @Body() body?: { montoRecibido?: number | string }) {
+    const montoRecibido = this.leerMontoRecibido(body?.montoRecibido);
     const pagoId = Number(id);
 
     const ee = await this.prisma.$transaction(async (tx) => {
@@ -2841,11 +2874,19 @@ export class AppController implements OnModuleInit {
         data: { estadoVerificacionPago: 'PROCESANDO' },
       });
       if (claimed.count !== 1) throw new BadRequestException('El pago ya fue procesado o no está disponible.');
-      const previo = await tx.empresaevento.findUnique({ where: { id: pagoId }, select: { estadoHabilitacionAcceso: true } });
+      const previo = await tx.empresaevento.findUnique({ where: { id: pagoId }, select: { estadoHabilitacionAcceso: true, montoPagado: true, montoEsperado: true } });
       const aprobado = await tx.empresaevento.update({
       where: { id: pagoId },
       data: {
         estadoVerificacionPago: 'COMPLETADO',
+        // Control real del dinero: si lo recibido difiere del monto esperado, se
+        // guarda lo recibido en montoPagado (de ahí salen los totales) y se
+        // conserva el monto esperado del paquete para ver la diferencia.
+        ...(montoRecibido != null ? {
+          montoPagado: montoRecibido,
+          montoEsperado: Number(previo?.montoPagado ?? montoRecibido) !== montoRecibido
+            ? (previo?.montoEsperado ?? previo?.montoPagado ?? null) : (previo?.montoEsperado ?? null),
+        } : {}),
         // Si un admin la inhabilitó a mano, aprobar el pago no debe revertir esa
         // decisión por sí solo: se mantiene inhabilitada hasta que la reactiven.
         ...(previo?.estadoHabilitacionAcceso === 'INHABILITADO' ? {} : { estadoHabilitacionAcceso: 'HABILITADO' }),
@@ -9917,7 +9958,7 @@ export class AppController implements OnModuleInit {
     });
     return pagos.map((p: any) => ({
       id: p.id, tipoPago: p.tipoPago, cantidadParticipantes: p.cantidadParticipantes,
-      montoPago: p.montoPago, estadoPago: p.estadoPago, observacion: p.observacion,
+      montoPago: p.montoPago, montoEsperado: p.montoEsperado ?? null, estadoPago: p.estadoPago, observacion: p.observacion,
       urlComprobante: p.urlComprobantePagoInscripcion, fechaCreacion: p.fechaCreacion,
     }));
   }
@@ -9927,26 +9968,50 @@ export class AppController implements OnModuleInit {
   @Get('admin/finanzas/resumen')
   async getResumenFinanciero() {
     const eventoId = await this.getPrincipalEventoId();
-    if (!eventoId) return { totalPaquetes: 0, totalAdicionales: 0, total: 0, cantidadPagosPaquetes: 0, cantidadPagosAdicionales: 0 };
+    if (!eventoId) return { totalPaquetes: 0, totalAdicionales: 0, total: 0, cantidadPagosPaquetes: 0, cantidadPagosAdicionales: 0, diferenciaConEsperado: 0, pagosConDiferencia: 0 };
 
-    const [pagosPaquetes, pagosAdicionales] = await Promise.all([
+    const [pagosPaquetes, pagosAdicionales, pagosMejora] = await Promise.all([
       this.prisma.empresaevento.findMany({
         where: { evento_id: eventoId, estaActivo: 1, estadoVerificacionPago: 'COMPLETADO' },
-        select: { montoPagado: true },
+        select: { id: true, montoPagado: true, montoEsperado: true },
       }),
       this.prisma.empresaeventocomprobantes.findMany({
         where: { estaActivo: 1, tipoPago: 'ADICIONAL', estadoPago: 'COMPLETADO', empresaevento: { evento_id: eventoId } },
-        select: { montoPago: true },
+        select: { montoPago: true, montoEsperado: true },
+      }),
+      this.prisma.empresaeventocomprobantes.findMany({
+        where: { estaActivo: 1, tipoPago: 'MEJORA', estadoPago: 'COMPLETADO', empresaevento: { evento_id: eventoId } },
+        select: { empresaEvento_id: true, montoPago: true, montoEsperado: true },
       }),
     ]);
+    // `montoPagado` es lo realmente recibido (incluye las mejoras de paquete).
     const totalPaquetes = pagosPaquetes.reduce((suma, p) => suma + Number(p.montoPagado ?? 0), 0);
     const totalAdicionales = pagosAdicionales.reduce((suma, p) => suma + Number(p.montoPago ?? 0), 0);
+    // Diferencia contra lo esperado según los paquetes: solo cuenta los pagos en
+    // los que el administrador registró un monto distinto al aprobar.
+    const mejorasPorEe = new Map<number, number>();
+    for (const m of pagosMejora) mejorasPorEe.set(m.empresaEvento_id, (mejorasPorEe.get(m.empresaEvento_id) ?? 0) + Number(m.montoPago ?? 0));
+    let diferencia = 0;
+    let conDiferencia = 0;
+    for (const p of pagosPaquetes) {
+      if (p.montoEsperado == null) continue;
+      const inscripcionReal = Number(p.montoPagado ?? 0) - (mejorasPorEe.get(p.id) ?? 0);
+      const d = inscripcionReal - Number(p.montoEsperado);
+      if (d !== 0) { diferencia += d; conDiferencia += 1; }
+    }
+    for (const p of [...pagosAdicionales, ...pagosMejora]) {
+      if (p.montoEsperado == null) continue;
+      const d = Number(p.montoPago ?? 0) - Number(p.montoEsperado);
+      if (d !== 0) { diferencia += d; conDiferencia += 1; }
+    }
     return {
       totalPaquetes,
       totalAdicionales,
       total: totalPaquetes + totalAdicionales,
       cantidadPagosPaquetes: pagosPaquetes.length,
       cantidadPagosAdicionales: pagosAdicionales.length,
+      diferenciaConEsperado: Math.round(diferencia * 100) / 100,
+      pagosConDiferencia: conDiferencia,
     };
   }
 
@@ -9967,7 +10032,7 @@ export class AppController implements OnModuleInit {
     });
     return pagos.map((p: any) => ({
       id: p.id, tipoPago: p.tipoPago, cantidadParticipantes: p.cantidadParticipantes,
-      montoPago: p.montoPago, estadoPago: p.estadoPago, observacion: p.observacion,
+      montoPago: p.montoPago, montoEsperado: p.montoEsperado ?? null, estadoPago: p.estadoPago, observacion: p.observacion,
       urlComprobante: p.urlComprobantePagoInscripcion, fechaCreacion: p.fechaCreacion,
       empresa: p.empresaevento?.empresa ?? null,
       eeId: p.empresaEvento_id,
@@ -9975,7 +10040,8 @@ export class AppController implements OnModuleInit {
   }
 
   @Put('admin/pagos-adicionales/:id/aprobar')
-  async aprobarPagoAdicional(@Param('id') id: string) {
+  async aprobarPagoAdicional(@Param('id') id: string, @Body() body?: { montoRecibido?: number | string }) {
+    const montoRecibido = this.leerMontoRecibido(body?.montoRecibido);
     const comp = await this.prisma.empresaeventocomprobantes.findFirst({
       where: { id: Number(id), tipoPago: 'ADICIONAL', estadoPago: 'PENDIENTE' },
       include: { empresaevento: { include: { paquete: { select: { maxParticipantes: true, credencialesIncluidas: true, nombre: true, nivelMesa: true } }, evento: { select: { maxParticipantesPorEmpresa: true } } } } },
@@ -9988,7 +10054,13 @@ export class AppController implements OnModuleInit {
     await this.prisma.$transaction(async (tx) => {
       const claimed = await tx.empresaeventocomprobantes.updateMany({
         where: { id: Number(id), tipoPago: 'ADICIONAL', estadoPago: 'PENDIENTE' },
-        data: { estadoPago: 'COMPLETADO' },
+        data: {
+          estadoPago: 'COMPLETADO',
+          ...(montoRecibido != null ? {
+            montoPago: montoRecibido,
+            montoEsperado: Number((comp as any).montoPago ?? montoRecibido) !== montoRecibido ? ((comp as any).montoPago ?? null) : null,
+          } : {}),
+        },
       });
       if (claimed.count !== 1) throw new BadRequestException('El pago ya fue procesado por otro usuario');
       await tx.empresaevento.update({
@@ -10068,7 +10140,7 @@ export class AppController implements OnModuleInit {
       },
     });
     return pagos.map((p: any) => ({
-      id: p.id, montoPago: p.montoPago, estadoPago: p.estadoPago, observacion: p.observacion,
+      id: p.id, montoPago: p.montoPago, montoEsperado: p.montoEsperado ?? null, estadoPago: p.estadoPago, observacion: p.observacion,
       urlComprobante: p.urlComprobantePagoInscripcion, fechaCreacion: p.fechaCreacion,
       empresa: p.empresaevento?.empresa ?? null,
       eeId: p.empresaEvento_id,
@@ -10078,7 +10150,8 @@ export class AppController implements OnModuleInit {
   }
 
   @Put('admin/pagos-mejora/:id/aprobar')
-  async aprobarMejoraPaquete(@Param('id') id: string) {
+  async aprobarMejoraPaquete(@Param('id') id: string, @Body() body?: { montoRecibido?: number | string }) {
+    const montoRecibido = this.leerMontoRecibido(body?.montoRecibido);
     const comp = await this.prisma.empresaeventocomprobantes.findFirst({
       where: { id: Number(id), tipoPago: 'MEJORA', estadoPago: 'PENDIENTE' },
       include: { paqueteDestino: true, empresaevento: true },
@@ -10090,7 +10163,13 @@ export class AppController implements OnModuleInit {
     await this.prisma.$transaction(async (tx) => {
       const claimed = await tx.empresaeventocomprobantes.updateMany({
         where: { id: Number(id), tipoPago: 'MEJORA', estadoPago: 'PENDIENTE' },
-        data: { estadoPago: 'COMPLETADO' },
+        data: {
+          estadoPago: 'COMPLETADO',
+          ...(montoRecibido != null ? {
+            montoPago: montoRecibido,
+            montoEsperado: Number(comp.montoPago ?? montoRecibido) !== montoRecibido ? (comp.montoPago ?? null) : null,
+          } : {}),
+        },
       });
       if (claimed.count !== 1) throw new BadRequestException('El pago ya fue procesado por otro usuario');
       await tx.empresaevento.update({
@@ -10098,7 +10177,7 @@ export class AppController implements OnModuleInit {
         data: {
           paquete_id: destino.id,
           numeroParticipantes: Math.max(comp.empresaevento.numeroParticipantes, destino.credencialesIncluidas),
-          montoPagado: montoActual + Number(comp.montoPago ?? 0),
+          montoPagado: montoActual + Number(montoRecibido ?? comp.montoPago ?? 0),
           creadoModificadoFecha: new Date(),
         },
       });

@@ -132,6 +132,7 @@ export default function EventConfigScreen({ navigation }: any) {
     costoParticipanteExtra: '100',
     urlImagenMapaRecinto: '',
     urlImagenCronogramaCharlas: '',
+    imagenesCronograma: [] as string[],
     urlLogoEvento: '',
     urlLogoForo: '',
     sobreElEvento: '',
@@ -166,6 +167,41 @@ export default function EventConfigScreen({ navigation }: any) {
   useEffect(() => { fetchEventos(); }, [viewState]);
 
   // ── Subir imagen al servidor ─────────────────────────────────────────────────
+  // Cronograma: se eligen varias imágenes de la galería a la vez (p. ej. una por día o jornada).
+  const handlePickCronograma = async () => {
+    const perm = await permisoGaleria();
+    if (!perm.granted) {
+      show({ type: 'warning', title: 'Permiso requerido', message: 'Necesitamos acceso a tus fotos.' });
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: 'images', quality: 0.85, allowsMultipleSelection: true, selectionLimit: 12 });
+    if (result.canceled || !result.assets.length) return;
+    setUploadingField('imagenesCronograma');
+    const subidas: string[] = [];
+    try {
+      for (const asset of result.assets) {
+        const fd = new FormData();
+        fd.append('file', { uri: asset.uri, name: 'image.jpg', type: 'image/jpeg' } as any);
+        const res = await fetch(`${API_URL}/admin/imagenes/upload`, { method: 'POST', body: fd });
+        const data = await res.json();
+        if (!data.url) throw new Error('Sin URL');
+        subidas.push(data.url);
+      }
+    } catch {
+      show({ type: 'error', title: 'Error', message: 'No se pudieron subir todas las imágenes.' });
+    } finally {
+      if (subidas.length) setFormData((prev) => ({ ...prev, imagenesCronograma: [...prev.imagenesCronograma, ...subidas].slice(0, 12) }));
+      setUploadingField(null);
+    }
+  };
+  const moverCronograma = (i: number, d: number) => setFormData((prev) => {
+    const l = [...prev.imagenesCronograma]; const j = i + d;
+    if (j < 0 || j >= l.length) return prev;
+    [l[i], l[j]] = [l[j], l[i]];
+    return { ...prev, imagenesCronograma: l };
+  });
+  const quitarCronograma = (i: number) => setFormData((prev) => ({ ...prev, imagenesCronograma: prev.imagenesCronograma.filter((_, j) => j !== i) }));
+
   const handlePickImage = async (fieldKey: string, qrIndex?: number) => {
     const perm = await permisoGaleria();
     if (!perm.granted) {
@@ -253,7 +289,7 @@ export default function EventConfigScreen({ navigation }: any) {
         capacidadPersonasPorMesa: '4', maxParticipantesPorEmpresa: '5',
         montoBaseIncripcionBolivianos: '500',
         cantidadParticipantesIncluidos: '2', costoParticipanteExtra: '100',
-        urlImagenMapaRecinto: '', urlImagenCronogramaCharlas: '', urlLogoEvento: '', urlLogoForo: '',
+        urlImagenMapaRecinto: '', urlImagenCronogramaCharlas: '', imagenesCronograma: [], urlLogoEvento: '', urlLogoForo: '',
         sobreElEvento: '', urlVideoEvento: '', pilaresEvento: '',
         correoContacto: '', telefonoContacto: '',
         enlaceFacebook: '', enlaceInstagram: '', enlaceLinkedIn: '', enlaceTiktok: '',
@@ -296,6 +332,7 @@ export default function EventConfigScreen({ navigation }: any) {
           costoParticipanteExtra: String(data.costoParticipanteExtra || 100),
           urlImagenMapaRecinto: data.urlImagenMapaRecinto || '',
           urlImagenCronogramaCharlas: data.urlImagenCronogramaCharlas || '',
+          imagenesCronograma: Array.isArray(data.imagenesCronograma) ? data.imagenesCronograma : [],
           urlLogoEvento: data.urlLogoEvento || '',
           urlLogoForo: data.urlLogoForo || '',
           sobreElEvento: data.sobreElEvento || '',
@@ -409,6 +446,7 @@ export default function EventConfigScreen({ navigation }: any) {
       costoParticipanteExtra: Number(formData.costoParticipanteExtra),
       urlImagenMapaRecinto: orNull(formData.urlImagenMapaRecinto),
       urlImagenCronogramaCharlas: orNull(formData.urlImagenCronogramaCharlas),
+      imagenesCronograma: formData.imagenesCronograma,
       urlLogoEvento: orNull(formData.urlLogoEvento),
       urlLogoForo: orNull(formData.urlLogoForo),
       sobreElEvento: orNull(formData.sobreElEvento),
@@ -782,8 +820,27 @@ export default function EventConfigScreen({ navigation }: any) {
             </View>
             <ImageField label="Mapa del Recinto" value={formData.urlImagenMapaRecinto}
               fieldKey="urlImagenMapaRecinto" uploading={uploadingField} onPick={handlePickImage} onPreview={setPreviewUrl} />
-            <ImageField label="Cronograma de Charlas" value={formData.urlImagenCronogramaCharlas}
-              fieldKey="urlImagenCronogramaCharlas" uploading={uploadingField} onPick={handlePickImage} onPreview={setPreviewUrl} />
+            <View style={{ marginTop: 4 }}>
+              <Text className="text-sm font-semibold text-gray-700 mb-2">Cronograma de Charlas (varias imágenes)</Text>
+              <TouchableOpacity onPress={handlePickCronograma} disabled={uploadingField === 'imagenesCronograma'} activeOpacity={0.8}
+                style={{ borderWidth: 1, borderColor: GREEN, borderRadius: 10, paddingVertical: 10, alignItems: 'center', opacity: uploadingField === 'imagenesCronograma' ? 0.5 : 1 }}>
+                <Text style={{ color: GREEN, fontWeight: '700' }}>{uploadingField === 'imagenesCronograma' ? 'Subiendo…' : 'Subir imágenes'}</Text>
+              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                {formData.imagenesCronograma.map((url, idx) => (
+                  <View key={url + idx} style={{ width: 92 }}>
+                    <TouchableOpacity onPress={() => setPreviewUrl(url)} activeOpacity={0.8}>
+                      <Image source={{ uri: url }} style={{ width: 92, height: 118, borderRadius: 8, borderWidth: 1, borderColor: '#e5e7eb', backgroundColor: '#fff' }} resizeMode="contain" />
+                    </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                      <TouchableOpacity onPress={() => moverCronograma(idx, -1)} disabled={idx === 0} hitSlop={6}><Text style={{ opacity: idx === 0 ? 0.3 : 1 }}>◀</Text></TouchableOpacity>
+                      <TouchableOpacity onPress={() => quitarCronograma(idx)} hitSlop={6}><Text style={{ color: '#dc2626' }}>✕</Text></TouchableOpacity>
+                      <TouchableOpacity onPress={() => moverCronograma(idx, 1)} disabled={idx === formData.imagenesCronograma.length - 1} hitSlop={6}><Text style={{ opacity: idx === formData.imagenesCronograma.length - 1 ? 0.3 : 1 }}>▶</Text></TouchableOpacity>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </View>
           </View>
         </View>
 

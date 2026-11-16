@@ -85,6 +85,7 @@ export default function ConfiguracionDeEventoPage() {
     costoParticipanteExtra: 100,
     urlImagenMapaRecinto: '',
     urlImagenCronogramaCharlas: '',
+    imagenesCronograma: [] as string[],
     urlLogoEvento: '',
     urlLogoForo: '',
     sobreElEvento: '',
@@ -139,6 +140,7 @@ export default function ConfiguracionDeEventoPage() {
             costoParticipanteExtra: data.costoParticipanteExtra || 100,
             urlImagenMapaRecinto: data.urlImagenMapaRecinto || '',
             urlImagenCronogramaCharlas: data.urlImagenCronogramaCharlas || '',
+            imagenesCronograma: Array.isArray(data.imagenesCronograma) ? data.imagenesCronograma : [],
             urlLogoEvento: data.urlLogoEvento || '',
             urlLogoForo: data.urlLogoForo || '',
             sobreElEvento: data.sobreElEvento || '',
@@ -199,6 +201,37 @@ export default function ConfiguracionDeEventoPage() {
     }
     setReglasQR(reglasQR.filter((_, i) => i !== index));
   };
+
+  // Cronograma: se pueden subir varias imágenes a la vez (p. ej. una por día o jornada).
+  const handleCronogramaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const archivos = Array.from(e.target.files ?? []);
+    e.target.value = '';
+    if (!archivos.length) return;
+    setUploadingField('imagenesCronograma');
+    const subidas: string[] = [];
+    try {
+      for (const archivo of archivos) {
+        const fd = new FormData();
+        fd.append('file', archivo);
+        const res = await fetch(`${API}/admin/imagenes/upload`, { method: 'POST', body: fd });
+        const data = await res.json();
+        if (!data.url) throw new Error('sin url');
+        subidas.push(data.url);
+      }
+    } catch {
+      showModal('error', 'Error de Carga', 'No se pudieron subir todas las imágenes. Intenta de nuevo.');
+    } finally {
+      if (subidas.length) setFormData(prev => ({ ...prev, imagenesCronograma: [...prev.imagenesCronograma, ...subidas].slice(0, 12) }));
+      setUploadingField(null);
+    }
+  };
+  const moverCronograma = (i: number, d: number) => setFormData(prev => {
+    const l = [...prev.imagenesCronograma]; const j = i + d;
+    if (j < 0 || j >= l.length) return prev;
+    [l[i], l[j]] = [l[j], l[i]];
+    return { ...prev, imagenesCronograma: l };
+  });
+  const quitarCronograma = (i: number) => setFormData(prev => ({ ...prev, imagenesCronograma: prev.imagenesCronograma.filter((_, j) => j !== i) }));
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, fieldName: string, index?: number) => {
     if (!e.target.files || e.target.files.length === 0) return;
@@ -290,6 +323,7 @@ export default function ConfiguracionDeEventoPage() {
       costoParticipanteExtra: Number(formData.costoParticipanteExtra),
       urlImagenMapaRecinto: orNull(formData.urlImagenMapaRecinto),
       urlImagenCronogramaCharlas: orNull(formData.urlImagenCronogramaCharlas),
+      imagenesCronograma: formData.imagenesCronograma,
       urlLogoEvento: orNull(formData.urlLogoEvento),
       urlLogoForo: orNull(formData.urlLogoForo),
       sobreElEvento: orNull(formData.sobreElEvento),
@@ -487,20 +521,32 @@ export default function ConfiguracionDeEventoPage() {
               </div>
               
               <div>
-                <label className={styles.label}>Cronograma de Charlas</label>
-                <input 
-                  type="file" 
-                  accept="image/*" 
-                  onChange={(e) => handleImageUpload(e, 'urlImagenCronogramaCharlas')}
-                  style={{display: 'none'}} 
+                <label className={styles.label}>Cronograma de Charlas (puedes subir varias imágenes)</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleCronogramaUpload}
+                  style={{display: 'none'}}
                   id="upload-cronograma"
                 />
                 <label htmlFor="upload-cronograma" className={styles.uploadButton}>
-                  <ImageIcon size={14} /> Subir Imagen
+                  <ImageIcon size={14} /> {uploadingField === 'imagenesCronograma' ? 'Subiendo…' : 'Subir imágenes'}
                 </label>
-                {formData.urlImagenCronogramaCharlas && (
-                  <div onClick={() => setPreviewImg(formData.urlImagenCronogramaCharlas)} style={{marginTop: '0.5rem', width: '100px', height: '60px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #eee', cursor: 'pointer'}}>
-                    <img src={formData.urlImagenCronogramaCharlas} alt="Cronograma" style={{width: '100%', height: '100%', objectFit: 'contain'}} />
+                {formData.imagenesCronograma.length > 0 && (
+                  <div style={{marginTop: '0.5rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem'}}>
+                    {formData.imagenesCronograma.map((url, idx) => (
+                      <div key={url + idx} style={{width: '96px'}}>
+                        <div onClick={() => setPreviewImg(url)} style={{width: '96px', height: '120px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #e5e7eb', cursor: 'pointer', background: '#fff'}}>
+                          <img src={url} alt={`Cronograma ${idx + 1}`} style={{width: '100%', height: '100%', objectFit: 'contain'}} />
+                        </div>
+                        <div style={{display: 'flex', justifyContent: 'space-between', marginTop: '2px', fontSize: '12px'}}>
+                          <button type="button" onClick={() => moverCronograma(idx, -1)} disabled={idx === 0} aria-label="Mover antes">◀</button>
+                          <button type="button" onClick={() => quitarCronograma(idx)} aria-label="Quitar" style={{color: '#dc2626'}}>✕</button>
+                          <button type="button" onClick={() => moverCronograma(idx, 1)} disabled={idx === formData.imagenesCronograma.length - 1} aria-label="Mover después">▶</button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>

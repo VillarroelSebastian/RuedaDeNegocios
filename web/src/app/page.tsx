@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import InstalarAppButton from "@/components/InstalarAppButton";
 import GaleriaEvento from "@/components/GaleriaEvento";
+import ImagenLightbox from "@/components/ui/ImagenLightbox";
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3334";
 const EVENT_VIDEO_URL = "https://www.youtube.com/watch?v=IHNXdK3Lrmw";
 const EVENT_VIDEO_EMBED_URL = "https://www.youtube.com/embed/IHNXdK3Lrmw?rel=0";
@@ -55,6 +56,7 @@ interface EventoPublico {
   pilaresEvento: string | null;
   urlImagenMapaRecinto: string | null;
   urlImagenCronogramaCharlas: string | null;
+  imagenesCronograma?: string[];
   ciudadEvento: string | null;
   paisEvento: string | null;
   stats: { empresasCount: number; mesasCount: number; actividadesCount: number; tecnicosCount: number };
@@ -402,24 +404,27 @@ export default function HomePage() {
       )}
 
       {/* ── CRONOGRAMA ─────────────────────────────────────────────── */}
-      {evento.urlImagenCronogramaCharlas && (
-        <section className="py-16 bg-gray-50">
-          <div className="max-w-4xl mx-auto px-6 text-center">
-            <span className="text-green-600 font-semibold text-sm uppercase tracking-wider">Programa</span>
-            <h2 className="text-3xl font-extrabold text-gray-900 mt-3 mb-8">Cronograma de Actividades</h2>
-            <div className="relative w-full h-[420px] sm:h-[560px] rounded-2xl overflow-hidden shadow-2xl bg-gray-100">
-              <Image
-                src={evento.urlImagenCronogramaCharlas}
-                alt="Cronograma de actividades"
-                fill
-                sizes="(max-width: 640px) 100vw, 900px"
-                className="object-contain"
-                unoptimized
-              />
+      {(() => {
+        const imagenes = evento.imagenesCronograma?.length ? evento.imagenesCronograma : (evento.urlImagenCronogramaCharlas ? [evento.urlImagenCronogramaCharlas] : []);
+        if (!imagenes.length) return null;
+        return (
+          <section id="cronograma" className="py-16 bg-gray-50">
+            <div className="max-w-6xl mx-auto px-6 text-center">
+              <span className="text-green-600 font-semibold text-sm uppercase tracking-wider">Programa</span>
+              <h2 className="text-3xl font-extrabold text-gray-900 mt-3 mb-2">Cronograma de Actividades</h2>
+              <p className="text-gray-500 mb-8 text-sm">Toca una imagen para verla completa.</p>
+              <div className={`grid gap-6 ${imagenes.length === 1 ? "max-w-xl mx-auto" : "sm:grid-cols-2"}`}>
+                {imagenes.map((url, i) => (
+                  <div key={url + i} className="rounded-2xl overflow-hidden shadow-xl bg-white border border-gray-100">
+                    <ImagenLightbox src={url} alt={`Cronograma de actividades, parte ${i + 1} de ${imagenes.length}`} className="w-full" imgClassName="!h-auto" />
+                    {imagenes.length > 1 && <p className="text-xs text-gray-400 py-2">Parte {i + 1} de {imagenes.length}</p>}
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        </section>
-      )}
+          </section>
+        );
+      })()}
 
       {/* ── CRONOGRAMA EN VIVO ─────────────────────────────────────── */}
       {/* ── GALERÍA ────────────────────────────────────────────────── */}

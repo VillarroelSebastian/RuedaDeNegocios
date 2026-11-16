@@ -52,6 +52,8 @@ export default function PagosAdicionalesScreen({ embedded = false, tipo = 'adici
 
   // Detail modal
   const [selected,  setSelected]  = useState<any>(null);
+  // Monto realmente recibido al aprobar; se precarga con el esperado.
+  const [montoRecibido, setMontoRecibido] = useState('');
   const [obs, setObs]             = useState('');
   const [acting, setActing]       = useState(false);
   const actingRef = useRef(false);
@@ -79,7 +81,7 @@ export default function PagosAdicionalesScreen({ embedded = false, tipo = 'adici
     });
   };
 
-  const openDetail = (p: any) => { setSelected(p); setObs(''); };
+  const openDetail = (p: any) => { setSelected(p); setObs(''); setMontoRecibido(p.montoPago != null ? String(Number(p.montoPago)) : ''); };
   const closeDetail = () => { setSelected(null); setObs(''); };
 
   const handleAprobar = () => {
@@ -95,7 +97,7 @@ export default function PagosAdicionalesScreen({ embedded = false, tipo = 'adici
       onConfirm: async () => {
         setActing(true);
         try {
-          const res = await fetch(`${API_URL}/admin/${base}/${selected.id}/aprobar`, { method: 'PUT' });
+          const res = await fetch(`${API_URL}/admin/${base}/${selected.id}/aprobar`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ montoRecibido: montoRecibido.trim() === '' ? undefined : montoRecibido }) });
           const data = await res.json();
           if (!res.ok) throw new Error(data?.message || 'Error al aprobar');
           show({ type: 'success', title: '¡Aprobado!', message: esMejora ? `Nuevo paquete: ${data.paquete ?? '?'}.` : `Slots aumentados a ${data.nuevoTotalSlots ?? '?'}.` });
@@ -329,6 +331,26 @@ export default function PagosAdicionalesScreen({ embedded = false, tipo = 'adici
                     <View style={s.modalInfoRow}>
                       <Text style={s.modalInfoLabel}>Monto:</Text>
                       <Text style={s.modalInfoValue}>{Number(selected.montoPago).toLocaleString()} BOB</Text>
+                    </View>
+                  )}
+                  {selected.montoEsperado != null && Number(selected.montoEsperado) !== Number(selected.montoPago) && (
+                    <View style={s.modalInfoRow}>
+                      <Text style={s.modalInfoLabel}>Esperado:</Text>
+                      <Text style={s.modalInfoValue}>{Number(selected.montoEsperado).toLocaleString()} BOB</Text>
+                    </View>
+                  )}
+                  {selected.estadoPago === 'PENDIENTE' && (
+                    <View style={{ marginTop: 8 }}>
+                      <Text style={s.modalInfoLabel}>Monto recibido (Bs):</Text>
+                      <TextInput
+                        value={montoRecibido}
+                        onChangeText={setMontoRecibido}
+                        keyboardType="decimal-pad"
+                        placeholder="Monto real del comprobante"
+                        placeholderTextColor="#9ca3af"
+                        style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginTop: 4, fontSize: 14, color: '#111827', backgroundColor: '#fff' }}
+                      />
+                      <Text style={{ fontSize: 11, color: '#6b7280', marginTop: 3 }}>Cámbialo si lo pagado es distinto; el total recaudado usará este monto.</Text>
                     </View>
                   )}
                   <View style={[s.modalInfoRow, { marginTop: 6 }]}>

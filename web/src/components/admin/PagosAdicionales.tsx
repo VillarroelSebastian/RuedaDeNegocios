@@ -34,6 +34,8 @@ export default function PagosAdicionales({ embedded = false }: { embedded?: bool
   const [modalObs, setModalObs] = useState<{ id: number } | null>(null);
   const [observacion, setObservacion] = useState("");
   const [modalAprobar, setModalAprobar] = useState<number | null>(null);
+  // Monto realmente recibido al aprobar (se precarga con el esperado).
+  const [montoRecibido, setMontoRecibido] = useState("");
   const [modalRechazar, setModalRechazar] = useState<{ id: number } | null>(null);
   const [motivoRechazo, setMotivoRechazo] = useState("");
 
@@ -61,7 +63,7 @@ export default function PagosAdicionales({ embedded = false }: { embedded?: bool
     setModalAprobar(null);
     setProcesando(id);
     try {
-      const res = await fetch(`${API}/admin/pagos-adicionales/${id}/aprobar`, { method: "PUT" });
+      const res = await fetch(`${API}/admin/pagos-adicionales/${id}/aprobar`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ montoRecibido: montoRecibido.trim() === "" ? undefined : montoRecibido }) });
       const d = await res.json();
       if (!res.ok) throw new Error(d.message);
       setMensaje(`Pago aprobado. Nuevos cupos totales: ${d.nuevoTotalSlots}`);
@@ -127,6 +129,12 @@ export default function PagosAdicionales({ embedded = false }: { embedded?: bool
                 <h3 className="font-extrabold text-gray-900">Aprobar pago adicional</h3>
                 <p className="text-sm text-gray-500">Se incrementarán los cupos de la empresa.</p>
               </div>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">Monto recibido (Bs)</label>
+              <input type="number" inputMode="decimal" min="0" step="0.01" value={montoRecibido} onChange={(e) => setMontoRecibido(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-green-600" placeholder="Monto real del comprobante" />
+              <p className="text-xs text-gray-500 mt-1">Cámbialo si lo que se pagó realmente es distinto del monto esperado.</p>
             </div>
             <div className="flex gap-3">
               <button onClick={() => setModalAprobar(null)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50">Cancelar</button>
@@ -228,7 +236,7 @@ export default function PagosAdicionales({ embedded = false }: { embedded?: bool
                     </td>
                     <td className="px-6 py-4">
                       <span className="font-bold text-gray-900">
-                        {p.montoPago != null ? `Bs. ${Number(p.montoPago).toFixed(2)}` : "—"}
+                        {p.montoPago != null ? `Bs. ${Number(p.montoPago).toFixed(2)}` : "—"}{p.montoEsperado != null && Number(p.montoEsperado) !== Number(p.montoPago) && <span className="block text-[11px] font-normal text-amber-600">esperado Bs. {Number(p.montoEsperado).toFixed(2)}</span>}
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -252,7 +260,7 @@ export default function PagosAdicionales({ embedded = false }: { embedded?: bool
                         )}
                         {p.estadoPago === 'PENDIENTE' && (
                           <>
-                            <button onClick={() => setModalAprobar(p.id)} disabled={procesando === p.id}
+                            <button onClick={() => { setMontoRecibido(p.montoPago != null ? String(Number(p.montoPago)) : ""); setModalAprobar(p.id); }} disabled={procesando === p.id}
                               className="flex items-center gap-1 px-2.5 py-1.5 bg-green-50 hover:bg-green-100 text-green-700 rounded-lg text-xs font-bold disabled:opacity-50">
                               <Check className="w-3.5 h-3.5" />Aprobar
                             </button>

@@ -282,6 +282,8 @@ model empresaevento {
   estadoHabilitacionAcceso                                                      String                      @db.VarChar(45)
   motivoRechazoAcceso                                                           String?                     @db.VarChar(500)
   montoPagado                                                                   Decimal?                    @db.Decimal(10, 2)
+  // Monto que correspondía según el paquete cuando lo recibido fue distinto (control real del dinero).
+  montoEsperado                                                                 Decimal?                    @db.Decimal(10, 2)
   estadoVerificacionPago                                                        String                      @db.VarChar(45)
   fechaHoraEnvioComprobante                                                     DateTime?                   @db.Timestamp(6)
   fechaHoraVerificacionPago                                                     DateTime?                   @db.Timestamp(6)
@@ -342,6 +344,8 @@ model empresaeventocomprobantes {
   tipoPago                      String        @default("INICIAL") @db.VarChar(20)
   cantidadParticipantes         Int           @default(0) @db.SmallInt
   montoPago                     Decimal?      @db.Decimal(10, 2)
+  // Monto esperado cuando lo recibido al aprobar fue distinto.
+  montoEsperado                 Decimal?      @db.Decimal(10, 2)
   estadoPago                    String        @default("PENDIENTE") @db.VarChar(45)
   observacion                   String?       @db.VarChar(505)
   // Solo se usa cuando tipoPago = 'MEJORA': a qué paquete sube la empresa si
@@ -376,6 +380,8 @@ model evento {
   maxParticipantesPorEmpresa     Int                     @default(5) @db.SmallInt
   urlImagenMapaRecinto           String?                 @db.VarChar(505)
   urlImagenCronogramaCharlas     String?                 @db.VarChar(505)
+  // Lista JSON de URLs: varias imágenes de cronograma (por día o jornada).
+  imagenesCronograma             String?
   urlLogoEvento                  String?                 @db.VarChar(505)
   // Logo del Foro (participación individual, sin paquete comercial): se usa en
   // las credenciales del foro, su interfaz y la mención del foro en la landing.

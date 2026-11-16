@@ -21,11 +21,15 @@ export default function PagoDetailScreen({ route, navigation }: any) {
   const [submitting, setSubmitting] = useState(false);
   const submittingRef = useRef(false);
   const [verFicha, setVerFicha] = useState(false);
+  // Monto realmente recibido; se precarga con el esperado y se edita si difiere.
+  const [montoRecibido, setMontoRecibido] = useState('');
 
   const fetchPago = async () => {
     try {
       const res = await fetch(`${API_URL}/admin/pagos/${id}`);
-      setPago(await res.json());
+      const datos = await res.json();
+      setPago(datos);
+      setMontoRecibido(datos?.montoPagado != null ? String(Number(datos.montoPagado)) : '');
     } catch {}
     finally { setLoading(false); }
   };
@@ -44,7 +48,7 @@ export default function PagoDetailScreen({ route, navigation }: any) {
       onConfirm: async () => {
         setSubmitting(true);
         try {
-          const res = await fetch(`${API_URL}/admin/pagos/${id}/aprobar`, { method: 'PUT' });
+          const res = await fetch(`${API_URL}/admin/pagos/${id}/aprobar`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ montoRecibido: montoRecibido.trim() === '' ? undefined : montoRecibido }) });
           const data = await res.json();
           if (!res.ok) throw new Error(data?.message || 'No se pudo aprobar el pago.');
           if (data.correosFallidos?.length) {
@@ -53,7 +57,7 @@ export default function PagoDetailScreen({ route, navigation }: any) {
             show({ type: 'success', title: '¡Aprobado!', message: 'El pago fue aprobado y las credenciales fueron enviadas.' });
           }
           fetchPago();
-        } catch { show({ type: 'error', title: 'Error', message: 'No se pudo aprobar el pago.' }); }
+        } catch (e: any) { show({ type: 'error', title: 'Error', message: e?.message || 'No se pudo aprobar el pago.' }); }
         finally { setSubmitting(false); }
       },
     });
@@ -157,7 +161,7 @@ export default function PagoDetailScreen({ route, navigation }: any) {
                   { label: 'Ciudad', value: pago.empresa?.ciudad?.nombre },
                 ]),
             { label: 'Participantes', value: String(pago.numeroParticipantes) },
-            { label: 'Monto pagado', value: pago.montoPagado ? `${Number(pago.montoPagado).toLocaleString()} BOB` : 'No especificado' },
+            { label: 'Monto pagado', value: pago.montoPagado ? `${Number(pago.montoPagado).toLocaleString()} BOB${pago.montoEsperado != null && Number(pago.montoEsperado) !== Number(pago.montoPagado) ? ` (esperado ${Number(pago.montoEsperado).toLocaleString()})` : ''}` : 'No especificado' },
             { label: 'Fecha de envío', value: pago.fechaHoraEnvioComprobante ? new Date(pago.fechaHoraEnvioComprobante).toLocaleDateString('es-BO') : '—' },
           ].map((item) => (
             <View key={item.label} className="flex-row justify-between items-center py-2.5 border-b border-gray-50">
@@ -239,6 +243,24 @@ export default function PagoDetailScreen({ route, navigation }: any) {
             placeholderTextColor="#9ca3af"
           />
         </View>
+        )}
+
+        {puedeGestionar && (
+          <View className="bg-white rounded-2xl border border-gray-100 p-4 mb-4">
+            <Text className="text-sm font-bold text-gray-900 mb-1">Monto recibido (Bs)</Text>
+            <TextInput
+              value={montoRecibido}
+              onChangeText={setMontoRecibido}
+              keyboardType="decimal-pad"
+              placeholder="Monto real del comprobante"
+              placeholderTextColor="#9ca3af"
+              className="border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 bg-gray-50"
+            />
+            <Text className="text-xs text-gray-500 mt-1">
+              {pago?.montoPagado != null ? `Esperado según el paquete: ${Number(pago.montoPagado).toLocaleString()} Bs. ` : ''}
+              Cámbialo si lo que se pagó realmente es distinto; el total recaudado usará este monto.
+            </Text>
+          </View>
         )}
 
         {/* Botones */}

@@ -235,6 +235,7 @@ export default function EstadisticasPage() {
             <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-4">
               <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider mb-1">Total recaudado</p>
               <p className="text-2xl font-bold text-emerald-800">Bs. {Number(finanzas.total).toLocaleString('es-BO')}</p>
+              {Number(finanzas.pagosConDiferencia) > 0 && <p className="text-[11px] text-amber-700 mt-1">{finanzas.pagosConDiferencia} pago(s) con monto distinto al del paquete: {Number(finanzas.diferenciaConEsperado) > 0 ? '+' : ''}Bs. {Number(finanzas.diferenciaConEsperado).toLocaleString('es-BO')} frente a lo esperado</p>}
             </div>
             <div className="rounded-xl bg-gray-50 border border-gray-100 p-4">
               <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Paquetes ({finanzas.cantidadPagosPaquetes})</p>

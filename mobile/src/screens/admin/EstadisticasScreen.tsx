@@ -93,6 +93,7 @@ export default function EstadisticasScreen() {
       <View style={{ backgroundColor: '#ecfdf5', borderRadius: 12, borderWidth: 1, borderColor: '#a7f3d0', padding: 14, marginBottom: 10 }}>
         <Text style={{ fontSize: 10, fontWeight: '800', color: '#047857', textTransform: 'uppercase' }}>Total recaudado</Text>
         <Text style={{ fontSize: 24, fontWeight: '900', color: '#065f46', marginTop: 2 }}>Bs. {Number(finanzas.total).toLocaleString('es-BO')}</Text>
+        {Number(finanzas.pagosConDiferencia) > 0 && <Text style={{ fontSize: 11, color: '#b45309', marginTop: 4 }}>{finanzas.pagosConDiferencia} pago(s) con monto distinto al del paquete: {Number(finanzas.diferenciaConEsperado) > 0 ? '+' : ''}Bs. {Number(finanzas.diferenciaConEsperado).toLocaleString('es-BO')} frente a lo esperado</Text>}
       </View>
       <View style={{ flexDirection: 'row', gap: 10 }}>
         <View style={{ flex: 1, backgroundColor: '#f8fafc', borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0', padding: 12 }}>

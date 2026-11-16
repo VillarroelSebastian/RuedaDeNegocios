@@ -19,11 +19,13 @@ export default function PagoDetailPage() {
   const [submitting, setSubmitting] = useState(false);
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [verFicha, setVerFicha] = useState(false);
+  // Monto realmente recibido; se precarga con el esperado y se edita si difiere.
+  const [montoRecibido, setMontoRecibido] = useState('');
 
   useEffect(() => {
     fetch(`${API}/admin/pagos/${id}`)
       .then((r) => r.json())
-      .then((data) => { setPago(data); setLoading(false); })
+      .then((data) => { setPago(data); setMontoRecibido(data?.montoPagado != null ? String(Number(data.montoPagado)) : ''); setLoading(false); })
       .catch(() => setLoading(false));
   }, [id]);
 
@@ -34,7 +36,7 @@ export default function PagoDetailPage() {
       async () => {
         setSubmitting(true);
         try {
-          const res = await fetch(`${API}/admin/pagos/${id}/aprobar`, { method: 'PUT' });
+          const res = await fetch(`${API}/admin/pagos/${id}/aprobar`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ montoRecibido: montoRecibido.trim() === '' ? undefined : montoRecibido }) });
           const data = await res.json();
           if (!res.ok) throw new Error(data?.message || 'No se pudo aprobar el pago.');
           if (data.correosFallidos?.length) {
@@ -44,7 +46,7 @@ export default function PagoDetailPage() {
           }
           const pagoActualizado = await fetch(`${API}/admin/pagos/${id}`);
           if (pagoActualizado.ok) setPago(await pagoActualizado.json());
-        } catch { showError('Error', 'No se pudo aprobar el pago.'); }
+        } catch (e: any) { showError('Error', e?.message || 'No se pudo aprobar el pago.'); }
         finally { setSubmitting(false); }
       },
       'success',
@@ -180,7 +182,7 @@ export default function PagoDetailPage() {
               { label: 'Empresa',               value: pago.empresa?.nombre },
               { label: 'Ciudad',                value: pago.empresa?.ciudad?.nombre },
               { label: 'Participantes',         value: pago.numeroParticipantes },
-              { label: 'Monto',                 value: pago.montoPagado ? `${Number(pago.montoPagado).toLocaleString('es-BO')} BOB` : '—', green: !!pago.montoPagado },
+              { label: 'Monto',                 value: pago.montoPagado ? `${Number(pago.montoPagado).toLocaleString('es-BO')} BOB${pago.montoEsperado != null && Number(pago.montoEsperado) !== Number(pago.montoPagado) ? ` (esperado ${Number(pago.montoEsperado).toLocaleString('es-BO')}, dif. ${(Number(pago.montoPagado) - Number(pago.montoEsperado)).toLocaleString('es-BO')})` : ''}` : '—', green: !!pago.montoPagado },
               { label: 'Fecha de envío',        value: pago.fechaHoraEnvioComprobante ? new Date(pago.fechaHoraEnvioComprobante).toLocaleDateString('es-BO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—' },
             ].map((item) => (
               <div key={item.label} className="flex justify-between items-center border-b border-gray-50 pb-3 last:border-0">
@@ -327,6 +329,18 @@ export default function PagoDetailPage() {
         <Info className="w-5 h-5 text-[#449D3A] mt-0.5 shrink-0" />
         <p className="text-sm text-green-800">Al aprobar, se habilita el acceso y se envían las credenciales por correo. Al observar o rechazar, se notifica al encargado automáticamente.</p>
       </div>
+
+      {puedeAprobar && (
+        <div className="bg-white border border-gray-200 rounded-xl p-4 mb-6 max-w-md">
+          <label className="block text-sm font-semibold text-gray-800 mb-1">Monto recibido (Bs)</label>
+          <input type="number" inputMode="decimal" min="0" step="0.01" value={montoRecibido} onChange={(e) => setMontoRecibido(e.target.value)}
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#449D3A]" placeholder="Monto real del comprobante" />
+          <p className="text-xs text-gray-500 mt-1">
+            {pago?.montoPagado != null ? `Esperado según el paquete: ${Number(pago.montoPagado).toLocaleString('es-BO')} Bs. ` : ''}
+            Cámbialo si lo que se pagó realmente es distinto; el total recaudado usará este monto.
+          </p>
+        </div>
+      )}
 
       {/* Botones de acción */}
       <div className="flex flex-wrap gap-3">
